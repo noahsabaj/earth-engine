@@ -1,13 +1,16 @@
 use earth_engine::profiling::{CacheProfiler, MemoryProfiler, PerformanceMetrics};
 use earth_engine::world::{
     Block, BlockId, Chunk, ChunkPos, VoxelPos, World,
-    ParallelWorld, ParallelChunkManager,
+    ParallelWorld, ParallelChunkManager, ParallelWorldConfig,
+    BlockRegistry, DefaultWorldGenerator,
 };
 use earth_engine::renderer::{
     AsyncMeshBuilder,
     AsyncChunkRenderer,
 };
-use earth_engine::lighting::parallel_propagator::ParallelLightPropagator;
+use earth_engine::lighting::parallel_propagator::{ParallelLightPropagator, BlockProvider};
+use earth_engine::lighting::LightType;
+use earth_engine::lighting::concurrent_provider::ParallelBlockProvider;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -59,8 +62,20 @@ fn profile_chunk_generation(
 ) {
     println!("Profiling chunk generation...");
     
-    let world = ParallelWorld::new();
-    let chunk_manager = ParallelChunkManager::new();
+    // Create world generator
+    let generator = Box::new(DefaultWorldGenerator::new(
+        42, // seed
+        BlockId::GRASS,
+        BlockId::DIRT,
+        BlockId::STONE,
+        BlockId::WATER,
+        BlockId::SAND,
+    ));
+    
+    let config = ParallelWorldConfig::default();
+    let world = ParallelWorld::new(generator, config);
+    
+    // ParallelWorld already contains a chunk manager internally, so we don't need to create one
     
     let start = Instant::now();
     
@@ -77,18 +92,34 @@ fn profile_chunk_generation(
     // Profile memory access during generation
     let scope = earth_engine::profiling::memory_profiler::ProfileScope::new(memory_profiler, "chunk_generation");
     
-    let chunks = chunk_manager.generate_chunks(&chunk_positions);
-    perf_metrics.record_chunk_generation(chunks.len() as u64);
+    // Use pregenerate_chunks to trigger generation
+    // This generates chunks in a radius around a center point
+    let center = ChunkPos::new(world_size as i32 / 2, world_size as i32 / 2, world_size as i32 / 2);
+    world.chunk_manager().pregenerate_chunks(center, world_size as i32 / 2);
     
-    // Analyze chunk memory layout
-    if let Some(chunk) = chunks.first() {
-        analyze_chunk_memory_layout(chunk, cache_profiler, memory_profiler);
+    // Wait a bit for generation to complete (in real usage, this would be event-driven)
+    std::thread::sleep(std::time::Duration::from_millis(100));
+    
+    // Collect generated chunks
+    let mut generated_count = 0;
+    for pos in &chunk_positions {
+        if world.chunk_manager().get_chunk(*pos).is_some() {
+            generated_count += 1;
+        }
+    }
+    
+    perf_metrics.record_chunk_generation(generated_count as u64);
+    
+    // Analyze chunk memory layout if we have chunks
+    if let Some(chunk_arc) = world.chunk_manager().get_chunk(chunk_positions[0]) {
+        let chunk = chunk_arc.read();
+        analyze_chunk_memory_layout(&*chunk, cache_profiler, memory_profiler);
     }
     
     drop(scope);
     
     let elapsed = start.elapsed();
-    println!("  Generated {} chunks in {:.2}s", chunks.len(), elapsed.as_secs_f64());
+    println!("  Generated {} chunks in {:.2}s", generated_count, elapsed.as_secs_f64());
 }
 
 fn profile_mesh_building(
@@ -99,8 +130,17 @@ fn profile_mesh_building(
 ) {
     println!("\nProfiling mesh building...");
     
-    let world = Arc::new(ParallelWorld::new());
-    let chunk_manager = ParallelChunkManager::new();
+    // Create world with generator and config
+    let generator = Box::new(DefaultWorldGenerator::new(
+        42,
+        BlockId::GRASS,
+        BlockId::DIRT,
+        BlockId::STONE,
+        BlockId::WATER,
+        BlockId::SAND,
+    ));
+    let config = ParallelWorldConfig::default();
+    let world = Arc::new(ParallelWorld::new(generator, config));
     
     // Generate some chunks first
     let mut chunk_positions = Vec::new();
@@ -112,20 +152,34 @@ fn profile_mesh_building(
         }
     }
     
-    let chunks = chunk_manager.generate_chunks(&chunk_positions);
-    for (pos, chunk) in chunk_positions.iter().zip(chunks.iter()) {
-        world.set_chunk(*pos, chunk.clone());
-    }
+    // Generate chunks
+    let center = ChunkPos::new(2, 2, 2);
+    world.chunk_manager().pregenerate_chunks(center, 3);
+    
+    // Wait for generation
+    std::thread::sleep(std::time::Duration::from_millis(200));
     
     // Profile mesh building
-    let mesh_builder = AsyncMeshBuilder::new();
+    let registry = Arc::new(BlockRegistry::new());
+    let mesh_builder = AsyncMeshBuilder::new(registry, 32, Some(4));
     let start = Instant::now();
     
     let scope = earth_engine::profiling::memory_profiler::ProfileScope::new(memory_profiler, "mesh_building");
     
     // Build meshes
     for pos in &chunk_positions {
-        mesh_builder.queue_chunk(*pos);
+        if let Some(chunk) = world.chunk_manager().get_chunk(*pos) {
+            // Get neighbors
+            let neighbors = [
+                world.chunk_manager().get_chunk(ChunkPos::new(pos.x + 1, pos.y, pos.z)),
+                world.chunk_manager().get_chunk(ChunkPos::new(pos.x - 1, pos.y, pos.z)),
+                world.chunk_manager().get_chunk(ChunkPos::new(pos.x, pos.y + 1, pos.z)),
+                world.chunk_manager().get_chunk(ChunkPos::new(pos.x, pos.y - 1, pos.z)),
+                world.chunk_manager().get_chunk(ChunkPos::new(pos.x, pos.y, pos.z + 1)),
+                world.chunk_manager().get_chunk(ChunkPos::new(pos.x, pos.y, pos.z - 1)),
+            ];
+            mesh_builder.queue_chunk(*pos, chunk, 0, neighbors);
+        }
     }
     
     // Wait for completion
@@ -147,21 +201,34 @@ fn profile_lighting(
 ) {
     println!("\nProfiling lighting system...");
     
-    let world = Arc::new(ParallelWorld::new());
-    let propagator = ParallelLightPropagator::new(8);
+    // Create world
+    let generator = Box::new(DefaultWorldGenerator::new(
+        42,
+        BlockId::GRASS,
+        BlockId::DIRT,
+        BlockId::STONE,
+        BlockId::WATER,
+        BlockId::SAND,
+    ));
+    let config = ParallelWorldConfig::default();
+    let world = Arc::new(ParallelWorld::new(generator, config));
     
-    // Create a test world with some chunks
-    let chunk_manager = ParallelChunkManager::new();
+    // Create block provider for the propagator
+    let block_provider = Arc::new(ParallelBlockProvider::new(world.chunk_manager_arc()));
+    let propagator = ParallelLightPropagator::new(block_provider, 32, Some(8));
+    
+    // Generate test chunks
     let positions: Vec<_> = (0..3).flat_map(|x| {
         (0..3).flat_map(move |y| {
             (0..3).map(move |z| ChunkPos::new(x, y, z))
         })
     }).collect();
     
-    let chunks = chunk_manager.generate_chunks(&positions);
-    for (pos, chunk) in positions.iter().zip(chunks.iter()) {
-        world.set_chunk(*pos, chunk.clone());
-    }
+    let center = ChunkPos::new(1, 1, 1);
+    world.chunk_manager().pregenerate_chunks(center, 2);
+    
+    // Wait for generation
+    std::thread::sleep(std::time::Duration::from_millis(200));
     
     let start = Instant::now();
     let scope = earth_engine::profiling::memory_profiler::ProfileScope::new(memory_profiler, "lighting_propagation");
