@@ -1,0 +1,42 @@
+# Rust build artifacts
+/target/
+Cargo.lock
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Debug files
+*.pdb
+
+# Log files
+*.log
+
+# Backup files
+*.bak
+*.backup
+
+# OS specific files
+Thumbs.db
+desktop.ini
+
+# Test output
+test-results/
+coverage/
+
+# Profiling data
+*.profdata
+*.profraw
+perf.data
+perf.data.old
+
+# Documentation build
+/doc/target/
+
+# Local environment files
+.env
+.env.local

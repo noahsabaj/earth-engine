@@ -1,0 +1,37 @@
+/// Data-oriented physics system using struct-of-arrays for cache efficiency
+/// and GPU compatibility.
+
+mod physics_tables;
+mod collision_data;
+mod spatial_hash;
+mod parallel_solver;
+mod integration;
+
+pub use physics_tables::{PhysicsData, EntityId, MAX_ENTITIES};
+pub use collision_data::{CollisionData, ContactPoint, ContactPair};
+pub use spatial_hash::{SpatialHash, SpatialHashConfig};
+pub use parallel_solver::{ParallelPhysicsSolver, SolverConfig};
+pub use integration::PhysicsIntegrator;
+
+// Re-export common types
+pub use crate::physics::{GRAVITY, TERMINAL_VELOCITY, FIXED_TIMESTEP};
+
+/// Physics configuration for data-oriented system
+#[derive(Debug, Clone)]
+pub struct PhysicsConfig {
+    pub max_entities: usize,
+    pub spatial_hash_cell_size: f32,
+    pub worker_threads: usize,
+    pub enable_gpu_buffers: bool,
+}
+
+impl Default for PhysicsConfig {
+    fn default() -> Self {
+        Self {
+            max_entities: 65536, // 64k entities
+            spatial_hash_cell_size: 4.0, // 4 meter cells
+            worker_threads: num_cpus::get(),
+            enable_gpu_buffers: false,
+        }
+    }
+}
