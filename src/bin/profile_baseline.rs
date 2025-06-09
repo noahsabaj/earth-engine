@@ -1,12 +1,11 @@
 use earth_engine::profiling::{CacheProfiler, MemoryProfiler, PerformanceMetrics};
 use earth_engine::world::{
     Block, BlockId, Chunk, ChunkPos, VoxelPos, World,
-    parallel_world::ParallelWorld,
-    parallel_chunk_manager::ParallelChunkManager,
+    ParallelWorld, ParallelChunkManager,
 };
 use earth_engine::renderer::{
-    async_mesh_builder::AsyncMeshBuilder,
-    async_chunk_renderer::AsyncChunkRenderer,
+    AsyncMeshBuilder,
+    AsyncChunkRenderer,
 };
 use earth_engine::lighting::parallel_propagator::ParallelLightPropagator;
 use std::sync::Arc;

@@ -3,7 +3,7 @@ pub mod memory_profiler;
 pub mod performance_metrics;
 
 pub use cache_profiler::CacheProfiler;
-pub use memory_profiler::MemoryProfiler;
+pub use memory_profiler::{MemoryProfiler, AccessPattern};
 pub use performance_metrics::PerformanceMetrics;
 
 /// Macro for timing code blocks

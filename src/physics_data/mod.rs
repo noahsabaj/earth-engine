@@ -1,11 +1,11 @@
 /// Data-oriented physics system using struct-of-arrays for cache efficiency
 /// and GPU compatibility.
 
-mod physics_tables;
-mod collision_data;
-mod spatial_hash;
-mod parallel_solver;
-mod integration;
+pub mod physics_tables;
+pub mod collision_data;
+pub mod spatial_hash;
+pub mod parallel_solver;
+pub mod integration;
 
 pub use physics_tables::{PhysicsData, EntityId, MAX_ENTITIES};
 pub use collision_data::{CollisionData, ContactPoint, ContactPair};

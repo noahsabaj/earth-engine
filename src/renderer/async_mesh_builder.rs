@@ -310,7 +310,6 @@ impl BatchMeshBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::world::generation::TestGenerator;
     
     #[test]
     fn test_async_mesh_building() {
@@ -319,8 +318,8 @@ mod tests {
         let builder = AsyncMeshBuilder::new(registry.clone(), 32, Some(4));
         
         // Create test chunk
-        let chunk = Arc::new(RwLock::new(Chunk::new(32)));
         let pos = ChunkPos::new(0, 0, 0);
+        let chunk = Arc::new(RwLock::new(Chunk::new(pos, 32)));
         
         // Queue mesh build
         builder.queue_chunk(pos, chunk, 0, Default::default());
