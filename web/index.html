@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Earth Engine - WebGPU Buffer-First Architecture</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+            background-color: #1a1a1a;
+            color: #fff;
+        }
+        
+        #earth-engine-canvas {
+            width: 100vw;
+            height: 100vh;
+            display: block;
+        }
+        
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+        }
+        
+        #stats {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 14px;
+            font-family: monospace;
+        }
+        
+        #controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        
+        .error {
+            color: #ff4444;
+            background: rgba(255, 0, 0, 0.1);
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px;
+        }
+        
+        .info {
+            color: #44ff44;
+            background: rgba(0, 255, 0, 0.1);
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px;
+        }
+        
+        button {
+            background: #4a4a4a;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            margin: 2px;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        
+        button:hover {
+            background: #5a5a5a;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="earth-engine-canvas"></canvas>
+    
+    <div id="loading">
+        <h2>Loading Earth Engine WebGPU...</h2>
+        <p>Initializing buffer-first architecture</p>
+    </div>
+    
+    <div id="stats" style="display: none;">
+        <div>FPS: <span id="fps">0</span></div>
+        <div>GPU Memory: <span id="gpu-memory">0</span> MB</div>
+        <div>Draw Calls: <span id="draw-calls">0</span></div>
+        <div>Vertices: <span id="vertices">0</span></div>
+        <div>Chunks: <span id="chunks">0</span></div>
+    </div>
+    
+    <div id="controls" style="display: none;">
+        <h3>Controls</h3>
+        <p>WASD - Move</p>
+        <p>Mouse - Look</p>
+        <p>Space - Jump</p>
+        <p>Shift - Sprint</p>
+        <hr>
+        <button onclick="toggleStats()">Toggle Stats</button>
+        <button onclick="toggleWireframe()">Toggle Wireframe</button>
+        <button onclick="reloadChunks()">Reload Chunks</button>
+    </div>
+    
+    <script type="module">
+        let statsVisible = true;
+        let wireframeMode = false;
+        let earthEngine = null;
+        
+        // Check for WebGPU support
+        async function checkWebGPU() {
+            if (!navigator.gpu) {
+                throw new Error('WebGPU is not supported in this browser. Please use Chrome/Edge with WebGPU enabled.');
+            }
+            
+            const adapter = await navigator.gpu.requestAdapter();
+            if (!adapter) {
+                throw new Error('Failed to get WebGPU adapter');
+            }
+            
+            return true;
+        }
+        
+        // Initialize Earth Engine
+        async function init() {
+            try {
+                // Check WebGPU support
+                await checkWebGPU();
+                
+                // Import WASM module
+                const wasm = await import('./earth_engine_web.js');
+                await wasm.default();
+                
+                // Hide loading screen
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('stats').style.display = statsVisible ? 'block' : 'none';
+                document.getElementById('controls').style.display = 'block';
+                
+                // Start Earth Engine
+                earthEngine = await wasm.start_earth_engine();
+                
+                // Start stats update loop
+                updateStats();
+                
+                // Show success message
+                showInfo('Earth Engine WebGPU initialized successfully!');
+                
+            } catch (error) {
+                console.error('Failed to initialize:', error);
+                showError(error.message);
+            }
+        }
+        
+        // Update performance stats
+        function updateStats() {
+            if (!earthEngine || !statsVisible) {
+                requestAnimationFrame(updateStats);
+                return;
+            }
+            
+            try {
+                const stats = earthEngine.get_stats();
+                document.getElementById('fps').textContent = stats.fps.toFixed(1);
+                document.getElementById('gpu-memory').textContent = (stats.gpu_memory / 1024 / 1024).toFixed(1);
+                document.getElementById('draw-calls').textContent = stats.draw_calls;
+                document.getElementById('vertices').textContent = stats.vertices.toLocaleString();
+                document.getElementById('chunks').textContent = stats.loaded_chunks;
+            } catch (e) {
+                // Stats not ready yet
+            }
+            
+            requestAnimationFrame(updateStats);
+        }
+        
+        // Toggle functions
+        window.toggleStats = function() {
+            statsVisible = !statsVisible;
+            document.getElementById('stats').style.display = statsVisible ? 'block' : 'none';
+        };
+        
+        window.toggleWireframe = function() {
+            if (earthEngine) {
+                wireframeMode = !wireframeMode;
+                earthEngine.set_wireframe(wireframeMode);
+            }
+        };
+        
+        window.reloadChunks = function() {
+            if (earthEngine) {
+                earthEngine.reload_chunks();
+                showInfo('Reloading chunks...');
+            }
+        };
+        
+        // Error/info display
+        function showError(message) {
+            const div = document.createElement('div');
+            div.className = 'error';
+            div.textContent = 'Error: ' + message;
+            document.body.appendChild(div);
+            setTimeout(() => div.remove(), 5000);
+        }
+        
+        function showInfo(message) {
+            const div = document.createElement('div');
+            div.className = 'info';
+            div.textContent = message;
+            document.body.appendChild(div);
+            setTimeout(() => div.remove(), 3000);
+        }
+        
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            if (earthEngine) {
+                earthEngine.resize(window.innerWidth, window.innerHeight);
+            }
+        });
+        
+        // Prevent context menu on right click
+        document.addEventListener('contextmenu', (e) => e.preventDefault());
+        
+        // Initialize on load
+        init();
+    </script>
+</body>
+</html>

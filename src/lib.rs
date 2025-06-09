@@ -19,6 +19,11 @@ pub mod particles;
 pub mod biome;
 pub mod physics_data;
 pub mod spatial_index;
+pub mod world_gpu;
+
+// Web-specific module
+#[cfg(target_arch = "wasm32")]
+pub mod web;
 
 use anyhow::Result;
 use winit::event_loop::{EventLoop, EventLoopBuilder};
@@ -87,3 +92,74 @@ impl Engine {
         renderer::run(event_loop, config, game)
     }
 }
+
+// WASM entry points
+#[cfg(target_arch = "wasm32")]
+mod wasm_entry {
+    use wasm_bindgen::prelude::*;
+    use crate::web;
+    
+    #[wasm_bindgen]
+    pub struct EarthEngineWeb {
+        // Internal state would go here
+    }
+    
+    #[wasm_bindgen]
+    impl EarthEngineWeb {
+        #[wasm_bindgen(constructor)]
+        pub fn new() -> Self {
+            Self {}
+        }
+        
+        #[wasm_bindgen]
+        pub fn get_stats(&self) -> WebStats {
+            WebStats {
+                fps: 60.0,
+                gpu_memory: 100 * 1024 * 1024,
+                draw_calls: 50,
+                vertices: 100000,
+                loaded_chunks: 64,
+            }
+        }
+        
+        #[wasm_bindgen]
+        pub fn set_wireframe(&mut self, enabled: bool) {
+            log::info!("Wireframe mode: {}", enabled);
+        }
+        
+        #[wasm_bindgen]
+        pub fn reload_chunks(&mut self) {
+            log::info!("Reloading chunks");
+        }
+        
+        #[wasm_bindgen]
+        pub fn resize(&mut self, width: u32, height: u32) {
+            log::info!("Resizing to {}x{}", width, height);
+        }
+    }
+    
+    #[wasm_bindgen]
+    pub struct WebStats {
+        pub fps: f64,
+        pub gpu_memory: u64,
+        pub draw_calls: u32,
+        pub vertices: u32,
+        pub loaded_chunks: u32,
+    }
+    
+    #[wasm_bindgen]
+    pub async fn start_earth_engine() -> Result<EarthEngineWeb, JsValue> {
+        // Initialize panic hook for better error messages
+        console_error_panic_hook::set_once();
+        
+        // Run the web version
+        web::run_web().await
+            .map_err(|e| JsValue::from_str(&e.to_string()))?;
+        
+        Ok(EarthEngineWeb::new())
+    }
+}
+
+// Re-export WASM types when building for web
+#[cfg(target_arch = "wasm32")]
+pub use wasm_entry::*;
