@@ -19,8 +19,8 @@ noise = "0.8"
 bytemuck = { version = "1.14", features = ["derive"] }
 
 # Logging
-log = { workspace = true }
-env_logger = { workspace = true }
+log = "0.4"
+env_logger = "0.11"
 
 # Async runtime for wgpu  
 pollster = "0.3"
