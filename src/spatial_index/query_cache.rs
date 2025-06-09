@@ -49,10 +49,15 @@ impl QueryCache {
         let mut cache = self.cache.write();
         let key = query.cache_key();
         
-        if let Some(entry) = cache.entries.get_mut(&key) {
+        // Check if entry exists
+        let has_entry = cache.entries.contains_key(&key);
+        
+        if has_entry {
             // Update access information
-            entry.last_access = std::time::Instant::now();
-            entry.access_count += 1;
+            if let Some(entry) = cache.entries.get_mut(&key) {
+                entry.last_access = std::time::Instant::now();
+                entry.access_count += 1;
+            }
             
             // Move to front of LRU list
             cache.access_order.retain(|&k| k != key);
@@ -61,7 +66,8 @@ impl QueryCache {
             // Update stats
             cache.stats.hits += 1;
             
-            Some(entry.results.clone())
+            // Get results
+            cache.entries.get(&key).map(|entry| entry.results.clone())
         } else {
             cache.stats.misses += 1;
             None

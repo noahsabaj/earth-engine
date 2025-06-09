@@ -15,6 +15,22 @@ pub enum EntityType {
     Custom(u32),
 }
 
+impl EntityType {
+    /// Convert the entity type to a unique discriminant for hashing
+    pub fn to_discriminant(&self) -> u64 {
+        match self {
+            EntityType::Player => 0,
+            EntityType::Mob => 1,
+            EntityType::Item => 2,
+            EntityType::Projectile => 3,
+            EntityType::Vehicle => 4,
+            EntityType::Structure => 5,
+            EntityType::Particle => 6,
+            EntityType::Custom(id) => 7 + (*id as u64),
+        }
+    }
+}
+
 /// Data associated with a spatial entity
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EntityData {

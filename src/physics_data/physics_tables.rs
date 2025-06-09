@@ -5,7 +5,7 @@ use wgpu::util::DeviceExt;
 pub const MAX_ENTITIES: usize = 65536;
 
 /// Entity identifier - simple index into arrays
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[repr(transparent)]
 pub struct EntityId(pub u32);
 

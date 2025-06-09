@@ -56,6 +56,7 @@ chrono = "0.4"
 
 # Async utilities
 futures = "0.3"
+tokio = { version = "1.40", features = ["macros", "rt-multi-thread"] }
 
 # Parallel processing
 rayon = "1.8"
@@ -114,3 +115,7 @@ path = "src/bin/analyze_hot_paths.rs"
 [[bin]]
 name = "soa_benchmark"
 path = "src/bin/soa_benchmark.rs"
+
+[[bin]]
+name = "gpu_driven_test"
+path = "src/bin/gpu_driven_test.rs"

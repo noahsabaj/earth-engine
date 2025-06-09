@@ -126,7 +126,7 @@ impl RangeQuery {
         }
         hasher.write_u32(self.radius.to_bits());
         if let Some(et) = self.entity_type {
-            hasher.write_u8(et as u8);
+            hasher.write_u64(et.to_discriminant());
         }
         
         hasher.finish()
@@ -190,7 +190,7 @@ impl KNearestQuery {
             hasher.write_u32(d.to_bits());
         }
         if let Some(et) = self.entity_type {
-            hasher.write_u8(et as u8);
+            hasher.write_u64(et.to_discriminant());
         }
         
         hasher.finish()
@@ -347,7 +347,7 @@ impl FrustumQuery {
         }
         
         if let Some(et) = self.entity_type {
-            hasher.write_u8(et as u8);
+            hasher.write_u64(et.to_discriminant());
         }
         
         hasher.finish()
@@ -399,7 +399,7 @@ impl BoxQuery {
             hasher.write_u32(v.to_bits());
         }
         if let Some(et) = self.entity_type {
-            hasher.write_u8(et as u8);
+            hasher.write_u64(et.to_discriminant());
         }
         
         hasher.finish()

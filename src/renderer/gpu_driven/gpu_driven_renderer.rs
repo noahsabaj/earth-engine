@@ -4,7 +4,7 @@ use cgmath::{Matrix4, Vector3};
 use crate::Camera;
 use super::{
     indirect_commands::{IndirectCommandManager, IndirectDrawIndexedCommand, DrawMetadata},
-    instance_buffer::{InstanceManager, InstanceData},
+    instance_buffer::{InstanceManager, InstanceData, InstanceBuffer},
     culling_pipeline::{CullingPipeline, CullingData},
     lod_system::{LodSystem, LodSelection},
 };
@@ -96,7 +96,7 @@ impl GpuDrivenRenderer {
                 entry_point: "vs_main",
                 buffers: &[
                     crate::renderer::vertex::Vertex::desc(),
-                    InstanceData::desc(),
+                    InstanceBuffer::desc(),
                 ],
             },
             fragment: Some(wgpu::FragmentState {
@@ -275,6 +275,8 @@ impl MeshBufferManager {
                 position: [0.0, 0.0, 0.0],
                 color: [1.0, 1.0, 1.0],
                 normal: [0.0, 1.0, 0.0],
+                light: 1.0,
+                ao: 1.0,
             };
             10000
         ];

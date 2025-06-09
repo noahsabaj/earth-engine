@@ -1,10 +1,28 @@
 use super::{
     PhysicsData, CollisionData, SpatialHash, EntityId, 
-    ContactPoint, ContactPair, CollisionStats
+    ContactPoint, ContactPair, collision_data::CollisionStats,
+    physics_tables
 };
 use rayon::prelude::*;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
+
+/// Physics update to be applied after parallel computation
+#[derive(Debug, Clone)]
+enum PhysicsUpdate {
+    Velocity(usize, [f32; 3]),
+    Position(usize, [f32; 3]),
+}
+
+/// Integration update containing all changes for an entity
+#[derive(Debug, Clone)]
+struct IntegrationUpdate {
+    index: usize,
+    velocity: [f32; 3],
+    position: [f32; 3],
+    aabb: physics_tables::AABB,
+    flags: physics_tables::PhysicsFlags,
+}
 
 /// Configuration for the parallel physics solver
 #[derive(Debug, Clone)]
@@ -283,13 +301,16 @@ impl ParallelPhysicsSolver {
         &self,
         physics_data: &mut PhysicsData,
         collision_data: &CollisionData,
-        dt: f32,
+        _dt: f32,
     ) {
         // Process collision pairs in parallel batches
         let batches = collision_data.prepare_parallel_batches(self.config.batch_size);
         
-        self.thread_pool.install(|| {
-            batches.par_iter().for_each(|&(start, end)| {
+        // Collect all updates in parallel, then apply them sequentially
+        let updates: Vec<_> = self.thread_pool.install(|| {
+            batches.par_iter().flat_map(|&(start, end)| {
+                let mut batch_updates = Vec::new();
+                
                 for pair_idx in start..end {
                     let pair = collision_data.contact_pairs[pair_idx];
                     let idx_a = pair.entity_a.index();
@@ -331,23 +352,23 @@ impl ParallelPhysicsSolver {
                             impulse_scalar * contact.normal[2],
                         ];
                         
-                        // Update velocities (careful with data races)
+                        // Calculate velocity updates
                         if !physics_data.flags[idx_a].is_static() {
-                            unsafe {
-                                let vel_a = &mut *(&mut physics_data.velocities[idx_a] as *mut [f32; 3]);
-                                vel_a[0] -= impulse[0] * inv_mass_a;
-                                vel_a[1] -= impulse[1] * inv_mass_a;
-                                vel_a[2] -= impulse[2] * inv_mass_a;
-                            }
+                            let vel_delta = [
+                                -impulse[0] * inv_mass_a,
+                                -impulse[1] * inv_mass_a,
+                                -impulse[2] * inv_mass_a,
+                            ];
+                            batch_updates.push(PhysicsUpdate::Velocity(idx_a, vel_delta));
                         }
                         
                         if !physics_data.flags[idx_b].is_static() {
-                            unsafe {
-                                let vel_b = &mut *(&mut physics_data.velocities[idx_b] as *mut [f32; 3]);
-                                vel_b[0] += impulse[0] * inv_mass_b;
-                                vel_b[1] += impulse[1] * inv_mass_b;
-                                vel_b[2] += impulse[2] * inv_mass_b;
-                            }
+                            let vel_delta = [
+                                impulse[0] * inv_mass_b,
+                                impulse[1] * inv_mass_b,
+                                impulse[2] * inv_mass_b,
+                            ];
+                            batch_updates.push(PhysicsUpdate::Velocity(idx_b, vel_delta));
                         }
                         
                         // Position correction
@@ -359,72 +380,106 @@ impl ParallelPhysicsSolver {
                         ];
                         
                         if !physics_data.flags[idx_a].is_static() {
-                            unsafe {
-                                let pos_a = &mut *(&mut physics_data.positions[idx_a] as *mut [f32; 3]);
-                                pos_a[0] -= pos_impulse[0] * inv_mass_a / (inv_mass_a + inv_mass_b);
-                                pos_a[1] -= pos_impulse[1] * inv_mass_a / (inv_mass_a + inv_mass_b);
-                                pos_a[2] -= pos_impulse[2] * inv_mass_a / (inv_mass_a + inv_mass_b);
-                            }
+                            let pos_delta = [
+                                -pos_impulse[0] * inv_mass_a / (inv_mass_a + inv_mass_b),
+                                -pos_impulse[1] * inv_mass_a / (inv_mass_a + inv_mass_b),
+                                -pos_impulse[2] * inv_mass_a / (inv_mass_a + inv_mass_b),
+                            ];
+                            batch_updates.push(PhysicsUpdate::Position(idx_a, pos_delta));
                         }
                         
                         if !physics_data.flags[idx_b].is_static() {
-                            unsafe {
-                                let pos_b = &mut *(&mut physics_data.positions[idx_b] as *mut [f32; 3]);
-                                pos_b[0] += pos_impulse[0] * inv_mass_b / (inv_mass_a + inv_mass_b);
-                                pos_b[1] += pos_impulse[1] * inv_mass_b / (inv_mass_a + inv_mass_b);
-                                pos_b[2] += pos_impulse[2] * inv_mass_b / (inv_mass_a + inv_mass_b);
-                            }
+                            let pos_delta = [
+                                pos_impulse[0] * inv_mass_b / (inv_mass_a + inv_mass_b),
+                                pos_impulse[1] * inv_mass_b / (inv_mass_a + inv_mass_b),
+                                pos_impulse[2] * inv_mass_b / (inv_mass_a + inv_mass_b),
+                            ];
+                            batch_updates.push(PhysicsUpdate::Position(idx_b, pos_delta));
                         }
                     }
                 }
-            });
+                
+                batch_updates
+            }).collect()
         });
+        
+        // Apply all updates sequentially (no data races)
+        for update in updates {
+            match update {
+                PhysicsUpdate::Velocity(idx, delta) => {
+                    physics_data.velocities[idx][0] += delta[0];
+                    physics_data.velocities[idx][1] += delta[1];
+                    physics_data.velocities[idx][2] += delta[2];
+                }
+                PhysicsUpdate::Position(idx, delta) => {
+                    physics_data.positions[idx][0] += delta[0];
+                    physics_data.positions[idx][1] += delta[1];
+                    physics_data.positions[idx][2] += delta[2];
+                }
+            }
+        }
     }
     
     /// Integrate velocities and positions
     fn integrate(&self, physics_data: &mut PhysicsData, dt: f32) {
         let count = physics_data.entity_count();
         
-        // Parallel integration
-        self.thread_pool.install(|| {
-            (0..count).into_par_iter().for_each(|i| {
+        // Collect integration updates in parallel
+        let updates: Vec<_> = self.thread_pool.install(|| {
+            (0..count).into_par_iter().filter_map(|i| {
                 if physics_data.flags[i].is_active() && physics_data.flags[i].is_dynamic() {
+                    let mut vel = physics_data.velocities[i];
+                    let mut pos = physics_data.positions[i];
+                    let mut flags = physics_data.flags[i];
+                    
                     // Apply gravity
-                    if physics_data.flags[i].has_gravity() {
-                        physics_data.velocities[i][1] += super::GRAVITY * dt;
+                    if flags.has_gravity() {
+                        vel[1] += crate::physics::GRAVITY * dt;
                         
                         // Clamp to terminal velocity
-                        if physics_data.velocities[i][1] < super::TERMINAL_VELOCITY {
-                            physics_data.velocities[i][1] = super::TERMINAL_VELOCITY;
+                        if vel[1] < crate::physics::TERMINAL_VELOCITY {
+                            vel[1] = crate::physics::TERMINAL_VELOCITY;
                         }
                     }
                     
                     // Integrate position
-                    physics_data.positions[i][0] += physics_data.velocities[i][0] * dt;
-                    physics_data.positions[i][1] += physics_data.velocities[i][1] * dt;
-                    physics_data.positions[i][2] += physics_data.velocities[i][2] * dt;
+                    pos[0] += vel[0] * dt;
+                    pos[1] += vel[1] * dt;
+                    pos[2] += vel[2] * dt;
                     
                     // Update bounding box
                     let half_extents = [0.5, 0.5, 0.5]; // Simplified
-                    physics_data.bounding_boxes[i] = super::physics_tables::AABB::from_center_half_extents(
-                        physics_data.positions[i],
-                        half_extents,
-                    );
+                    let aabb = physics_tables::AABB::from_center_half_extents(pos, half_extents);
                     
                     // Sleep detection
-                    let vel_mag_sq = 
-                        physics_data.velocities[i][0] * physics_data.velocities[i][0] +
-                        physics_data.velocities[i][1] * physics_data.velocities[i][1] +
-                        physics_data.velocities[i][2] * physics_data.velocities[i][2];
+                    let vel_mag_sq = vel[0] * vel[0] + vel[1] * vel[1] + vel[2] * vel[2];
                     
                     if vel_mag_sq < self.config.sleep_threshold * self.config.sleep_threshold {
-                        physics_data.flags[i].set_flag(super::physics_tables::PhysicsFlags::SLEEPING, true);
+                        flags.set_flag(physics_tables::PhysicsFlags::SLEEPING, true);
                     } else {
-                        physics_data.flags[i].set_flag(super::physics_tables::PhysicsFlags::SLEEPING, false);
+                        flags.set_flag(physics_tables::PhysicsFlags::SLEEPING, false);
                     }
+                    
+                    Some(IntegrationUpdate {
+                        index: i,
+                        velocity: vel,
+                        position: pos,
+                        aabb,
+                        flags,
+                    })
+                } else {
+                    None
                 }
-            });
+            }).collect()
         });
+        
+        // Apply all updates sequentially
+        for update in updates {
+            physics_data.velocities[update.index] = update.velocity;
+            physics_data.positions[update.index] = update.position;
+            physics_data.bounding_boxes[update.index] = update.aabb;
+            physics_data.flags[update.index] = update.flags;
+        }
     }
     
     /// Get collision statistics

@@ -1,6 +1,6 @@
 use std::sync::Arc;
 use rayon::prelude::*;
-use super::{SpatialQuery, QueryResult, HierarchicalGrid, EntityStore, QueryType};
+use super::{SpatialQuery, QueryResult, HierarchicalGrid, entity_store::EntityStore, QueryType};
 
 /// Executes spatial queries in parallel
 pub struct ParallelQueryExecutor {
@@ -172,7 +172,7 @@ impl ParallelQueryExecutor {
                 .collect();
             
             // Sort by distance
-            candidates_with_distance.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
+            candidates_with_distance.sort_by(|(_, dist_a, _), (_, dist_b, _)| dist_a.partial_cmp(dist_b).unwrap());
             
             // Take the k nearest
             results = candidates_with_distance

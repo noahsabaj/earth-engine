@@ -170,7 +170,7 @@ impl SpatialIndex {
         }
         
         // Get entity
-        let entity = self.entity_store.get_mut(entity_id)
+        let mut entity = self.entity_store.get_mut(entity_id)
             .ok_or("Entity not found")?;
         
         let old_position = entity.position();

@@ -1,4 +1,4 @@
-use cgmath::Vector3;
+use cgmath::{Vector3, InnerSpace};
 
 /// Level of detail configuration
 #[derive(Debug, Clone, Copy)]

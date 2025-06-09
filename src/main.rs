@@ -38,7 +38,12 @@ impl Game for EarthGame {
         if ctx.input.is_mouse_button_pressed(winit::event::MouseButton::Right) {
             if let Some(hit) = ctx.cast_camera_ray(10.0) {
                 // Place block on the face we hit
-                let place_pos = hit.position + hit.face.normal();
+                let offset = hit.face.offset();
+                let place_pos = VoxelPos::new(
+                    hit.position.x + offset.x,
+                    hit.position.y + offset.y,
+                    hit.position.z + offset.z,
+                );
                 ctx.place_block(place_pos, self.player_block);
                 log::info!("Placed block at {:?}", place_pos);
             }

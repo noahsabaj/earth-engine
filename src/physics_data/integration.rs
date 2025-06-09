@@ -1,4 +1,4 @@
-use super::{PhysicsData, EntityId, FIXED_TIMESTEP};
+use super::{PhysicsData, EntityId, FIXED_TIMESTEP, physics_tables};
 use rayon::prelude::*;
 
 /// Physics integrator for updating positions and velocities
@@ -78,35 +78,45 @@ impl PhysicsIntegrator {
     pub fn apply_forces(physics_data: &mut PhysicsData, forces: &[[f32; 3]], dt: f32) {
         let count = physics_data.entity_count().min(forces.len());
         
-        (0..count).into_par_iter().for_each(|i| {
-            if physics_data.flags[i].is_dynamic() {
-                let inv_mass = physics_data.inverse_masses[i];
-                
-                // F = ma, so a = F/m = F * inv_mass
-                physics_data.velocities[i][0] += forces[i][0] * inv_mass * dt;
-                physics_data.velocities[i][1] += forces[i][1] * inv_mass * dt;
-                physics_data.velocities[i][2] += forces[i][2] * inv_mass * dt;
-            }
-        });
+        // Get mutable slices for parallel iteration
+        let velocities = &mut physics_data.velocities[..count];
+        let flags = &physics_data.flags[..count];
+        let inverse_masses = &physics_data.inverse_masses[..count];
+        let forces = &forces[..count];
+        
+        // Use zip to iterate over multiple slices in parallel
+        velocities.par_iter_mut()
+            .zip(flags.par_iter())
+            .zip(inverse_masses.par_iter())
+            .zip(forces.par_iter())
+            .for_each(|(((vel, flag), &inv_mass), force)| {
+                if flag.is_dynamic() {
+                    // F = ma, so a = F/m = F * inv_mass
+                    vel[0] += force[0] * inv_mass * dt;
+                    vel[1] += force[1] * inv_mass * dt;
+                    vel[2] += force[2] * inv_mass * dt;
+                }
+            });
     }
     
     /// Apply impulses to entities
     pub fn apply_impulses(physics_data: &mut PhysicsData, impulses: &[(EntityId, [f32; 3])]) {
-        impulses.par_iter().for_each(|(entity, impulse)| {
+        // For impulses, we need to handle potentially non-contiguous updates
+        // We'll use a sequential approach for simplicity and correctness
+        // This is typically fine since impulse application is less frequent than force integration
+        
+        for (entity, impulse) in impulses {
             let idx = entity.index();
             if idx < physics_data.entity_count() && physics_data.flags[idx].is_dynamic() {
                 let inv_mass = physics_data.inverse_masses[idx];
                 
                 // Impulse = change in momentum = m * Δv
                 // So Δv = impulse / m = impulse * inv_mass
-                unsafe {
-                    let vel = &mut *(&mut physics_data.velocities[idx] as *mut [f32; 3]);
-                    vel[0] += impulse[0] * inv_mass;
-                    vel[1] += impulse[1] * inv_mass;
-                    vel[2] += impulse[2] * inv_mass;
-                }
+                physics_data.velocities[idx][0] += impulse[0] * inv_mass;
+                physics_data.velocities[idx][1] += impulse[1] * inv_mass;
+                physics_data.velocities[idx][2] += impulse[2] * inv_mass;
             }
-        });
+        }
     }
     
     /// Apply damping to reduce energy over time
@@ -129,7 +139,7 @@ impl PhysicsIntegrator {
             physics_data.velocities[idx] = [0.0, 0.0, 0.0];
             // Update bounding box
             let half_extents = [0.5, 0.5, 0.5]; // Simplified
-            physics_data.bounding_boxes[idx] = super::physics_tables::AABB::from_center_half_extents(
+            physics_data.bounding_boxes[idx] = physics_tables::AABB::from_center_half_extents(
                 position,
                 half_extents,
             );
@@ -142,7 +152,7 @@ impl PhysicsIntegrator {
         if idx < physics_data.entity_count() {
             physics_data.velocities[idx] = velocity;
             // Wake up entity if it was sleeping
-            physics_data.flags[idx].set_flag(super::physics_tables::PhysicsFlags::SLEEPING, false);
+            physics_data.flags[idx].set_flag(physics_tables::PhysicsFlags::SLEEPING, false);
         }
     }
     
@@ -160,7 +170,7 @@ pub mod parallel {
     pub fn integrate_positions(
         positions: &mut [[f32; 3]],
         velocities: &[[f32; 3]],
-        flags: &[super::physics_tables::PhysicsFlags],
+        flags: &[physics_tables::PhysicsFlags],
         dt: f32,
     ) {
         positions.par_iter_mut()
@@ -178,7 +188,7 @@ pub mod parallel {
     /// Apply gravity in parallel
     pub fn apply_gravity(
         velocities: &mut [[f32; 3]],
-        flags: &[super::physics_tables::PhysicsFlags],
+        flags: &[physics_tables::PhysicsFlags],
         gravity: f32,
         dt: f32,
     ) {
@@ -189,8 +199,8 @@ pub mod parallel {
                     vel[1] += gravity * dt;
                     
                     // Clamp to terminal velocity
-                    if vel[1] < super::TERMINAL_VELOCITY {
-                        vel[1] = super::TERMINAL_VELOCITY;
+                    if vel[1] < crate::physics::TERMINAL_VELOCITY {
+                        vel[1] = crate::physics::TERMINAL_VELOCITY;
                     }
                 }
             });
@@ -198,7 +208,7 @@ pub mod parallel {
     
     /// Update bounding boxes in parallel
     pub fn update_bounding_boxes(
-        bounding_boxes: &mut [super::physics_tables::AABB],
+        bounding_boxes: &mut [physics_tables::AABB],
         positions: &[[f32; 3]],
         half_extents: &[[f32; 3]],
     ) {
@@ -206,7 +216,7 @@ pub mod parallel {
             .zip(positions.par_iter())
             .zip(half_extents.par_iter())
             .for_each(|((aabb, pos), extents)| {
-                *aabb = super::physics_tables::AABB::from_center_half_extents(*pos, *extents);
+                *aabb = physics_tables::AABB::from_center_half_extents(*pos, *extents);
             });
     }
 }

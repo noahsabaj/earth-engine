@@ -1,4 +1,4 @@
-use super::{EntityId, AABB};
+use super::{EntityId, physics_tables::AABB};
 use std::collections::HashMap;
 use rayon::prelude::*;
 use parking_lot::RwLock;
