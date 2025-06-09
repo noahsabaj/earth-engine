@@ -3,10 +3,10 @@ use wgpu::util::DeviceExt;
 use cgmath::{Matrix4, Vector3};
 use crate::Camera;
 use super::{
-    IndirectCommandManager, IndirectDrawIndexedCommand,
-    InstanceManager, InstanceData,
-    CullingPipeline, CullingData, DrawMetadata,
-    LodSystem, LodSelection,
+    indirect_commands::{IndirectCommandManager, IndirectDrawIndexedCommand, DrawMetadata},
+    instance_buffer::{InstanceManager, InstanceData},
+    culling_pipeline::{CullingPipeline, CullingData},
+    lod_system::{LodSystem, LodSelection},
 };
 
 /// Statistics for GPU-driven rendering
