@@ -2,6 +2,7 @@
 // Pure data structures for planet-scale voxel worlds
 
 pub mod page_table;
+pub mod morton_page_table;
 pub mod memory_mapper;
 pub mod gpu_vm;
 pub mod predictive_loader;
@@ -9,6 +10,7 @@ pub mod stream_pipeline;
 pub mod compression;
 
 pub use page_table::{PageTable, PageTableEntry, PageFlags};
+pub use morton_page_table::{MortonPageTable, MortonPageTableGpuHeader};
 pub use memory_mapper::{MemoryMapper, MemorySegment};
 pub use gpu_vm::{GpuVirtualMemory, GpuPageFault};
 pub use predictive_loader::{PredictiveLoader, AccessPattern};

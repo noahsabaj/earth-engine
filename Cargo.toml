@@ -1,6 +1,6 @@
 [package]
 name = "earth-engine"
-version = "0.26.0"
+version = "0.27.0"
 edition = "2021"
 
 [features]
@@ -79,6 +79,7 @@ wasm-bindgen = { version = "0.2", optional = true }
 wasm-bindgen-futures = { version = "0.4", optional = true }
 console_error_panic_hook = { version = "0.1", optional = true }
 console_log = { version = "1.0", optional = true }
+web-sys = { version = "0.3", optional = true }
 
 [dev-dependencies]
 tempfile = "3.10"
@@ -91,21 +92,6 @@ web-sys = { version = "0.3", features = [
     "HtmlCanvasElement",
     "Window",
     "Navigator",
-    "Gpu",
-    "GpuAdapter",
-    "GpuDevice",
-    "GpuQueue",
-    "GpuCanvasContext",
-    "GpuBuffer",
-    "GpuBufferUsage",
-    "GpuTexture",
-    "GpuTextureView",
-    "GpuTextureUsage",
-    "GpuShaderModule",
-    "GpuPipelineLayout",
-    "GpuRenderPipeline",
-    "GpuCommandEncoder",
-    "GpuRenderPassEncoder",
     "Performance",
     "console",
 ] }
@@ -170,3 +156,15 @@ path = "src/bin/streaming_test.rs"
 [[bin]]
 name = "web_benchmark"
 path = "src/bin/web_benchmark.rs"
+
+[[bin]]
+name = "morton_benchmark"
+path = "src/bin/morton_benchmark.rs"
+
+[[bin]]
+name = "shared_memory_test"
+path = "src/bin/shared_memory_test.rs"
+
+[[bin]]
+name = "morton_test"
+path = "src/bin/morton_test.rs"

@@ -16,7 +16,7 @@ pub mod chunk_modifier;
 pub mod gpu_lighting;
 pub mod unified_memory;
 pub mod migration;
-pub mod streaming_world;
+// pub mod streaming_world; // Temporarily disabled for Sprint 27
 
 #[cfg(test)]
 mod tests;
@@ -30,4 +30,4 @@ pub use gpu_lighting::GpuLighting;
 pub use unified_memory::{UnifiedMemoryManager, UnifiedMemoryLayout, SystemType, MemoryStats};
 pub use migration::WorldMigrator;
 pub use benchmarks::{GpuWorldBenchmarks, PerformanceComparison, PerformanceImprovements};
-pub use streaming_world::{StreamingWorldBuffer, WorldStats, create_planet_world};
+// pub use streaming_world::{StreamingWorldBuffer, WorldStats, create_planet_world}; // Temporarily disabled
