@@ -393,16 +393,16 @@ See [docs/SPRINT_12_SUMMARY.md](docs/SPRINT_12_SUMMARY.md) for detailed implemen
 - Support for flowing rivers and waterfalls
 
 ### Sprint 25: Hybrid SDF-Voxel System
-**Status**: Pending
+**Status**: ✅ Completed
 **Objective**: Smooth terrain RENDERING using Signed Distance Fields while keeping voxel gameplay
 
-#### Planned Deliverables:
-- [ ] SDF generation from voxel data
-- [ ] Smooth surface extraction via marching cubes
-- [ ] Hybrid collision detection
-- [ ] LOD with natural smoothing
-- [ ] Dual representation storage
-- [ ] Seamless voxel/smooth transitions
+#### Completed Deliverables:
+- ✅ SDF generation from voxel data
+- ✅ Smooth surface extraction via marching cubes
+- ✅ Hybrid collision detection
+- ✅ LOD with natural smoothing
+- ✅ Dual representation storage
+- ✅ Seamless voxel/smooth transitions
 
 #### Technical Details:
 - Store SDF in chunk margins for smooth borders
