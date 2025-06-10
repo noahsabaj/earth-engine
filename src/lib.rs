@@ -26,6 +26,7 @@ pub mod sdf;
 pub mod hot_reload;
 pub mod morton;
 pub mod instance;
+pub mod process;
 
 // Web-specific module
 #[cfg(target_arch = "wasm32")]
