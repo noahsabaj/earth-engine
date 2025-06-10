@@ -20,6 +20,7 @@ pub mod biome;
 pub mod physics_data;
 pub mod spatial_index;
 pub mod world_gpu;
+pub mod streaming;
 
 // Web-specific module
 #[cfg(target_arch = "wasm32")]

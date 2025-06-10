@@ -61,7 +61,7 @@ chrono = "0.4"
 
 # Async utilities
 futures = "0.3"
-tokio = { version = "1.40", features = ["macros", "rt-multi-thread"] }
+tokio = { version = "1.40", features = ["macros", "rt-multi-thread", "fs", "time", "sync"] }
 
 # Parallel processing
 rayon = "1.8"
@@ -69,6 +69,10 @@ dashmap = "5.5"
 parking_lot = "0.12"
 crossbeam-channel = "0.5"
 num_cpus = "1.16"
+
+# Memory mapping and channels
+memmap2 = "0.9"
+flume = "0.11"
 
 # WASM dependencies (optional)
 wasm-bindgen = { version = "0.2", optional = true }
@@ -158,3 +162,11 @@ path = "src/bin/soa_benchmark.rs"
 [[bin]]
 name = "gpu_driven_test"
 path = "src/bin/gpu_driven_test.rs"
+
+[[bin]]
+name = "streaming_test"
+path = "src/bin/streaming_test.rs"
+
+[[bin]]
+name = "web_benchmark"
+path = "src/bin/web_benchmark.rs"
