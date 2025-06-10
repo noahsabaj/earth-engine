@@ -14,6 +14,7 @@ pub mod world_buffer;
 pub mod terrain_generator;
 pub mod chunk_modifier;
 pub mod gpu_lighting;
+pub mod gpu_lighting_migration;
 pub mod unified_memory;
 pub mod migration;
 // pub mod streaming_world; // Temporarily disabled for Sprint 27
@@ -27,6 +28,7 @@ pub use world_buffer::{WorldBuffer, WorldBufferDescriptor, VoxelData};
 pub use terrain_generator::{TerrainGenerator, TerrainParams};
 pub use chunk_modifier::{ChunkModifier, ModificationCommand};
 pub use gpu_lighting::GpuLighting;
+pub use gpu_lighting_migration::{GpuLightPropagator, GpuBlockProvider, migrate_to_gpu_lighting};
 pub use unified_memory::{UnifiedMemoryManager, UnifiedMemoryLayout, SystemType, MemoryStats};
 pub use migration::WorldMigrator;
 pub use benchmarks::{GpuWorldBenchmarks, PerformanceComparison, PerformanceImprovements};

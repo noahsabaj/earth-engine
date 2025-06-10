@@ -620,23 +620,25 @@ See `docs/sprints/SPRINT_31_PROCESS_TRANSFORM.md` for details.
 
 See `docs/sprints/SPRINT_32_DYNAMIC_ATTRIBUTES.md` for details.
 
-### Sprint 33: Legacy System Migration & Memory Optimization
-**Status**: Pending
+### Sprint 33: Legacy System Migration & Memory Optimization ✅
+**Status**: Completed
 **Objective**: Migrate existing CPU systems to GPU buffers with advanced optimizations
 
-#### Planned Deliverables:
-- [ ] Convert old chunks to WorldBuffer format with Morton encoding
-- [ ] Migrate CPU lighting to GPU compute with shared memory
-- [ ] Remove object allocations from hot paths
-- [ ] Implement persistent mapped buffers for frequent updates
-- [ ] Unified memory management with proper synchronization
-- [ ] Performance comparison metrics
-- [ ] Memory bandwidth profiling tools
+#### Deliverables:
+- ✅ Convert old chunks to WorldBuffer format with Morton encoding
+- ✅ Migrate CPU lighting to GPU compute with shared memory
+- ✅ Remove object allocations from hot paths
+- ✅ Implement persistent mapped buffers for frequent updates
+- ✅ Unified memory management with proper synchronization
+- ✅ Performance comparison metrics
+- ✅ Memory bandwidth profiling tools
 
 #### Technical Details:
 - Combines migration with optimization
 - Apply all learned optimizations to legacy code
 - Target: 10x performance improvement during migration
+
+See `docs/sprints/SPRINT_33_LEGACY_MIGRATION.md` for details.
 
 ### Sprint 34: Unified World Kernel with Hierarchical Structures
 **Status**: Pending

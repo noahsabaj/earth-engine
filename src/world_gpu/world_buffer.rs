@@ -1,6 +1,7 @@
 use std::sync::Arc;
 use wgpu::util::DeviceExt;
 use bytemuck::{Pod, Zeroable};
+use crate::morton::MortonEncoder3D;
 
 /// Maximum world size in chunks per dimension
 pub const MAX_WORLD_SIZE: u32 = 512; // 512³ chunks = 134M chunks max
@@ -214,10 +215,11 @@ impl WorldBuffer {
         self.world_size
     }
     
-    /// Calculate buffer offset for a chunk position
+    /// Calculate buffer offset for a chunk position using Morton encoding
     pub fn chunk_offset(&self, chunk_x: u32, chunk_y: u32, chunk_z: u32) -> u64 {
-        let chunk_index = chunk_x + chunk_y * self.world_size + chunk_z * self.world_size * self.world_size;
-        chunk_index as u64 * VOXELS_PER_CHUNK as u64 * std::mem::size_of::<VoxelData>() as u64
+        let morton_encoder = MortonEncoder3D::new();
+        let chunk_morton = morton_encoder.encode(chunk_x, chunk_y, chunk_z);
+        chunk_morton * VOXELS_PER_CHUNK as u64 * std::mem::size_of::<VoxelData>() as u64
     }
     
     /// Upload a single chunk from CPU (migration path)
@@ -236,10 +238,6 @@ impl WorldBuffer {
         encoder.clear_buffer(&self.voxel_buffer, offset, Some(size));
     }
     
-    /// Get world dimensions
-    pub fn world_size(&self) -> u32 {
-        self.world_size
-    }
     
     /// Get total voxel count
     pub fn total_voxels(&self) -> u64 {

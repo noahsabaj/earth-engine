@@ -3,6 +3,7 @@ use wgpu::util::DeviceExt;
 use bytemuck::{Pod, Zeroable};
 use cgmath::Vector3;
 use super::world_buffer::{WorldBuffer, VoxelData, CHUNK_SIZE};
+use crate::memory::PersistentBuffer;
 
 /// Command for modifying voxels
 #[repr(C)]
@@ -65,6 +66,12 @@ pub struct ChunkModifier {
     /// Command buffer for batching modifications
     command_buffer: wgpu::Buffer,
     command_capacity: usize,
+    
+    /// Persistent count buffer to avoid allocations
+    count_buffer: PersistentBuffer,
+    
+    /// Pre-allocated bind groups for different scenarios
+    cached_bind_groups: std::sync::Mutex<std::collections::HashMap<u64, wgpu::BindGroup>>,
     
     /// Bind group layout
     bind_group_layout: wgpu::BindGroupLayout,
@@ -149,12 +156,21 @@ impl ChunkModifier {
             mapped_at_creation: false,
         });
         
+        // Create persistent count buffer
+        let count_buffer = PersistentBuffer::new(
+            device.clone(),
+            std::mem::size_of::<u32>() as u64,
+            wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        );
+        
         Self {
             device,
             modify_pipeline,
             explode_pipeline,
             command_buffer,
             command_capacity,
+            count_buffer,
+            cached_bind_groups: std::sync::Mutex::new(std::collections::HashMap::new()),
             bind_group_layout,
         }
     }
@@ -208,32 +224,33 @@ impl ChunkModifier {
             bytemuck::cast_slice(commands),
         );
         
-        // Create count buffer
+        // Update count in persistent buffer
         let count_data = [commands.len() as u32];
-        let count_buffer = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Command Count Buffer"),
-            contents: bytemuck::cast_slice(&count_data),
-            usage: wgpu::BufferUsages::UNIFORM,
-        });
+        self.count_buffer.write(queue, 0, bytemuck::cast_slice(&count_data));
         
-        // Create bind group
-        let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("Block Modification Bind Group"),
-            layout: &self.bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: world_buffer.voxel_buffer().as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: self.command_buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 2,
-                    resource: count_buffer.as_entire_binding(),
-                },
-            ],
+        // Get or create cached bind group
+        let cache_key = world_buffer.voxel_buffer() as *const _ as u64;
+        let mut cached_groups = self.cached_bind_groups.lock().unwrap();
+        
+        let bind_group = cached_groups.entry(cache_key).or_insert_with(|| {
+            self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("Block Modification Bind Group"),
+                layout: &self.bind_group_layout,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: world_buffer.voxel_buffer().as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: self.command_buffer.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 2,
+                        resource: self.count_buffer.buffer().as_entire_binding(),
+                    },
+                ],
+            })
         });
         
         // Dispatch compute shader
@@ -264,33 +281,15 @@ impl ChunkModifier {
             bytemuck::cast_slice(explosions),
         );
         
-        // Create count buffer
+        // Update count in persistent buffer
         let count_data = [explosions.len() as u32];
-        let count_buffer = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Explosion Count Buffer"),
-            contents: bytemuck::cast_slice(&count_data),
-            usage: wgpu::BufferUsages::UNIFORM,
-        });
+        self.count_buffer.write(queue, 0, bytemuck::cast_slice(&count_data));
         
-        // Create bind group
-        let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("Explosion Bind Group"),
-            layout: &self.bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: world_buffer.voxel_buffer().as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: self.command_buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 2,
-                    resource: count_buffer.as_entire_binding(),
-                },
-            ],
-        });
+        // Use cached bind group (same as block modifications)
+        let cache_key = world_buffer.voxel_buffer() as *const _ as u64;
+        let cached_groups = self.cached_bind_groups.lock().unwrap();
+        
+        let bind_group = cached_groups.get(&cache_key).expect("Bind group should be cached from block modifications");
         
         // Dispatch compute shader
         let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {

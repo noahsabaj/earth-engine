@@ -2,6 +2,8 @@ use std::sync::Arc;
 use wgpu::util::DeviceExt;
 use bytemuck::{Pod, Zeroable};
 use crate::world::{Chunk, ChunkPos, BlockId};
+use crate::morton::MortonEncoder3D;
+use crate::memory::{MemoryManager, BandwidthProfiler, TransferType};
 use super::world_buffer::{WorldBuffer, VoxelData, CHUNK_SIZE};
 use super::gpu_lighting::GpuLighting;
 
@@ -48,7 +50,7 @@ impl WorldMigrator {
         }
     }
     
-    /// Migrate a single chunk from CPU to GPU
+    /// Migrate a single chunk from CPU to GPU with Morton encoding
     pub fn migrate_chunk(
         &self,
         queue: &wgpu::Queue,
@@ -56,10 +58,15 @@ impl WorldMigrator {
         world_buffer: &WorldBuffer,
         chunk: &Chunk,
         chunk_pos: ChunkPos,
+        profiler: Option<&mut BandwidthProfiler>,
     ) {
-        // Convert chunk data to GPU format
-        let mut gpu_data = Vec::with_capacity(CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE);
+        let start_time = std::time::Instant::now();
         
+        // Convert chunk data to GPU format with Morton encoding
+        let mut gpu_data = vec![0u32; (CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE) as usize];
+        let morton_encoder = MortonEncoder3D::new();
+        
+        // Use Morton encoding for better cache locality
         for y in 0..CHUNK_SIZE {
             for z in 0..CHUNK_SIZE {
                 for x in 0..CHUNK_SIZE {
@@ -73,10 +80,14 @@ impl WorldMigrator {
                         0,  // No metadata initially
                     );
                     
-                    gpu_data.push(voxel.0);
+                    // Use Morton encoding for voxel placement
+                    let morton_index = morton_encoder.encode(x, y, z);
+                    gpu_data[morton_index as usize] = voxel.0;
                 }
             }
         }
+        
+        let data_size = (gpu_data.len() * 4) as u64;
         
         // Upload to staging buffer
         queue.write_buffer(
@@ -85,12 +96,14 @@ impl WorldMigrator {
             bytemuck::cast_slice(&gpu_data),
         );
         
-        // Calculate destination offset in world buffer
-        let chunk_index = chunk_pos.x as u32 + 
-                         chunk_pos.y as u32 * world_buffer.world_size() +
-                         chunk_pos.z as u32 * world_buffer.world_size() * world_buffer.world_size();
+        // Calculate destination offset in world buffer using chunk Morton encoding
+        let chunk_morton = morton_encoder.encode(
+            chunk_pos.x as u32,
+            chunk_pos.y as u32,
+            chunk_pos.z as u32,
+        );
         let voxels_per_chunk = CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE;
-        let dest_offset = (chunk_index * voxels_per_chunk * 4) as u64;
+        let dest_offset = chunk_morton * voxels_per_chunk * 4;
         
         // Copy from staging to world buffer
         encoder.copy_buffer_to_buffer(
@@ -98,15 +111,18 @@ impl WorldMigrator {
             0,
             world_buffer.voxel_buffer(),
             dest_offset,
-            (voxels_per_chunk * 4) as u64,
+            data_size,
         );
         
         // Update chunk metadata
-        let metadata_offset = (chunk_index * 16) as u64;
+        let metadata_offset = chunk_morton * 16; // 16 bytes per chunk metadata
         let metadata = ChunkMetadata {
             flags: 0b11, // Generated and migrated
-            timestamp: 0,
-            checksum: 0,
+            timestamp: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs() as u32,
+            checksum: self.calculate_checksum(&gpu_data),
             reserved: 0,
         };
         queue.write_buffer(
@@ -114,6 +130,17 @@ impl WorldMigrator {
             metadata_offset,
             bytemuck::cast_slice(&[metadata]),
         );
+        
+        // Record bandwidth if profiler provided
+        if let Some(profiler) = profiler {
+            let duration_us = start_time.elapsed().as_micros() as u64;
+            profiler.record_typed_transfer(data_size, duration_us, TransferType::Upload);
+        }
+    }
+    
+    /// Calculate simple checksum for chunk data
+    fn calculate_checksum(&self, data: &[u32]) -> u32 {
+        data.iter().fold(0u32, |acc, &val| acc.wrapping_add(val))
     }
     
     /// Migrate multiple chunks in batch
@@ -145,8 +172,9 @@ impl WorldMigrator {
             
             // Migrate each chunk in the batch
             for (i, (chunk_pos, chunk)) in batch.iter().enumerate() {
-                // Convert and upload chunk data
-                let mut gpu_data = Vec::with_capacity(CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE);
+                // Convert and upload chunk data with Morton encoding
+                let mut gpu_data = vec![0u32; (CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE) as usize];
+                let morton_encoder = MortonEncoder3D::new();
                 let mut block_count = 0u32;
                 
                 for y in 0..CHUNK_SIZE {
@@ -165,7 +193,9 @@ impl WorldMigrator {
                                 0,
                             );
                             
-                            gpu_data.push(voxel.0);
+                            // Use Morton encoding for voxel placement
+                            let morton_index = morton_encoder.encode(x, y, z);
+                            gpu_data[morton_index as usize] = voxel.0;
                         }
                     }
                 }
@@ -181,12 +211,14 @@ impl WorldMigrator {
                     bytemuck::cast_slice(&gpu_data),
                 );
                 
-                // Calculate destination in world buffer
-                let chunk_index = chunk_pos.x as u32 + 
-                                 chunk_pos.y as u32 * world_buffer.world_size() +
-                                 chunk_pos.z as u32 * world_buffer.world_size() * world_buffer.world_size();
+                // Calculate destination in world buffer using chunk Morton encoding
+                let chunk_morton = morton_encoder.encode(
+                    chunk_pos.x as u32,
+                    chunk_pos.y as u32,
+                    chunk_pos.z as u32,
+                );
                 let voxels_per_chunk = CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE;
-                let dest_offset = (chunk_index * voxels_per_chunk * 4) as u64;
+                let dest_offset = chunk_morton * voxels_per_chunk * 4;
                 
                 // Copy to world buffer
                 encoder.copy_buffer_to_buffer(
@@ -198,7 +230,7 @@ impl WorldMigrator {
                 );
                 
                 // Update metadata
-                let metadata_offset = (chunk_index * 16) as u64;
+                let metadata_offset = chunk_morton * 16;
                 let metadata = ChunkMetadata {
                     flags: 0b11,
                     timestamp: 0,

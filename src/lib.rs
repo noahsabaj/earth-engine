@@ -28,6 +28,7 @@ pub mod morton;
 pub mod instance;
 pub mod process;
 pub mod attributes;
+pub mod memory;
 
 // Web-specific module
 #[cfg(target_arch = "wasm32")]
