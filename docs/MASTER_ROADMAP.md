@@ -646,6 +646,48 @@ See [docs/SPRINT_12_SUMMARY.md](docs/SPRINT_12_SUMMARY.md) for detailed implemen
 - [ ] Benchmark suite
 - [ ] 1.0 release celebration!
 
+### Sprint 38: HybridGPUGrid - GPU-to-GPU Networking
+**Status**: Pending
+**Objective**: Revolutionary networking where CPU only passes pointers, GPU prepares all data
+
+#### Planned Deliverables:
+- [ ] Core HybridGPUGrid architecture with pinned memory
+- [ ] GPU compute shader for packet preparation
+- [ ] Network packet data structures optimized for GPU
+- [ ] CPU thread that only moves byte arrays (no parsing)
+- [ ] Triple buffer system to avoid GPU-CPU sync stalls
+- [ ] GPU-based delta compression for entities
+- [ ] GPU-side packet validation and checksums
+- [ ] Interest management using spatial index
+- [ ] Integration with WorldBuffer for zero-copy
+- [ ] Performance metrics without data inspection
+- [ ] 1000-player stress test demonstration
+
+#### Technical Details:
+- GPU prepares network-ready packets in compute shader
+- CPU thread uses pinned memory for zero-copy networking
+- Fixed-size packets for GPU efficiency (1472 bytes MTU)
+- GPU handles all compression, validation, and protocol logic
+- Triple buffering prevents pipeline stalls
+- Leverages existing spatial index for interest management
+
+#### Architecture Components:
+1. **GPU Packet Preparation**: Compute shader reads WorldBuffer, writes packets
+2. **Pinned Memory Bridge**: GPU-accessible buffers mapped to CPU space
+3. **Minimal CPU Thread**: Literally just `socket.send(buffer)`
+4. **GPU Compression**: Bit-packing and delta compression in parallel
+5. **Spatial Interest**: Reuse existing spatial hash for network culling
+
+#### Expected Performance:
+- **Players**: 100 → 10,000+ concurrent
+- **Tick Rate**: 30Hz → 144Hz
+- **Latency**: 50ms → 1ms (processing only)
+- **CPU Usage**: 60% → 1%
+- **Network Efficiency**: 10x better due to GPU packing
+
+#### Key Innovation:
+This completes the data-oriented vision: GPU owns world data, decides what to render, and now decides what to network. The CPU becomes pure infrastructure, never touching game data. This is believed to be the first production implementation of true GPU-to-GPU networking in a game engine.
+
 ## Optimization Strategy (Sprints 27-29)
 
 ### Why These Optimizations First?
@@ -677,6 +719,8 @@ All optimizations build on the data-oriented foundation from Sprint 21:
 | Lighting (100 sources) | N/A | 0.30s | N/A | 0.003s (100x) | 0.0003s (1000x) |
 | Fluid Simulation | N/A | N/A | N/A | 0.1s/step | 0.01s/step (10x) |
 | Draw Calls | 5000 | 5000 | 1x | 100 | 1 (5000x) |
+| Network Players | 100 | 100 | 1x | 100 | 10,000 (100x) |
+| Network CPU Usage | 60% | 60% | 1x | 60% | 1% (60x) |
 
 ## Frontier Features Summary
 
@@ -698,11 +742,12 @@ Unique visual and development capabilities:
 - **Smooth Terrain**: Hybrid SDF-voxel rendering
 - **Hot-Reload**: Live development without restarts
 
-### Innovation Tier (Sprints 30-37)
+### Innovation Tier (Sprints 30-38)
 Push the boundaries of voxel technology:
 - **Unified World Kernel**: Single GPU dispatch updates everything
 - **Neural Compression**: Experimental GPU decompression
 - **Mesh Shaders**: Next-gen GPU features
+- **HybridGPUGrid**: Revolutionary GPU-to-GPU networking
 
 ## Architectural Evolution
 
@@ -721,10 +766,11 @@ Push the boundaries of voxel technology:
 - Core optimizations (memory, rendering, mesh)
 - Feature completion (fluids, SDF, hot-reload)
 
-### Phase 4: Full Data-Oriented (Sprints 30-37)
+### Phase 4: Full Data-Oriented (Sprints 30-38)
 - All legacy systems migrated
 - Single unified world kernel
 - Architecture finalization
+- GPU-to-GPU networking revolution
 
 ## Technical Stack
 - **GPU**: wgpu with compute-first design
@@ -765,7 +811,10 @@ All optimizations are pure data transformations:
 - Sprint 21 establishes WorldBuffer architecture
 - Sprints 23-26 complete core features
 - Sprints 27-29 optimize critical paths
+- Sprint 37 marks 1.0 release
+- Sprint 38 (HybridGPUGrid) is post-1.0 innovation
 - All features after Sprint 21 are data-oriented
 - Web platform (Sprint 22) is pure reference implementation
 - Migration sprints (33-35) remove legacy code
 - Target: 100-1000x performance improvement over original architecture
+- HybridGPUGrid represents first known GPU-to-GPU networking in production
