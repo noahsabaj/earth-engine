@@ -1,5 +1,5 @@
 use wgpu::{Buffer, BufferUsages, Device, Queue};
-use crate::streaming::{PageTable, PageTableEntry, PageTableGpuHeader, MAX_RESIDENT_PAGES, PAGE_SIZE_BYTES};
+use crate::streaming::{PageTable, PageTableEntry, MortonPageTableGpuHeader as PageTableGpuHeader, MAX_RESIDENT_PAGES, PAGE_SIZE_BYTES};
 use std::sync::Arc;
 use bytemuck::{Pod, Zeroable};
 

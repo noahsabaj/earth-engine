@@ -1,6 +1,6 @@
 use wgpu::{Device, RenderPipeline, BindGroup, BindGroupLayout, Buffer, TextureView};
 use crate::fluid::{FluidBuffer, FluidType};
-use crate::renderer::camera::Camera;
+use crate::camera::Camera;
 use std::sync::Arc;
 use bytemuck::{Pod, Zeroable};
 
@@ -290,7 +290,6 @@ fn create_surface_pipeline(
             module: &shader,
             entry_point: "surface_vertex",
             buffers: &[],
-            compilation_options: wgpu::PipelineCompilationOptions::default(),
         },
         fragment: Some(wgpu::FragmentState {
             module: &shader,
@@ -300,7 +299,6 @@ fn create_surface_pipeline(
                 blend: Some(wgpu::BlendState::ALPHA_BLENDING),
                 write_mask: wgpu::ColorWrites::ALL,
             })],
-            compilation_options: wgpu::PipelineCompilationOptions::default(),
         }),
         primitive: wgpu::PrimitiveState {
             topology: wgpu::PrimitiveTopology::TriangleList,
@@ -347,7 +345,6 @@ fn create_volume_pipeline(
             module: &shader,
             entry_point: "volume_vertex",
             buffers: &[],
-            compilation_options: wgpu::PipelineCompilationOptions::default(),
         },
         fragment: Some(wgpu::FragmentState {
             module: &shader,
@@ -357,7 +354,6 @@ fn create_volume_pipeline(
                 blend: Some(wgpu::BlendState::ALPHA_BLENDING),
                 write_mask: wgpu::ColorWrites::ALL,
             })],
-            compilation_options: wgpu::PipelineCompilationOptions::default(),
         }),
         primitive: wgpu::PrimitiveState {
             topology: wgpu::PrimitiveTopology::TriangleList,
@@ -404,7 +400,6 @@ fn create_foam_pipeline(
             module: &shader,
             entry_point: "foam_vertex",
             buffers: &[],
-            compilation_options: wgpu::PipelineCompilationOptions::default(),
         },
         fragment: Some(wgpu::FragmentState {
             module: &shader,
@@ -414,7 +409,6 @@ fn create_foam_pipeline(
                 blend: Some(wgpu::BlendState::ALPHA_BLENDING),
                 write_mask: wgpu::ColorWrites::ALL,
             })],
-            compilation_options: wgpu::PipelineCompilationOptions::default(),
         }),
         primitive: wgpu::PrimitiveState {
             topology: wgpu::PrimitiveTopology::TriangleList,

@@ -13,7 +13,7 @@ pub use page_table::{PageTable, PageTableEntry, PageFlags};
 pub use morton_page_table::{MortonPageTable, MortonPageTableGpuHeader};
 pub use memory_mapper::{MemoryMapper, MemorySegment};
 pub use gpu_vm::{GpuVirtualMemory, GpuPageFault};
-pub use predictive_loader::{PredictiveLoader, AccessPattern};
+pub use predictive_loader::{PredictiveLoader, AccessPattern, LoadRequest};
 pub use stream_pipeline::{StreamPipeline, StreamRequest};
 pub use compression::{CompressionType, GpuDecompressor};
 

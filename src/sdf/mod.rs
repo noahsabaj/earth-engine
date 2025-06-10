@@ -17,10 +17,10 @@ pub mod hybrid_collision;
 pub mod sdf_lod;
 pub mod dual_storage;
 
-pub use sdf_data::{SdfBuffer, SdfChunk, SdfConstants};
+pub use sdf_data::{SdfBuffer, SdfChunk, SdfConstants, SmoothVertex, SdfValue};
 pub use sdf_generator::{SdfGenerator, SdfGenerationParams};
 pub use marching_cubes::{MarchingCubes, MarchTable};
-pub use surface_extractor::{SurfaceExtractor, SurfaceMesh};
+pub use surface_extractor::{SurfaceExtractor, SurfaceMesh, ExtractionParams};
 pub use hybrid_collision::{HybridCollider, CollisionMode};
 pub use sdf_lod::{SdfLod, LodLevel};
 pub use dual_storage::{DualRepresentation, RenderMode};

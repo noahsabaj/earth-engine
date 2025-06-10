@@ -143,18 +143,18 @@ macro_rules! hot_reloadable {
     };
 }
 
-/// Development notes:
-/// 
-/// For true Rust hot-reload, consider:
-/// 1. Using dynamic libraries for game logic
-/// 2. Implementing a plugin system with stable ABI
-/// 3. Using scripting languages for frequently-changed logic
-/// 4. Leveraging cargo-watch for automatic rebuilds
-/// 5. Using hot-lib-reloader crate for more advanced scenarios
-/// 
-/// Example workflow:
-/// ```
-/// cargo watch -x "build --lib" -s "touch .reload_flag"
-/// ```
-/// 
-/// Then watch for .reload_flag file changes to trigger reload.
+// Development notes:
+// 
+// For true Rust hot-reload, consider:
+// 1. Using dynamic libraries for game logic
+// 2. Implementing a plugin system with stable ABI
+// 3. Using scripting languages for frequently-changed logic
+// 4. Leveraging cargo-watch for automatic rebuilds
+// 5. Using hot-lib-reloader crate for more advanced scenarios
+// 
+// Example workflow:
+// ```
+// cargo watch -x "build --lib" -s "touch .reload_flag"
+// ```
+// 
+// Then watch for .reload_flag file changes to trigger reload.

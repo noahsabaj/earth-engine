@@ -12,7 +12,7 @@ pub mod multi_phase;
 pub mod fluid_renderer;
 pub mod performance;
 
-pub use fluid_data::{FluidVoxel, FluidType, FluidBuffer, FluidConstants};
+pub use fluid_data::{FluidVoxel, FluidType, FluidBuffer, FluidConstants, BoundaryConditions};
 pub use fluid_compute::{FluidCompute, FluidPipeline};
 pub use pressure_solver::{PressureSolver, FlowField};
 pub use multi_phase::{PhaseSystem, FluidPhase};

@@ -23,7 +23,7 @@ pub mod world_gpu;
 pub mod streaming;
 pub mod fluid;
 pub mod sdf;
-// pub mod hot_reload; // Temporarily disabled for Sprint 27
+pub mod hot_reload;
 pub mod morton;
 
 // Web-specific module

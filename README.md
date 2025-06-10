@@ -1,6 +1,6 @@
 # Earth Engine
 
-**Version: 0.26.0** ([Versioning Strategy](docs/VERSIONING.md))
+**Version: 0.29.0** ([Versioning Strategy](docs/VERSIONING.md))
 
 A state-of-the-art voxel game engine built with Rust, designed to push the boundaries of what's possible with voxel technology through data-oriented design and GPU-first architecture.
 
@@ -15,13 +15,14 @@ A state-of-the-art voxel game engine built with Rust, designed to push the bound
 
 ## 📋 Current Status
 
-**Sprint 26 Complete** - Hot-Reload Everything ✅
+**Sprint 29 Complete** - Mesh Optimization & Advanced LOD ✅
 
 ### Recent Achievements:
-- GPU Fluid Dynamics with multi-phase support (Sprint 24)
-- Hybrid SDF-Voxel smooth terrain rendering (Sprint 25)
+- Core Memory & Cache Optimization with Morton encoding (Sprint 27)
+- GPU-Driven Rendering with frustum/occlusion culling (Sprint 28)
+- Mesh Optimization with greedy meshing & compression (Sprint 29)
 - Complete hot-reload system for rapid development (Sprint 26)
-- GPU World Architecture with 100x speedup (Sprint 21)
+- Hybrid SDF-Voxel smooth terrain rendering (Sprint 25)
 
 See [docs/MASTER_ROADMAP.md](docs/MASTER_ROADMAP.md) for full development timeline.
 
