@@ -29,6 +29,7 @@ pub mod instance;
 pub mod process;
 pub mod attributes;
 pub mod memory;
+pub mod world_state;
 
 // Web-specific module
 #[cfg(target_arch = "wasm32")]

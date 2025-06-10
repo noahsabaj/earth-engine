@@ -10,8 +10,8 @@ use super::{
     WorldBuffer, WorldBufferDescriptor,
     UnifiedWorldKernel, UnifiedKernelConfig, SystemFlags,
     SparseVoxelOctree, VoxelBvh,
-    ChunkPos,
 };
+use crate::world::ChunkPos;
 
 /// Benchmark results
 #[derive(Debug, Clone)]

@@ -1,5 +1,21 @@
+/// Camera Module
+/// 
+/// Sprint 35: Transitioning to data-oriented design.
+/// The old Camera struct is deprecated in favor of data_camera module.
+
+pub mod data_camera;
+
+// Re-export data-oriented camera as the primary interface
+pub use data_camera::{
+    CameraData, CameraUniform, CameraTransformBatch,
+    init_camera, update_aspect_ratio, build_view_matrix, 
+    build_projection_matrix, build_camera_uniform,
+    apply_transform_batch,
+};
+
 use cgmath::{perspective, Deg, InnerSpace, Matrix4, Point3, Vector3};
 
+#[deprecated(since="0.35.0", note="Use data_camera::CameraData instead for data-oriented design")]
 #[derive(Debug)]
 pub struct Camera {
     pub position: Point3<f32>,
@@ -11,6 +27,7 @@ pub struct Camera {
     zfar: f32,
 }
 
+#[allow(deprecated)]
 impl Camera {
     pub fn new(width: u32, height: u32) -> Self {
         Self {

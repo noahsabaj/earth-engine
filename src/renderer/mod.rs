@@ -16,6 +16,7 @@ pub mod gpu_driven;
 pub mod gpu_culling;
 mod greedy_mesher;
 mod mesh_optimizer;
+pub mod data_mesh_builder;
 
 use crate::{EngineConfig, Game};
 use anyhow::Result;
@@ -35,6 +36,7 @@ pub use mesh_soa::{MeshSoA, MeshStats};
 pub use compute_pipeline::{ComputePipelineManager, MeshGenerationOutput, GpuMeshGenerator};
 pub use greedy_mesher::{GreedyMesher, GreedyMeshStats, GreedyQuad, FaceDirection};
 pub use mesh_optimizer::{MeshOptimizer, MeshLod, OptimizedMesh, CacheStats};
+pub use data_mesh_builder::{MeshBuffer, MeshBufferPool, MeshMetadata, MESH_BUFFER_POOL};
 
 pub struct Renderer {
     // Will be implemented

@@ -4,7 +4,7 @@
 /// with proper synchronization and multi-frame buffering.
 
 use std::sync::{Arc, Mutex};
-use wgpu::{Device, Buffer, BufferView};
+use wgpu::{Device, Buffer};
 use crate::memory::memory_pool::PoolHandle;
 
 /// Buffer usage patterns
@@ -56,9 +56,6 @@ struct FrameBuffer {
     /// Pool handle for memory management
     handle: PoolHandle,
     
-    /// Mapped buffer view (when mapped)
-    mapped_view: Mutex<Option<BufferView>>,
-    
     /// Whether this buffer is currently mapped
     is_mapped: Mutex<bool>,
     
@@ -79,7 +76,6 @@ impl PersistentBuffer {
         // First buffer uses the provided handle
         frame_buffers.push(FrameBuffer {
             handle,
-            mapped_view: Mutex::new(None),
             is_mapped: Mutex::new(false),
             fence: None,
         });
@@ -90,8 +86,7 @@ impl PersistentBuffer {
             // For now, using placeholder
             frame_buffers.push(FrameBuffer {
                 handle: handle.clone(), // Placeholder - should allocate new
-                mapped_view: Mutex::new(None),
-                is_mapped: Mutex::new(false),
+                    is_mapped: Mutex::new(false),
                 fence: None,
             });
         }

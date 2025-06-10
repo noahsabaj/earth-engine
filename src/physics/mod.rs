@@ -1,10 +1,12 @@
 pub mod aabb;
 pub mod body;
 pub mod world;
+pub mod data_physics;
 
 pub use aabb::AABB;
 pub use body::{PhysicsBody, RigidBody, PlayerBody, MovementState};
 pub use world::PhysicsWorld;
+pub use data_physics::{PhysicsWorldData, PhysicsBodyData, PhysicsUpdate, CollisionBlockBuffer};
 
 use cgmath::Vector3;
 

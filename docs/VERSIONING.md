@@ -47,8 +47,8 @@ Examples:
 | 0.31.0 | 2025-01 | Process system | ✅ Released |
 | 0.32.0 | 2025-01 | Dynamic attributes | ✅ Released |
 | 0.33.0 | 2025-01 | Legacy migration & memory | ✅ Released |
-| 0.34.0 | 2025-01 | Unified world kernel | ✅ Released (Current) |
-| 0.35.0 | TBD | Architecture finalization | 🚧 Planned |
+| 0.34.0 | 2025-01 | Unified world kernel | ✅ Released |
+| 0.35.0 | 2025-01 | Architecture finalization | ✅ Released (Current) |
 | 0.37.0 | TBD | Feature complete | 📋 Future |
 | 1.0.0-rc1 | TBD | Release candidate | 📋 Future |
 | 1.0.0 | TBD | First stable release | 📋 Future |

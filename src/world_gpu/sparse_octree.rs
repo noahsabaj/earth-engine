@@ -6,7 +6,8 @@ use std::sync::Arc;
 use wgpu::{Device, Queue, Buffer};
 use bytemuck::{Pod, Zeroable};
 use crate::memory::MemoryManager;
-use crate::morton::MortonEncoder3D;
+use crate::morton::morton_encode;
+use crate::world::ChunkPos;
 
 /// Octree node stored on GPU
 #[repr(C)]
@@ -70,9 +71,6 @@ pub struct SparseVoxelOctree {
     /// Octree configuration
     world_size: u32,
     max_depth: u32,
-    
-    /// Morton encoder for spatial indexing
-    morton_encoder: MortonEncoder3D,
 }
 
 impl SparseVoxelOctree {
@@ -108,7 +106,7 @@ impl SparseVoxelOctree {
         &mut self,
         queue: &Queue,
         world_buffer: &super::WorldBuffer,
-        active_chunks: &[super::ChunkPos],
+        active_chunks: &[ChunkPos],
     ) {
         // This would typically be done on GPU, but for initial implementation
         // we'll build a simple structure
@@ -137,7 +135,7 @@ impl SparseVoxelOctree {
     }
     
     /// Insert a chunk into the octree
-    fn insert_chunk(&mut self, nodes: &mut [OctreeNode], chunk_pos: &super::ChunkPos) {
+    fn insert_chunk(&mut self, nodes: &mut [OctreeNode], chunk_pos: &ChunkPos) {
         let mut current_node = 0;
         let mut current_level = self.max_depth;
         let mut current_size = self.world_size;
@@ -197,7 +195,7 @@ impl SparseVoxelOctree {
     /// Calculate which octant a position belongs to
     fn calculate_octant(
         &self,
-        chunk_pos: &super::ChunkPos,
+        chunk_pos: &ChunkPos,
         base_pos: [u32; 3],
         half_size: u32,
     ) -> usize {

@@ -1,10 +1,12 @@
 pub mod cache_profiler;
 pub mod memory_profiler;
 pub mod performance_metrics;
+pub mod final_profiler;
 
 pub use cache_profiler::CacheProfiler;
 pub use memory_profiler::{MemoryProfiler, AccessPattern};
 pub use performance_metrics::PerformanceMetrics;
+pub use final_profiler::{FinalProfiler, PerformanceMetrics as FinalMetrics, PROFILER};
 
 /// Macro for timing code blocks
 #[macro_export]

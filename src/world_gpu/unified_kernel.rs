@@ -18,6 +18,7 @@ use std::sync::Arc;
 use wgpu::{Device, Queue, Buffer, BindGroup, ComputePipeline};
 use bytemuck::{Pod, Zeroable};
 use crate::memory::{MemoryManager, PerformanceMetrics, MetricType, Implementation};
+use crate::world::ChunkPos;
 
 /// Unified kernel configuration
 #[repr(C)]
@@ -327,7 +328,7 @@ impl UnifiedWorldKernel {
     }
     
     /// Build work graph for GPU scheduling
-    pub fn build_work_graph(&self, queue: &Queue, active_chunks: &[super::ChunkPos]) {
+    pub fn build_work_graph(&self, queue: &Queue, active_chunks: &[ChunkPos]) {
         let mut work_nodes = Vec::new();
         
         // Create work nodes for each active chunk

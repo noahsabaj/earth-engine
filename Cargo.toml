@@ -1,6 +1,6 @@
 [package]
 name = "earth-engine"
-version = "0.34.0"
+version = "0.35.0"
 edition = "2021"
 
 [features]
@@ -83,6 +83,12 @@ num_cpus = "1.16"
 # Memory mapping and channels
 memmap2 = "0.9"
 flume = "0.11"
+
+# Fast hashing
+rustc-hash = "1.1"
+
+# Lazy static
+lazy_static = "1.4"
 
 # WASM dependencies (optional)
 wasm-bindgen = { version = "0.2", optional = true }
@@ -190,3 +196,7 @@ path = "src/bin/test_instance.rs"
 [[bin]]
 name = "test_process"
 path = "src/bin/test_process.rs"
+
+[[bin]]
+name = "victory_lap_benchmark"
+path = "src/bin/victory_lap_benchmark.rs"

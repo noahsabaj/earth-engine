@@ -14,6 +14,7 @@ mod parallel_world;
 pub mod gpu_chunk;
 mod morton_chunk;
 mod chunk_soa;
+pub mod data_chunk_manager;
 
 pub use block::{Block, BlockId, RenderData, PhysicsProperties};
 pub use block_drops::{BlockDropHandler, MiningProgress};
@@ -31,3 +32,4 @@ pub use generation::{WorldGenerator, DefaultWorldGenerator};
 pub use gpu_chunk::{GpuChunk, GpuChunkManager, GpuChunkStats};
 pub use morton_chunk::MortonChunk;
 pub use chunk_soa::{ChunkSoA, ChunkMemoryStats};
+pub use data_chunk_manager::{ChunkManagerData, ChunkMetadata, ChunkBatchOps};

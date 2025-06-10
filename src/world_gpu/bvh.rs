@@ -7,6 +7,7 @@ use wgpu::{Device, Queue, Buffer};
 use bytemuck::{Pod, Zeroable};
 use cgmath::{Vector3, Point3};
 use crate::memory::MemoryManager;
+use crate::world::ChunkPos;
 
 /// BVH node format optimized for GPU traversal
 #[repr(C)]
@@ -105,7 +106,7 @@ impl VoxelBvh {
     pub fn build_from_chunks(
         &mut self,
         queue: &Queue,
-        chunk_positions: &[super::ChunkPos],
+        chunk_positions: &[ChunkPos],
         chunk_size: f32,
     ) {
         // Convert chunks to primitives
