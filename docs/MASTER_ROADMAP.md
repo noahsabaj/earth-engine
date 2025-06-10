@@ -615,7 +615,7 @@ See [docs/SPRINT_12_SUMMARY.md](docs/SPRINT_12_SUMMARY.md) for detailed implemen
 - [ ] Final performance profiling suite
 - [ ] Documentation of new architecture
 - [ ] Performance victory lap
-- [ ] Prepare for 1.0 release
+- [ ] Prepare for release candidate
 
 ### Sprint 36: Advanced Future Tech
 **Status**: Pending
@@ -634,9 +634,9 @@ See [docs/SPRINT_12_SUMMARY.md](docs/SPRINT_12_SUMMARY.md) for detailed implemen
 - Explore experimental optimizations
 - Set foundation for next 5 years
 
-### Sprint 37: Polish & Ship
+### Sprint 37: Polish & Release Candidate
 **Status**: Pending
-**Objective**: Prepare for public release
+**Objective**: Prepare for stable release
 
 #### Planned Deliverables:
 - [ ] Final performance optimization pass
@@ -644,7 +644,8 @@ See [docs/SPRINT_12_SUMMARY.md](docs/SPRINT_12_SUMMARY.md) for detailed implemen
 - [ ] Tutorial creation
 - [ ] Example games/demos
 - [ ] Benchmark suite
-- [ ] 1.0 release celebration!
+- [ ] Version 1.0 criteria evaluation
+- [ ] Release candidate if criteria met
 
 ### Sprint 38: HybridGPUGrid - GPU-to-GPU Networking
 **Status**: Pending
@@ -811,10 +812,11 @@ All optimizations are pure data transformations:
 - Sprint 21 establishes WorldBuffer architecture
 - Sprints 23-26 complete core features
 - Sprints 27-29 optimize critical paths
-- Sprint 37 marks 1.0 release
-- Sprint 38 (HybridGPUGrid) is post-1.0 innovation
+- Sprint 37 evaluates readiness for stable release
+- Sprint 38 (HybridGPUGrid) is a future innovation
 - All features after Sprint 21 are data-oriented
 - Web platform (Sprint 22) is pure reference implementation
 - Migration sprints (33-35) remove legacy code
 - Target: 100-1000x performance improvement over original architecture
 - HybridGPUGrid represents first known GPU-to-GPU networking in production
+- Version 1.0 only when objective criteria are met (see VERSIONING.md)

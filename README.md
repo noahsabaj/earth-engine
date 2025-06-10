@@ -1,5 +1,7 @@
 # Earth Engine
 
+**Version: 0.26.0** ([Versioning Strategy](docs/VERSIONING.md))
+
 A state-of-the-art voxel game engine built with Rust, designed to push the boundaries of what's possible with voxel technology through data-oriented design and GPU-first architecture.
 
 ## 🚀 Features
