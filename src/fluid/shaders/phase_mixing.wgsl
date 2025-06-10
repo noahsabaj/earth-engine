@@ -1,0 +1,17 @@
+// Phase mixing shader - Handle miscible fluids
+
+struct FluidVoxel {
+    packed_data: u32,
+    velocity_x: f32,
+    velocity_y: f32,
+    velocity_z: f32,
+    pressure: f32,
+}
+
+@group(0) @binding(0) var<storage, read_write> fluid: array<FluidVoxel>;
+
+@compute @workgroup_size(8, 8, 8)
+fn mixing_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
+    // Placeholder for fluid mixing
+    // Would implement diffusion between miscible fluids
+}
