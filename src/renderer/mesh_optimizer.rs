@@ -4,6 +4,8 @@
 /// Integrates with GPU-driven rendering from Sprint 28.
 /// Part of Sprint 29: Mesh Optimization & Advanced LOD
 
+use cgmath::Vector3;
+
 use crate::world::{Chunk, ChunkPos};
 use crate::renderer::{Vertex, greedy_mesher::{GreedyMesher, GreedyMeshStats}};
 use wgpu::{Device, Queue, Buffer, ComputePipeline, BindGroupLayout};

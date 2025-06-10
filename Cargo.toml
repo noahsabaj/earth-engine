@@ -1,6 +1,6 @@
 [package]
 name = "earth-engine"
-version = "0.29.0"
+version = "0.30.0"
 edition = "2021"
 
 [features]
@@ -39,6 +39,9 @@ thiserror = "1.0"
 
 # Random number generation
 rand = "0.8"
+
+# Bit manipulation
+bit-vec = "0.6"
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
@@ -179,3 +182,7 @@ path = "src/bin/morton_test.rs"
 [[bin]]
 name = "gpu_culling_test"
 path = "src/bin/gpu_culling_test.rs"
+
+[[bin]]
+name = "test_instance"
+path = "src/bin/test_instance.rs"
