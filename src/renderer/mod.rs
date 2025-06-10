@@ -14,6 +14,8 @@ mod mesh_soa;
 mod compute_pipeline;
 pub mod gpu_driven;
 pub mod gpu_culling;
+mod greedy_mesher;
+mod mesh_optimizer;
 
 use crate::{EngineConfig, Game};
 use anyhow::Result;
@@ -31,6 +33,8 @@ pub use vertex::Vertex;
 pub use vertex_soa::{VertexBufferSoA, VertexBufferStats};
 pub use mesh_soa::{MeshSoA, MeshStats};
 pub use compute_pipeline::{ComputePipelineManager, MeshGenerationOutput, GpuMeshGenerator};
+pub use greedy_mesher::{GreedyMesher, GreedyMeshStats, GreedyQuad, FaceDirection};
+pub use mesh_optimizer::{MeshOptimizer, MeshLod, OptimizedMesh, CacheStats};
 
 pub struct Renderer {
     // Will be implemented
