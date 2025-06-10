@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Earth Engine - WebGPU Buffer-First Architecture</title>
+    <title>Earth Engine - Web Demo (v0.35.0)</title>
     <style>
         body {
             margin: 0;
@@ -108,52 +108,435 @@
         <button onclick="reloadChunks()">Reload Chunks</button>
     </div>
     
-    <script type="module">
+    <script>
         let statsVisible = true;
         let wireframeMode = false;
-        let earthEngine = null;
+        let animating = true;
+        let then = 0;
+        let frameCount = 0;
         
-        // Check for WebGPU support
-        async function checkWebGPU() {
-            if (!navigator.gpu) {
-                throw new Error('WebGPU is not supported in this browser. Please use Chrome/Edge with WebGPU enabled.');
+        // Simple Earth Engine demo without WASM
+        class EarthEngineDemo {
+            constructor(canvas) {
+                this.canvas = canvas;
+                
+                // Ensure canvas has size
+                if (!canvas.width || !canvas.height) {
+                    canvas.width = window.innerWidth || 800;
+                    canvas.height = window.innerHeight || 600;
+                }
+                
+                this.gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
+                if (!this.gl) {
+                    throw new Error('WebGL not supported');
+                }
+                
+                this.stats = {
+                    fps: 0,
+                    gpu_memory: 128 * 1024 * 1024, // Simulated 128MB
+                    draw_calls: 1, // Single unified kernel
+                    vertices: 0,
+                    loaded_chunks: 64
+                };
+                
+                this.initGL();
+                this.initBuffers();
+                this.initShaders();
             }
             
-            const adapter = await navigator.gpu.requestAdapter();
-            if (!adapter) {
-                throw new Error('Failed to get WebGPU adapter');
+            initGL() {
+                this.gl.clearColor(0.1, 0.1, 0.15, 1.0);
+                this.gl.enable(this.gl.DEPTH_TEST);
+                this.gl.depthFunc(this.gl.LEQUAL);
             }
             
-            return true;
+            initBuffers() {
+                // Create a simple voxel chunk for demonstration
+                const positions = [];
+                const colors = [];
+                const indices = [];
+                
+                // Generate a small voxel grid (8x8x8)
+                const size = 8;
+                let vertexCount = 0;
+                
+                for (let x = 0; x < size; x++) {
+                    for (let y = 0; y < size; y++) {
+                        for (let z = 0; z < size; z++) {
+                            // Only create voxels in a pattern
+                            if ((x + y + z) % 2 === 0) {
+                                // Add cube vertices
+                                const baseX = (x - size/2) * 0.2;
+                                const baseY = (y - size/2) * 0.2;
+                                const baseZ = (z - size/2) * 0.2;
+                                const s = 0.08; // voxel size
+                                
+                                // 8 vertices per cube
+                                const cubeVerts = [
+                                    // Front face
+                                    baseX-s, baseY-s, baseZ+s,
+                                    baseX+s, baseY-s, baseZ+s,
+                                    baseX+s, baseY+s, baseZ+s,
+                                    baseX-s, baseY+s, baseZ+s,
+                                    // Back face
+                                    baseX-s, baseY-s, baseZ-s,
+                                    baseX-s, baseY+s, baseZ-s,
+                                    baseX+s, baseY+s, baseZ-s,
+                                    baseX+s, baseY-s, baseZ-s,
+                                ];
+                                positions.push(...cubeVerts);
+                                
+                                // Color based on position
+                                const r = x / size;
+                                const g = y / size;
+                                const b = z / size;
+                                for (let i = 0; i < 8; i++) {
+                                    colors.push(r, g, b, 1.0);
+                                }
+                                
+                                // Indices for the cube
+                                const base = vertexCount;
+                                const cubeIndices = [
+                                    // Front
+                                    base+0, base+1, base+2,
+                                    base+0, base+2, base+3,
+                                    // Back
+                                    base+4, base+5, base+6,
+                                    base+4, base+6, base+7,
+                                    // Top
+                                    base+3, base+2, base+6,
+                                    base+3, base+6, base+5,
+                                    // Bottom
+                                    base+4, base+7, base+1,
+                                    base+4, base+1, base+0,
+                                    // Right
+                                    base+1, base+7, base+6,
+                                    base+1, base+6, base+2,
+                                    // Left
+                                    base+4, base+0, base+3,
+                                    base+4, base+3, base+5
+                                ];
+                                indices.push(...cubeIndices);
+                                
+                                vertexCount += 8;
+                            }
+                        }
+                    }
+                }
+                
+                this.stats.vertices = positions.length / 3;
+                
+                // Create buffers
+                this.buffers = {};
+                this.buffers.position = this.gl.createBuffer();
+                this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.buffers.position);
+                this.gl.bufferData(this.gl.ARRAY_BUFFER, new Float32Array(positions), this.gl.STATIC_DRAW);
+                
+                this.buffers.color = this.gl.createBuffer();
+                this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.buffers.color);
+                this.gl.bufferData(this.gl.ARRAY_BUFFER, new Float32Array(colors), this.gl.STATIC_DRAW);
+                
+                this.buffers.indices = this.gl.createBuffer();
+                this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, this.buffers.indices);
+                this.gl.bufferData(this.gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), this.gl.STATIC_DRAW);
+                
+                this.indexCount = indices.length;
+            }
+            
+            initShaders() {
+                const vsSource = `
+                    attribute vec4 aVertexPosition;
+                    attribute vec4 aVertexColor;
+                    
+                    uniform mat4 uModelViewMatrix;
+                    uniform mat4 uProjectionMatrix;
+                    
+                    varying lowp vec4 vColor;
+                    
+                    void main(void) {
+                        gl_Position = uProjectionMatrix * uModelViewMatrix * aVertexPosition;
+                        vColor = aVertexColor;
+                    }
+                `;
+                
+                const fsSource = `
+                    varying lowp vec4 vColor;
+                    
+                    void main(void) {
+                        gl_FragColor = vColor;
+                    }
+                `;
+                
+                const vertexShader = this.loadShader(this.gl.VERTEX_SHADER, vsSource);
+                const fragmentShader = this.loadShader(this.gl.FRAGMENT_SHADER, fsSource);
+                
+                this.shaderProgram = this.gl.createProgram();
+                this.gl.attachShader(this.shaderProgram, vertexShader);
+                this.gl.attachShader(this.shaderProgram, fragmentShader);
+                this.gl.linkProgram(this.shaderProgram);
+                
+                if (!this.gl.getProgramParameter(this.shaderProgram, this.gl.LINK_STATUS)) {
+                    throw new Error('Unable to initialize shader program: ' + this.gl.getProgramInfoLog(this.shaderProgram));
+                }
+                
+                this.programInfo = {
+                    attribLocations: {
+                        vertexPosition: this.gl.getAttribLocation(this.shaderProgram, 'aVertexPosition'),
+                        vertexColor: this.gl.getAttribLocation(this.shaderProgram, 'aVertexColor'),
+                    },
+                    uniformLocations: {
+                        projectionMatrix: this.gl.getUniformLocation(this.shaderProgram, 'uProjectionMatrix'),
+                        modelViewMatrix: this.gl.getUniformLocation(this.shaderProgram, 'uModelViewMatrix'),
+                    },
+                };
+            }
+            
+            loadShader(type, source) {
+                const shader = this.gl.createShader(type);
+                this.gl.shaderSource(shader, source);
+                this.gl.compileShader(shader);
+                
+                if (!this.gl.getShaderParameter(shader, this.gl.COMPILE_STATUS)) {
+                    console.error('An error occurred compiling the shaders: ' + this.gl.getShaderInfoLog(shader));
+                    this.gl.deleteShader(shader);
+                    return null;
+                }
+                
+                return shader;
+            }
+            
+            render(now) {
+                now *= 0.001; // convert to seconds
+                const deltaTime = now - then;
+                then = now;
+                
+                // Update FPS
+                frameCount++;
+                if (frameCount % 30 === 0) {
+                    this.stats.fps = Math.round(1 / deltaTime);
+                    frameTime = deltaTime * 1000;
+                }
+                
+                // Clear
+                this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
+                
+                // Perspective matrix
+                const fieldOfView = 45 * Math.PI / 180;
+                const aspect = this.gl.canvas.clientWidth / this.gl.canvas.clientHeight;
+                const zNear = 0.1;
+                const zFar = 100.0;
+                const projectionMatrix = mat4.create();
+                mat4.perspective(projectionMatrix, fieldOfView, aspect, zNear, zFar);
+                
+                // Model view matrix (rotate the voxel chunk)
+                const modelViewMatrix = mat4.create();
+                mat4.translate(modelViewMatrix, modelViewMatrix, [-0.0, 0.0, -6.0]);
+                mat4.rotate(modelViewMatrix, modelViewMatrix, now * 0.7, [0, 1, 0]);
+                mat4.rotate(modelViewMatrix, modelViewMatrix, now * 0.3, [1, 0, 0]);
+                
+                // Draw
+                this.gl.useProgram(this.shaderProgram);
+                
+                // Position attribute
+                this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.buffers.position);
+                this.gl.vertexAttribPointer(this.programInfo.attribLocations.vertexPosition, 3, this.gl.FLOAT, false, 0, 0);
+                this.gl.enableVertexAttribArray(this.programInfo.attribLocations.vertexPosition);
+                
+                // Color attribute
+                this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.buffers.color);
+                this.gl.vertexAttribPointer(this.programInfo.attribLocations.vertexColor, 4, this.gl.FLOAT, false, 0, 0);
+                this.gl.enableVertexAttribArray(this.programInfo.attribLocations.vertexColor);
+                
+                // Index buffer
+                this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, this.buffers.indices);
+                
+                // Set uniforms
+                this.gl.uniformMatrix4fv(this.programInfo.uniformLocations.projectionMatrix, false, projectionMatrix);
+                this.gl.uniformMatrix4fv(this.programInfo.uniformLocations.modelViewMatrix, false, modelViewMatrix);
+                
+                // Draw
+                if (wireframeMode && this.gl.LINES) {
+                    // Simplified wireframe (not true wireframe, but shows structure)
+                    this.gl.drawElements(this.gl.LINES, this.indexCount, this.gl.UNSIGNED_SHORT, 0);
+                } else {
+                    this.gl.drawElements(this.gl.TRIANGLES, this.indexCount, this.gl.UNSIGNED_SHORT, 0);
+                }
+            }
+            
+            get_stats() {
+                return this.stats;
+            }
+            
+            resize(width, height) {
+                this.canvas.width = width;
+                this.canvas.height = height;
+                this.gl.viewport(0, 0, width, height);
+            }
+            
+            set_wireframe(enabled) {
+                // Wireframe mode toggling
+                console.log('Wireframe mode:', enabled);
+            }
+            
+            reload_chunks() {
+                console.log('Reloading chunks...');
+                this.initBuffers();
+            }
         }
         
-        // Initialize Earth Engine
-        async function init() {
-            try {
-                // Check WebGPU support
-                await checkWebGPU();
+        // Matrix math (simplified glMatrix)
+        const mat4 = {
+            create: () => new Float32Array([
+                1, 0, 0, 0,
+                0, 1, 0, 0,
+                0, 0, 1, 0,
+                0, 0, 0, 1
+            ]),
+            
+            perspective: (out, fovy, aspect, near, far) => {
+                const f = 1.0 / Math.tan(fovy / 2);
+                const nf = 1 / (near - far);
+                out[0] = f / aspect;
+                out[1] = 0;
+                out[2] = 0;
+                out[3] = 0;
+                out[4] = 0;
+                out[5] = f;
+                out[6] = 0;
+                out[7] = 0;
+                out[8] = 0;
+                out[9] = 0;
+                out[10] = (far + near) * nf;
+                out[11] = -1;
+                out[12] = 0;
+                out[13] = 0;
+                out[14] = 2 * far * near * nf;
+                out[15] = 0;
+                return out;
+            },
+            
+            translate: (out, a, v) => {
+                const x = v[0], y = v[1], z = v[2];
+                out[12] = a[0] * x + a[4] * y + a[8] * z + a[12];
+                out[13] = a[1] * x + a[5] * y + a[9] * z + a[13];
+                out[14] = a[2] * x + a[6] * y + a[10] * z + a[14];
+                out[15] = a[3] * x + a[7] * y + a[11] * z + a[15];
+                return out;
+            },
+            
+            rotate: (out, a, rad, axis) => {
+                let x = axis[0], y = axis[1], z = axis[2];
+                let len = Math.sqrt(x * x + y * y + z * z);
+                if (Math.abs(len) < 0.000001) { return null; }
+                len = 1 / len;
+                x *= len;
+                y *= len;
+                z *= len;
                 
-                // Import WASM module
-                const wasm = await import('./earth_engine_web.js');
-                await wasm.default();
+                const s = Math.sin(rad);
+                const c = Math.cos(rad);
+                const t = 1 - c;
+                
+                const b00 = x * x * t + c;
+                const b01 = y * x * t + z * s;
+                const b02 = z * x * t - y * s;
+                const b10 = x * y * t - z * s;
+                const b11 = y * y * t + c;
+                const b12 = z * y * t + x * s;
+                const b20 = x * z * t + y * s;
+                const b21 = y * z * t - x * s;
+                const b22 = z * z * t + c;
+                
+                const a00 = a[0], a01 = a[1], a02 = a[2], a03 = a[3];
+                const a10 = a[4], a11 = a[5], a12 = a[6], a13 = a[7];
+                const a20 = a[8], a21 = a[9], a22 = a[10], a23 = a[11];
+                
+                out[0] = a00 * b00 + a10 * b01 + a20 * b02;
+                out[1] = a01 * b00 + a11 * b01 + a21 * b02;
+                out[2] = a02 * b00 + a12 * b01 + a22 * b02;
+                out[3] = a03 * b00 + a13 * b01 + a23 * b02;
+                out[4] = a00 * b10 + a10 * b11 + a20 * b12;
+                out[5] = a01 * b10 + a11 * b11 + a21 * b12;
+                out[6] = a02 * b10 + a12 * b11 + a22 * b12;
+                out[7] = a03 * b10 + a13 * b11 + a23 * b12;
+                out[8] = a00 * b20 + a10 * b21 + a20 * b22;
+                out[9] = a01 * b20 + a11 * b21 + a21 * b22;
+                out[10] = a02 * b20 + a12 * b21 + a22 * b22;
+                out[11] = a03 * b20 + a13 * b21 + a23 * b22;
+                
+                return out;
+            }
+        };
+        
+        let earthEngine = null;
+        
+        // Initialize
+        async function init() {
+            console.log('Starting Earth Engine initialization...');
+            try {
+                const canvas = document.getElementById('earth-engine-canvas');
+                console.log('Canvas element:', canvas);
+                
+                if (!canvas) {
+                    throw new Error('Canvas element not found');
+                }
+                
+                // Set canvas size
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+                console.log('Canvas size:', canvas.width, 'x', canvas.height);
+                
+                console.log('Creating EarthEngineDemo...');
+                earthEngine = new EarthEngineDemo(canvas);
+                console.log('EarthEngineDemo created successfully');
                 
                 // Hide loading screen
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('stats').style.display = statsVisible ? 'block' : 'none';
                 document.getElementById('controls').style.display = 'block';
                 
-                // Start Earth Engine
-                earthEngine = await wasm.start_earth_engine();
+                // Start render loop
+                function render(now) {
+                    if (animating) {
+                        earthEngine.render(now);
+                    }
+                    requestAnimationFrame(render);
+                }
+                requestAnimationFrame(render);
                 
-                // Start stats update loop
+                // Start stats update
                 updateStats();
                 
-                // Show success message
-                showInfo('Earth Engine WebGPU initialized successfully!');
+                // Show info about the demo
+                showInfo('Earth Engine WebGL Demo - Simulating Data-Oriented Architecture');
+                
+                // Add architecture note
+                setTimeout(() => {
+                    showInfo('Note: Full WebGPU/WASM implementation in development (Sprint 22)');
+                }, 3000);
                 
             } catch (error) {
                 console.error('Failed to initialize:', error);
+                console.error('Error stack:', error.stack);
                 showError(error.message);
+                
+                // Show fallback message
+                document.getElementById('loading').innerHTML = `
+                    <h2>Earth Engine Demo</h2>
+                    <p style="color: #ff4444;">WebGL initialization failed: ${error.message}</p>
+                    <p>This is a demonstration page for the Earth Engine architecture.</p>
+                    <div style="text-align: left; max-width: 600px; margin: 20px auto;">
+                        <h3>Architecture Status:</h3>
+                        <ul>
+                            <li>Data-Oriented Design: ~15% complete</li>
+                            <li>Current Version: 0.35.0 (Sprint 35 of 45)</li>
+                            <li>WebGPU Support: In development</li>
+                            <li>Performance Claims: Aspirational targets</li>
+                        </ul>
+                        <h3>Debug Info:</h3>
+                        <p style="font-family: monospace; font-size: 12px;">${error.stack || error.message}</p>
+                    </div>
+                `;
             }
         }
         
@@ -217,16 +600,30 @@
         
         // Handle window resize
         window.addEventListener('resize', () => {
-            if (earthEngine) {
-                earthEngine.resize(window.innerWidth, window.innerHeight);
+            if (earthEngine && earthEngine.canvas) {
+                earthEngine.canvas.width = window.innerWidth;
+                earthEngine.canvas.height = window.innerHeight;
+                if (earthEngine.gl) {
+                    earthEngine.gl.viewport(0, 0, window.innerWidth, window.innerHeight);
+                }
             }
         });
         
         // Prevent context menu on right click
         document.addEventListener('contextmenu', (e) => e.preventDefault());
         
+        // Global error handler
+        window.onerror = function(msg, url, lineNo, columnNo, error) {
+            console.error('Error: ', msg, '\nURL: ', url, '\nLine: ', lineNo, '\nColumn: ', columnNo, '\nError object: ', error);
+            const errorDiv = document.createElement('div');
+            errorDiv.style.cssText = 'position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: red; color: white; padding: 20px; z-index: 9999;';
+            errorDiv.innerHTML = `<h3>JavaScript Error</h3><p>${msg}</p><p>Line ${lineNo}</p>`;
+            document.body.appendChild(errorDiv);
+            return false;
+        };
+        
         // Initialize on load
-        init();
+        window.addEventListener('DOMContentLoaded', init);
     </script>
 </body>
 </html>
