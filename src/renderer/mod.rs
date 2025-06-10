@@ -13,6 +13,7 @@ mod vertex_soa;
 mod mesh_soa;
 mod compute_pipeline;
 pub mod gpu_driven;
+pub mod gpu_culling;
 
 use crate::{EngineConfig, Game};
 use anyhow::Result;
