@@ -15,8 +15,11 @@ pub mod process_control;
 pub mod visual_indicators;
 
 pub use process_data::{ProcessId, ProcessData, ProcessType, ProcessStatus};
-pub use state_machine::{ProcessState, StateTransition, StateMachine};
-pub use transform_stage::{TransformStage, StageRequirement, StageOutput};
+pub use state_machine::{ProcessState, StateTransition, StateMachine, TransitionAction};
+pub use transform_stage::{
+    TransformStage, StageRequirement, StageOutput, StageValidator, 
+    ValidationContext, ActualOutput, OutputType
+};
 pub use process_executor::{ProcessExecutor, ExecutionResult};
 pub use parallel_processor::{ParallelProcessor, ProcessBatch};
 pub use process_control::{ProcessControl, InterruptReason};

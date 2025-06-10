@@ -73,6 +73,7 @@ fn main() {
             });
             
             culling_system.cull(
+                &gpu_state.device,
                 &mut encoder,
                 &camera,
                 &chunk_buffer,
@@ -92,6 +93,7 @@ fn main() {
             });
             
             culling_system.cull(
+                &gpu_state.device,
                 &mut encoder,
                 &camera,
                 &chunk_buffer,

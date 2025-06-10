@@ -214,6 +214,7 @@ impl AttributeManager {
                 event_type: EventType::Changed,
                 old_value,
                 new_value: Some(value),
+                timestamp: std::time::Instant::now(),
             });
         }
         
@@ -273,6 +274,7 @@ impl AttributeManager {
             event_type: EventType::ModifierAdded,
             old_value: None,
             new_value: None,
+            timestamp: std::time::Instant::now(),
         });
         
         Ok(id)
@@ -293,6 +295,7 @@ impl AttributeManager {
                     event_type: EventType::ModifierRemoved,
                     old_value: None,
                     new_value: None,
+                    timestamp: std::time::Instant::now(),
                 });
                 return true;
             }

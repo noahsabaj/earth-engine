@@ -16,12 +16,12 @@ pub enum CompressionType {
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Pod, Zeroable)]
 pub struct CompressionHeader {
-    pub compression_type: u8,
     pub uncompressed_size: u32,
     pub compressed_size: u32,
     pub block_count: u32,
     pub palette_size: u16,
-    pub _padding: u16,
+    pub compression_type: u8,
+    pub _padding: u8,
 }
 
 /// GPU decompressor

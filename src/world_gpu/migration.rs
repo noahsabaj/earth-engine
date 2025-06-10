@@ -87,8 +87,8 @@ impl WorldMigrator {
         
         // Calculate destination offset in world buffer
         let chunk_index = chunk_pos.x as u32 + 
-                         chunk_pos.y as u32 * world_buffer.world_size +
-                         chunk_pos.z as u32 * world_buffer.world_size * world_buffer.world_size;
+                         chunk_pos.y as u32 * world_buffer.world_size() +
+                         chunk_pos.z as u32 * world_buffer.world_size() * world_buffer.world_size();
         let voxels_per_chunk = CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE;
         let dest_offset = (chunk_index * voxels_per_chunk * 4) as u64;
         
@@ -96,7 +96,7 @@ impl WorldMigrator {
         encoder.copy_buffer_to_buffer(
             &self.staging_buffer,
             0,
-            &world_buffer.voxel_buffer,
+            world_buffer.voxel_buffer(),
             dest_offset,
             (voxels_per_chunk * 4) as u64,
         );
@@ -110,7 +110,7 @@ impl WorldMigrator {
             reserved: 0,
         };
         queue.write_buffer(
-            &world_buffer.metadata_buffer,
+            world_buffer.metadata_buffer(),
             metadata_offset,
             bytemuck::cast_slice(&[metadata]),
         );
@@ -183,8 +183,8 @@ impl WorldMigrator {
                 
                 // Calculate destination in world buffer
                 let chunk_index = chunk_pos.x as u32 + 
-                                 chunk_pos.y as u32 * world_buffer.world_size +
-                                 chunk_pos.z as u32 * world_buffer.world_size * world_buffer.world_size;
+                                 chunk_pos.y as u32 * world_buffer.world_size() +
+                                 chunk_pos.z as u32 * world_buffer.world_size() * world_buffer.world_size();
                 let voxels_per_chunk = CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE;
                 let dest_offset = (chunk_index * voxels_per_chunk * 4) as u64;
                 
@@ -192,7 +192,7 @@ impl WorldMigrator {
                 encoder.copy_buffer_to_buffer(
                     &self.staging_buffer,
                     staging_offset,
-                    &world_buffer.voxel_buffer,
+                    world_buffer.voxel_buffer(),
                     dest_offset,
                     (voxels_per_chunk * 4) as u64,
                 );
@@ -206,7 +206,7 @@ impl WorldMigrator {
                     reserved: 0,
                 };
                 queue.write_buffer(
-                    &world_buffer.metadata_buffer,
+                    world_buffer.metadata_buffer(),
                     metadata_offset,
                     bytemuck::cast_slice(&[metadata]),
                 );

@@ -195,6 +195,7 @@ impl GpuCullingSystem {
     /// Perform complete culling pass
     pub fn cull(
         &mut self,
+        device: &Device,
         encoder: &mut wgpu::CommandEncoder,
         camera: &GpuCamera,
         chunk_instances: &Buffer,
@@ -206,6 +207,7 @@ impl GpuCullingSystem {
         
         // Step 2: Frustum culling
         let frustum_visible = self.frustum_culler.cull(
+            device,
             encoder,
             camera,
             chunk_instances,

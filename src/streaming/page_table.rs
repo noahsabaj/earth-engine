@@ -22,17 +22,17 @@ pub struct PageTableEntry {
     /// Offset in world file on disk
     pub disk_offset: u64,
     
-    /// Compression type (0=none, 1=RLE, 2=custom GPU)
-    pub compression_type: u8,
+    /// Compressed size in bytes (0 if uncompressed)
+    pub compressed_size: u32,
     
     /// Access count for LRU tracking
     pub access_count: u16,
     
+    /// Compression type (0=none, 1=RLE, 2=custom GPU)
+    pub compression_type: u8,
+    
     /// Page flags (resident, dirty, locked, etc)
     pub flags: u8,
-    
-    /// Compressed size in bytes (0 if uncompressed)
-    pub compressed_size: u32,
 }
 
 impl PageTableEntry {

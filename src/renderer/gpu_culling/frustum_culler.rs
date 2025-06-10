@@ -167,6 +167,7 @@ impl FrustumCuller {
     /// Perform frustum culling
     pub fn cull(
         &self,
+        device: &Device,
         encoder: &mut wgpu::CommandEncoder,
         camera: &GpuCamera,
         chunk_instances: &Buffer,
@@ -175,7 +176,7 @@ impl FrustumCuller {
     ) -> &Buffer {
         // Update camera uniform
         encoder.copy_buffer_to_buffer(
-            &self.create_temp_camera_buffer(encoder.device(), camera),
+            &self.create_temp_camera_buffer(device, camera),
             0,
             &self.camera_buffer,
             0,
@@ -183,7 +184,7 @@ impl FrustumCuller {
         );
         
         // Create bind group
-        let bind_group = encoder.device().create_bind_group(&wgpu::BindGroupDescriptor {
+        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("Frustum Cull Bind Group"),
             layout: &self.bind_group_layout,
             entries: &[
@@ -216,6 +217,7 @@ impl FrustumCuller {
         
         let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
             label: Some("Frustum Culling Pass"),
+            timestamp_writes: None,
         });
         
         // Clear counters

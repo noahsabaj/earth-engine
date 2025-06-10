@@ -516,6 +516,7 @@ impl GpuMeshGenerator {
         {
             let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("GPU Mesh Generation Pass"),
+                timestamp_writes: None,
             });
             
             compute_pass.set_pipeline(&self.pipeline);

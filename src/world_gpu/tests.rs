@@ -52,8 +52,8 @@ mod tests {
         let world_buffer = WorldBuffer::new(device.clone(), &desc);
         
         // Verify buffer sizes
-        assert_eq!(world_buffer.world_size, 16);
-        assert_eq!(world_buffer.world_height, 256);
+        assert_eq!(world_buffer.world_size(), 16);
+        assert_eq!(world_buffer.world_height(), 256);
         
         // Calculate expected sizes
         let total_chunks = 16 * 16 * 8; // 16x16x8 chunks
@@ -61,8 +61,8 @@ mod tests {
         let expected_voxel_size = total_chunks * voxels_per_chunk * 4; // 4 bytes per voxel
         let expected_metadata_size = total_chunks * 16; // 16 bytes per chunk
         
-        assert_eq!(world_buffer.voxel_buffer.size(), expected_voxel_size as u64);
-        assert_eq!(world_buffer.metadata_buffer.size(), expected_metadata_size as u64);
+        assert_eq!(world_buffer.voxel_buffer().size(), expected_voxel_size as u64);
+        assert_eq!(world_buffer.metadata_buffer().size(), expected_metadata_size as u64);
     }
     
     #[tokio::test]

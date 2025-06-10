@@ -116,7 +116,7 @@ impl GpuLighting {
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
-                    resource: world_buffer.voxel_buffer.as_entire_binding(),
+                    resource: world_buffer.voxel_buffer().as_entire_binding(),
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,

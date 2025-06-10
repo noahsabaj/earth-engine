@@ -233,6 +233,7 @@ impl HierarchicalZBuffer {
         for level in 1..self.mip_levels {
             let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some(&format!("HZB Mip {} Build", level)),
+                timestamp_writes: None,
             });
             
             // Bind previous level as input, current level as output

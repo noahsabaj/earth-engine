@@ -37,7 +37,8 @@ impl GpuWorldBenchmarks {
         
         let world_buffer = WorldBuffer::new(self.device.clone(), &WorldBufferDescriptor {
             world_size: 64,
-            world_height: 256,
+            enable_atomics: true,
+            enable_readback: false,
         });
         
         let terrain_gen = TerrainGenerator::new(self.device.clone());
@@ -106,7 +107,8 @@ impl GpuWorldBenchmarks {
         
         let world_buffer = WorldBuffer::new(self.device.clone(), &WorldBufferDescriptor {
             world_size: 64,
-            world_height: 256,
+            enable_atomics: true,
+            enable_readback: false,
         });
         
         let modifier = ChunkModifier::new(self.device.clone());
@@ -156,7 +158,8 @@ impl GpuWorldBenchmarks {
         
         let world_buffer = WorldBuffer::new(self.device.clone(), &WorldBufferDescriptor {
             world_size: 64,
-            world_height: 256,
+            enable_atomics: true,
+            enable_readback: false,
         });
         
         let lighting = GpuLighting::new(self.device.clone());

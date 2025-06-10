@@ -179,11 +179,11 @@ impl TerrainGenerator {
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
-                    resource: world_buffer.voxel_buffer.as_entire_binding(),
+                    resource: world_buffer.voxel_buffer().as_entire_binding(),
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: world_buffer.metadata_buffer.as_entire_binding(),
+                    resource: world_buffer.metadata_buffer().as_entire_binding(),
                 },
                 wgpu::BindGroupEntry {
                     binding: 2,

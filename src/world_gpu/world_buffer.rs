@@ -199,6 +199,21 @@ impl WorldBuffer {
         &self.bind_group_layout
     }
     
+    /// Get the voxel buffer (for custom bind groups)
+    pub fn voxel_buffer(&self) -> &wgpu::Buffer {
+        &self.voxel_buffer
+    }
+    
+    /// Get the metadata buffer (for custom bind groups)
+    pub fn metadata_buffer(&self) -> &wgpu::Buffer {
+        &self.metadata_buffer
+    }
+    
+    /// Get the world size
+    pub fn world_size(&self) -> u32 {
+        self.world_size
+    }
+    
     /// Calculate buffer offset for a chunk position
     pub fn chunk_offset(&self, chunk_x: u32, chunk_y: u32, chunk_z: u32) -> u64 {
         let chunk_index = chunk_x + chunk_y * self.world_size + chunk_z * self.world_size * self.world_size;
