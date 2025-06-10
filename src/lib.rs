@@ -22,6 +22,7 @@ pub mod spatial_index;
 pub mod world_gpu;
 pub mod streaming;
 pub mod fluid;
+pub mod sdf;
 
 // Web-specific module
 #[cfg(target_arch = "wasm32")]
