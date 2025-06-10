@@ -1,6 +1,6 @@
 [package]
 name = "earth-engine"
-version = "0.30.0"
+version = "0.31.0"
 edition = "2021"
 
 [features]
@@ -186,3 +186,7 @@ path = "src/bin/gpu_culling_test.rs"
 [[bin]]
 name = "test_instance"
 path = "src/bin/test_instance.rs"
+
+[[bin]]
+name = "test_process"
+path = "src/bin/test_process.rs"
