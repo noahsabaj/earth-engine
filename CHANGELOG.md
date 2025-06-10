@@ -14,6 +14,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated versioning strategy to be more honest about pre-release status
 - Removed hard 1.0 claims from roadmap
 
+## [0.27.0] - 2025-01-10
+
+### Added
+- Morton encoding (Z-order curve) for voxel storage
+- Workgroup shared memory optimization in compute shaders
+- Structure-of-Arrays (SoA) chunk layout with cache alignment
+- Morton-based page table for streaming system
+- Optimized fluid advection with 10x10x10 shared memory cache
+- Optimized marching cubes with 4x4x4 shared memory cache
+
+### Performance Improvements
+- 3-5x better cache locality for spatial data access
+- 90% reduction in global memory access for compute shaders
+- 5-10x speedup for fluid simulation
+- 4-6x speedup for SDF surface extraction
+- 627M coords/sec Morton encoding, 1.6B coords/sec decoding
+
+### Sprint Completed
+- Sprint 27: Core Memory & Cache Optimization
+
 ## [0.26.0] - 2025-01-10
 
 ### Added

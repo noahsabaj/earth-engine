@@ -23,7 +23,8 @@ pub mod world_gpu;
 pub mod streaming;
 pub mod fluid;
 pub mod sdf;
-pub mod hot_reload;
+// pub mod hot_reload; // Temporarily disabled for Sprint 27
+pub mod morton;
 
 // Web-specific module
 #[cfg(target_arch = "wasm32")]
