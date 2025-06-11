@@ -1,6 +1,6 @@
 # Earth Engine 1.0 Release Assessment
 
-**Date**: January 2025  
+**Date**: June 2025  
 **Current Sprint**: 26 Complete  
 **Assessment**: NOT READY for 1.0
 

@@ -1,6 +1,6 @@
 # Post-Mortem: How Earth Engine Lost Its Way
 
-**Date**: January 11, 2025  
+**Date**: June 11, 2025  
 **Author**: Emergency Sprint 35.1 Team  
 **Subject**: Technical Debt and False Claims
 
