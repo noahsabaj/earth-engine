@@ -115,9 +115,9 @@ export function createMeshGenerationShader() {
             } else if (abs(normal.x) > 0.5) {
                 let x = pos.x + select(0.0, 1.0, normal.x > 0.0);
                 v0 = vec3<f32>(x, pos.y, pos.z);
-                v1 = vec3<f32>(x, pos.y, pos.z + size.y);
-                v2 = vec3<f32>(x, pos.y + size.x, pos.z + size.y);
-                v3 = vec3<f32>(x, pos.y + size.x, pos.z);
+                v1 = vec3<f32>(x, pos.y, pos.z + size.x);
+                v2 = vec3<f32>(x, pos.y + size.y, pos.z + size.x);
+                v3 = vec3<f32>(x, pos.y + size.y, pos.z);
             } else {
                 let z = pos.z + select(0.0, 1.0, normal.z > 0.0);
                 v0 = vec3<f32>(pos.x, pos.y, z);
@@ -170,6 +170,7 @@ export function createMeshGenerationShader() {
             }
             
             if (is_face_visible(world_x, world_y, world_z, 0, -1, 0)) {
+                atomicAdd(&counters.visible_faces, 1u);
                 let vertex_idx = atomicAdd(&counters.vertex_count, 4u);
                 let index_idx = atomicAdd(&counters.index_count, 6u);
                 add_face(pos, vec2<f32>(1.0, 1.0), vec3<f32>(0.0, -1.0, 0.0), 
@@ -177,6 +178,7 @@ export function createMeshGenerationShader() {
             }
             
             if (is_face_visible(world_x, world_y, world_z, 1, 0, 0)) {
+                atomicAdd(&counters.visible_faces, 1u);
                 let vertex_idx = atomicAdd(&counters.vertex_count, 4u);
                 let index_idx = atomicAdd(&counters.index_count, 6u);
                 add_face(pos, vec2<f32>(1.0, 1.0), vec3<f32>(1.0, 0.0, 0.0), 
@@ -184,6 +186,7 @@ export function createMeshGenerationShader() {
             }
             
             if (is_face_visible(world_x, world_y, world_z, -1, 0, 0)) {
+                atomicAdd(&counters.visible_faces, 1u);
                 let vertex_idx = atomicAdd(&counters.vertex_count, 4u);
                 let index_idx = atomicAdd(&counters.index_count, 6u);
                 add_face(pos, vec2<f32>(1.0, 1.0), vec3<f32>(-1.0, 0.0, 0.0), 
@@ -191,6 +194,7 @@ export function createMeshGenerationShader() {
             }
             
             if (is_face_visible(world_x, world_y, world_z, 0, 0, 1)) {
+                atomicAdd(&counters.visible_faces, 1u);
                 let vertex_idx = atomicAdd(&counters.vertex_count, 4u);
                 let index_idx = atomicAdd(&counters.index_count, 6u);
                 add_face(pos, vec2<f32>(1.0, 1.0), vec3<f32>(0.0, 0.0, 1.0), 
@@ -198,6 +202,7 @@ export function createMeshGenerationShader() {
             }
             
             if (is_face_visible(world_x, world_y, world_z, 0, 0, -1)) {
+                atomicAdd(&counters.visible_faces, 1u);
                 let vertex_idx = atomicAdd(&counters.vertex_count, 4u);
                 let index_idx = atomicAdd(&counters.index_count, 6u);
                 add_face(pos, vec2<f32>(1.0, 1.0), vec3<f32>(0.0, 0.0, -1.0), 

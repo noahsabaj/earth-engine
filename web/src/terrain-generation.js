@@ -73,31 +73,12 @@ export function createTerrainShader() {
                 return;
             }
             
-            // Simple flat world with features for debugging
+            // DEBUG: Simple flat plane for testing
             var block_type = 0u; // Air
             
-            // Create a flat plane at y=50
-            if (id.y < 50u) {
-                block_type = 3u; // Stone
-            } else if (id.y == 50u) {
+            // Create a small flat plane at y=50
+            if (id.y == 50u && id.x < 20u && id.z < 20u) {
                 block_type = 2u; // Grass
-            }
-            
-            // DEBUG: Force a visible block at origin
-            if (id.x == 0u && id.y == 50u && id.z == 0u) {
-                block_type = 5u; // Gold - should be very visible
-            }
-            
-            // Add pillars
-            if (id.y >= 51u && id.y <= 55u && (id.x % 8u) == 0u && (id.z % 8u) == 0u) {
-                block_type = 1u; // Dirt
-            }
-            
-            // Add a gold cube near spawn
-            if (id.x >= 126u && id.x <= 130u &&
-                id.y >= 51u && id.y <= 55u &&
-                id.z >= 126u && id.z <= 130u) {
-                block_type = 5u; // Gold
             }
             
             // Store using Morton encoding

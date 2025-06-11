@@ -71,28 +71,30 @@ async function initializeEngine(canvas) {
 }
 
 // Generate world (terrain + mesh)
-// Debug: Read first vertex
-async function debugReadFirstVertex() {
+// Debug: Read first few vertices
+async function debugReadVertices() {
+    const count = 5;
     const staging = gpuState.device.createBuffer({
-        size: 36, // One vertex
+        size: 36 * count, // 5 vertices
         usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ
     });
     
     const encoder = gpuState.device.createCommandEncoder();
-    encoder.copyBufferToBuffer(meshState.buffers.vertex, 0, staging, 0, 36);
+    encoder.copyBufferToBuffer(meshState.buffers.vertex, 0, staging, 0, 36 * count);
     gpuState.device.queue.submit([encoder.finish()]);
     
     await staging.mapAsync(GPUMapMode.READ);
-    const mappedRange = staging.getMappedRange();
-    const floatData = new Float32Array(mappedRange);
-    const uintData = new Uint32Array(mappedRange);
+    const floatData = new Float32Array(staging.getMappedRange());
     
-    console.log('[Debug] First vertex:', {
-        position: [floatData[0], floatData[1], floatData[2]],
-        normal: [floatData[3], floatData[4], floatData[5]],
-        uv: [floatData[6], floatData[7]],
-        color: uintData[8]
-    });
+    for (let i = 0; i < count; i++) {
+        const offset = i * 9; // 9 floats per vertex (36 bytes / 4)
+        console.log(`[Debug] Vertex ${i}:`, {
+            position: [floatData[offset], floatData[offset+1], floatData[offset+2]],
+            normal: [floatData[offset+3], floatData[offset+4], floatData[offset+5]],
+            uv: [floatData[offset+6], floatData[offset+7]],
+            colorRaw: floatData[offset+8]
+        });
+    }
     
     staging.unmap();
     staging.destroy();
@@ -174,6 +176,9 @@ async function generateWorld(seed = 42) {
     
     const elapsed = performance.now() - startTime;
     console.log(`[Engine] World generation complete in ${elapsed.toFixed(1)}ms`);
+    
+    // Debug: Read vertex data
+    await debugReadVertices();
     
 }
 

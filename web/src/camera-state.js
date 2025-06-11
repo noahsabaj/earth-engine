@@ -6,8 +6,8 @@ import { createBuffer, writeBuffer } from './gpu-state.js';
 // Camera state - pure data
 export const cameraState = {
     // Transform data
-    position: new Float32Array([50, 80, 100]), // Above the floor looking down
-    rotation: new Float32Array([0, -0.6]), // yaw, pitch - look down more
+    position: new Float32Array([10, 60, 30]), // Look at small test plane
+    rotation: new Float32Array([0, -0.5]), // yaw, pitch - look down
     
     // Projection parameters
     fov: Math.PI / 3,
