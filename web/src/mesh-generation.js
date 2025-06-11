@@ -292,6 +292,12 @@ export async function generateMesh(device) {
     console.log('[Mesh] World config:', WORLD_CONFIG);
     const startTime = performance.now();
     
+    // Clear buffers
+    const clearEncoder = device.createCommandEncoder();
+    clearEncoder.clearBuffer(meshState.buffers.vertex, 0);
+    clearEncoder.clearBuffer(meshState.buffers.index, 0); 
+    device.queue.submit([clearEncoder.finish()]);
+    
     // Clear counters
     writeBuffer(meshState.buffers.counter, 0, new Uint32Array([0, 0, 0, 0]));
     
