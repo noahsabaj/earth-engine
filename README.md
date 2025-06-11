@@ -30,8 +30,8 @@ After completing Sprint 35, we conducted a comprehensive code audit that reveale
 See:
 - [MANIFESTO.md](MANIFESTO.md) - Our commitment to honesty and working code
 - [RECOVERY_PLAN.md](RECOVERY_PLAN.md) - 10-week emergency sprint plan
-- [docs/HONEST_STATUS.md](docs/HONEST_STATUS.md) - Current reality check
-- [docs/EMERGENCY_PROGRESS.md](docs/EMERGENCY_PROGRESS.md) - Daily progress tracking
+- [docs/](docs/README.md) - All documentation (now organized!)
+- [docs/status/CURRENT.md](docs/status/CURRENT.md) - Current emergency status
 - [docs/MASTER_ROADMAP.md](docs/MASTER_ROADMAP.md) - Full development timeline
 
 ## ⚠️ Current State - Emergency Recovery Mode
