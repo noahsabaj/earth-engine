@@ -5,6 +5,9 @@ export const SHADER_SNIPPETS = {
     // Morton encoding for 32-bit coordinates
     mortonEncode: `
         fn morton_encode_3d(x: u32, y: u32, z: u32) -> u32 {
+            // TEMPORARY: Simple linear indexing for debugging
+            return y * 256u * 256u + z * 256u + x;
+            
             // 32-bit Morton encoding for 10-bit coordinates (up to 1024)
             var xx = x & 0x3FFu; // 10 bits
             var yy = y & 0x3FFu;

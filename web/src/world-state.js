@@ -44,6 +44,11 @@ export const worldState = {
 
 // Morton encoding - pure function for 32-bit
 export function mortonEncode3D(x, y, z) {
+    // TEMPORARY: Simple linear indexing for debugging
+    return y * 256 * 256 + z * 256 + x;
+    
+    // Original Morton encoding (disabled for debugging)
+    /*
     // Limit to 10 bits per component (0-1023)
     x = x & 0x3FF;
     y = y & 0x3FF;
@@ -66,6 +71,7 @@ export function mortonEncode3D(x, y, z) {
     z = (z | (z << 2))  & 0x09249249;
     
     return x | (y << 1) | (z << 2);
+    */
 }
 
 // Pack RGBA color - pure function
