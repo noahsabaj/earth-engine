@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Earth Engine Demo - NEW FILE</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            font-family: monospace;
+            background-color: #000;
+            color: #fff;
+        }
+        #canvas {
+            width: 100vw;
+            height: 100vh;
+            display: block;
+        }
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 10px;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    <div id="info">Loading Earth Engine...</div>
+    
+    <script type="module">
+        console.log('===== DEMO.HTML STARTING =====');
+        
+        const info = document.getElementById('info');
+        const canvas = document.getElementById('canvas');
+        
+        try {
+            // Check WebGPU
+            if (!navigator.gpu) {
+                throw new Error('WebGPU not supported');
+            }
+            
+            info.textContent = 'WebGPU found, loading engine...';
+            
+            // Import with timestamp to force fresh load
+            const timestamp = Date.now();
+            console.log('Importing:', `./src/index.js?t=${timestamp}`);
+            
+            const module = await import(`./src/index.js?t=${timestamp}`);
+            console.log('Module keys:', Object.keys(module));
+            
+            // Get the init function
+            const { initializeEngine } = module;
+            if (!initializeEngine) {
+                throw new Error('initializeEngine not found in module exports: ' + Object.keys(module).join(', '));
+            }
+            
+            info.textContent = 'Initializing engine...';
+            
+            // Initialize
+            const engine = await initializeEngine(canvas);
+            
+            info.style.display = 'none';
+            console.log('===== ENGINE RUNNING =====');
+            
+        } catch (error) {
+            console.error('ERROR:', error);
+            info.innerHTML = `
+                <h3>Error</h3>
+                <p>${error.message}</p>
+                <pre style="font-size: 10px; max-width: 500px; overflow: auto;">${error.stack}</pre>
+            `;
+        }
+    </script>
+</body>
+</html>

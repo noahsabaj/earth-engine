@@ -1,5 +1,8 @@
 // Earth Engine JS - GPU-First Architecture
 // This is the SAME engine as Rust, just different orchestration
+// VERSION: 2.0 - Fixed initialization
+
+console.log('===== INDEX.JS VERSION 2.0 LOADED =====');
 
 import { EarthEngine } from './core/earth-engine.js';
 
