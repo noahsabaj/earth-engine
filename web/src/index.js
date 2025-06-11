@@ -1,128 +1,53 @@
-// Earth Engine JS - GPU-First Architecture
-// This is the SAME engine as Rust, just different orchestration
-// VERSION: 2.0 - Fixed initialization
+// Earth Engine - Data-Oriented JavaScript Implementation
+// Pure functions and data structures, no classes
 
-console.log('===== INDEX.JS VERSION 2.0 LOADED =====');
+import { engine } from './engine.js';
 
-import { EarthEngine } from './core/earth-engine.js';
-
-// Create UI overlay
-function createUI() {
-    const ui = document.createElement('div');
-    ui.id = 'engine-ui';
-    ui.style.cssText = `
-        position: fixed;
-        top: 10px;
-        left: 10px;
-        color: white;
-        font-family: monospace;
-        font-size: 14px;
-        background: rgba(0, 0, 0, 0.7);
-        padding: 10px;
-        border-radius: 5px;
-        pointer-events: none;
-        user-select: none;
-        z-index: 1000;
-    `;
-    
-    const controls = document.createElement('div');
-    controls.style.cssText = `
-        position: fixed;
-        top: 10px;
-        right: 10px;
-        color: white;
-        font-family: monospace;
-        font-size: 12px;
-        background: rgba(0, 0, 0, 0.7);
-        padding: 10px;
-        border-radius: 5px;
-        pointer-events: none;
-        user-select: none;
-        z-index: 1000;
-    `;
-    controls.innerHTML = `
-        <div style="margin-bottom: 10px; font-size: 16px;">Earth Engine WebGPU v0.35.0</div>
-        <div>Controls:</div>
-        <div>WASD - Move</div>
-        <div>Mouse - Look</div>
-        <div>Space - Jump</div>
-        <div>Shift - Sprint</div>
-        <div>Click - Lock pointer</div>
-    `;
-    
-    document.body.appendChild(ui);
-    document.body.appendChild(controls);
-    
-    return ui;
-}
-
-// Update stats display
-function updateStats(ui, engine) {
-    const stats = engine.getStats();
-    const cameraInfo = engine.getCameraInfo();
-    const worldStats = engine.worldBuffer.getStats();
-    
-    ui.innerHTML = `
-        <div style="margin-bottom: 10px;">Performance</div>
-        <div>FPS: ${stats.fps}</div>
-        <div>Frame: ${stats.frameTime.toFixed(2)}ms</div>
-        <div>Draw calls: ${stats.drawCalls}</div>
-        <div>Vertices: ${stats.vertices.toLocaleString()}</div>
-        <div>Triangles: ${stats.triangles.toLocaleString()}</div>
-        <div style="margin-top: 10px;">World</div>
-        <div>Size: ${worldStats.worldSize}</div>
-        <div>Voxels: ${worldStats.voxelCount.toLocaleString()}</div>
-        <div>Memory: ${worldStats.memoryUsage.toFixed(1)}MB</div>
-        <div>Chunks: ${worldStats.chunks}</div>
-        <div style="margin-top: 10px;">Camera</div>
-        <div>Pos: [${cameraInfo.position.join(', ')}]</div>
-        <div>Yaw: ${cameraInfo.yaw}°</div>
-        <div>Pitch: ${cameraInfo.pitch}°</div>
-    `;
-}
-
-// Export everything needed for initialization
-export { EarthEngine, createUI, updateStats };
-
-// Helper function to initialize the engine
+// Initialize engine function
 export async function initializeEngine(canvas) {
-    console.log('[Engine] Starting initialization...');
+    console.log('[Index] Initializing Earth Engine (Data-Oriented)...');
     
-    // Set canvas size
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-    
-    // Create UI
-    console.log('[Engine] Creating UI...');
-    const ui = createUI();
-    
-    // Create and initialize engine
-    console.log('[Engine] Creating engine instance...');
-    const engine = new EarthEngine(canvas);
-    
-    console.log('[Engine] Initializing engine...');
-    await engine.init();
-    
-    console.log('[Engine] Starting render loop...');
-    engine.start();
-    
-    // Update stats periodically
-    setInterval(() => {
-        updateStats(ui, engine);
-    }, 100);
-    
-    // Handle window resize
-    window.addEventListener('resize', () => {
+    try {
+        // Set canvas size
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
+        
+        // Initialize all systems
+        await engine.initialize(canvas);
+        
+        // Start render loop
+        engine.start();
+        
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        });
+        
+        console.log('[Index] Engine started successfully');
+        console.log('[Index] Access state via window.earthEngine.state');
+        
+        // Expose engine to window for debugging
+        window.earthEngine = engine;
+        
+        return engine;
+    } catch (error) {
+        console.error('[Index] Failed to initialize engine:', error);
+        throw error;
+    }
+}
+
+// Auto-initialize if canvas exists
+if (typeof window !== 'undefined') {
+    window.addEventListener('DOMContentLoaded', async () => {
+        const canvas = document.getElementById('canvas');
+        if (canvas) {
+            console.log('[Index] Found canvas, auto-initializing...');
+            try {
+                await initializeEngine(canvas);
+            } catch (error) {
+                console.error('[Index] Auto-initialization failed:', error);
+            }
+        }
     });
-    
-    // Expose to window for debugging
-    window.engine = engine;
-    window.EarthEngine = EarthEngine;
-    
-    console.log('[Engine] Earth Engine started successfully!');
-    console.log('[Engine] Use window.engine to access the engine instance');
-    
-    return engine;
 }
