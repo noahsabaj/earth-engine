@@ -80,7 +80,19 @@ git pull
 git branch -d feature/description
 ```
 
-### 3. Verification Process (REQUIRED)
+### 3. Terminal Safety (IMPORTANT)
+Never run commands that block the terminal:
+```bash
+# ❌ WRONG - Blocks terminal
+npm run dev
+docker compose up
+
+# ✅ CORRECT - Runs in background
+nohup npm run dev > output.log 2>&1 &
+docker compose up -d
+```
+
+### 4. Verification Process (REQUIRED)
 Before considering ANY task complete:
 1. Run `cargo check` - must pass
 2. Run `cargo test` - must pass
@@ -100,6 +112,68 @@ Before considering ANY task complete:
 - **Kaizen over revolution** - Continuous small improvements over big rewrites
 - **Think in systems** - How will this code interact with features we haven't built yet?
 - **Measure twice, code once** - Design decisions should be deliberate and documented
+
+### Engineering Principles (Data-Oriented Style)
+
+#### Single Source of Truth
+- Each piece of data lives in exactly ONE buffer
+- Each fact documented in exactly ONE place
+- No duplicated state between systems
+- Reference, don't copy
+
+#### DRY (Don't Repeat Yourself) - DOP Version
+- Reuse data transformations, not object hierarchies
+- Generic kernels over specialized systems
+- Shared buffers over message passing
+- If you're copying code, you're missing a pattern
+
+#### KISS (Keep It Simple) - But Fast
+- Simple data layouts → complex emergent behavior
+- One buffer + one kernel > Ten interacting objects
+- Prefer arrays over complex data structures
+- The fastest code is code that doesn't exist
+
+#### YAGNI (You Aren't Gonna Need It)
+- Don't add buffers "for future use"
+- Don't create abstractions without 3+ use cases
+- Don't optimize without profiling
+- Today's requirements only (but done right)
+
+#### Principle of Least Surprise
+- Voxels are always 1m³ (no exceptions)
+- Errors always bubble up (no silent failures)
+- Data flows one direction (no backchannels)
+- Names mean exactly what they say
+
+#### Separation of Concerns - Data Style
+- Each buffer has ONE purpose
+- Each kernel does ONE transformation
+- Physics doesn't know about rendering
+- Network doesn't know about gameplay
+
+#### Design by Contract
+- Functions document their data requirements
+- Preconditions checked in debug (assumed in release)
+- Buffer layouts are contracts between systems
+- Breaking changes require version bumps
+
+#### Fail Fast, Fail Loud
+- Invalid states panic in debug builds
+- Errors propagate immediately (no error hiding)
+- Assumptions documented and verified
+- Better to crash in dev than corrupt in prod
+
+#### Make It Work, Make It Right, Make It Fast
+1. **Work**: Get the feature functioning (even if slow)
+2. **Right**: Clean up the data flow, remove hacks
+3. **Fast**: Profile and optimize based on evidence
+- Never skip step 2 to get to step 3
+
+#### The Boy Scout Rule
+- Leave code better than you found it
+- Fix neighboring unwraps when touching a file
+- Update stale comments as you go
+- Small improvements compound over time
 
 ### Error Handling
 - NEVER use `.unwrap()` - use `?` operator or proper error handling
