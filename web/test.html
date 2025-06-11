@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Module Test</title>
+</head>
+<body>
+    <h1>Module Import Test</h1>
+    <div id="result">Testing...</div>
+    
+    <script type="module">
+        async function test() {
+            const resultDiv = document.getElementById('result');
+            try {
+                // Test basic module import
+                console.log('Testing module import...');
+                const module = await import('./src/index.js');
+                console.log('Module loaded:', module);
+                resultDiv.innerHTML = 'Success! Module loaded. Check console for details.';
+                resultDiv.style.color = 'green';
+            } catch (error) {
+                console.error('Import failed:', error);
+                resultDiv.innerHTML = `Error: ${error.message}<br><pre>${error.stack}</pre>`;
+                resultDiv.style.color = 'red';
+            }
+        }
+        test();
+    </script>
+</body>
+</html>

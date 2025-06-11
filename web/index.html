@@ -106,10 +106,21 @@
                 updateLoadingStatus('Checking WebGPU support...');
                 await checkWebGPU();
                 
-                // Load the JavaScript engine
+                // Load the JavaScript engine with timeout
                 updateLoadingStatus('Loading Earth Engine modules...');
                 console.log('Loading from:', './src/index.js');
-                const { EarthEngine } = await import('./src/index.js?v=' + Date.now());
+                
+                // Add timeout for module loading
+                const modulePromise = import('./src/index.js?v=' + Date.now());
+                const timeoutPromise = new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('Module loading timed out after 10 seconds')), 10000)
+                );
+                
+                const module = await Promise.race([modulePromise, timeoutPromise]);
+                console.log('Module loaded:', module);
+                
+                const { EarthEngine } = module;
+                console.log('EarthEngine class:', EarthEngine);
                 
                 // Hide loading screen once module loads
                 // The engine will create its own UI
@@ -117,27 +128,60 @@
                 
             } catch (error) {
                 console.error('Failed to initialize Earth Engine:', error);
+                console.error('Stack trace:', error.stack);
                 
-                document.getElementById('loading').innerHTML = `
+                // Make loading div visible again to show error
+                const loadingDiv = document.getElementById('loading');
+                loadingDiv.style.display = 'block';
+                loadingDiv.innerHTML = `
                     <h2>Earth Engine WebGPU</h2>
                     <div class="error">
                         <h3>Initialization Failed</h3>
                         <p>${error.message}</p>
+                        <pre style="text-align: left; font-size: 12px; overflow: auto; max-height: 200px;">${error.stack || 'No stack trace available'}</pre>
                     </div>
                     <div style="margin-top: 20px; text-align: left; max-width: 600px;">
-                        <h4>Requirements:</h4>
+                        <h4>Troubleshooting:</h4>
                         <ul>
-                            <li>Chrome Canary or Edge Canary</li>
-                            <li>WebGPU flag enabled (chrome://flags/#enable-unsafe-webgpu)</li>
-                            <li>Modern GPU with updated drivers</li>
+                            <li>Open browser console (F12) to see detailed errors</li>
+                            <li>Make sure you're using Chrome Canary with WebGPU enabled</li>
+                            <li>Check that the server is running on port 8080</li>
+                            <li>Try refreshing the page (Ctrl+F5)</li>
                         </ul>
-                        <h4>Alternative:</h4>
-                        <p>The JavaScript implementation demonstrates the same GPU-first architecture as our Rust engine,
-                           running identical compute shaders through WebGPU.</p>
                     </div>
                 `;
             }
         }
+        
+        // Global error handler
+        window.addEventListener('error', (event) => {
+            console.error('Global error:', event.error);
+            const loadingDiv = document.getElementById('loading');
+            if (loadingDiv) {
+                loadingDiv.style.display = 'block';
+                loadingDiv.innerHTML += `
+                    <div class="error" style="margin-top: 20px;">
+                        <h3>Runtime Error</h3>
+                        <p>${event.error?.message || event.message}</p>
+                        <pre style="font-size: 11px;">${event.error?.stack || 'No stack trace'}</pre>
+                    </div>
+                `;
+            }
+        });
+        
+        window.addEventListener('unhandledrejection', (event) => {
+            console.error('Unhandled promise rejection:', event.reason);
+            const loadingDiv = document.getElementById('loading');
+            if (loadingDiv) {
+                loadingDiv.style.display = 'block';
+                loadingDiv.innerHTML += `
+                    <div class="error" style="margin-top: 20px;">
+                        <h3>Unhandled Promise Rejection</h3>
+                        <p>${event.reason?.message || event.reason}</p>
+                    </div>
+                `;
+            }
+        });
         
         // Start initialization when DOM is ready
         if (document.readyState === 'loading') {
