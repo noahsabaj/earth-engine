@@ -1,6 +1,6 @@
 # Earth Engine - Honest Status Report
 
-**Date**: January 11, 2025  
+**Date**: June 11, 2025  
 **Version**: 0.35.0  
 **Sprint**: Emergency Sprint 35.1 - Honesty & Stability
 
@@ -157,4 +157,4 @@ We choose engineering discipline over hype.
 
 *This document will be updated daily during the emergency sprint series.*
 
-Last Updated: 2025-01-11 (Sprint 35.1 Day 1)
+Last Updated: 2025-06-11 (Sprint 35.1 Day 1)

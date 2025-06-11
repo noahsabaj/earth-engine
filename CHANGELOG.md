@@ -32,7 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Focus shifted from features to making existing code work
 - All documentation updated with honest assessments
 
-## [0.35.0] - 2025-01-10
+## [0.35.0] - 2025-06-10
 
 ### Reality Check
 **What we claimed:** Complete DOP transition, zero allocations, production ready  
@@ -63,7 +63,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Sprint Completed
 - Sprint 35: Architecture Finalization (revealed critical issues)
 
-## [0.28.0] - 2025-01-10
+## [0.28.0] - 2025-06-10
 
 ### Added
 - GPU-driven frustum culling compute shader
@@ -89,7 +89,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Sprint Completed
 - Sprint 28: GPU-Driven Rendering Optimization
 
-## [0.27.0] - 2025-01-10
+## [0.27.0] - 2025-06-10
 
 ### Added
 - Morton encoding (Z-order curve) for voxel storage
@@ -109,7 +109,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Sprint Completed
 - Sprint 27: Core Memory & Cache Optimization
 
-## [0.26.0] - 2025-01-10
+## [0.26.0] - 2025-06-10
 
 ### Added
 - Hot-reload system for shaders, assets, and configs
@@ -119,7 +119,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Sprint Completed
 - Sprint 26: Hot-Reload Everything
 
-## [0.25.0] - 2025-01-10
+## [0.25.0] - 2025-06-10
 
 ### Added
 - Hybrid SDF-Voxel rendering system
@@ -130,7 +130,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Sprint Completed
 - Sprint 25: Hybrid SDF-Voxel System
 
-## [0.24.0] - 2025-01-10
+## [0.24.0] - 2025-06-10
 
 ### Added
 - GPU Fluid Dynamics system
@@ -141,7 +141,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Sprint Completed
 - Sprint 24: GPU Fluid Dynamics
 
-## [0.23.0] - 2025-01-10
+## [0.23.0] - 2025-06-10
 
 ### Added
 - Data-oriented world streaming
