@@ -1,11 +1,15 @@
 // Earth Engine - Data-Oriented JavaScript Implementation
 // Pure functions and data structures, no classes
 
+console.log('[Index] Loading index.js module...');
+
 import { engine } from './engine.js';
+
+console.log('[Index] Engine imported:', engine);
 
 // Initialize engine function
 export async function initializeEngine(canvas) {
-    console.log('[Index] Initializing Earth Engine (Data-Oriented)...');
+    console.log('[Index] initializeEngine called with canvas:', canvas);
     
     try {
         // Set canvas size
@@ -37,17 +41,6 @@ export async function initializeEngine(canvas) {
     }
 }
 
-// Auto-initialize if canvas exists
-if (typeof window !== 'undefined') {
-    window.addEventListener('DOMContentLoaded', async () => {
-        const canvas = document.getElementById('canvas');
-        if (canvas) {
-            console.log('[Index] Found canvas, auto-initializing...');
-            try {
-                await initializeEngine(canvas);
-            } catch (error) {
-                console.error('[Index] Auto-initialization failed:', error);
-            }
-        }
-    });
-}
+// No auto-initialization - let index.html handle it
+
+console.log('[Index] Module loaded, exporting initializeEngine:', initializeEngine);

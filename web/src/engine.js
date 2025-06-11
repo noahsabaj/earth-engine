@@ -1,12 +1,16 @@
 // Engine - Main orchestration functions
 // No classes, just functions coordinating all systems
 
+console.log('[Engine] Loading engine.js module...');
+
 import { gpuState, initializeGPU, resizeCanvas } from './gpu-state.js';
 import { worldState, initializeWorldBuffers, createWorldBindGroupLayout, debugReadVoxel, WORLD_CONFIG } from './world-state.js';
 import { generateTerrain } from './terrain-generation.js';
 import { meshState, generateMesh } from './mesh-generation.js';
 import { cameraState, initializeCamera, updateCamera } from './camera-state.js';
 import { rendererState, initializeRenderer, renderFrame, resizeRenderer } from './renderer.js';
+
+console.log('[Engine] All imports loaded');
 
 // Engine state - pure data
 export const engineState = {
@@ -23,7 +27,7 @@ export const engineState = {
 };
 
 // Initialize the engine
-export async function initializeEngine(canvas) {
+async function initializeEngine(canvas) {
     console.log('[Engine] Starting initialization...');
     engineState.canvas = canvas;
     
@@ -67,7 +71,7 @@ export async function initializeEngine(canvas) {
 }
 
 // Generate world (terrain + mesh)
-export async function generateWorld(seed = 42) {
+async function generateWorld(seed = 42) {
     console.log('[Engine] Generating world...');
     const startTime = performance.now();
     
@@ -86,7 +90,7 @@ export async function generateWorld(seed = 42) {
 }
 
 // Start the engine
-export function startEngine() {
+function startEngine() {
     if (engineState.isRunning || !engineState.initialized) return;
     
     console.log('[Engine] Starting render loop...');
@@ -96,7 +100,7 @@ export function startEngine() {
 }
 
 // Stop the engine
-export function stopEngine() {
+function stopEngine() {
     console.log('[Engine] Stopping render loop...');
     engineState.isRunning = false;
 }
@@ -243,3 +247,5 @@ export const engine = {
         renderer: rendererState
     }
 };
+
+console.log('[Engine] Engine module loaded, exported:', engine);

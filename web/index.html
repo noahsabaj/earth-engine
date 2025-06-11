@@ -6,7 +6,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <title>Earth Engine - WebGPU Implementation (v0.35.0)</title>
+    <title>Earth Engine - WebGPU DOP Edition (v0.35.1)</title>
     <style>
         body {
             margin: 0;
@@ -70,10 +70,11 @@
     <canvas id="earth-engine-canvas"></canvas>
     
     <div id="loading">
-        <h2>Earth Engine WebGPU</h2>
+        <h2>Earth Engine WebGPU - DOP</h2>
         <div class="loading-spinner"></div>
-        <p>Initializing GPU-first architecture...</p>
+        <p>Initializing Data-Oriented Architecture...</p>
         <p id="loading-status">Checking WebGPU support...</p>
+        <p style="font-size: 10px; opacity: 0.5;">v0.35.1 - 100% DOP</p>
     </div>
     
     <script type="module">
@@ -111,16 +112,21 @@
                 console.log('Loading from:', './src/index.js');
                 
                 // Add timeout for module loading
-                const modulePromise = import('./src/index.js?v=' + Date.now());
+                const modulePromise = import('./src/index.js?t=' + Date.now());
                 const timeoutPromise = new Promise((_, reject) => 
                     setTimeout(() => reject(new Error('Module loading timed out after 10 seconds')), 10000)
                 );
                 
                 const module = await Promise.race([modulePromise, timeoutPromise]);
                 console.log('Module loaded:', module);
+                console.log('Module exports:', Object.keys(module));
                 
                 const { initializeEngine } = module;
-                console.log('Initialize function:', initializeEngine);
+                console.log('initializeEngine function:', initializeEngine);
+                
+                if (!initializeEngine) {
+                    throw new Error('initializeEngine function not found in module exports');
+                }
                 
                 // Get canvas
                 const canvas = document.getElementById('earth-engine-canvas');
