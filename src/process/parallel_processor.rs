@@ -86,11 +86,12 @@ impl ParallelProcessor {
                     }
                     
                     // SAFETY: Thread-safe parallel access is guaranteed because:
-                    // - Each thread processes unique indices (no overlap)
-                    // - data_ptr points to valid ProcessData for entire batch processing
-                    // - state_ptr.add(index) is within bounds (checked above)
-                    // - No two threads access the same index simultaneously
+                    // - Each thread processes unique indices (no overlap between chunks)
+                    // - data_ptr points to valid ProcessData for entire batch processing lifetime
+                    // - state_ptr.add(index) is within bounds (checked above with index < data_len)
+                    // - No two threads access the same index simultaneously due to chunking strategy
                     // - Atomic pointers ensure visibility across threads
+                    // - Mutable references are non-overlapping due to unique indices
                     unsafe {
                         Self::update_single_process(
                             &mut *data_ptr,

@@ -342,7 +342,10 @@ impl SubAllocator {
     pub fn allocate(&mut self, size: u64, alignment: u64) -> Option<(u64, u64)> {
         // Find first fit
         for i in 0..self.free_regions.len() {
-            let (offset, region_size) = self.free_regions[i];
+            let (offset, region_size) = match self.free_regions.get(i) {
+                Some(&region) => region,
+                None => continue,
+            };
             
             // Align offset
             let aligned_offset = (offset + alignment - 1) / alignment * alignment;
@@ -388,10 +391,16 @@ impl SubAllocator {
         self.free_regions.sort_by_key(|(offset, _)| *offset);
         
         let mut merged = Vec::new();
-        let mut current = self.free_regions[0];
+        let mut current = match self.free_regions.get(0) {
+            Some(&region) => region,
+            None => return,
+        };
         
         for i in 1..self.free_regions.len() {
-            let next = self.free_regions[i];
+            let next = match self.free_regions.get(i) {
+                Some(&region) => region,
+                None => continue,
+            };
             
             if current.0 + current.1 == next.0 {
                 // Adjacent, merge

@@ -398,9 +398,14 @@ impl LodStats {
     }
     
     pub fn update(&mut self, lod: LodLevel, triangle_count: u32) {
-        self.lod_counts[lod as usize] += 1;
-        self.total_triangles += triangle_count;
-        self.calculate_average();
+        let lod_idx = lod as usize;
+        if let Some(count) = self.lod_counts.get_mut(lod_idx) {
+            *count += 1;
+            self.total_triangles += triangle_count;
+            self.calculate_average();
+        } else {
+            eprintln!("LOD index {} out of bounds for lod_counts", lod_idx);
+        }
     }
     
     fn calculate_average(&mut self) {

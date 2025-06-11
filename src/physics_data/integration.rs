@@ -60,11 +60,9 @@ impl PhysicsIntegrator {
     /// Get interpolated position for rendering
     pub fn get_interpolated_position(&self, entity: EntityId) -> Option<[f32; 3]> {
         let idx = entity.index();
-        if idx >= self.previous_positions.len() {
-            return None;
-        }
         
-        let prev = self.previous_positions[idx];
+        // Get both previous and current positions safely
+        let prev = self.previous_positions.get(idx)?;
         let curr = self.previous_positions.get(idx)?;
         
         Some([
@@ -107,14 +105,23 @@ impl PhysicsIntegrator {
         
         for (entity, impulse) in impulses {
             let idx = entity.index();
-            if idx < physics_data.entity_count() && physics_data.flags[idx].is_dynamic() {
-                let inv_mass = physics_data.inverse_masses[idx];
-                
-                // Impulse = change in momentum = m * Δv
-                // So Δv = impulse / m = impulse * inv_mass
-                physics_data.velocities[idx][0] += impulse[0] * inv_mass;
-                physics_data.velocities[idx][1] += impulse[1] * inv_mass;
-                physics_data.velocities[idx][2] += impulse[2] * inv_mass;
+            if idx < physics_data.entity_count() {
+                // Safely check flags
+                if let Some(flag) = physics_data.flags.get(idx) {
+                    if flag.is_dynamic() {
+                        // Safely get inverse mass and velocity
+                        if let (Some(inv_mass), Some(velocity)) = (
+                            physics_data.inverse_masses.get(idx),
+                            physics_data.velocities.get_mut(idx)
+                        ) {
+                            // Impulse = change in momentum = m * Δv
+                            // So Δv = impulse / m = impulse * inv_mass
+                            velocity[0] += impulse[0] * inv_mass;
+                            velocity[1] += impulse[1] * inv_mass;
+                            velocity[2] += impulse[2] * inv_mass;
+                        }
+                    }
+                }
             }
         }
     }
@@ -134,15 +141,24 @@ impl PhysicsIntegrator {
     pub fn teleport(physics_data: &mut PhysicsData, entity: EntityId, position: [f32; 3]) {
         let idx = entity.index();
         if idx < physics_data.entity_count() {
-            physics_data.positions[idx] = position;
+            // Safely update position
+            if let Some(pos) = physics_data.positions.get_mut(idx) {
+                *pos = position;
+            }
+            
             // Clear velocity to prevent overshooting
-            physics_data.velocities[idx] = [0.0, 0.0, 0.0];
+            if let Some(vel) = physics_data.velocities.get_mut(idx) {
+                *vel = [0.0, 0.0, 0.0];
+            }
+            
             // Update bounding box
-            let half_extents = [0.5, 0.5, 0.5]; // Simplified
-            physics_data.bounding_boxes[idx] = physics_tables::AABB::from_center_half_extents(
-                position,
-                half_extents,
-            );
+            if let Some(bbox) = physics_data.bounding_boxes.get_mut(idx) {
+                let half_extents = [0.5, 0.5, 0.5]; // Simplified
+                *bbox = physics_tables::AABB::from_center_half_extents(
+                    position,
+                    half_extents,
+                );
+            }
         }
     }
     
@@ -150,9 +166,15 @@ impl PhysicsIntegrator {
     pub fn set_velocity(physics_data: &mut PhysicsData, entity: EntityId, velocity: [f32; 3]) {
         let idx = entity.index();
         if idx < physics_data.entity_count() {
-            physics_data.velocities[idx] = velocity;
+            // Safely set velocity
+            if let Some(vel) = physics_data.velocities.get_mut(idx) {
+                *vel = velocity;
+            }
+            
             // Wake up entity if it was sleeping
-            physics_data.flags[idx].set_flag(physics_tables::PhysicsFlags::SLEEPING, false);
+            if let Some(flag) = physics_data.flags.get_mut(idx) {
+                flag.set_flag(physics_tables::PhysicsFlags::SLEEPING, false);
+            }
         }
     }
     

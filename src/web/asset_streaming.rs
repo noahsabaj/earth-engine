@@ -335,6 +335,12 @@ async fn stream_with_shared_memory(
     
     // Create GPU buffer with shared memory reference
     let size = array.length() as u64;
+    // SAFETY: Creating a slice from Uint8Array pointer is safe because:
+    // - array.as_ptr() returns a valid pointer to the underlying ArrayBuffer data
+    // - array.length() gives the exact size of the array in bytes
+    // - The slice lifetime is tied to the array, which is alive for this scope
+    // - Uint8Array guarantees contiguous memory layout
+    // - The data is only read, not modified through this slice
     let data = unsafe {
         std::slice::from_raw_parts(array.as_ptr(), array.length() as usize)
     };

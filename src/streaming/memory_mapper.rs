@@ -93,7 +93,7 @@ impl MemoryMapper {
         let segment_size = (PAGE_SIZE_BYTES * 16).min(self.max_mapped_memory / 4);
         let aligned_offset = (page_entry.disk_offset / segment_size) * segment_size;
         
-        // SAFETY: Memory mapping is safe because:
+        // SAFETY: Memory mapping with mmap is safe because:
         // - world_file is a valid file handle opened with read/write permissions
         // - aligned_offset is aligned to page boundaries (guaranteed by calculation)
         // - segment_size is within file bounds (we resize file as needed)

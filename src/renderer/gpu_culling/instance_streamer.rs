@@ -88,6 +88,11 @@ impl InstanceStreamer {
         let offset = index * std::mem::size_of::<ChunkInstance>();
         let size = std::mem::size_of::<ChunkInstance>();
         
+        // SAFETY: Direct write to mapped staging buffer is safe because:
+        // - staging_ptr is a valid pointer to persistently mapped memory from wgpu
+        // - offset is bounds-checked above to ensure it's within max_instances
+        // - dst pointer is properly aligned for ChunkInstance (guaranteed by allocation)
+        // - The write is atomic and doesn't overlap with other threads due to instance indexing
         unsafe {
             // Write directly to mapped staging buffer
             let dst = self.staging_ptr.add(offset) as *mut ChunkInstance;
@@ -111,6 +116,12 @@ impl InstanceStreamer {
         let offset = start_index * std::mem::size_of::<ChunkInstance>();
         let size = count * std::mem::size_of::<ChunkInstance>();
         
+        // SAFETY: Bulk copy to staging buffer is safe because:
+        // - staging_ptr is valid persistently mapped memory from wgpu
+        // - offset and count are bounds-checked above to stay within max_instances
+        // - dst and src pointers don't overlap (src is from instances slice, dst is GPU buffer)
+        // - size calculation ensures we don't write beyond buffer bounds
+        // - copy_nonoverlapping is appropriate as source and destination are distinct
         unsafe {
             // Bulk copy to staging buffer
             let dst = self.staging_ptr.add(offset);
@@ -176,6 +187,12 @@ impl InstanceStreamer {
             }
             
             let offset = idx * std::mem::size_of::<ChunkInstance>();
+            // SAFETY: Volatile read for cache prefetching is safe because:
+            // - staging_ptr points to valid mapped memory that exists for entire lifetime
+            // - offset is bounds-checked above against max_instances
+            // - read_volatile only reads data, doesn't modify anything
+            // - The read is used purely for cache warming and the value is discarded
+            // - No synchronization needed as this is a read-only prefetch operation
             unsafe {
                 // Volatile read to prevent optimization
                 let ptr = self.staging_ptr.add(offset);

@@ -132,13 +132,18 @@ impl PredictiveLoader {
         }
         
         // Update access pattern
-        let _ = self.player_patterns[player_id].update(position, timestamp);
+        if let Some(pattern) = self.player_patterns.get_mut(player_id) {
+            let _ = pattern.update(position, timestamp);
+        }
         
         // Clear old load requests
         self.load_queue.clear();
         
         // Calculate dynamic load radius based on speed
-        let pattern = &self.player_patterns[player_id];
+        let pattern = match self.player_patterns.get(player_id) {
+            Some(p) => p,
+            None => return,
+        };
         let dynamic_radius = (self.base_load_radius + pattern.speed * 0.5)
             .min(self.max_load_radius);
         
@@ -165,7 +170,10 @@ impl PredictiveLoader {
         player_id: usize,
         num_predictions: usize,
     ) -> Vec<((f32, f32, f32), f32)> {
-        let pattern = &self.player_patterns[player_id];
+        let pattern = match self.player_patterns.get(player_id) {
+            Some(p) => p,
+            None => return Vec::new(),
+        };
         let mut predictions = Vec::with_capacity(num_predictions);
         
         if let Some(&current_pos) = pattern.positions.back() {
@@ -234,9 +242,10 @@ impl PredictiveLoader {
                         page_y as u32,
                         page_z as u32,
                     ) {
-                        if page_idx < page_table.entries.len() && 
-                           page_table.entries[page_idx].is_resident() {
-                            continue;
+                        if let Some(entry) = page_table.entries.get(page_idx) {
+                            if entry.is_resident() {
+                                continue;
+                            }
                         }
                     }
                     

@@ -123,7 +123,14 @@ impl ProgressiveStreamer {
         let received = state.packets_received.entry(key.clone()).or_insert_with(|| {
             vec![false; packet.total_packets as usize]
         });
-        received[packet.sequence as usize] = true;
+        
+        // Bounds check before accessing array
+        let sequence_idx = packet.sequence as usize;
+        if sequence_idx >= received.len() {
+            eprintln!("Packet sequence {} out of bounds for total packets {}", packet.sequence, packet.total_packets);
+            return;
+        }
+        received[sequence_idx] = true;
         
         // Process packet based on type
         match packet.packet_type {
@@ -209,10 +216,11 @@ impl ProgressiveStreamer {
         let updates = self.decode_attributes(&packet.data);
         
         for (vertex_idx, new_attrs) in updates {
-            if vertex_idx < state.base_vertices.len() {
-                let vertex = &mut state.base_vertices[vertex_idx];
+            if let Some(vertex) = state.base_vertices.get_mut(vertex_idx) {
                 vertex.normal = new_attrs.normal;
                 vertex.tex_coords = new_attrs.tex_coords;
+            } else {
+                eprintln!("Vertex index {} out of bounds for base vertices len {}", vertex_idx, state.base_vertices.len());
             }
         }
     }

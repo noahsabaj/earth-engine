@@ -142,7 +142,9 @@ impl InstanceIdSet {
         let index = (hash as usize) % (self.bloom.len() * 64);
         let word = index / 64;
         let bit = index % 64;
-        self.bloom[word] |= 1u64 << bit;
+        if let Some(bloom_word) = self.bloom.get_mut(word) {
+            *bloom_word |= 1u64 << bit;
+        }
         
         // Add to set
         self.set.insert(id);
@@ -155,7 +157,7 @@ impl InstanceIdSet {
         let word = index / 64;
         let bit = index % 64;
         
-        if (self.bloom[word] & (1u64 << bit)) == 0 {
+        if self.bloom.get(word).map_or(true, |&bloom_word| (bloom_word & (1u64 << bit)) == 0) {
             return false; // Definitely not in set
         }
         

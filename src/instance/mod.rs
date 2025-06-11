@@ -100,12 +100,19 @@ impl InstanceData {
     /// Mark instance as deleted (soft delete for history)
     pub fn delete(&mut self, index: usize) -> InstanceResult<()> {
         if index < self.active.len() {
-            self.active[index] = false;
-            self.versions[index] += 1;
-            self.modified_at[index] = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map_err(|_| timestamp_error("instance deletion"))?
-                .as_secs();
+            // Safely update all arrays
+            if let Some(active) = self.active.get_mut(index) {
+                *active = false;
+            }
+            if let Some(version) = self.versions.get_mut(index) {
+                *version += 1;
+            }
+            if let Some(modified) = self.modified_at.get_mut(index) {
+                *modified = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map_err(|_| timestamp_error("instance deletion"))?
+                    .as_secs();
+            }
         }
         Ok(())
     }

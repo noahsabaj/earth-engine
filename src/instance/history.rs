@@ -60,9 +60,11 @@ impl HistoryRingBuffer {
     
     /// Add new history entry
     pub fn push(&mut self, entry: HistoryEntry) {
-        self.entries[self.write_pos] = Some(entry);
-        self.write_pos = (self.write_pos + 1) % self.entries.len();
-        self.total_written += 1;
+        if let Some(slot) = self.entries.get_mut(self.write_pos) {
+            *slot = Some(entry);
+            self.write_pos = (self.write_pos + 1) % self.entries.len();
+            self.total_written += 1;
+        }
     }
     
     /// Get last N entries
@@ -77,7 +79,7 @@ impl HistoryRingBuffer {
         
         for i in 0..count.min(capacity) {
             let idx = (start + capacity - 1 - i) % capacity;
-            if let Some(ref entry) = self.entries[idx] {
+            if let Some(Some(ref entry)) = self.entries.get(idx) {
                 result.push(entry);
             }
         }

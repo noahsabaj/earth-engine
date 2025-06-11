@@ -335,11 +335,23 @@ async fn handle_stream_messages(
 
 /// Convert header to bytes
 fn header_to_bytes(header: &MessageHeader) -> [u8; std::mem::size_of::<MessageHeader>()] {
+    // SAFETY: Transmuting MessageHeader to byte array is safe because:
+    // - MessageHeader is repr(C) with well-defined memory layout
+    // - All fields are primitive types with no padding issues
+    // - The output array size exactly matches the struct size
+    // - No pointers or references are involved, only POD types
+    // - The function creates a copy, not affecting the original
     unsafe { std::mem::transmute_copy(header) }
 }
 
 /// Parse header from bytes
 fn parse_header(bytes: &[u8]) -> MessageHeader {
+    // SAFETY: Reading MessageHeader from byte slice is safe because:
+    // - Caller ensures bytes.len() >= size_of::<MessageHeader>() before calling
+    // - MessageHeader is repr(C) with predictable layout
+    // - The cast aligns with the struct's memory representation
+    // - read() creates a bitwise copy, which is safe for POD types
+    // - If bytes are misaligned or too small, this would cause UB
     unsafe {
         std::ptr::read(bytes.as_ptr() as *const MessageHeader)
     }

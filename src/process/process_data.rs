@@ -143,32 +143,53 @@ impl ProcessData {
     
     /// Update process progress
     pub fn update(&mut self, index: usize, delta_ticks: u64) {
-        if !self.active[index] || self.status[index] != ProcessStatus::Active {
+        // Check bounds and status
+        let (is_active, status) = match (self.active.get(index), self.status.get(index)) {
+            (Some(&active), Some(&status)) => (active, status),
+            _ => return,
+        };
+        
+        if !is_active || status != ProcessStatus::Active {
             return;
         }
         
-        self.elapsed[index] += delta_ticks;
-        
-        // Check completion
-        if self.elapsed[index] >= self.duration[index] {
-            self.status[index] = ProcessStatus::Completed;
+        // Update elapsed time
+        if let Some(elapsed) = self.elapsed.get_mut(index) {
+            *elapsed += delta_ticks;
+            
+            // Check completion
+            if let Some(&duration) = self.duration.get(index) {
+                if *elapsed >= duration {
+                    if let Some(status) = self.status.get_mut(index) {
+                        *status = ProcessStatus::Completed;
+                    }
+                }
+            }
         }
     }
     
     /// Pause a process
     pub fn pause(&mut self, index: usize) {
-        if self.status[index] == ProcessStatus::Active {
-            self.status[index] = ProcessStatus::Paused;
-            self.pause_time[index] = Self::current_tick();
+        if let Some(&status) = self.status.get(index) {
+            if status == ProcessStatus::Active {
+                if let Some(status_mut) = self.status.get_mut(index) {
+                    *status_mut = ProcessStatus::Paused;
+                }
+                if let Some(pause) = self.pause_time.get_mut(index) {
+                    *pause = Self::current_tick();
+                }
+            }
         }
     }
     
     /// Resume a process
     pub fn resume(&mut self, index: usize) {
-        if self.status[index] == ProcessStatus::Paused {
-            self.status[index] = ProcessStatus::Active;
-            let pause_duration = Self::current_tick() - self.pause_time[index];
-            self.pause_time[index] = pause_duration;
+        if let Some(&status) = self.status.get(index) {
+            if status == ProcessStatus::Paused {
+                self.status[index] = ProcessStatus::Active;
+                let pause_duration = Self::current_tick() - self.pause_time[index];
+                self.pause_time[index] = pause_duration;
+            }
         }
     }
     

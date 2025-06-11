@@ -142,7 +142,9 @@ impl VolumetricFog {
     pub fn set_density(&mut self, x: usize, y: usize, z: usize, density: f32) {
         if x < self.dimensions.0 && y < self.dimensions.1 && z < self.dimensions.2 {
             let index = x + y * self.dimensions.0 + z * self.dimensions.0 * self.dimensions.1;
-            self.density_field[index] = density.clamp(0.0, 1.0);
+            if let Some(field_entry) = self.density_field.get_mut(index) {
+                *field_entry = density.clamp(0.0, 1.0);
+            }
         }
     }
     
@@ -150,7 +152,7 @@ impl VolumetricFog {
     pub fn get_density(&self, x: usize, y: usize, z: usize) -> f32 {
         if x < self.dimensions.0 && y < self.dimensions.1 && z < self.dimensions.2 {
             let index = x + y * self.dimensions.0 + z * self.dimensions.0 * self.dimensions.1;
-            self.density_field[index]
+            self.density_field.get(index).copied().unwrap_or(0.0)
         } else {
             0.0
         }

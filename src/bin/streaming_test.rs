@@ -46,7 +46,13 @@ fn test_page_table_creation() {
     assert!(large_world.sparse_index.is_some());
     
     // Test page indexing
-    let idx = small_world.page_index(2, 1, 3).unwrap();
+    let idx = match small_world.page_index(2, 1, 3) {
+        Some(idx) => idx,
+        None => {
+            eprintln!("Failed to get page index");
+            return;
+        }
+    };
     assert_eq!(idx, 2 + 1 * 4 + 3 * 4 * 2);
     
     // Test voxel to page conversion

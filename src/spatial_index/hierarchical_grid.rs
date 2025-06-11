@@ -170,7 +170,13 @@ impl HierarchicalGrid {
         };
         
         // Remove from all cells at that level
-        let grid_level = &self.levels[level as usize];
+        let grid_level = match self.levels.get(level as usize) {
+            Some(level) => level,
+            None => {
+                eprintln!("Level {} out of bounds for hierarchical grid", level);
+                return;
+            }
+        };
         let mut level_cells = grid_level.cells.write();
         
         let mut empty_cells = Vec::new();
@@ -203,7 +209,13 @@ impl HierarchicalGrid {
             None => return,
         };
         
-        let grid_level = &self.levels[level as usize];
+        let grid_level = match self.levels.get(level as usize) {
+            Some(level) => level,
+            None => {
+                eprintln!("Level {} out of bounds for hierarchical grid", level);
+                return;
+            }
+        };
         
         // Get old and new cells
         let old_cells = self.get_overlapping_cells(level, old_position, radius);
@@ -285,7 +297,10 @@ impl HierarchicalGrid {
             return; // Can't split finest level
         }
         
-        let grid_level = &self.levels[cell_id.level as usize];
+        let grid_level = match self.levels.get(cell_id.level as usize) {
+            Some(level) => level,
+            None => return,
+        };
         let mut level_cells = grid_level.cells.write();
         
         if let Some(cell) = level_cells.get_mut(&cell_id) {
@@ -295,9 +310,9 @@ impl HierarchicalGrid {
     }
     
     /// Merge cells back to parent
-    pub fn merge_cells(&self, child_ids: Vec<CellId>) {
+    pub fn merge_cells(&self, child_ids: Vec<CellId>) -> bool {
         if child_ids.is_empty() || child_ids[0].level == 0 {
-            return;
+            return false;
         }
         
         // Get parent - we already checked level > 0, so parent exists
@@ -305,15 +320,21 @@ impl HierarchicalGrid {
             Some(id) => id,
             None => {
                 log::error!("Failed to get parent cell ID for merge operation");
-                return;
+                return false;
             }
         };
         
-        let parent_level = &self.levels[parent_id.level as usize];
+        let parent_level = match self.levels.get(parent_id.level as usize) {
+            Some(level) => level,
+            None => return false,
+        };
         let mut parent_cells = parent_level.cells.write();
         
         if let Some(parent_cell) = parent_cells.get_mut(&parent_id) {
             parent_cell.is_subdivided = false;
+            true
+        } else {
+            false
         }
     }
     
@@ -406,7 +427,10 @@ impl HierarchicalGrid {
     }
     
     fn get_overlapping_cells(&self, level: u32, position: [f32; 3], radius: f32) -> Vec<CellId> {
-        let grid_level = &self.levels[level as usize];
+        let grid_level = match self.levels.get(level as usize) {
+            Some(level) => level,
+            None => return Vec::new(),
+        };
         let min = [position[0] - radius, position[1] - radius, position[2] - radius];
         let max = [position[0] + radius, position[1] + radius, position[2] + radius];
         
@@ -430,7 +454,10 @@ impl HierarchicalGrid {
         let cells = self.get_overlapping_cells(level, center, radius);
         
         // Filter to actual sphere overlap
-        let grid_level = &self.levels[level as usize];
+        let grid_level = match self.levels.get(level as usize) {
+            Some(level) => level,
+            None => return Vec::new(),
+        };
         cells.into_iter().filter(|&cell_id| {
             let (cell_min, cell_max) = grid_level.cell_bounds(cell_id);
             sphere_aabb_overlap(center, radius, cell_min, cell_max)
@@ -438,7 +465,10 @@ impl HierarchicalGrid {
     }
     
     fn get_overlapping_cells_box(&self, level: u32, min: [f32; 3], max: [f32; 3]) -> Vec<CellId> {
-        let grid_level = &self.levels[level as usize];
+        let grid_level = match self.levels.get(level as usize) {
+            Some(level) => level,
+            None => return Vec::new(),
+        };
         let min_cell = grid_level.world_to_cell(min);
         let max_cell = grid_level.world_to_cell(max);
         

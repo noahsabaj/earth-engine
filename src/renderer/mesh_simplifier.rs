@@ -126,9 +126,15 @@ impl MeshSimplifier {
                 }
                 
                 // Compute face plane
-                let v0 = positions[face[0] as usize];
-                let v1 = positions[face[1] as usize];
-                let v2 = positions[face[2] as usize];
+                let v0 = positions.get(face[0] as usize)
+                    .copied()
+                    .unwrap_or(Vector3::zero());
+                let v1 = positions.get(face[1] as usize)
+                    .copied()
+                    .unwrap_or(Vector3::zero());
+                let v2 = positions.get(face[2] as usize)
+                    .copied()
+                    .unwrap_or(Vector3::zero());
                 
                 let normal = (v1 - v0).cross(v2 - v0).normalize();
                 let d = -normal.dot(v0);
@@ -205,7 +211,13 @@ impl MeshSimplifier {
             if let Some(faces) = self.vertex_faces.get(&v1).cloned() {
                 for face_idx in faces {
                     if !removed_faces.contains(&face_idx) {
-                        let face = &mut self.faces[face_idx];
+                        let face = match self.faces.get_mut(face_idx) {
+                            Some(f) => f,
+                            None => {
+                                eprintln!("Face index {} out of bounds", face_idx);
+                                continue;
+                            }
+                        };
                         
                         // Replace v1 with v0
                         for v in face.iter_mut() {
@@ -388,14 +400,26 @@ fn recompute_normals(vertices: &mut [Vertex], indices: &[u32]) {
     // Accumulate face normals
     for chunk in indices.chunks(3) {
         if chunk.len() == 3 {
-            let v0 = Vector3::from(vertices[chunk[0] as usize].position);
-            let v1 = Vector3::from(vertices[chunk[1] as usize].position);
-            let v2 = Vector3::from(vertices[chunk[2] as usize].position);
+            let v0 = vertices.get(chunk[0] as usize)
+                .map(|v| Vector3::from(v.position))
+                .unwrap_or(Vector3::zero());
+            let v1 = vertices.get(chunk[1] as usize)
+                .map(|v| Vector3::from(v.position))
+                .unwrap_or(Vector3::zero());
+            let v2 = vertices.get(chunk[2] as usize)
+                .map(|v| Vector3::from(v.position))
+                .unwrap_or(Vector3::zero());
             
             let normal = (v1 - v0).cross(v2 - v0);
             
             for &idx in chunk {
-                let vertex = &mut vertices[idx as usize];
+                let vertex = match vertices.get_mut(idx as usize) {
+                    Some(v) => v,
+                    None => {
+                        eprintln!("Vertex index {} out of bounds", idx);
+                        continue;
+                    }
+                };
                 let current = Vector3::from(vertex.normal);
                 let new_normal = current + normal;
                 vertex.normal = new_normal.into();

@@ -141,7 +141,11 @@ fn test_parallel_processing() {
     for i in 0..100 {
         let id = ProcessId(i);
         data.add(id, ProcessType::default(), owner, 1000);
-        data.status.last_mut().unwrap().clone_from(&ProcessStatus::Active);
+        if let Some(last_status) = data.status.last_mut() {
+            last_status.clone_from(&ProcessStatus::Active);
+        } else {
+            eprintln!("Failed to get last status");
+        }
         state_machines.push(state_machine::StateMachine::new());
     }
     

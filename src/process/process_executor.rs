@@ -204,6 +204,11 @@ impl ProcessExecutor {
             TransitionAction::ApplyQuality(modifier) => {
                 let current = data.quality[index] as i8;
                 let new_quality = (current + modifier).clamp(0, 4);
+                // SAFETY: Transmuting u8 to QualityLevel enum is safe because:
+                // - QualityLevel is repr(u8) with values 0-4
+                // - new_quality is clamped to 0-4 range, matching valid enum variants
+                // - The enum has explicit discriminants for all values in this range
+                // - Misuse would only occur if QualityLevel enum definition changes
                 data.quality[index] = unsafe { std::mem::transmute(new_quality as u8) };
             }
             
@@ -283,9 +288,20 @@ impl ProcessScheduler {
         
         // Sort processes by priority
         for i in 0..data.len() {
-            if data.active[i] && data.status[i] == ProcessStatus::Active {
-                let priority = data.priority[i] as usize;
-                self.queues[priority].push(i);
+            let (is_active, status, priority) = match (
+                data.active.get(i),
+                data.status.get(i),
+                data.priority.get(i)
+            ) {
+                (Some(&active), Some(&status), Some(&priority)) => (active, status, priority),
+                _ => continue,
+            };
+            
+            if is_active && status == ProcessStatus::Active {
+                let priority_idx = priority as usize;
+                if let Some(queue) = self.queues.get_mut(priority_idx) {
+                    queue.push(i);
+                }
             }
         }
         
@@ -339,6 +355,11 @@ mod tests {
             let owner = InstanceId::new();
             let index = data.add(id, ProcessType::default(), owner, 100);
             data.status[index] = ProcessStatus::Active;
+            // SAFETY: Transmuting u8 to priority enum is safe because:
+            // - Priority enum is repr(u8) with valid values 0-3
+            // - Loop index i is in range 0..4, so i as u8 produces 0-3
+            // - These values directly map to valid Priority enum variants
+            // - The test controls the input values, ensuring they're always valid
             data.priority[index] = unsafe { std::mem::transmute(i as u8) };
         }
         

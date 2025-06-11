@@ -359,7 +359,9 @@ impl AdaptiveTessellator {
         // Create vertex remapping
         let mut vertex_remap: Vec<u32> = (0..vertices.len() as u32).collect();
         vertex_remap.sort_by_key(|&idx| {
-            let pos = Vector3::from(vertices[idx as usize].position);
+            let pos = vertices.get(idx as usize)
+                .map(|v| Vector3::from(v.position))
+                .unwrap_or(Vector3::zero());
             // Sort by Morton code for spatial locality
             let x = (pos.x * 1000.0) as u32;
             let z = (pos.z * 1000.0) as u32;
@@ -369,19 +371,25 @@ impl AdaptiveTessellator {
         // Build inverse mapping
         let mut inverse_remap = vec![0u32; vertices.len()];
         for (new_idx, &old_idx) in vertex_remap.iter().enumerate() {
-            inverse_remap[old_idx as usize] = new_idx as u32;
+            if let Some(elem) = inverse_remap.get_mut(old_idx as usize) {
+                *elem = new_idx as u32;
+            }
         }
         
         // Reorder vertices
         let mut new_vertices = Vec::with_capacity(vertices.len());
         for &old_idx in &vertex_remap {
-            new_vertices.push(vertices[old_idx as usize]);
+            if let Some(vertex) = vertices.get(old_idx as usize) {
+                new_vertices.push(*vertex);
+            }
         }
         *vertices = new_vertices;
         
         // Update indices
         for idx in indices.iter_mut() {
-            *idx = inverse_remap[*idx as usize];
+            *idx = inverse_remap.get(*idx as usize)
+                .copied()
+                .unwrap_or(*idx);
         }
     }
 }

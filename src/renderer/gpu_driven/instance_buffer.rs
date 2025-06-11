@@ -85,8 +85,10 @@ impl InstanceBuffer {
     /// Update an instance
     pub fn update_instance(&mut self, index: u32, instance: InstanceData) {
         if index < self.count {
-            self.instances[index as usize] = instance;
-            self.dirty = true;
+            if let Some(inst) = self.instances.get_mut(index as usize) {
+                *inst = instance;
+                self.dirty = true;
+            }
         }
     }
     
