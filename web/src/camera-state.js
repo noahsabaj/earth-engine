@@ -177,7 +177,7 @@ export function updateCamera(deltaTime) {
     
     // Rotation from mouse
     if (cameraState.input.pointerLocked) {
-        cameraState.rotation[0] += cameraState.input.mouse.deltaX * cameraState.lookSpeed;
+        cameraState.rotation[0] -= cameraState.input.mouse.deltaX * cameraState.lookSpeed; // Inverted X
         cameraState.rotation[1] = Math.max(-Math.PI/2, Math.min(Math.PI/2, 
             cameraState.rotation[1] - cameraState.input.mouse.deltaY * cameraState.lookSpeed)); // Inverted Y
         
@@ -193,9 +193,9 @@ export function updateCamera(deltaTime) {
     
     // Calculate movement vectors
     const forward = new Float32Array([
-        -Math.sin(yaw) * Math.cos(pitch),  // Negative for correct direction
+        -Math.sin(yaw) * Math.cos(pitch),
         0, // Don't move vertically with forward/back
-        -Math.cos(yaw) * Math.cos(pitch)   // Negative for correct direction
+        -Math.cos(yaw) * Math.cos(pitch)
     ]);
     
     const right = new Float32Array([
