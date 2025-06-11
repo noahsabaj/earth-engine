@@ -1,40 +1,99 @@
-# Earth Engine Web - WebGPU Implementation
+# Earth Engine WebGPU - Data-Oriented Edition
 
-This directory contains the complete WebGPU implementation of Earth Engine that runs in the browser.
+This is a pure JavaScript implementation of the Earth Engine using 100% Data-Oriented Programming (DOP) principles.
 
-## Structure
+## Architecture
+
+**NO Object-Oriented Programming (OOP):**
+- ❌ No classes
+- ❌ No inheritance
+- ❌ No `this` keyword
+- ❌ No prototypes
+- ❌ No methods
+
+**Pure Data-Oriented Design:**
+- ✅ Data structures (plain objects with typed arrays)
+- ✅ Pure functions operating on data
+- ✅ GPU buffers as single source of truth
+- ✅ Clear separation of data and functions
+- ✅ Explicit side effects
+
+## Running the Demo
+
+1. **Start the development server:**
+   ```bash
+   cd web
+   python3 serve.py
+   # or
+   ./serve.py
+   ```
+
+2. **Open in a WebGPU-capable browser:**
+   - Chrome Canary or Chrome 113+
+   - Navigate to: http://localhost:8080
+   - Enable WebGPU if needed: chrome://flags/#enable-unsafe-webgpu
+
+## Project Structure
 
 ```
 web/
 ├── index.html          # Main entry point
-├── src/
-│   ├── index.js       # JavaScript entry point
-│   ├── core/          # Core engine systems
-│   ├── world/         # World generation
-│   └── renderer/      # GPU rendering
-└── README.md          # This file
+├── serve.py           # Development server
+└── src/
+    ├── gpu-state.js        # GPU device and buffer management
+    ├── world-state.js      # World data structures
+    ├── terrain-generation.js # Terrain generation functions
+    ├── mesh-generation.js  # Mesh generation from voxels
+    ├── camera-state.js     # Camera data and transforms
+    ├── renderer.js         # Rendering functions
+    ├── shader-snippets.js  # WGSL shader code
+    ├── engine.js          # Main orchestration
+    └── index.js           # Entry point
 ```
 
-## Running
+## Data Flow
 
-From the repository root:
+1. **Initialization:**
+   - GPU state initialized
+   - World buffers allocated on GPU
+   - Camera state initialized
+   - Renderer pipeline created
 
-```bash
-python3 serve.py
+2. **World Generation:**
+   - Terrain generated directly on GPU
+   - Mesh generated from voxels on GPU
+   - All data stays on GPU
+
+3. **Rendering:**
+   - Camera matrices uploaded to GPU
+   - Single draw call renders entire world
+   - No CPU-GPU data transfer during runtime
+
+## Key Data Structures
+
+```javascript
+// Example: World State
+export const worldState = {
+    palette: new Uint32Array(256),
+    buffers: {
+        voxel: null,      // GPU buffer
+        metadata: null,   // GPU buffer
+        palette: null,    // GPU buffer
+        pageTable: null   // GPU buffer
+    },
+    initialized: false
+};
+
+// Example: Pure Function
+export function generateTerrain(device, seed) {
+    // Operates on worldState, returns nothing
+    // Side effects are explicit
+}
 ```
 
-Then open: http://localhost:8080/web/
+## Performance
 
-## Requirements
-
-- Chrome Canary or Edge Canary
-- Enable WebGPU: `chrome://flags/#enable-unsafe-webgpu`
-- Modern GPU with updated drivers
-
-## Architecture
-
-This JavaScript implementation uses the same GPU-first architecture as the Rust engine:
-- All world data lives on GPU
-- Single draw call rendering
-- GPU compute shaders for everything
-- Zero CPU-GPU sync points
+- Zero-copy architecture
+- All heavy computation on GPU
+- Minimal CPU overhead
+- Single draw call for entire world
