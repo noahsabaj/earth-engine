@@ -174,6 +174,14 @@ export async function debugReadVoxel(device, x, y, z) {
     const index = mortonEncode3D(x, y, z);
     const offset = index * 4;
     
+    console.log(`[Debug] Reading voxel at (${x},${y},${z}), morton index: ${index}, offset: ${offset}`);
+    
+    // Bounds check
+    if (offset >= WORLD_CONFIG.voxelBufferSize) {
+        console.error(`[Debug] Offset ${offset} exceeds buffer size ${WORLD_CONFIG.voxelBufferSize}`);
+        return 0; // Return air
+    }
+    
     const staging = device.createBuffer({
         size: 4,
         usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,

@@ -29,8 +29,11 @@ export const meshState = {
         finalize: null
     },
     
-    // Bind group
-    bindGroup: null,
+    // Bind groups
+    bindGroups: {
+        generate: null,
+        finalize: null
+    },
     
     // Stats (read back from GPU)
     stats: {
@@ -241,7 +244,7 @@ export function initializeMeshGeneration(device) {
     
     meshState.buffers.counter = createBuffer(
         16, // 2 atomics + padding
-        GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC,
+        GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST,
         'MeshCounters'
     );
     
@@ -250,10 +253,23 @@ export function initializeMeshGeneration(device) {
     meshState.pipelines.generate = createComputePipeline(shaderCode, 'generate_mesh', 'MeshGeneration');
     meshState.pipelines.finalize = createComputePipeline(shaderCode, 'finalize_indirect', 'MeshFinalize');
     
-    // Create bind group
-    meshState.bindGroup = device.createBindGroup({
-        label: 'MeshBindGroup',
+    // Create bind groups - generate_mesh only uses bindings 0-4
+    meshState.bindGroups.generate = device.createBindGroup({
+        label: 'MeshGenerateBindGroup',
         layout: meshState.pipelines.generate.getBindGroupLayout(0),
+        entries: [
+            { binding: 0, resource: { buffer: worldState.buffers.voxel } },
+            { binding: 1, resource: { buffer: worldState.buffers.palette } },
+            { binding: 2, resource: { buffer: meshState.buffers.vertex } },
+            { binding: 3, resource: { buffer: meshState.buffers.index } },
+            { binding: 4, resource: { buffer: meshState.buffers.counter } }
+        ]
+    });
+    
+    // Finalize uses all bindings
+    meshState.bindGroups.finalize = device.createBindGroup({
+        label: 'MeshFinalizeBindGroup',
+        layout: meshState.pipelines.finalize.getBindGroupLayout(0),
         entries: [
             { binding: 0, resource: { buffer: worldState.buffers.voxel } },
             { binding: 1, resource: { buffer: worldState.buffers.palette } },
@@ -286,7 +302,7 @@ export async function generateMesh(device) {
     {
         const pass = encoder.beginComputePass();
         pass.setPipeline(meshState.pipelines.generate);
-        pass.setBindGroup(0, meshState.bindGroup);
+        pass.setBindGroup(0, meshState.bindGroups.generate);
         
         const chunksPerAxis = Math.ceil(WORLD_CONFIG.size / WORLD_CONFIG.chunkSize);
         const chunksY = Math.ceil(WORLD_CONFIG.height / WORLD_CONFIG.chunkSize);
@@ -299,7 +315,7 @@ export async function generateMesh(device) {
     {
         const pass = encoder.beginComputePass();
         pass.setPipeline(meshState.pipelines.finalize);
-        pass.setBindGroup(0, meshState.bindGroup);
+        pass.setBindGroup(0, meshState.bindGroups.finalize);
         pass.dispatchWorkgroups(1);
         pass.end();
     }
@@ -333,6 +349,10 @@ export async function readMeshStats(device) {
     meshState.stats.triangleCount = Math.floor(data[1] / 3);
     
     console.log(`[Mesh] Generated ${meshState.stats.vertexCount.toLocaleString()} vertices, ${meshState.stats.indexCount.toLocaleString()} indices`);
+    
+    if (meshState.stats.vertexCount === 0) {
+        console.warn('[Mesh] No vertices generated! Check terrain generation.');
+    }
     
     staging.unmap();
     staging.destroy();

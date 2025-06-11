@@ -84,9 +84,9 @@ async function generateWorld(seed = 42) {
     const elapsed = performance.now() - startTime;
     console.log(`[Engine] World generation complete in ${elapsed.toFixed(1)}ms`);
     
-    // Debug check
-    const testVoxel = await debugReadVoxel(gpuState.device, 128, 50, 128);
-    console.log('[Engine] Test voxel at (128,50,128):', testVoxel);
+    // Debug check - test a simple coordinate
+    const testVoxel = await debugReadVoxel(gpuState.device, 10, 50, 10);
+    console.log('[Engine] Test voxel at (10,50,10):', testVoxel);
 }
 
 // Start the engine
