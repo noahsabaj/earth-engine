@@ -241,10 +241,8 @@ export function renderFrame() {
     renderPass.setVertexBuffer(0, meshState.buffers.vertex);
     renderPass.setIndexBuffer(meshState.buffers.index, 'uint32');
     
-    // Draw
-    if (meshState.stats.indexCount > 0) {
-        renderPass.drawIndexed(meshState.stats.indexCount);
-    }
+    // Draw using indirect buffer
+    renderPass.drawIndexedIndirect(meshState.buffers.indirect, 0);
     
     renderPass.end();
     

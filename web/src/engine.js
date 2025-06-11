@@ -5,7 +5,7 @@ console.log('[Engine] Loading engine.js module...');
 
 import { gpuState, initializeGPU, resizeCanvas } from './gpu-state.js';
 import { worldState, initializeWorldBuffers, createWorldBindGroupLayout, debugReadVoxel, WORLD_CONFIG } from './world-state.js';
-import { generateTerrain } from './terrain-generation.js';
+import { generateTerrain, debugCountVoxels } from './terrain-generation.js';
 import { meshState, generateMesh } from './mesh-generation.js';
 import { cameraState, initializeCamera, updateCamera } from './camera-state.js';
 import { rendererState, initializeRenderer, renderFrame, resizeRenderer } from './renderer.js';
@@ -71,12 +71,75 @@ async function initializeEngine(canvas) {
 }
 
 // Generate world (terrain + mesh)
+// Debug: Create simple test world
+async function debugCreateTestWorld() {
+    console.log('[Debug] Creating test world...');
+    
+    // Clear voxel buffer first
+    const encoder = gpuState.device.createCommandEncoder();
+    encoder.clearBuffer(worldState.buffers.voxel, 0);
+    gpuState.device.queue.submit([encoder.finish()]);
+    
+    const shaderCode = `
+        @group(0) @binding(0) var<storage, read_write> voxels: array<u32>;
+        
+        // Linear indexing for debugging
+        fn get_index(x: u32, y: u32, z: u32) -> u32 {
+            return y * 256u * 256u + z * 256u + x;
+        }
+        
+        @compute @workgroup_size(1)
+        fn test_world() {
+            // Create a 10x10x10 cube at origin
+            for (var y = 45u; y < 55u; y++) {
+                for (var z = 0u; z < 10u; z++) {
+                    for (var x = 0u; x < 10u; x++) {
+                        let idx = get_index(x, y, z);
+                        voxels[idx] = 5u; // Gold blocks
+                    }
+                }
+            }
+        }
+    `;
+    
+    const pipeline = gpuState.device.createComputePipeline({
+        label: 'TestWorld',
+        layout: 'auto',
+        compute: {
+            module: gpuState.device.createShaderModule({ code: shaderCode }),
+            entryPoint: 'test_world'
+        }
+    });
+    
+    const bindGroup = gpuState.device.createBindGroup({
+        layout: pipeline.getBindGroupLayout(0),
+        entries: [
+            { binding: 0, resource: { buffer: worldState.buffers.voxel } }
+        ]
+    });
+    
+    const encoder2 = gpuState.device.createCommandEncoder();
+    const pass = encoder2.beginComputePass();
+    pass.setPipeline(pipeline);
+    pass.setBindGroup(0, bindGroup);
+    pass.dispatchWorkgroups(1);
+    pass.end();
+    gpuState.device.queue.submit([encoder2.finish()]);
+    
+    // Wait for GPU
+    await gpuState.device.queue.onSubmittedWorkDone();
+}
+
+// Generate world (terrain + mesh)
 async function generateWorld(seed = 42) {
     console.log('[Engine] Generating world...');
     const startTime = performance.now();
     
-    // Generate terrain
-    await generateTerrain(gpuState.device, seed);
+    // DEBUG: Use simple test world instead
+    await debugCreateTestWorld();
+    
+    // Debug: Count total voxels in buffer
+    await debugCountVoxels(gpuState.device);
     
     // Generate mesh from voxels
     await generateMesh(gpuState.device);
@@ -230,22 +293,10 @@ function createStatsOverlay() {
     document.body.appendChild(controls);
 }
 
-// Export engine API
-export const engine = {
-    initialize: initializeEngine,
-    start: startEngine,
-    stop: stopEngine,
-    generateWorld,
-    
-    // Access to state for debugging
-    state: {
-        engine: engineState,
-        gpu: gpuState,
-        world: worldState,
-        camera: cameraState,
-        mesh: meshState,
-        renderer: rendererState
-    }
-};
+// Export pure functions
+export { initializeEngine, startEngine, stopEngine, generateWorld };
 
-console.log('[Engine] Engine module loaded, exported:', engine);
+// Export states for debugging
+export { engineState, gpuState, worldState, cameraState, meshState, rendererState };
+
+console.log('[Engine] Engine module loaded');

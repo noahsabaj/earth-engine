@@ -3,11 +3,15 @@
 
 console.log('[Index] Loading index.js module...');
 
-import { engine } from './engine.js';
+import { 
+    initializeEngine as engineInit, 
+    startEngine,
+    engineState, gpuState, worldState, cameraState, meshState, rendererState 
+} from './engine.js';
 
-console.log('[Index] Engine imported:', engine);
+console.log('[Index] Engine functions imported');
 
-// Initialize engine function
+// Re-export the initialize function with our wrapper
 export async function initializeEngine(canvas) {
     console.log('[Index] initializeEngine called with canvas:', canvas);
     
@@ -17,10 +21,10 @@ export async function initializeEngine(canvas) {
         canvas.height = window.innerHeight;
         
         // Initialize all systems
-        await engine.initialize(canvas);
+        await engineInit(canvas);
         
         // Start render loop
-        engine.start();
+        startEngine();
         
         // Handle window resize
         window.addEventListener('resize', () => {
@@ -29,12 +33,19 @@ export async function initializeEngine(canvas) {
         });
         
         console.log('[Index] Engine started successfully');
-        console.log('[Index] Access state via window.earthEngine.state');
+        console.log('[Index] Access state via window.earthEngineState');
         
-        // Expose engine to window for debugging
-        window.earthEngine = engine;
+        // Expose states to window for debugging (pure data)
+        window.earthEngineState = {
+            engine: engineState,
+            gpu: gpuState,
+            world: worldState,
+            camera: cameraState,
+            mesh: meshState,
+            renderer: rendererState
+        };
         
-        return engine;
+        return true; // Return success instead of object
     } catch (error) {
         console.error('[Index] Failed to initialize engine:', error);
         throw error;

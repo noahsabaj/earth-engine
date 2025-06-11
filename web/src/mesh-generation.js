@@ -55,7 +55,8 @@ export function createMeshGenerationShader() {
         struct Counters {
             vertex_count: atomic<u32>,
             index_count: atomic<u32>,
-            _padding: vec2<u32>,
+            voxel_count: atomic<u32>,
+            visible_faces: atomic<u32>,
         }
         
         @group(0) @binding(0) var<storage, read> voxels: array<u32>;
@@ -141,70 +142,66 @@ export function createMeshGenerationShader() {
         
         @compute @workgroup_size(8, 8, 8)
         fn generate_mesh(@builtin(global_invocation_id) id: vec3<u32>) {
-            let chunk_pos = id;
-            if (any(chunk_pos * CHUNK_SIZE >= vec3<u32>(WORLD_SIZE, WORLD_HEIGHT, WORLD_SIZE))) {
+            // Each thread processes one voxel directly
+            let world_x = id.x;
+            let world_y = id.y;
+            let world_z = id.z;
+            
+            if (world_x >= WORLD_SIZE || world_y >= WORLD_HEIGHT || world_z >= WORLD_SIZE) {
                 return;
             }
             
-            let chunk_offset = chunk_pos * CHUNK_SIZE;
+            let voxel = get_voxel(world_x, world_y, world_z);
+            if (voxel == 0u) { return; }
             
-            for (var y = 0u; y < CHUNK_SIZE; y++) {
-                for (var z = 0u; z < CHUNK_SIZE; z++) {
-                    for (var x = 0u; x < CHUNK_SIZE; x++) {
-                        let world_x = chunk_offset.x + x;
-                        let world_y = chunk_offset.y + y;
-                        let world_z = chunk_offset.z + z;
-                        
-                        let voxel = get_voxel(world_x, world_y, world_z);
-                        if (voxel == 0u) { continue; }
-                        
-                        let color = palette[voxel];
-                        let pos = vec3<f32>(f32(world_x), f32(world_y), f32(world_z));
-                        
-                        // Check each face
-                        if (is_face_visible(world_x, world_y, world_z, 0, 1, 0)) {
-                            let vertex_idx = atomicAdd(&counters.vertex_count, 4u);
-                            let index_idx = atomicAdd(&counters.index_count, 6u);
-                            add_face(pos, vec2<f32>(1.0, 1.0), vec3<f32>(0.0, 1.0, 0.0), 
-                                    color, vertex_idx, index_idx);
-                        }
-                        
-                        if (is_face_visible(world_x, world_y, world_z, 0, -1, 0)) {
-                            let vertex_idx = atomicAdd(&counters.vertex_count, 4u);
-                            let index_idx = atomicAdd(&counters.index_count, 6u);
-                            add_face(pos, vec2<f32>(1.0, 1.0), vec3<f32>(0.0, -1.0, 0.0), 
-                                    color, vertex_idx, index_idx);
-                        }
-                        
-                        if (is_face_visible(world_x, world_y, world_z, 1, 0, 0)) {
-                            let vertex_idx = atomicAdd(&counters.vertex_count, 4u);
-                            let index_idx = atomicAdd(&counters.index_count, 6u);
-                            add_face(pos, vec2<f32>(1.0, 1.0), vec3<f32>(1.0, 0.0, 0.0), 
-                                    color, vertex_idx, index_idx);
-                        }
-                        
-                        if (is_face_visible(world_x, world_y, world_z, -1, 0, 0)) {
-                            let vertex_idx = atomicAdd(&counters.vertex_count, 4u);
-                            let index_idx = atomicAdd(&counters.index_count, 6u);
-                            add_face(pos, vec2<f32>(1.0, 1.0), vec3<f32>(-1.0, 0.0, 0.0), 
-                                    color, vertex_idx, index_idx);
-                        }
-                        
-                        if (is_face_visible(world_x, world_y, world_z, 0, 0, 1)) {
-                            let vertex_idx = atomicAdd(&counters.vertex_count, 4u);
-                            let index_idx = atomicAdd(&counters.index_count, 6u);
-                            add_face(pos, vec2<f32>(1.0, 1.0), vec3<f32>(0.0, 0.0, 1.0), 
-                                    color, vertex_idx, index_idx);
-                        }
-                        
-                        if (is_face_visible(world_x, world_y, world_z, 0, 0, -1)) {
-                            let vertex_idx = atomicAdd(&counters.vertex_count, 4u);
-                            let index_idx = atomicAdd(&counters.index_count, 6u);
-                            add_face(pos, vec2<f32>(1.0, 1.0), vec3<f32>(0.0, 0.0, -1.0), 
-                                    color, vertex_idx, index_idx);
-                        }
-                    }
-                }
+            // Debug: Count non-zero voxels
+            atomicAdd(&counters.voxel_count, 1u);
+            
+            let color = palette[voxel];
+            let pos = vec3<f32>(f32(world_x), f32(world_y), f32(world_z));
+            
+            // Check each face
+            if (is_face_visible(world_x, world_y, world_z, 0, 1, 0)) {
+                atomicAdd(&counters.visible_faces, 1u);
+                let vertex_idx = atomicAdd(&counters.vertex_count, 4u);
+                let index_idx = atomicAdd(&counters.index_count, 6u);
+                add_face(pos, vec2<f32>(1.0, 1.0), vec3<f32>(0.0, 1.0, 0.0), 
+                        color, vertex_idx, index_idx);
+            }
+            
+            if (is_face_visible(world_x, world_y, world_z, 0, -1, 0)) {
+                let vertex_idx = atomicAdd(&counters.vertex_count, 4u);
+                let index_idx = atomicAdd(&counters.index_count, 6u);
+                add_face(pos, vec2<f32>(1.0, 1.0), vec3<f32>(0.0, -1.0, 0.0), 
+                        color, vertex_idx, index_idx);
+            }
+            
+            if (is_face_visible(world_x, world_y, world_z, 1, 0, 0)) {
+                let vertex_idx = atomicAdd(&counters.vertex_count, 4u);
+                let index_idx = atomicAdd(&counters.index_count, 6u);
+                add_face(pos, vec2<f32>(1.0, 1.0), vec3<f32>(1.0, 0.0, 0.0), 
+                        color, vertex_idx, index_idx);
+            }
+            
+            if (is_face_visible(world_x, world_y, world_z, -1, 0, 0)) {
+                let vertex_idx = atomicAdd(&counters.vertex_count, 4u);
+                let index_idx = atomicAdd(&counters.index_count, 6u);
+                add_face(pos, vec2<f32>(1.0, 1.0), vec3<f32>(-1.0, 0.0, 0.0), 
+                        color, vertex_idx, index_idx);
+            }
+            
+            if (is_face_visible(world_x, world_y, world_z, 0, 0, 1)) {
+                let vertex_idx = atomicAdd(&counters.vertex_count, 4u);
+                let index_idx = atomicAdd(&counters.index_count, 6u);
+                add_face(pos, vec2<f32>(1.0, 1.0), vec3<f32>(0.0, 0.0, 1.0), 
+                        color, vertex_idx, index_idx);
+            }
+            
+            if (is_face_visible(world_x, world_y, world_z, 0, 0, -1)) {
+                let vertex_idx = atomicAdd(&counters.vertex_count, 4u);
+                let index_idx = atomicAdd(&counters.index_count, 6u);
+                add_face(pos, vec2<f32>(1.0, 1.0), vec3<f32>(0.0, 0.0, -1.0), 
+                        color, vertex_idx, index_idx);
             }
         }
         
@@ -266,15 +263,11 @@ export function initializeMeshGeneration(device) {
         ]
     });
     
-    // Finalize uses all bindings
+    // Finalize only uses bindings 4 and 5 (counters and indirect)
     meshState.bindGroups.finalize = device.createBindGroup({
         label: 'MeshFinalizeBindGroup',
         layout: meshState.pipelines.finalize.getBindGroupLayout(0),
         entries: [
-            { binding: 0, resource: { buffer: worldState.buffers.voxel } },
-            { binding: 1, resource: { buffer: worldState.buffers.palette } },
-            { binding: 2, resource: { buffer: meshState.buffers.vertex } },
-            { binding: 3, resource: { buffer: meshState.buffers.index } },
             { binding: 4, resource: { buffer: meshState.buffers.counter } },
             { binding: 5, resource: { buffer: meshState.buffers.indirect } }
         ]
@@ -305,10 +298,16 @@ export async function generateMesh(device) {
         pass.setPipeline(meshState.pipelines.generate);
         pass.setBindGroup(0, meshState.bindGroups.generate);
         
-        const chunksPerAxis = Math.ceil(WORLD_CONFIG.size / WORLD_CONFIG.chunkSize);
-        const chunksY = Math.ceil(WORLD_CONFIG.height / WORLD_CONFIG.chunkSize);
+        // Each thread processes one voxel
+        const workgroupSize = 8;
+        const dispatchX = Math.ceil(WORLD_CONFIG.size / workgroupSize);
+        const dispatchY = Math.ceil(WORLD_CONFIG.height / workgroupSize);
+        const dispatchZ = Math.ceil(WORLD_CONFIG.size / workgroupSize);
         
-        pass.dispatchWorkgroups(chunksPerAxis, chunksY, chunksPerAxis);
+        console.log(`[Mesh] Dispatching ${dispatchX}x${dispatchY}x${dispatchZ} workgroups`);
+        console.log(`[Mesh] Each workgroup processes ${workgroupSize}³ voxels`);
+        
+        pass.dispatchWorkgroups(dispatchX, dispatchY, dispatchZ);
         pass.end();
     }
     
@@ -350,9 +349,11 @@ export async function readMeshStats(device) {
     meshState.stats.triangleCount = Math.floor(data[1] / 3);
     
     console.log(`[Mesh] Generated ${meshState.stats.vertexCount.toLocaleString()} vertices, ${meshState.stats.indexCount.toLocaleString()} indices`);
+    console.log(`[Mesh] Debug: Found ${data[2].toLocaleString()} non-zero voxels, ${data[3].toLocaleString()} visible faces`);
     
     if (meshState.stats.vertexCount === 0) {
         console.warn('[Mesh] No vertices generated! Check terrain generation.');
+        console.warn('[Mesh] Voxel count:', data[2], 'Visible faces:', data[3]);
     }
     
     staging.unmap();
