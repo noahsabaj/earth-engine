@@ -177,9 +177,6 @@ async function generateWorld(seed = 42) {
     const elapsed = performance.now() - startTime;
     console.log(`[Engine] World generation complete in ${elapsed.toFixed(1)}ms`);
     
-    // Debug: Read vertex data
-    await debugReadVertices();
-    
 }
 
 // Start the engine
