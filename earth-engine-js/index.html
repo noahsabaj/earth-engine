@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Earth Engine JS - GPU-First Voxel Engine</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: #000;
+            font-family: monospace;
+        }
+        
+        #game-canvas {
+            width: 100vw;
+            height: 100vh;
+            display: block;
+        }
+        
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #0f0;
+            text-align: center;
+        }
+        
+        #stats {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: #0f0;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 10px;
+            font-size: 12px;
+        }
+        
+        #info {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            color: #0f0;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 10px;
+            max-width: 400px;
+            font-size: 11px;
+        }
+        
+        .error {
+            color: #f00;
+            background: rgba(255, 0, 0, 0.2);
+            padding: 10px;
+            margin: 10px;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="game-canvas"></canvas>
+    
+    <div id="loading">
+        <h2>Earth Engine JS</h2>
+        <p>Initializing GPU-First Architecture...</p>
+    </div>
+    
+    <div id="stats" style="display: none;">
+        <div>FPS: <span id="fps">0</span></div>
+        <div>Frame: <span id="frame-time">0</span>ms</div>
+        <div>GPU Memory: <span id="gpu-memory">0</span>MB</div>
+        <div>Chunks: <span id="chunks">0</span></div>
+        <div>Draw Calls: <span id="draw-calls">1</span></div>
+    </div>
+    
+    <div id="info" style="display: none;">
+        <h3>Earth Engine JS v0.35.0</h3>
+        <p>
+            This is the SAME engine as the Rust version, using identical GPU architecture.
+            All shaders, buffers, and compute kernels are shared between versions.
+        </p>
+        <p>
+            <strong>Controls:</strong><br>
+            WASD - Move | Mouse - Look | Space - Jump | Shift - Sprint
+        </p>
+    </div>
+    
+    <script type="module" src="src/index.js"></script>
+    
+    <script type="module">
+        // Wait for engine to initialize
+        let checkEngine = setInterval(() => {
+            if (window.engine && window.engine.initialized) {
+                clearInterval(checkEngine);
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('stats').style.display = 'block';
+                document.getElementById('info').style.display = 'block';
+                
+                // Update stats
+                setInterval(updateStats, 100);
+            }
+        }, 100);
+        
+        function updateStats() {
+            if (!window.engine) return;
+            
+            // Get engine stats
+            const worldStats = window.engine.worldBuffer.getStats();
+            
+            // Update display
+            document.getElementById('gpu-memory').textContent = 
+                worldStats.memoryUsage.toFixed(1);
+            document.getElementById('chunks').textContent = 
+                worldStats.chunks;
+            
+            // FPS calculation would go here
+        }
+        
+        // Error handling
+        window.addEventListener('error', (e) => {
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error';
+            errorDiv.textContent = `Error: ${e.message}`;
+            document.body.appendChild(errorDiv);
+        });
+    </script>
+</body>
+</html>
