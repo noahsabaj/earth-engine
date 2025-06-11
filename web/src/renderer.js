@@ -227,8 +227,10 @@ export function renderFrame() {
     
     // DEBUG: Draw directly with known vertex count
     if (meshState.stats.indexCount > 0) {
-        console.log('[Renderer] Drawing', meshState.stats.indexCount, 'indices');
+        console.log('[Renderer] Drawing', meshState.stats.indexCount, 'indices, vertex count:', meshState.stats.vertexCount);
         renderPass.drawIndexed(meshState.stats.indexCount);
+    } else {
+        console.warn('[Renderer] No indices to draw!');
     }
     
     renderPass.end();

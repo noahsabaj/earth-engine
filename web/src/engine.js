@@ -115,14 +115,18 @@ async function debugCreateTestWorld() {
         
         @compute @workgroup_size(1)
         fn test_world() {
-            // Create a 10x10x10 cube at origin
-            for (var y = 45u; y < 55u; y++) {
-                for (var z = 0u; z < 10u; z++) {
-                    for (var x = 0u; x < 10u; x++) {
-                        let idx = get_index(x, y, z);
-                        voxels[idx] = 5u; // Gold blocks
-                    }
+            // Create a large floor at y=50
+            for (var z = 0u; z < 100u; z++) {
+                for (var x = 0u; x < 100u; x++) {
+                    let idx = get_index(x, 50u, z);
+                    voxels[idx] = 5u; // Gold blocks
                 }
+            }
+            
+            // Create a pillar at center
+            for (var y = 51u; y < 60u; y++) {
+                let idx = get_index(50u, y, 50u);
+                voxels[idx] = 3u; // Stone blocks
             }
         }
     `;
