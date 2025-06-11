@@ -83,13 +83,15 @@ async function debugReadFirstVertex() {
     gpuState.device.queue.submit([encoder.finish()]);
     
     await staging.mapAsync(GPUMapMode.READ);
-    const data = new Float32Array(staging.getMappedRange());
+    const mappedRange = staging.getMappedRange();
+    const floatData = new Float32Array(mappedRange);
+    const uintData = new Uint32Array(mappedRange);
     
     console.log('[Debug] First vertex:', {
-        position: [data[0], data[1], data[2]],
-        normal: [data[3], data[4], data[5]],
-        uv: [data[6], data[7]],
-        color: new Uint32Array(staging.getMappedRange())[8]
+        position: [floatData[0], floatData[1], floatData[2]],
+        normal: [floatData[3], floatData[4], floatData[5]],
+        uv: [floatData[6], floatData[7]],
+        color: uintData[8]
     });
     
     staging.unmap();
