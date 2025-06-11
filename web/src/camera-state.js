@@ -6,8 +6,8 @@ import { createBuffer, writeBuffer } from './gpu-state.js';
 // Camera state - pure data
 export const cameraState = {
     // Transform data
-    position: new Float32Array([50, 70, 80]), // Position to see test world
-    rotation: new Float32Array([0, -0.4]), // yaw, pitch - look down slightly
+    position: new Float32Array([50, 80, 100]), // Above the floor looking down
+    rotation: new Float32Array([0, -0.6]), // yaw, pitch - look down more
     
     // Projection parameters
     fov: Math.PI / 3,
@@ -137,11 +137,11 @@ export function updateCameraMatrices() {
     const yaw = cameraState.rotation[0];
     const pitch = cameraState.rotation[1];
     
-    // Calculate forward vector
+    // Calculate forward vector (negative Z is forward)
     const forward = new Float32Array([
-        Math.sin(yaw) * Math.cos(pitch),
+        -Math.sin(yaw) * Math.cos(pitch),
         Math.sin(pitch),
-        Math.cos(yaw) * Math.cos(pitch)
+        -Math.cos(yaw) * Math.cos(pitch)
     ]);
     
     // Calculate target
@@ -179,7 +179,7 @@ export function updateCamera(deltaTime) {
     if (cameraState.input.pointerLocked) {
         cameraState.rotation[0] += cameraState.input.mouse.deltaX * cameraState.lookSpeed;
         cameraState.rotation[1] = Math.max(-Math.PI/2, Math.min(Math.PI/2, 
-            cameraState.rotation[1] + cameraState.input.mouse.deltaY * cameraState.lookSpeed));
+            cameraState.rotation[1] - cameraState.input.mouse.deltaY * cameraState.lookSpeed)); // Inverted Y
         
         cameraState.input.mouse.deltaX = 0;
         cameraState.input.mouse.deltaY = 0;
@@ -193,9 +193,9 @@ export function updateCamera(deltaTime) {
     
     // Calculate movement vectors
     const forward = new Float32Array([
-        Math.sin(yaw) * Math.cos(pitch),
+        -Math.sin(yaw) * Math.cos(pitch),  // Negative for correct direction
         0, // Don't move vertically with forward/back
-        Math.cos(yaw) * Math.cos(pitch)
+        -Math.cos(yaw) * Math.cos(pitch)   // Negative for correct direction
     ]);
     
     const right = new Float32Array([

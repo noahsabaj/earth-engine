@@ -166,8 +166,8 @@ async function generateWorld(seed = 42) {
     console.log('[Engine] Generating world...');
     const startTime = performance.now();
     
-    // DEBUG: Use simple test world instead
-    await debugCreateTestWorld();
+    // Generate terrain
+    await generateTerrain(gpuState.device, seed);
     
     // Debug: Count total voxels in buffer
     await debugCountVoxels(gpuState.device);

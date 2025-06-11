@@ -173,6 +173,7 @@ export function initializeRenderer() {
                 format: 'depth24plus',
             },
             cullMode: 'back',
+            frontFace: 'ccw',
         }
     );
     
