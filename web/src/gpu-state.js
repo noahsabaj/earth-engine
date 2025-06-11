@@ -28,14 +28,24 @@ export async function initializeGPU(canvas) {
         throw new Error('No GPU adapter found');
     }
     
-    // Request device
+    // Get adapter limits
+    const adapterLimits = gpuState.adapter.limits;
+    console.log('[GPU] Adapter limits:', {
+        maxBufferSize: adapterLimits.maxBufferSize,
+        maxStorageBufferBindingSize: adapterLimits.maxStorageBufferBindingSize
+    });
+    
+    // Request device with limits that respect adapter capabilities
+    // Use 2GB - 1MB to ensure we don't exceed any internal limits
+    const requestedBufferSize = 2147483648 - 1048576; // 2GB - 1MB
+    
     gpuState.device = await gpuState.adapter.requestDevice({
         requiredFeatures: [],
         requiredLimits: {
-            maxBufferSize: 2147483648, // 2GB
-            maxStorageBufferBindingSize: 2147483648,
-            maxComputeWorkgroupStorageSize: 32768,
-            maxComputeInvocationsPerWorkgroup: 512,
+            maxBufferSize: Math.min(requestedBufferSize, adapterLimits.maxBufferSize),
+            maxStorageBufferBindingSize: Math.min(requestedBufferSize, adapterLimits.maxStorageBufferBindingSize),
+            maxComputeWorkgroupStorageSize: Math.min(32768, adapterLimits.maxComputeWorkgroupStorageSize),
+            maxComputeInvocationsPerWorkgroup: Math.min(512, adapterLimits.maxComputeInvocationsPerWorkgroup),
         }
     });
     
