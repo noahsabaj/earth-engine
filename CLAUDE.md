@@ -20,10 +20,21 @@ This is **Earth Engine** - a frontier SOTA voxel game engine. We are building in
 - **Stone age → space age progression** - intuitive discovery, no recipe books
 - **Planetary servers** - each region is its own planet that develops unique culture
 - **1m³ voxels** - uniform, perfect for realistic physics and material properties
-- **Realistic voxel physics** - materials break/burn/flow based on real properties
+- **Everything transformable** - Every voxel can be destroyed/built/changed
+- **Player-created civilizations** - Cities with smithies, taverns, mayors, kings
+- **Or complete anarchy** - Roaming bandits, isolated hermits, anything goes
+- **Real physics enables real stories** - Structural integrity, fire spread, erosion
+- **"Real life but fun"** - Complex emergence from simple rules
 - **Target**: 10,000+ concurrent players per planet at 144+ FPS
 
-The engine will eventually be released for others to create their own voxel experiences.
+Think "Minecraft Civilization videos" but that's just ONE way to play. The engine enables:
+- Rust-like survival and raiding
+- Garry's Mod sandbox creativity  
+- EVE Online emergent politics
+- SimCity player-made cities
+- All in one persistent world
+
+The engine provides the canvas. Players paint civilizations... or chaos.
 
 ## CRITICAL PHILOSOPHY
 **DATA-ORIENTED PROGRAMMING ONLY** - This codebase follows strict DOP principles:
@@ -231,22 +242,27 @@ fn generate_chunk(data: &mut ChunkData, gen_params: &GenParams) {
 
 ## VISION REMINDERS
 This engine enables the ultimate MMO - Earth:
-- **Physical information economy** - Books hand-copied, knowledge can be lost
-- **Emergent gameplay, not rules** - We provide physics, players create meaning
-- **Organic economies** - No forced trading posts, markets emerge where players gather
-- **Freedom to be anyone**:
-  - Build a nation with laws and borders
-  - Live as bandits raiding caravans  
-  - Hermit in the mountains, never seeing another soul
-  - Merchant connecting distant civilizations
-- **One world, your choice** - Thousands online but YOU choose isolation or interaction
-- **Technologies discovered, not given** - No tech tree UI, just experimentation
-- **Real material physics** - Wood splinters, metal bends, stone crumbles
-- **Every voxel simulated** - Thermal dynamics, structural integrity, wear
+- **"Real life but fun"** - Complex societies emerge from simple physics
+- **Every voxel transformable** - Build cities, destroy mountains, redirect rivers
+- **No forced gameplay** - Those "1000 players simulate civilization" videos? Just ONE way to play
+- **Player-created everything**:
+  - Cities with actual smithies, taverns, mayors (not NPCs - real players)
+  - Confederacies of villages with complex politics
+  - Roaming bandit clans with hideouts
+  - Hermit scholars preserving ancient knowledge
+  - Trade empires spanning continents
+- **Blend of the best**:
+  - Minecraft's building and exploration
+  - Rust's survival and raiding
+  - Garry's Mod's creative emergence
+  - EVE Online's player politics
+  - SimCity's urban planning
+- **Physics enables stories** - Structural integrity matters, fire spreads realistically, materials have properties
+- **Knowledge has weight** - Technologies spread through teaching, not wikis
 
-The engine provides the physics. Players create the world.
+The engine is the laws of physics. Players are the force of history.
 
-Every line of code should enable emergent stories, not prescribe them. Remember: we're building a game-agnostic ENGINE first.
+Every line of code should enable player creativity, not constrain it. Remember: we're building a game-agnostic ENGINE first.
 
 ## WHEN IN DOUBT
 1. Choose performance over "clean" code
