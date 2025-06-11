@@ -13,7 +13,7 @@ import { rendererState, initializeRenderer, renderFrame, resizeRenderer } from '
 console.log('[Engine] All imports loaded');
 
 // Engine state - pure data
-export const engineState = {
+const engineState = {
     canvas: null,
     isRunning: false,
     lastFrameTime: 0,
