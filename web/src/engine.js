@@ -169,21 +169,12 @@ async function generateWorld(seed = 42) {
     // Generate terrain
     await generateTerrain(gpuState.device, seed);
     
-    // Debug: Count total voxels in buffer
-    await debugCountVoxels(gpuState.device);
-    
     // Generate mesh from voxels
     await generateMesh(gpuState.device);
     
     const elapsed = performance.now() - startTime;
     console.log(`[Engine] World generation complete in ${elapsed.toFixed(1)}ms`);
     
-    // Debug check - test at origin where we forced a gold block
-    const testVoxel = await debugReadVoxel(gpuState.device, 0, 50, 0);
-    console.log('[Engine] Test voxel at (0,50,0):', testVoxel);
-    
-    // Debug: Read first vertex
-    await debugReadFirstVertex();
 }
 
 // Start the engine
