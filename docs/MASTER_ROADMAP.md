@@ -1,13 +1,21 @@
 # Earth Engine Master Roadmap
 
+## 🚨 Emergency Update (Post-Sprint 35)
+After completing Sprint 35, a comprehensive code audit revealed significant gaps between our claims and reality. We have inserted Emergency Sprints 35.1-35.5 (10 weeks) to address critical issues before continuing with Sprint 36+. See [Emergency Sprint Series](#emergency-sprint-series-351-355) below.
+
+**Current Focus**: Making things actually work, not adding new features.
+
 ## Development Strategy
 - Develop in WSL Ubuntu environment for faster development
 - Copy files to Windows C: drive when complete for GPU testing
 - Focus on thread-safe architecture and concurrent processing
 - Data-oriented design philosophy from Sprint 17 onward
+- **NEW**: Engineering discipline and honest metrics from Sprint 35.1 onward
 
 ## Project Evolution Note
 At Sprint 13, the project pivoted from traditional game features to high-performance parallelization and data-oriented architecture. The original Sprint 13-15 plans (Audio, Advanced Features, Performance) were replaced with a focus on revolutionary performance gains.
+
+At Sprint 35.1, the project pivoted again from feature development to engineering discipline after discovering most claimed features don't actually work.
 
 ## Completed Sprints
 
@@ -332,31 +340,24 @@ See [docs/SPRINT_12_SUMMARY.md](docs/SPRINT_12_SUMMARY.md) for detailed implemen
 - Old CPU chunks gradually migrated
 - This is where we commit to the new architecture
 
-### Sprint 22: WebGPU Buffer-First Architecture ⚠️
-**Status**: Partially Completed
+### Sprint 22: WebGPU Buffer-First Architecture ❌
+**Status**: Abandoned
 **Objective**: Pure data-oriented implementation for web platform
 
-#### Completed Deliverables:
-- ✅ Web module infrastructure created
-- ✅ WebGPU context and renderer stubs
-- ✅ WASM entry points defined
-- ✅ WebGL demonstration created
+#### What Happened:
+After implementing a JavaScript WebGPU version, critical analysis revealed:
+- Not truly GPU-first, just traditional rendering with compute shaders
+- Provided no value over the Rust engine
+- Would require maintaining two separate codebases
+- Decision: Focus on making the Rust engine actually work instead
 
-#### Remaining Deliverables:
-- [ ] Full WASM compilation (blocked by dependency issues)
-- [ ] WebGPU backend integration
-- [ ] Cross-platform compatibility fixes
-- [ ] WebTransport implementation
-- [ ] Shared memory optimization
-- [ ] Zero-copy asset streaming
+#### Lessons Learned:
+- Don't build technology for technology's sake
+- Verify architectural value before full implementation
+- One working engine > two broken engines
+- Honest evaluation prevents wasted effort
 
-#### Technical Details:
-- Infrastructure exists but compilation blocked by:
-  - Tokio async runtime incompatible with WASM
-  - Various crates need platform-specific builds
-  - Web-sys missing some WebGPU features
-- Created WebGL demo as interim solution
-- See `docs/sprints/SPRINT_22_SUMMARY.md` for full details
+See Sprint 35 audit for full analysis of why this approach failed.
 
 ### Sprint 23: Data-Oriented World Streaming ✅
 **Status**: Completed
@@ -683,6 +684,109 @@ See `docs/sprints/SPRINT_34_UNIFIED_KERNEL.md` for details.
 
 See `docs/sprints/SPRINT_35_ARCHITECTURE_FINALIZATION.md` for details.
 
+## 🚨 Emergency Sprint Series (35.1-35.5)
+
+After Sprint 35, a comprehensive code audit revealed critical gaps between claims and reality. This 10-week emergency sprint series focuses on engineering discipline and making things actually work.
+
+### Sprint 35.1: Emergency Honesty & Stability 🚧
+**Status**: Planning
+**Duration**: 2 weeks
+**Objective**: Stop the bleeding - remove all panic points and document reality
+
+#### Deliverables:
+- [ ] Replace all 500+ unwrap() calls with proper Result<T, E>
+- [ ] Create comprehensive error handling system
+- [ ] Document actual vs claimed functionality
+- [ ] Add crash telemetry and monitoring
+- [ ] Update all documentation with honest assessments
+- [ ] Establish daily progress tracking
+
+#### Success Metrics:
+- Zero panics in 60-minute runtime
+- All unwrap() replaced with proper error handling
+- Honest documentation published
+
+### Sprint 35.2: DOP Reality Check 🔜
+**Status**: Planning
+**Duration**: 2 weeks
+**Objective**: Actually complete the data-oriented transition
+
+#### Deliverables:
+- [ ] Convert 228 files from OOP to pure DOP
+- [ ] Eliminate all impl blocks from hot paths
+- [ ] Prove zero allocations with benchmarks
+- [ ] Document DOP patterns and guidelines
+- [ ] Memory profiling and verification
+- [ ] Performance comparison metrics
+
+#### Success Metrics:
+- Zero allocations per frame (verified)
+- All 228 files converted to DOP
+- 10x performance improvement demonstrated
+
+### Sprint 35.3: Core Systems That Work 🔜
+**Status**: Planning
+**Duration**: 2 weeks
+**Objective**: Implement basic functionality that actually works
+
+#### Deliverables:
+- [ ] Stable game loop without crashes
+- [ ] Player controller that works reliably
+- [ ] Chunk loading without panics
+- [ ] Save/load that doesn't corrupt
+- [ ] Basic networking that connects
+- [ ] Input handling without drops
+
+#### Success Metrics:
+- 20+ working features (up from ~5)
+- 1-hour gameplay without crashes
+- All core systems integrated
+
+### Sprint 35.4: Integration & Testing 🔜
+**Status**: Planning
+**Duration**: 2 weeks
+**Objective**: Connect everything and prove it works
+
+#### Deliverables:
+- [ ] Integration of all systems
+- [ ] 60% test coverage (up from 8.4%)
+- [ ] Performance benchmarks with proof
+- [ ] CI/CD that blocks bad code
+- [ ] Stress testing framework
+- [ ] Load testing for 1000+ entities
+
+#### Success Metrics:
+- 60% test coverage achieved
+- All benchmarks reproducible
+- CI pipeline prevents regressions
+
+### Sprint 35.5: B-Grade Certification 🔜
+**Status**: Planning
+**Duration**: 2 weeks
+**Objective**: Achieve B-grade execution quality
+
+#### Deliverables:
+- [ ] Complete API documentation
+- [ ] 3 working example projects
+- [ ] Published performance metrics
+- [ ] 1-hour stability demonstration
+- [ ] Community beta release
+- [ ] Honest roadmap forward
+
+#### Success Metrics:
+- B-grade execution achieved
+- Community trust restored
+- Foundation for future development
+
+### Post-Emergency Timeline Adjustment
+After completing the emergency sprints, the original Sprint 36+ timeline will be re-evaluated based on:
+- Actual performance achieved
+- Technical debt remaining
+- Community feedback
+- Realistic development velocity
+
+The focus will shift from claiming features to delivering working systems.
+
 ### Sprint 36: Advanced Future Tech
 **Status**: Pending
 **Objective**: Push the limits with cutting-edge GPU features
@@ -911,17 +1015,23 @@ All optimizations build on the data-oriented foundation from Sprint 21:
 - Greedy meshing works alongside SDF hybrid rendering
 - Everything maintains zero-copy, buffer-first philosophy
 
-## Performance Summary
+## Performance Summary (Honest Assessment)
 
-| System | Serial Time | Parallel Time | Speedup | Data-Oriented (Current) | Post-Optimization (Target) |
-|--------|------------|---------------|---------|-------------------------|---------------------------|
-| Chunk Generation | 10.40s | 0.85s | 12.2x | 0.008s (1300x) | 0.002s (5200x) |
-| Mesh Building | 2.89s | 0.55s | 5.3x | 0.005s (580x) | 0.0005s (5800x) |
-| Lighting (100 sources) | N/A | 0.30s | N/A | 0.003s (100x) | 0.0003s (1000x) |
-| Fluid Simulation | N/A | N/A | N/A | 0.1s/step | 0.01s/step (10x) |
-| Draw Calls | 5000 | 5000 | 1x | 100 | 1 (5000x) |
-| Network Players | 100 | 100 | 1x | 100 | 10,000 (100x) |
-| Network CPU Usage | 60% | 60% | 1x | 60% | 1% (60x) |
+| System | Original | Parallel (Verified) | Claimed | Actual | Emergency Target |
+|--------|----------|-------------------|---------|---------|------------------|
+| Chunk Generation | 10.40s | 0.85s ✓ | 0.008s | 0.85s | 0.1s |
+| Mesh Building | 2.89s | 0.55s ✓ | 0.005s | 0.55s | 0.05s |
+| Lighting | N/A | 0.30s ✓ | 0.003s | 0.30s | 0.03s |
+| Allocations/Frame | Unknown | Unknown | 0 | 268 | 0 |
+| Test Coverage | 0% | 0% | 95% | 8.4% | 60% |
+| OOP Files | 350+ | 350+ | 0 | 228 | 0 |
+| Working Features | 0 | 5 | 50+ | ~5 | 20+ |
+
+**Reality Check**: 
+- ✓ = Actually verified and working
+- Parallel improvements from Sprints 13-16 are real and impressive
+- Data-oriented claims were largely aspirational
+- Emergency sprints focus on making claimed features actually work
 
 ## Frontier Features Summary
 
