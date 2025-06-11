@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Earth Engine - WASM Demo</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+            background-color: #1a1a1a;
+            color: #fff;
+        }
+        
+        #earth-engine-canvas {
+            width: 100vw;
+            height: 100vh;
+            display: block;
+        }
+        
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            font-family: monospace;
+            white-space: pre;
+        }
+        
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+        }
+        
+        .error {
+            color: #ff4444;
+            background: rgba(255, 0, 0, 0.1);
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="earth-engine-canvas"></canvas>
+    
+    <div id="loading">
+        <h2>Loading Earth Engine WASM...</h2>
+        <p>Initializing WebAssembly module</p>
+    </div>
+    
+    <div id="info" style="display: none;"></div>
+    
+    <script type="module">
+        // Import the WASM module
+        import init, { EarthEngineDemo } from './earth_engine_wasm_demo.js';
+        
+        async function run() {
+            try {
+                console.log('Initializing WASM...');
+                
+                // Initialize the WASM module
+                await init();
+                
+                console.log('WASM initialized, creating engine...');
+                
+                // Get canvas
+                const canvas = document.getElementById('earth-engine-canvas');
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+                
+                // Create engine instance
+                const engine = new EarthEngineDemo(canvas);
+                
+                console.log('Engine created successfully');
+                
+                // Hide loading screen
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('info').style.display = 'block';
+                
+                // Update info
+                function updateInfo() {
+                    document.getElementById('info').textContent = engine.get_info();
+                }
+                
+                // Render loop
+                function render(time) {
+                    engine.render(time * 0.001); // Convert to seconds
+                    
+                    if (Math.floor(time) % 1000 < 16) { // Update info every second
+                        updateInfo();
+                    }
+                    
+                    requestAnimationFrame(render);
+                }
+                
+                // Handle resize
+                window.addEventListener('resize', () => {
+                    canvas.width = window.innerWidth;
+                    canvas.height = window.innerHeight;
+                    engine.resize(canvas.width, canvas.height);
+                });
+                
+                // Start rendering
+                requestAnimationFrame(render);
+                
+                console.log('Render loop started');
+                
+            } catch (error) {
+                console.error('Failed to initialize:', error);
+                document.getElementById('loading').innerHTML = `
+                    <div class="error">
+                        <h3>Failed to load WASM module</h3>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+        
+        run();
+    </script>
+</body>
+</html>

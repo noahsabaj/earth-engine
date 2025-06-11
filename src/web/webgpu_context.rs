@@ -1,6 +1,6 @@
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
-use web_sys::{HtmlCanvasElement, GpuCanvasContext};
+use web_sys::HtmlCanvasElement;
 use wgpu::{Adapter, Device, Queue, Surface, SurfaceConfiguration};
 use crate::web::WebError;
 
@@ -32,7 +32,7 @@ impl Default for WebGpuConfig {
 pub struct WebGpuContext {
     pub device: Device,
     pub queue: Queue,
-    pub surface: Surface,
+    pub surface: Surface<'static>,
     pub surface_config: SurfaceConfiguration,
     pub adapter: Adapter,
     canvas: HtmlCanvasElement,
@@ -51,10 +51,7 @@ impl WebGpuContext {
     ) -> Result<Self, WebError> {
         log::info!("Initializing WebGPU context");
         
-        // Check for WebGPU support
-        let gpu = web_sys::window()
-            .and_then(|w| w.navigator().gpu())
-            .ok_or(WebError::WebGpuNotSupported)?;
+        // WebGPU support will be checked by wgpu instance
         
         // Create WGPU instance with WebGL fallback
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {

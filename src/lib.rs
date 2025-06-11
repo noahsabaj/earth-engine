@@ -20,9 +20,11 @@ pub mod biome;
 pub mod physics_data;
 pub mod spatial_index;
 pub mod world_gpu;
+#[cfg(feature = "native")]
 pub mod streaming;
 pub mod fluid;
 pub mod sdf;
+#[cfg(feature = "native")]
 pub mod hot_reload;
 pub mod morton;
 pub mod instance;
@@ -111,7 +113,7 @@ mod wasm_entry {
     use web_sys::HtmlCanvasElement;
     use std::sync::{Arc, Mutex};
     use crate::web::{WebGpuContext, WebWorldBuffer, WebRenderer};
-    use crate::camera::data_camera::{CameraData, move_forward, move_backward, move_left, move_right, rotate_camera};
+    use crate::camera::data_camera::{CameraData, transform};
     use crate::memory::{MemoryManager, MemoryConfig};
     
     // Thread-safe wrapper for WebGL state
@@ -140,35 +142,35 @@ mod wasm_entry {
         #[wasm_bindgen]
         pub fn move_forward(&self, amount: f32) {
             if let Ok(mut state) = self.state.lock() {
-                state.camera = move_forward(&state.camera, amount);
+                state.camera = transform::move_forward(&state.camera, amount);
             }
         }
         
         #[wasm_bindgen]
         pub fn move_backward(&self, amount: f32) {
             if let Ok(mut state) = self.state.lock() {
-                state.camera = move_backward(&state.camera, amount);
+                state.camera = transform::move_forward(&state.camera, -amount);
             }
         }
         
         #[wasm_bindgen]
         pub fn move_left(&self, amount: f32) {
             if let Ok(mut state) = self.state.lock() {
-                state.camera = move_left(&state.camera, amount);
+                state.camera = transform::move_right(&state.camera, -amount);
             }
         }
         
         #[wasm_bindgen]
         pub fn move_right(&self, amount: f32) {
             if let Ok(mut state) = self.state.lock() {
-                state.camera = move_right(&state.camera, amount);
+                state.camera = transform::move_right(&state.camera, amount);
             }
         }
         
         #[wasm_bindgen]
         pub fn rotate_camera(&self, yaw_delta: f32, pitch_delta: f32) {
             if let Ok(mut state) = self.state.lock() {
-                state.camera = rotate_camera(&state.camera, yaw_delta, pitch_delta);
+                state.camera = transform::rotate(&state.camera, yaw_delta, pitch_delta);
             }
         }
         
@@ -224,7 +226,9 @@ mod wasm_entry {
                 }
                 
                 // Render frame
-                state.renderer.render(&state.context, &state.world_buffer, &state.camera);
+                if let Err(e) = state.renderer.render(&state.context, &state.world_buffer, &state.camera) {
+                    log::error!("Render error: {:?}", e);
+                }
             }
         }
     }
@@ -293,10 +297,11 @@ mod wasm_entry {
             position: [0.0, 10.0, 10.0],
             yaw_radians: 0.0,
             pitch_radians: -0.3,
-            fov_radians: 60.0_f32.to_radians(),
             aspect_ratio: canvas.width() as f32 / canvas.height() as f32,
-            near_plane: 0.1,
-            far_plane: 1000.0,
+            fovy_radians: 60.0_f32.to_radians(),
+            znear: 0.1,
+            zfar: 1000.0,
+            _padding: [0.0; 3],
         };
         
         // Create engine state

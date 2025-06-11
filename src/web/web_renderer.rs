@@ -61,19 +61,7 @@ struct CameraUniform {
     camera_pos: [f32; 4], // w component for padding
 }
 
-impl Default for CameraData {
-    fn default() -> Self {
-        Self {
-            position: [0.0, 10.0, 10.0],
-            yaw_radians: 0.0,
-            pitch_radians: -0.3,
-            fov_radians: 60.0_f32.to_radians(),
-            aspect_ratio: 16.0 / 9.0,
-            near_plane: 0.1,
-            far_plane: 1000.0,
-        }
-    }
-}
+// CameraData default is already defined in data_camera module
 
 impl CameraUniform {
     fn from_camera_data(camera: &CameraData) -> Self {
@@ -90,10 +78,10 @@ impl CameraUniform {
         
         // Calculate projection matrix
         let proj = glam::Mat4::perspective_rh(
-            camera.fov_radians,
+            camera.fovy_radians,
             camera.aspect_ratio,
-            camera.near_plane,
-            camera.far_plane,
+            camera.znear,
+            camera.zfar,
         );
         
         let view_proj = proj * view;
@@ -192,7 +180,8 @@ impl WebRenderer {
         )?;
         
         // Create camera buffer and bind group
-        let camera_uniform = CameraUniform::from_camera_data(&CameraData::default());
+        let default_camera = crate::camera::data_camera::init_camera(1920, 1080);
+        let camera_uniform = CameraUniform::from_camera_data(&default_camera);
         let camera_buffer = context.device.create_buffer_init(
             &wgpu::util::BufferInitDescriptor {
                 label: Some("Camera Buffer"),

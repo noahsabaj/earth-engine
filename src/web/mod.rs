@@ -18,8 +18,9 @@ pub mod web_world_buffer;
 pub mod web_renderer;
 #[cfg(target_arch = "wasm32")]
 pub mod buffer_manager;
-#[cfg(target_arch = "wasm32")]
-pub mod web_transport;
+// WebTransport not yet available in web-sys
+// #[cfg(target_arch = "wasm32")]
+// pub mod web_transport;
 #[cfg(target_arch = "wasm32")]
 pub mod asset_streaming;
 
@@ -31,8 +32,8 @@ pub use web_world_buffer::WebWorldBuffer;
 pub use web_renderer::WebRenderer;
 #[cfg(target_arch = "wasm32")]
 pub use buffer_manager::{BufferManager, BufferHandle};
-#[cfg(target_arch = "wasm32")]
-pub use web_transport::WebTransportClient;
+// #[cfg(target_arch = "wasm32")]
+// pub use web_transport::WebTransportClient;
 #[cfg(target_arch = "wasm32")]
 pub use asset_streaming::AssetStreamer;
 
@@ -54,8 +55,8 @@ pub enum WebError {
     #[error("JavaScript error: {0}")]
     JsError(String),
     
-    #[error("WebTransport error: {0}")]
-    TransportError(String),
+    // #[error("WebTransport error: {0}")]
+    // TransportError(String),
 }
 
 /// Entry point for web builds
@@ -106,7 +107,7 @@ fn start_render_loop(
     let f = std::rc::Rc::new(std::cell::RefCell::new(None));
     let g = f.clone();
     
-    *g.borrow_mut() = Some(Closure::wrap(Box::new(move || {
+    *g.borrow_mut() = Some(wasm_bindgen::closure::Closure::wrap(Box::new(move || {
         // Render frame
         renderer.render(&context, &world_buffer);
         
@@ -118,7 +119,7 @@ fn start_render_loop(
 }
 
 #[cfg(target_arch = "wasm32")]
-fn request_animation_frame(f: &Closure<dyn FnMut()>) {
+fn request_animation_frame(f: &wasm_bindgen::closure::Closure<dyn FnMut()>) {
     web_sys::window()
         .unwrap()
         .request_animation_frame(f.as_ref().unchecked_ref())
