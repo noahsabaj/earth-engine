@@ -71,6 +71,31 @@ async function initializeEngine(canvas) {
 }
 
 // Generate world (terrain + mesh)
+// Debug: Read first vertex
+async function debugReadFirstVertex() {
+    const staging = gpuState.device.createBuffer({
+        size: 36, // One vertex
+        usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ
+    });
+    
+    const encoder = gpuState.device.createCommandEncoder();
+    encoder.copyBufferToBuffer(meshState.buffers.vertex, 0, staging, 0, 36);
+    gpuState.device.queue.submit([encoder.finish()]);
+    
+    await staging.mapAsync(GPUMapMode.READ);
+    const data = new Float32Array(staging.getMappedRange());
+    
+    console.log('[Debug] First vertex:', {
+        position: [data[0], data[1], data[2]],
+        normal: [data[3], data[4], data[5]],
+        uv: [data[6], data[7]],
+        color: new Uint32Array(staging.getMappedRange())[8]
+    });
+    
+    staging.unmap();
+    staging.destroy();
+}
+
 // Debug: Create simple test world
 async function debugCreateTestWorld() {
     console.log('[Debug] Creating test world...');
@@ -150,6 +175,9 @@ async function generateWorld(seed = 42) {
     // Debug check - test at origin where we forced a gold block
     const testVoxel = await debugReadVoxel(gpuState.device, 0, 50, 0);
     console.log('[Engine] Test voxel at (0,50,0):', testVoxel);
+    
+    // Debug: Read first vertex
+    await debugReadFirstVertex();
 }
 
 // Start the engine

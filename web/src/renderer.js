@@ -64,6 +64,9 @@ function createVertexShader() {
             out.uv = in.uv;
             out.color = unpack_color(in.color);
             
+            // DEBUG: Override to bright color
+            out.color = vec4<f32>(1.0, 1.0, 0.0, 1.0);
+            
             // Simple fog
             let distance = length(camera.position.xyz - in.position);
             out.fog_factor = smoothstep(50.0, 300.0, distance);
@@ -93,18 +96,8 @@ function createFragmentShader() {
         
         @fragment
         fn fs_main(in: FragmentInput) -> @location(0) vec4<f32> {
-            // Basic lighting
-            let ambient = 0.3;
-            let diffuse = max(0.0, dot(normalize(in.normal), -normalize(SUN_DIR)));
-            let lighting = ambient + diffuse * 0.7;
-            
-            // Apply lighting
-            var final_color = in.color.rgb * lighting;
-            
-            // Apply fog
-            final_color = mix(final_color, FOG_COLOR, in.fog_factor);
-            
-            return vec4<f32>(final_color, 1.0);
+            // DEBUG: Just return bright yellow
+            return vec4<f32>(1.0, 1.0, 0.0, 1.0);
         }
     `;
 }
@@ -176,19 +169,10 @@ export function initializeRenderer() {
         }
     );
     
-    // Create bind group layout
-    rendererState.bindGroupLayout = gpuState.device.createBindGroupLayout({
-        label: 'RenderBindGroupLayout',
-        entries: [
-            {
-                binding: 0,
-                visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
-                buffer: { type: 'uniform' },
-            },
-        ],
-    });
+    // Get auto-generated bind group layout from pipeline
+    rendererState.bindGroupLayout = rendererState.pipeline.getBindGroupLayout(0);
     
-    // Create bind group
+    // Create bind group using the pipeline's layout
     rendererState.bindGroup = gpuState.device.createBindGroup({
         label: 'RenderBindGroup',
         layout: rendererState.bindGroupLayout,
@@ -222,7 +206,7 @@ export function renderFrame() {
     const renderPass = encoder.beginRenderPass({
         colorAttachments: [{
             view: view,
-            clearValue: { r: 0.5, g: 0.8, b: 1.0, a: 1.0 }, // Sky blue
+            clearValue: { r: 1.0, g: 0.0, b: 1.0, a: 1.0 }, // Bright magenta for debugging
             loadOp: 'clear',
             storeOp: 'store',
         }],
@@ -241,8 +225,11 @@ export function renderFrame() {
     renderPass.setVertexBuffer(0, meshState.buffers.vertex);
     renderPass.setIndexBuffer(meshState.buffers.index, 'uint32');
     
-    // Draw using indirect buffer
-    renderPass.drawIndexedIndirect(meshState.buffers.indirect, 0);
+    // DEBUG: Draw directly with known vertex count
+    if (meshState.stats.indexCount > 0) {
+        console.log('[Renderer] Drawing', meshState.stats.indexCount, 'indices');
+        renderPass.drawIndexed(meshState.stats.indexCount);
+    }
     
     renderPass.end();
     
