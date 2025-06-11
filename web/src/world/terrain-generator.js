@@ -146,7 +146,11 @@ export class TerrainGenerator {
                 }
                 
                 // Store using Morton encoding for cache efficiency
-                let index = morton_encode_3d(id.x, id.y, id.z);
+                // Ensure coordinates fit within Morton encoding limits
+                let safe_x = min(id.x, 1023u);
+                let safe_y = min(id.y, 1023u);
+                let safe_z = min(id.z, 1023u);
+                let index = morton_encode_3d(safe_x, safe_y, safe_z);
                 voxels[index] = block_type;
                 
                 // Update chunk metadata (simplified)

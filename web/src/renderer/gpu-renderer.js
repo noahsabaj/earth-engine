@@ -117,6 +117,13 @@ export class GPURenderer {
         
         // Fragment shader
         const fragmentShader = `
+            struct CameraUniforms {
+                view: mat4x4<f32>,
+                projection: mat4x4<f32>,
+                viewProjection: mat4x4<f32>,
+                position: vec4<f32>,
+            }
+            
             struct FragmentInput {
                 @location(0) world_position: vec3<f32>,
                 @location(1) normal: vec3<f32>,

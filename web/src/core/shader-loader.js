@@ -141,27 +141,26 @@ export const BUILTIN_SHADERS = {
     // Morton encoding function
     mortonEncode: `
         fn morton_encode_3d(x: u32, y: u32, z: u32) -> u32 {
-            var xx = x & 0x1fffff;
-            var yy = y & 0x1fffff;
-            var zz = z & 0x1fffff;
+            // 32-bit Morton encoding for 10-bit coordinates (up to 1024)
+            var xx = x & 0x3FFu; // 10 bits
+            var yy = y & 0x3FFu;
+            var zz = z & 0x3FFu;
             
-            xx = (xx | (xx << 32u)) & 0x1f00000000ffffu;
-            xx = (xx | (xx << 16u)) & 0x1f0000ff0000ffu;
-            xx = (xx | (xx << 8u))  & 0x100f00f00f00f00fu;
-            xx = (xx | (xx << 4u))  & 0x10c30c30c30c30c3u;
-            xx = (xx | (xx << 2u))  & 0x1249249249249249u;
+            // Spread bits - adapted for 32-bit arithmetic
+            xx = (xx | (xx << 16u)) & 0x030000FFu;
+            xx = (xx | (xx << 8u))  & 0x0300F00Fu;
+            xx = (xx | (xx << 4u))  & 0x030C30C3u;
+            xx = (xx | (xx << 2u))  & 0x09249249u;
             
-            yy = (yy | (yy << 32u)) & 0x1f00000000ffffu;
-            yy = (yy | (yy << 16u)) & 0x1f0000ff0000ffu;
-            yy = (yy | (yy << 8u))  & 0x100f00f00f00f00fu;
-            yy = (yy | (yy << 4u))  & 0x10c30c30c30c30c3u;
-            yy = (yy | (yy << 2u))  & 0x1249249249249249u;
+            yy = (yy | (yy << 16u)) & 0x030000FFu;
+            yy = (yy | (yy << 8u))  & 0x0300F00Fu;
+            yy = (yy | (yy << 4u))  & 0x030C30C3u;
+            yy = (yy | (yy << 2u))  & 0x09249249u;
             
-            zz = (zz | (zz << 32u)) & 0x1f00000000ffffu;
-            zz = (zz | (zz << 16u)) & 0x1f0000ff0000ffu;
-            zz = (zz | (zz << 8u))  & 0x100f00f00f00f00fu;
-            zz = (zz | (zz << 4u))  & 0x10c30c30c30c30c3u;
-            zz = (zz | (zz << 2u))  & 0x1249249249249249u;
+            zz = (zz | (zz << 16u)) & 0x030000FFu;
+            zz = (zz | (zz << 8u))  & 0x0300F00Fu;
+            zz = (zz | (zz << 4u))  & 0x030C30C3u;
+            zz = (zz | (zz << 2u))  & 0x09249249u;
             
             return xx | (yy << 1u) | (zz << 2u);
         }

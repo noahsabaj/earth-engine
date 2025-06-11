@@ -142,7 +142,11 @@ export class MeshGenerator {
                 if (x >= WORLD_SIZE || y >= WORLD_HEIGHT || z >= WORLD_SIZE) {
                     return 0u;
                 }
-                let index = morton_encode_3d(x, y, z);
+                // Ensure coordinates fit within Morton encoding limits
+                let safe_x = min(x, 1023u);
+                let safe_y = min(y, 1023u);
+                let safe_z = min(z, 1023u);
+                let index = morton_encode_3d(safe_x, safe_y, safe_z);
                 return voxels[index];
             }
             
@@ -309,7 +313,7 @@ export class MeshGenerator {
         console.log('[Mesh] World size:', this.worldBuffer.size, 'x', this.worldBuffer.height, 'x', this.worldBuffer.size);
         
         // DEBUG: Create a simple test triangle first
-        if (true) {
+        if (false) {
             console.log('[Mesh] DEBUG: Creating test geometry');
             
             // Create buffer for mixed types

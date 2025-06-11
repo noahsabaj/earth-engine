@@ -54,7 +54,7 @@ export class WorldBuffer {
             entries: [
                 {
                     binding: 0,
-                    visibility: GPUShaderStage.COMPUTE | GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
+                    visibility: GPUShaderStage.COMPUTE | GPUShaderStage.FRAGMENT,
                     buffer: { type: "storage" }
                 },
                 {
@@ -118,21 +118,26 @@ export class WorldBuffer {
     
     // Morton encoding for cache efficiency (Sprint 27)
     mortonEncode3D(x, y, z) {
-        // Exact same algorithm as Rust
-        x = (x | (x << 16)) & 0x030000FF0000FF;
-        x = (x | (x << 8))  & 0x0300F00F00F00F;
-        x = (x | (x << 4))  & 0x030C30C30C30C3;
-        x = (x | (x << 2))  & 0x09249249249249;
+        // 32-bit Morton encoding for 10-bit coordinates (up to 1024)
+        x = x & 0x3FF; // 10 bits
+        y = y & 0x3FF;
+        z = z & 0x3FF;
         
-        y = (y | (y << 16)) & 0x030000FF0000FF;
-        y = (y | (y << 8))  & 0x0300F00F00F00F;
-        y = (y | (y << 4))  & 0x030C30C30C30C3;
-        y = (y | (y << 2))  & 0x09249249249249;
+        // Spread bits - adapted for 32-bit arithmetic
+        x = (x | (x << 16)) & 0x030000FF;
+        x = (x | (x << 8))  & 0x0300F00F;
+        x = (x | (x << 4))  & 0x030C30C3;
+        x = (x | (x << 2))  & 0x09249249;
         
-        z = (z | (z << 16)) & 0x030000FF0000FF;
-        z = (z | (z << 8))  & 0x0300F00F00F00F;
-        z = (z | (z << 4))  & 0x030C30C30C30C3;
-        z = (z | (z << 2))  & 0x09249249249249;
+        y = (y | (y << 16)) & 0x030000FF;
+        y = (y | (y << 8))  & 0x0300F00F;
+        y = (y | (y << 4))  & 0x030C30C3;
+        y = (y | (y << 2))  & 0x09249249;
+        
+        z = (z | (z << 16)) & 0x030000FF;
+        z = (z | (z << 8))  & 0x0300F00F;
+        z = (z | (z << 4))  & 0x030C30C3;
+        z = (z | (z << 2))  & 0x09249249;
         
         return x | (y << 1) | (z << 2);
     }
