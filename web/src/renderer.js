@@ -64,9 +64,6 @@ function createVertexShader() {
             out.uv = in.uv;
             out.color = unpack_color(in.color);
             
-            // DEBUG: Override to bright color
-            out.color = vec4<f32>(1.0, 1.0, 0.0, 1.0);
-            
             // Simple fog
             let distance = length(camera.position.xyz - in.position);
             out.fog_factor = smoothstep(50.0, 300.0, distance);
@@ -96,8 +93,18 @@ function createFragmentShader() {
         
         @fragment
         fn fs_main(in: FragmentInput) -> @location(0) vec4<f32> {
-            // DEBUG: Just return bright yellow
-            return vec4<f32>(1.0, 1.0, 0.0, 1.0);
+            // Basic lighting
+            let ambient = 0.3;
+            let diffuse = max(0.0, dot(normalize(in.normal), -normalize(SUN_DIR)));
+            let lighting = ambient + diffuse * 0.7;
+            
+            // Apply lighting
+            var final_color = in.color.rgb * lighting;
+            
+            // Apply fog
+            final_color = mix(final_color, FOG_COLOR, in.fog_factor);
+            
+            return vec4<f32>(final_color, 1.0);
         }
     `;
 }
@@ -206,7 +213,7 @@ export function renderFrame() {
     const renderPass = encoder.beginRenderPass({
         colorAttachments: [{
             view: view,
-            clearValue: { r: 1.0, g: 0.0, b: 1.0, a: 1.0 }, // Bright magenta for debugging
+            clearValue: { r: 0.5, g: 0.8, b: 1.0, a: 1.0 }, // Sky blue
             loadOp: 'clear',
             storeOp: 'store',
         }],
@@ -225,12 +232,9 @@ export function renderFrame() {
     renderPass.setVertexBuffer(0, meshState.buffers.vertex);
     renderPass.setIndexBuffer(meshState.buffers.index, 'uint32');
     
-    // DEBUG: Draw directly with known vertex count
+    // Draw indexed geometry
     if (meshState.stats.indexCount > 0) {
-        console.log('[Renderer] Drawing', meshState.stats.indexCount, 'indices, vertex count:', meshState.stats.vertexCount);
         renderPass.drawIndexed(meshState.stats.indexCount);
-    } else {
-        console.warn('[Renderer] No indices to draw!');
     }
     
     renderPass.end();

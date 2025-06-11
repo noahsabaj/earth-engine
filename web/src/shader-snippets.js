@@ -80,10 +80,10 @@ export const SHADER_SNIPPETS = {
     unpackColor: `
         fn unpack_color(packed: u32) -> vec4<f32> {
             return vec4<f32>(
-                f32((packed >> 16u) & 0xFFu) / 255.0,
-                f32((packed >> 8u) & 0xFFu) / 255.0,
-                f32(packed & 0xFFu) / 255.0,
-                f32((packed >> 24u) & 0xFFu) / 255.0
+                f32(packed & 0xFFu) / 255.0,           // r
+                f32((packed >> 8u) & 0xFFu) / 255.0,   // g
+                f32((packed >> 16u) & 0xFFu) / 255.0,  // b
+                f32((packed >> 24u) & 0xFFu) / 255.0   // a
             );
         }
     `,
