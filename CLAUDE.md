@@ -21,10 +21,13 @@ This is **Earth Engine** - a frontier SOTA voxel game engine. We are building in
 - **Planetary servers** - each region is its own planet that develops unique culture
 - **1m³ voxels** - uniform, perfect for realistic physics and material properties
 - **Everything transformable** - Every voxel can be destroyed/built/changed
+- **Local communication only** - Voice carries 50m, no global chat, messages travel physically
+- **Player expression** - Dye/sew fabric for flags, write signs, create visual identity
+- **Technology matters** - Radio enables long-distance comms (late game)
 - **Player-created civilizations** - Cities with smithies, taverns, mayors, kings
 - **Or complete anarchy** - Roaming bandits, isolated hermits, anything goes
-- **Real physics enables real stories** - Structural integrity, fire spread, erosion
-- **"Real life but fun"** - Complex emergence from simple rules
+- **Full physics simulation** - Thermal, fluid, sound, structural per voxel
+- **"Real life but fun"** - Complex emergence from simple physics laws
 - **Target**: 10,000+ concurrent players per planet at 144+ FPS
 
 Think "Minecraft Civilization videos" but that's just ONE way to play. The engine enables:
@@ -252,7 +255,10 @@ This engine enables the ultimate MMO - Earth:
   - Hermit scholars preserving ancient knowledge
   - Trade empires spanning continents
 - **Communication mirrors reality**:
-  - Local voice only - shout and you're heard 50m away
+  - Voice propagates through actual physics - not arbitrary distance
+  - Sound waves blocked by walls, carried by tunnels, echo in caves
+  - Material acoustics matter - concrete muffles, wood transmits
+  - Stealth is physical - footsteps on stone vs grass
   - No global chat - messages travel physically
   - Write signs, books, letters - all hand-copied
   - Dye and sew fabric for banners, flags, uniforms
@@ -268,7 +274,18 @@ This engine enables the ultimate MMO - Earth:
   - Garry's Mod's creative emergence
   - EVE Online's player politics
   - SimCity's urban planning
-- **Physics enables stories** - Structural integrity matters, fire spreads realistically, materials have properties
+- **Full physics simulation per voxel**:
+  - Thermal dynamics - heat spreads, fire propagates
+  - Fluid dynamics - water flows, pressure matters  
+  - Sound physics - waves propagate, materials absorb/reflect
+  - Structural integrity - buildings can collapse
+  - Material properties - density, conductivity, acoustics
+- **Physics enables stories**:
+  - Build soundproof rooms for secret meetings
+  - Castle walls block both arrows AND eavesdroppers
+  - Footsteps on stone alert guards
+  - Caves carry whispers for kilometers
+  - Thunder echoes off mountains
 - **Knowledge has weight** - Technologies spread through teaching, not wikis
 
 The engine is the laws of physics. Players are the force of history.
