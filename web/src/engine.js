@@ -75,24 +75,24 @@ async function initializeEngine(canvas) {
 async function debugReadVertices() {
     const count = 5;
     const staging = gpuState.device.createBuffer({
-        size: 36 * count, // 5 vertices
+        size: 48 * count, // 5 vertices at 48 bytes each
         usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ
     });
     
     const encoder = gpuState.device.createCommandEncoder();
-    encoder.copyBufferToBuffer(meshState.buffers.vertex, 0, staging, 0, 36 * count);
+    encoder.copyBufferToBuffer(meshState.buffers.vertex, 0, staging, 0, 48 * count);
     gpuState.device.queue.submit([encoder.finish()]);
     
     await staging.mapAsync(GPUMapMode.READ);
     const floatData = new Float32Array(staging.getMappedRange());
     
     for (let i = 0; i < count; i++) {
-        const offset = i * 9; // 9 floats per vertex (36 bytes / 4)
+        const offset = i * 12; // 12 floats per vertex (48 bytes / 4)
         console.log(`[Debug] Vertex ${i}:`, {
             position: [floatData[offset], floatData[offset+1], floatData[offset+2]],
-            normal: [floatData[offset+3], floatData[offset+4], floatData[offset+5]],
-            uv: [floatData[offset+6], floatData[offset+7]],
-            colorRaw: floatData[offset+8]
+            normal: [floatData[offset+4], floatData[offset+5], floatData[offset+6]], // Skip padding
+            uv: [floatData[offset+8], floatData[offset+9]],
+            colorRaw: floatData[offset+10]
         });
     }
     
@@ -172,11 +172,14 @@ async function generateWorld(seed = 42) {
     await generateTerrain(gpuState.device, seed);
     
     // Debug: Check a voxel that should exist
-    const testVoxel = await debugReadVoxel(gpuState.device, 50, 50, 50); // Gold pillar
-    console.log('[Engine] Test voxel at (50,50,50):', testVoxel, '(should be 5 for gold)');
+    const testVoxel = await debugReadVoxel(gpuState.device, 10, 50, 10); // Gold block
+    console.log('[Engine] Test voxel at (10,50,10):', testVoxel, '(should be 5 for gold)');
     
     // Generate mesh from voxels
     await generateMesh(gpuState.device);
+    
+    // Debug: Read some vertices to check alignment
+    await debugReadVertices();
     
     const elapsed = performance.now() - startTime;
     console.log(`[Engine] World generation complete in ${elapsed.toFixed(1)}ms`);

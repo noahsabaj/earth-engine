@@ -133,29 +133,29 @@ export function initializeRenderer() {
     // Create depth texture
     createDepthTexture();
     
-    // Vertex buffer layout
+    // Vertex buffer layout - must match WGSL struct alignment!
     const vertexBufferLayout = {
-        arrayStride: 36, // 3 floats pos + 3 floats normal + 2 floats uv + 1 u32 color + padding
+        arrayStride: 48, // WGSL alignment: vec3 requires 16-byte alignment
         attributes: [
             {
                 format: 'float32x3',
                 offset: 0,
-                shaderLocation: 0, // position
+                shaderLocation: 0, // position (16 bytes due to vec3 alignment)
             },
             {
                 format: 'float32x3',
-                offset: 12,
-                shaderLocation: 1, // normal
+                offset: 16,
+                shaderLocation: 1, // normal (16 bytes due to vec3 alignment)
             },
             {
                 format: 'float32x2',
-                offset: 24,
-                shaderLocation: 2, // uv
+                offset: 32,
+                shaderLocation: 2, // uv (8 bytes)
             },
             {
                 format: 'uint32',
-                offset: 32,
-                shaderLocation: 3, // color
+                offset: 40,
+                shaderLocation: 3, // color (4 bytes + 4 padding = 48 total)
             },
         ],
     };

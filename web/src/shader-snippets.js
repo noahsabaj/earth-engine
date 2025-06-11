@@ -66,13 +66,14 @@ export const SHADER_SNIPPETS = {
         }
     `,
     
-    // Vertex struct
+    // Vertex struct - with proper alignment
     vertexStruct: `
         struct Vertex {
-            position: vec3<f32>,
-            normal: vec3<f32>,
+            @align(16) position: vec3<f32>,
+            @align(16) normal: vec3<f32>,
             uv: vec2<f32>,
             color: u32,
+            _padding: u32,
         }
     `,
     

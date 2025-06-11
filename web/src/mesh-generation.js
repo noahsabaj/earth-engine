@@ -9,7 +9,7 @@ import { SHADER_SNIPPETS } from './shader-snippets.js';
 export const MESH_CONFIG = {
     maxVertices: 10 * 1024 * 1024,  // 10M vertices
     maxIndices: 15 * 1024 * 1024,   // 15M indices
-    vertexSize: 36,                 // bytes per vertex
+    vertexSize: 48,                 // bytes per vertex (aligned)
     indexSize: 4,                   // bytes per index (u32)
 };
 

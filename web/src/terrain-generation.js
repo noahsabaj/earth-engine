@@ -72,21 +72,11 @@ export function createTerrainShader() {
                 return;
             }
             
-            // Simple terrain for testing
+            // DEBUG: Just create a single block for testing
             var block_type = 0u; // Air
             
-            // Create a larger flat plane at y=50
-            if (id.y == 50u && id.x < 100u && id.z < 100u) {
-                block_type = 2u; // Grass
-            }
-            
-            // Add some stone below
-            if (id.y < 50u && id.x < 100u && id.z < 100u) {
-                block_type = 3u; // Stone
-            }
-            
-            // Add a gold pillar at center for visibility
-            if (id.x == 50u && id.z == 50u && id.y >= 50u && id.y < 60u) {
+            // Create a single gold block at (10, 50, 10)
+            if (id.x == 10u && id.y == 50u && id.z == 10u) {
                 block_type = 5u; // Gold
             }
             
