@@ -1,5 +1,9 @@
 # Earth Engine - Claude Instructions
 
+**PURPOSE**: This document contains TIMELESS instructions that don't change with sprints.
+**For current sprint/priorities**: See CURRENT.md
+**For sprint planning**: See MASTER_ROADMAP.md
+
 ## ENVIRONMENT SETUP
 - **Claude (AI)**: Working in WSL Ubuntu at `/home/nsabaj/earth-engine-workspace/earth-engine`
 - **Human User**: Working in Windows, pulls changes from main branch
@@ -33,16 +37,26 @@ The engine will eventually be released for others to create their own voxel expe
 ## WORKFLOW REQUIREMENTS
 
 ### 1. Documentation Updates (MANDATORY)
-After ANY work session:
-1. **Primary**: Update `/docs/docs/MASTER_ROADMAP.md` - this is THE main sprint and work tracker
-2. **Status**: Update `/docs/status/CURRENT.md` - current progress, completion percentages
-3. **Sprints**: Update `/docs/sprints/SPRINT_XX_*.md` - relevant sprint documentation
-4. **Review ALL docs** in `/docs/` folder for:
-   - Outdated information needing updates
-   - Duplicate content needing consolidation
-   - Missing documentation for new systems
-   - Opportunities to refactor/reorganize
-5. Keep completion percentages HONEST and ACCURATE
+
+#### Living Documents (Update After EVERY Work Session)
+1. **MASTER_ROADMAP.md** - Sprint planning and tracking
+2. **CURRENT.md** - Active sprint, completion percentages, recent work
+3. **Active Sprint file** - `/docs/sprints/SPRINT_XX_*.md` for current sprint
+
+#### Sprint Completion Checklist
+When finishing a sprint:
+- [ ] Mark sprint complete in MASTER_ROADMAP.md
+- [ ] Update CURRENT.md with new sprint number
+- [ ] Create new sprint file if needed
+- [ ] Archive completed sprint docs if necessary
+- [ ] Review ALL docs for stale sprint references
+
+#### Documentation Principles
+- **Single Source of Truth** - Each fact lives in exactly ONE document
+- **No Duplication** - Reference other docs, don't copy content
+- **Timeless vs Temporal** - CLAUDE.md has timeless info, CURRENT.md has temporal
+- **Regular Reviews** - Check for stale info, consolidation opportunities
+- **Honest Metrics** - Real percentages, not optimistic guesses
 
 ### 2. Git Workflow (ALWAYS)
 ```bash
@@ -116,11 +130,17 @@ fn generate_chunk(data: &mut ChunkData, gen_params: &GenParams) {
 - Prefer SOA (Structure of Arrays) over AOS
 - Batch operations for GPU
 
-## CURRENT PRIORITIES
-1. **Sprint 35.1 Emergency** - Replace all 373 unwrap() calls
-2. **Zero-panic architecture** - No crashes in production
-3. **GPU-first migration** - Move all possible computation to GPU
-4. **Documentation accuracy** - Keep all docs updated and honest
+## WHERE TO FIND CURRENT PRIORITIES
+- **Active Sprint**: Check `/docs/status/CURRENT.md` for current sprint number and focus
+- **Sprint Details**: Check `/docs/docs/MASTER_ROADMAP.md` for full sprint planning
+- **Progress Tracking**: Check relevant `/docs/sprints/SPRINT_XX_*.md` files
+
+## EVERGREEN PRIORITIES (Always True)
+1. **Zero-panic architecture** - No unwrap(), no crashes in production
+2. **Data-oriented design** - Everything is data + kernels, no OOP
+3. **GPU-first computation** - Always ask "can GPU do this?"
+4. **Documentation accuracy** - Keep all docs in sync with reality
+5. **Long-term thinking** - No bandaids, build for decades
 
 ## COMMON PITFALLS TO AVOID
 1. **Creating unnecessary documents** - Fix code first, document after

@@ -4,6 +4,7 @@ use std::time::{Duration, Instant};
 use std::collections::HashMap;
 use notify::{Watcher, RecursiveMode, Event, EventKind, RecommendedWatcher};
 use tokio::sync::mpsc;
+use super::{HotReloadResult, HotReloadErrorContext};
 
 /// Type of file change event
 #[derive(Debug, Clone, PartialEq)]
@@ -80,16 +81,17 @@ impl FileWatcher {
                 };
                 
                 // Apply debouncing
-                let mut debounce = debounce_map_clone.lock().unwrap();
-                for watch_event in watch_events {
-                    if let Some(last_time) = debounce.get(&watch_event.path) {
-                        if now.duration_since(*last_time) < debounce_duration {
-                            continue; // Skip this event
+                if let Ok(mut debounce) = debounce_map_clone.lock() {
+                    for watch_event in watch_events {
+                        if let Some(last_time) = debounce.get(&watch_event.path) {
+                            if now.duration_since(*last_time) < debounce_duration {
+                                continue; // Skip this event
+                            }
                         }
+                        
+                        debounce.insert(watch_event.path.clone(), now);
+                        let _ = tx.send(watch_event);
                     }
-                    
-                    debounce.insert(watch_event.path.clone(), now);
-                    let _ = tx.send(watch_event);
                 }
             }
         })?;
@@ -149,8 +151,9 @@ impl FileWatcher {
     }
     
     /// Clear debounce cache
-    pub fn clear_debounce(&self) {
-        self.debounce_map.lock().unwrap().clear();
+    pub fn clear_debounce(&self) -> HotReloadResult<()> {
+        self.debounce_map.lock().hot_reload_context("debounce_map")?.clear();
+        Ok(())
     }
 }
 

@@ -6,6 +6,7 @@
 use std::sync::Mutex;
 use std::collections::VecDeque;
 use std::time::{Duration, Instant};
+use super::{MemoryResult, MemoryErrorContext};
 
 /// Single transfer record
 #[derive(Debug, Clone)]
@@ -95,12 +96,12 @@ impl BandwidthProfiler {
     }
     
     /// Record a transfer
-    pub fn record_transfer(&self, bytes: u64, duration_us: u64) {
-        self.record_typed_transfer(bytes, duration_us, TransferType::Copy);
+    pub fn record_transfer(&self, bytes: u64, duration_us: u64) -> MemoryResult<()> {
+        self.record_typed_transfer(bytes, duration_us, TransferType::Copy)
     }
     
     /// Record a typed transfer
-    pub fn record_typed_transfer(&self, bytes: u64, duration_us: u64, transfer_type: TransferType) {
+    pub fn record_typed_transfer(&self, bytes: u64, duration_us: u64, transfer_type: TransferType) -> MemoryResult<()> {
         let record = TransferRecord {
             bytes,
             duration_us,
@@ -108,13 +109,14 @@ impl BandwidthProfiler {
             transfer_type,
         };
         
-        let mut records = self.records.lock().unwrap();
+        let mut records = self.records.lock().memory_context("bandwidth_records")?;
         records.push_back(record);
         
         // Maintain max size
         while records.len() > self.max_records {
             records.pop_front();
         }
+        Ok(())
     }
     
     /// Get metrics for the current window
@@ -122,7 +124,10 @@ impl BandwidthProfiler {
         let now = Instant::now();
         let window_start = now - self.window_duration;
         
-        let records = self.records.lock().unwrap();
+        let records = match self.records.lock() {
+            Ok(r) => r,
+            Err(_) => return self.empty_metrics(),
+        };
         let recent_records: Vec<_> = records.iter()
             .filter(|r| r.timestamp >= window_start)
             .cloned()
@@ -133,9 +138,25 @@ impl BandwidthProfiler {
     
     /// Get metrics for all time
     pub fn get_all_time_metrics(&self) -> TransferMetrics {
-        let records = self.records.lock().unwrap();
+        let records = match self.records.lock() {
+            Ok(r) => r,
+            Err(_) => return self.empty_metrics(),
+        };
         let all_records: Vec<_> = records.iter().cloned().collect();
         self.calculate_metrics(&all_records)
+    }
+    
+    /// Get empty metrics
+    fn empty_metrics(&self) -> TransferMetrics {
+        TransferMetrics {
+            total_bytes: 0,
+            total_duration_us: 0,
+            transfer_count: 0,
+            avg_bandwidth_mbps: 0.0,
+            peak_bandwidth_mbps: 0.0,
+            min_bandwidth_mbps: 0.0,
+            by_type: std::collections::HashMap::new(),
+        }
     }
     
     /// Calculate metrics from records
@@ -216,13 +237,17 @@ impl BandwidthProfiler {
     }
     
     /// Clear all recorded data
-    pub fn clear(&self) {
-        self.records.lock().unwrap().clear();
+    pub fn clear(&self) -> MemoryResult<()> {
+        self.records.lock().memory_context("bandwidth_records")?.clear();
+        Ok(())
     }
     
     /// Get bandwidth histogram (for visualization)
     pub fn get_bandwidth_histogram(&self, bucket_size_mbps: f64) -> Vec<(f64, usize)> {
-        let records = self.records.lock().unwrap();
+        let records = match self.records.lock() {
+            Ok(r) => r,
+            Err(_) => return Vec::new(),
+        };
         let mut histogram = std::collections::HashMap::new();
         
         for record in records.iter() {
@@ -237,7 +262,7 @@ impl BandwidthProfiler {
         let mut result: Vec<_> = histogram.into_iter()
             .map(|(bucket, count)| (bucket as f64, count))
             .collect();
-        result.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+        result.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
         result
     }
 }
@@ -264,7 +289,7 @@ impl<'a> BandwidthMeasurement<'a> {
 impl<'a> Drop for BandwidthMeasurement<'a> {
     fn drop(&mut self) {
         let duration_us = self.start.elapsed().as_micros() as u64;
-        self.profiler.record_typed_transfer(self.bytes, duration_us, self.transfer_type);
+        let _ = self.profiler.record_typed_transfer(self.bytes, duration_us, self.transfer_type);
     }
 }
 

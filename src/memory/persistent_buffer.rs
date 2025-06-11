@@ -6,6 +6,8 @@
 use std::sync::{Arc, Mutex};
 use wgpu::{Device, Buffer};
 use crate::memory::memory_pool::PoolHandle;
+use crate::memory::{MemoryResult, MemoryErrorContext};
+use crate::error::EngineError;
 
 /// Buffer usage patterns
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -106,12 +108,15 @@ impl PersistentBuffer {
     }
     
     /// Map the buffer for writing
-    pub async fn map_write(&self) -> Result<MappedBuffer, String> {
+    pub async fn map_write(&self) -> MemoryResult<MappedBuffer> {
         let frame = &self.frame_buffers[self.current_frame];
         
         // Check if already mapped
-        if *frame.is_mapped.lock().unwrap() {
-            return Err("Buffer already mapped".to_string());
+        if *frame.is_mapped.lock().memory_context("is_mapped")? {
+            return Err(EngineError::BufferError {
+                buffer: "persistent".to_string(),
+                error: "Buffer already mapped".to_string(),
+            });
         }
         
         let buffer = frame.handle.buffer();
@@ -125,12 +130,18 @@ impl PersistentBuffer {
         
         // Wait for mapping
         self.device.poll(wgpu::Maintain::Wait);
-        rx.await.unwrap().map_err(|e| format!("Failed to map buffer: {:?}", e))?;
+        rx.await.map_err(|_| EngineError::BufferError {
+            buffer: "persistent".to_string(),
+            error: "Channel closed while waiting for buffer map".to_string(),
+        })?.map_err(|e| EngineError::BufferError {
+            buffer: "persistent".to_string(),
+            error: format!("Failed to map buffer: {:?}", e),
+        })?;
         
         // Get mapped view
         let view = buffer_slice.get_mapped_range_mut();
         
-        *frame.is_mapped.lock().unwrap() = true;
+        *frame.is_mapped.lock().memory_context("is_mapped")? = true;
         
         Ok(MappedBuffer {
             buffer: self,
@@ -140,16 +151,17 @@ impl PersistentBuffer {
     }
     
     /// Advance to next frame buffer
-    pub fn advance_frame(&mut self) {
+    pub fn advance_frame(&mut self) -> MemoryResult<()> {
         // Unmap current buffer if mapped
         let frame = &self.frame_buffers[self.current_frame];
-        if *frame.is_mapped.lock().unwrap() {
+        if *frame.is_mapped.lock().memory_context("is_mapped")? {
             frame.handle.buffer().unmap();
-            *frame.is_mapped.lock().unwrap() = false;
+            *frame.is_mapped.lock().memory_context("is_mapped")? = false;
         }
         
         // Move to next frame
         self.current_frame = (self.current_frame + 1) % self.frame_buffers.len();
+        Ok(())
     }
     
     /// Get buffer size
@@ -172,9 +184,12 @@ pub struct MappedBuffer<'a> {
 
 impl<'a> MappedBuffer<'a> {
     /// Write data to the mapped buffer
-    pub fn write(&mut self, offset: u64, data: &[u8]) -> Result<(), String> {
+    pub fn write(&mut self, offset: u64, data: &[u8]) -> MemoryResult<()> {
         if offset + data.len() as u64 > self.buffer.size {
-            return Err("Write would exceed buffer bounds".to_string());
+            return Err(EngineError::BufferAccess {
+                index: offset as usize + data.len(),
+                size: self.buffer.size as usize,
+            });
         }
         
         self.view[offset as usize..offset as usize + data.len()].copy_from_slice(data);
@@ -218,11 +233,14 @@ impl StreamingRingBuffer {
     }
     
     /// Write data to the ring buffer
-    pub async fn write(&mut self, data: &[u8]) -> Result<u64, String> {
+    pub async fn write(&mut self, data: &[u8]) -> MemoryResult<u64> {
         let data_size = data.len() as u64;
         
         if data_size > self.capacity {
-            return Err("Data too large for ring buffer".to_string());
+            return Err(EngineError::BufferError {
+                buffer: "ring".to_string(),
+                error: "Data too large for ring buffer".to_string(),
+            });
         }
         
         // Wrap around if needed
@@ -248,7 +266,7 @@ impl StreamingRingBuffer {
     }
     
     /// Advance to next frame
-    pub fn advance_frame(&mut self) {
-        self.persistent_buffer.advance_frame();
+    pub fn advance_frame(&mut self) -> MemoryResult<()> {
+        self.persistent_buffer.advance_frame()
     }
 }

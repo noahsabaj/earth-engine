@@ -3,7 +3,8 @@ use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use libloading::{Library, Symbol};
 use serde::{Serialize, Deserialize};
-use super::{WatchEvent, WatchEventType};
+use super::{WatchEvent, WatchEventType, HotReloadResult, HotReloadErrorContext};
+use crate::error::EngineError;
 
 /// Mod metadata
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -121,7 +122,8 @@ impl ModLoader {
         
         // Copy to temp directory for hot-reload
         let counter = {
-            let mut c = self.reload_counter.write().unwrap();
+            let mut c = self.reload_counter.write()
+                .map_err(|_| ModError::LoadError("Failed to acquire reload counter lock".to_string()))?;
             *c += 1;
             *c
         };
@@ -184,7 +186,9 @@ impl ModLoader {
             load_time: std::time::SystemTime::now(),
         };
         
-        self.mods.write().unwrap().insert(mod_id.clone(), loaded_mod);
+        self.mods.write()
+            .map_err(|_| ModError::LoadError("Failed to acquire mods lock".to_string()))?
+            .insert(mod_id.clone(), loaded_mod);
         
         log::info!("Loaded mod: {} v{}", mod_id, mod_interface.info().version);
         Ok(mod_id)
@@ -192,7 +196,8 @@ impl ModLoader {
     
     /// Unload mod
     pub fn unload_mod(&self, mod_id: &str) -> Result<(), ModError> {
-        let mut mods = self.mods.write().unwrap();
+        let mut mods = self.mods.write()
+            .map_err(|_| ModError::LoadError("Failed to acquire mods lock".to_string()))?;
         
         if let Some(mut loaded_mod) = mods.remove(mod_id) {
             // Shutdown mod
@@ -218,28 +223,31 @@ impl ModLoader {
     }
     
     /// Update all mods
-    pub fn update_mods(&self, delta_time: f32) {
-        let mods = self.mods.read().unwrap();
+    pub fn update_mods(&self, delta_time: f32) -> Result<(), ModError> {
+        let mods = self.mods.read()
+            .map_err(|_| ModError::LoadError("Failed to acquire mods lock".to_string()))?;
         
         for (_, loaded_mod) in mods.iter() {
             let mod_interface = unsafe { &mut *loaded_mod.instance };
             mod_interface.update(delta_time);
         }
+        Ok(())
     }
     
     /// Get loaded mod
     pub fn get_mod(&self, mod_id: &str) -> Option<&dyn ModInterface> {
-        self.mods.read().unwrap()
+        self.mods.read().ok()?
             .get(mod_id)
             .map(|loaded| unsafe { &*loaded.instance })
     }
     
     /// List loaded mods
-    pub fn list_mods(&self) -> Vec<ModInfo> {
-        self.mods.read().unwrap()
+    pub fn list_mods(&self) -> Result<Vec<ModInfo>, ModError> {
+        Ok(self.mods.read()
+            .map_err(|_| ModError::LoadError("Failed to acquire mods lock".to_string()))?
             .values()
             .map(|loaded| loaded.info.clone())
-            .collect()
+            .collect())
     }
     
     /// Handle file change event
@@ -255,10 +263,11 @@ impl ModLoader {
         match &event.event_type {
             WatchEventType::Modified => {
                 // Find mod using this file
-                let mods = self.mods.read().unwrap();
-                for (mod_id, _) in mods.iter() {
-                    // In practice, would track original paths
-                    log::info!("Mod file changed, consider reloading: {}", mod_id);
+                if let Ok(mods) = self.mods.read() {
+                    for (mod_id, _) in mods.iter() {
+                        // In practice, would track original paths
+                        log::info!("Mod file changed, consider reloading: {}", mod_id);
+                    }
                 }
             }
             _ => {}

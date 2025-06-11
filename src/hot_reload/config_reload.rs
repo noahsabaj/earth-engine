@@ -4,7 +4,8 @@ use std::sync::{Arc, RwLock};
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use toml::Value as TomlValue;
-use super::{WatchEvent, WatchEventType};
+use super::{WatchEvent, WatchEventType, HotReloadResult, HotReloadErrorContext};
+use crate::error::EngineError;
 
 /// Configuration value type
 #[derive(Debug, Clone, PartialEq)]
@@ -143,16 +144,23 @@ impl ConfigReloader {
         &self,
         name: &str,
         path: impl AsRef<Path>,
-    ) -> Result<ConfigValue, ConfigError> {
+    ) -> HotReloadResult<ConfigValue> {
         let path = path.as_ref();
         
         // Detect format
         let format = ConfigFormat::from_path(path)
-            .ok_or_else(|| ConfigError::UnknownFormat)?;
+            .ok_or_else(|| EngineError::InvalidConfig {
+                field: "format".to_string(),
+                value: path.to_string_lossy().to_string(),
+                reason: "Unknown file format".to_string(),
+            })?;
         
         // Read file
         let raw = std::fs::read_to_string(path)
-            .map_err(|e| ConfigError::IoError(e))?;
+            .map_err(|e| EngineError::IoError {
+                path: path.to_string_lossy().to_string(),
+                error: e.to_string(),
+            })?;
         
         // Parse based on format
         let data = match format {
@@ -169,13 +177,17 @@ impl ConfigReloader {
             data: data.clone(),
             raw,
             last_modified: std::fs::metadata(path)
-                .map(|m| m.modified().unwrap_or(std::time::SystemTime::now()))
+                .and_then(|m| m.modified().ok())
                 .unwrap_or(std::time::SystemTime::now()),
             callbacks: Vec::new(),
         };
         
-        self.cache.write().unwrap().insert(name.to_string(), config_file);
-        self.path_map.write().unwrap().insert(path.to_path_buf(), name.to_string());
+        self.cache.write()
+            .hot_reload_context("config_cache")?
+            .insert(name.to_string(), config_file);
+        self.path_map.write()
+            .hot_reload_context("path_map")?
+            .insert(path.to_path_buf(), name.to_string());
         
         Ok(data)
     }
@@ -186,42 +198,55 @@ impl ConfigReloader {
         callback_name: &str,
         config_name: &str,
         callback: impl Fn(&ConfigValue) + Send + Sync + 'static,
-    ) {
+    ) -> HotReloadResult<()> {
         // Add to config callbacks
-        if let Some(config) = self.cache.write().unwrap().get_mut(config_name) {
+        if let Some(config) = self.cache.write()
+            .hot_reload_context("config_cache")?
+            .get_mut(config_name) 
+        {
             config.callbacks.push(callback_name.to_string());
         }
         
         // Store callback
-        self.callbacks.write().unwrap().insert(
-            callback_name.to_string(),
-            Box::new(callback),
-        );
+        self.callbacks.write()
+            .hot_reload_context("callbacks")?
+            .insert(
+                callback_name.to_string(),
+                Box::new(callback),
+            );
+        Ok(())
     }
     
     /// Set default value
-    pub fn set_default(&self, key: &str, value: ConfigValue) {
-        self.defaults.write().unwrap().insert(key.to_string(), value);
+    pub fn set_default(&self, key: &str, value: ConfigValue) -> HotReloadResult<()> {
+        self.defaults.write()
+            .hot_reload_context("defaults")?
+            .insert(key.to_string(), value);
+        Ok(())
     }
     
     /// Get config value
-    pub fn get(&self, config_name: &str, key: &str) -> Option<ConfigValue> {
-        let cache = self.cache.read().unwrap();
+    pub fn get(&self, config_name: &str, key: &str) -> HotReloadResult<Option<ConfigValue>> {
+        let cache = self.cache.read()
+            .hot_reload_context("config_cache")?;
         
         if let Some(config) = cache.get(config_name) {
-            self.get_nested_value(&config.data, key)
+            Ok(self.get_nested_value(&config.data, key))
         } else {
-            self.defaults.read().unwrap().get(key).cloned()
+            Ok(self.defaults.read()
+                .hot_reload_context("defaults")?
+                .get(key)
+                .cloned())
         }
     }
     
     /// Get config value with default
-    pub fn get_or(&self, config_name: &str, key: &str, default: ConfigValue) -> ConfigValue {
-        self.get(config_name, key).unwrap_or(default)
+    pub fn get_or(&self, config_name: &str, key: &str, default: ConfigValue) -> HotReloadResult<ConfigValue> {
+        Ok(self.get(config_name, key)?.unwrap_or(default))
     }
     
     /// Handle file change event
-    pub fn handle_file_change(&self, event: &WatchEvent) -> Result<Vec<String>, ConfigError> {
+    pub fn handle_file_change(&self, event: &WatchEvent) -> HotReloadResult<Vec<String>> {
         match &event.event_type {
             WatchEventType::Modified | WatchEventType::Created => {
                 self.reload_config(&event.path)
@@ -237,19 +262,28 @@ impl ConfigReloader {
     }
     
     /// Reload configuration
-    fn reload_config(&self, path: &Path) -> Result<Vec<String>, ConfigError> {
+    fn reload_config(&self, path: &Path) -> HotReloadResult<Vec<String>> {
         // Find config name
-        let config_name = self.path_map.read().unwrap().get(path).cloned();
+        let config_name = self.path_map.read()
+            .hot_reload_context("path_map")?
+            .get(path)
+            .cloned();
         
         if let Some(config_name) = config_name {
             // Read and parse new content
             let raw = std::fs::read_to_string(path)
-                .map_err(|e| ConfigError::IoError(e))?;
+                .map_err(|e| EngineError::IoError {
+                    path: path.to_string_lossy().to_string(),
+                    error: e.to_string(),
+                })?;
             
             let format = {
-                let cache = self.cache.read().unwrap();
+                let cache = self.cache.read()
+                    .hot_reload_context("config_cache")?;
                 cache.get(&config_name).map(|c| c.format)
-            }.ok_or(ConfigError::NotFound)?;
+            }.ok_or_else(|| EngineError::MissingConfig {
+                field: config_name.clone(),
+            })?;
             
             // Parse based on format
             let new_data = match format {
@@ -261,13 +295,15 @@ impl ConfigReloader {
             
             // Get callbacks before updating
             let callbacks = {
-                let cache = self.cache.read().unwrap();
+                let cache = self.cache.read()
+                    .hot_reload_context("config_cache")?;
                 cache.get(&config_name).map(|c| c.callbacks.clone()).unwrap_or_default()
             };
             
             // Update cache
             {
-                let mut cache = self.cache.write().unwrap();
+                let mut cache = self.cache.write()
+                    .hot_reload_context("config_cache")?;
                 if let Some(config) = cache.get_mut(&config_name) {
                     config.data = new_data.clone();
                     config.raw = raw;
@@ -286,9 +322,14 @@ impl ConfigReloader {
     }
     
     /// Remove configuration
-    fn remove_config(&self, path: &Path) -> Result<Vec<String>, ConfigError> {
-        if let Some(config_name) = self.path_map.write().unwrap().remove(path) {
-            self.cache.write().unwrap().remove(&config_name);
+    fn remove_config(&self, path: &Path) -> HotReloadResult<Vec<String>> {
+        if let Some(config_name) = self.path_map.write()
+            .hot_reload_context("path_map")?
+            .remove(path) 
+        {
+            self.cache.write()
+                .hot_reload_context("config_cache")?
+                .remove(&config_name);
             log::info!("Removed config: {}", config_name);
         }
         Ok(Vec::new())
@@ -299,8 +340,9 @@ impl ConfigReloader {
         &self,
         data: &ConfigValue,
         callback_names: &[String],
-    ) -> Result<(), ConfigError> {
-        let callbacks = self.callbacks.read().unwrap();
+    ) -> HotReloadResult<()> {
+        let callbacks = self.callbacks.read()
+            .hot_reload_context("callbacks")?;
         
         for callback_name in callback_names {
             if let Some(callback) = callbacks.get(callback_name) {
@@ -313,31 +355,45 @@ impl ConfigReloader {
     }
     
     /// Parse JSON
-    fn parse_json(&self, raw: &str) -> Result<ConfigValue, ConfigError> {
+    fn parse_json(&self, raw: &str) -> HotReloadResult<ConfigValue> {
         let json: JsonValue = serde_json::from_str(raw)
-            .map_err(|e| ConfigError::ParseError(e.to_string()))?;
+            .map_err(|e| EngineError::ParseError {
+                value: raw.to_string(),
+                expected_type: "JSON".to_string(),
+            })?;
         
         Ok(self.json_to_config_value(json))
     }
     
     /// Parse TOML
-    fn parse_toml(&self, raw: &str) -> Result<ConfigValue, ConfigError> {
+    fn parse_toml(&self, raw: &str) -> HotReloadResult<ConfigValue> {
         let toml: TomlValue = toml::from_str(raw)
-            .map_err(|e| ConfigError::ParseError(e.to_string()))?;
+            .map_err(|e| EngineError::ParseError {
+                value: raw.to_string(),
+                expected_type: "TOML".to_string(),
+            })?;
         
         Ok(self.toml_to_config_value(toml))
     }
     
     /// Parse YAML (placeholder)
-    fn parse_yaml(&self, _raw: &str) -> Result<ConfigValue, ConfigError> {
+    fn parse_yaml(&self, _raw: &str) -> HotReloadResult<ConfigValue> {
         // Would use serde_yaml
-        Err(ConfigError::UnknownFormat)
+        Err(EngineError::InvalidConfig {
+            field: "format".to_string(),
+            value: "yaml".to_string(),
+            reason: "YAML parsing not implemented".to_string(),
+        })
     }
     
     /// Parse RON (placeholder)
-    fn parse_ron(&self, _raw: &str) -> Result<ConfigValue, ConfigError> {
+    fn parse_ron(&self, _raw: &str) -> HotReloadResult<ConfigValue> {
         // Would use ron
-        Err(ConfigError::UnknownFormat)
+        Err(EngineError::InvalidConfig {
+            field: "format".to_string(),
+            value: "ron".to_string(),
+            reason: "RON parsing not implemented".to_string(),
+        })
     }
     
     /// Convert JSON value to config value

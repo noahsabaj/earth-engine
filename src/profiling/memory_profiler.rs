@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
+use crate::error::{EngineError, EngineResult};
 
 /// Memory access pattern types
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -52,17 +53,21 @@ impl MemoryProfiler {
     }
 
     /// Record a function call
-    pub fn record_function_call(&self, function: &'static str, duration: Duration) {
-        let mut data = self.data.lock().unwrap();
+    pub fn record_function_call(&self, function: &'static str, duration: Duration) -> EngineResult<()> {
+        let mut data = self.data.lock()
+            .map_err(|_| EngineError::LockPoisoned { resource: "profiler_data".to_string() })?;
         
         *data.function_calls.entry(function).or_insert(0) += 1;
         *data.function_times.entry(function).or_insert(Duration::ZERO) += duration;
+        Ok(())
     }
 
     /// Record memory access pattern
-    pub fn record_access_pattern(&self, function: &'static str, pattern: AccessPattern) {
-        let mut data = self.data.lock().unwrap();
+    pub fn record_access_pattern(&self, function: &'static str, pattern: AccessPattern) -> EngineResult<()> {
+        let mut data = self.data.lock()
+            .map_err(|_| EngineError::LockPoisoned { resource: "profiler_data".to_string() })?;
         data.access_patterns.entry(function).or_insert_with(Vec::new).push(pattern);
+        Ok(())
     }
 
     /// Analyze memory access pattern from addresses
@@ -91,8 +96,9 @@ impl MemoryProfiler {
     }
 
     /// Identify hot paths (functions called frequently or taking significant time)
-    pub fn identify_hot_paths(&self, min_calls: u64, min_time_ms: u64) {
-        let mut data = self.data.lock().unwrap();
+    pub fn identify_hot_paths(&self, min_calls: u64, min_time_ms: u64) -> EngineResult<()> {
+        let mut data = self.data.lock()
+            .map_err(|_| EngineError::LockPoisoned { resource: "profiler_data".to_string() })?;
         data.hot_paths.clear();
 
         // Collect hot paths to avoid borrow checker issues
@@ -134,16 +140,20 @@ impl MemoryProfiler {
         
         // Now update the stored hot paths
         data.hot_paths = hot_paths;
+        Ok(())
     }
 
     /// Get identified hot paths
-    pub fn hot_paths(&self) -> Vec<HotPath> {
-        self.data.lock().unwrap().hot_paths.clone()
+    pub fn hot_paths(&self) -> EngineResult<Vec<HotPath>> {
+        Ok(self.data.lock()
+            .map_err(|_| EngineError::LockPoisoned { resource: "profiler_data".to_string() })?
+            .hot_paths.clone())
     }
 
     /// Print profiling report
-    pub fn report(&self) {
-        let data = self.data.lock().unwrap();
+    pub fn report(&self) -> EngineResult<()> {
+        let data = self.data.lock()
+            .map_err(|_| EngineError::LockPoisoned { resource: "profiler_data".to_string() })?;
         
         println!("\n=== Memory Profiling Report ===");
         println!("\nFunction Call Statistics:");
@@ -167,6 +177,7 @@ impl MemoryProfiler {
         }
         
         println!("================================\n");
+        Ok(())
     }
 }
 
@@ -190,6 +201,6 @@ impl<'a> ProfileScope<'a> {
 impl<'a> Drop for ProfileScope<'a> {
     fn drop(&mut self) {
         let duration = self.start.elapsed();
-        self.profiler.record_function_call(self.function, duration);
+        let _ = self.profiler.record_function_call(self.function, duration);
     }
 }

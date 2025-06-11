@@ -8,6 +8,7 @@ use cgmath::Vector3;
 
 use crate::world::{Chunk, ChunkPos};
 use crate::renderer::{Vertex, greedy_mesher::{GreedyMesher, GreedyMeshStats}};
+use crate::error::{EngineError, EngineResult};
 use wgpu::{Device, Queue, Buffer, ComputePipeline, BindGroupLayout};
 use wgpu::util::DeviceExt;
 use std::collections::HashMap;
@@ -106,12 +107,14 @@ impl MeshOptimizer {
         chunk: &Chunk,
         lod: MeshLod,
         queue: &Queue,
-    ) -> OptimizedMesh {
+    ) -> EngineResult<OptimizedMesh> {
         let cache_key = (chunk.position(), lod);
         
         // Check cache first
-        if let Some(mesh) = self.mesh_cache.read().unwrap().get(&cache_key) {
-            return mesh.clone();
+        if let Ok(cache) = self.mesh_cache.read() {
+            if let Some(mesh) = cache.get(&cache_key) {
+                return Ok(mesh.clone());
+            }
         }
         
         let start = std::time::Instant::now();
@@ -145,9 +148,11 @@ impl MeshOptimizer {
         };
         
         // Cache the result
-        self.mesh_cache.write().unwrap().insert(cache_key, optimized_mesh.clone());
+        if let Ok(mut cache) = self.mesh_cache.write() {
+            cache.insert(cache_key, optimized_mesh.clone());
+        }
         
-        optimized_mesh
+        Ok(optimized_mesh)
     }
     
     /// Generate full detail mesh (LOD 0)
@@ -158,7 +163,7 @@ impl MeshOptimizer {
             // For now, return CPU-generated mesh as fallback
             let vertices = self.greedy_mesher.generate_mesh(chunk);
             let indices = (0..vertices.len() as u32).collect();
-            MeshData { vertices, indices, material_groups: HashMap::new() }
+            MeshData { vertices, indices }
         } else {
             // Use CPU greedy mesher
             let vertices = self.greedy_mesher.generate_mesh(chunk);
@@ -181,14 +186,13 @@ impl MeshOptimizer {
         // Find bounding box of non-air blocks
         let bounds = self.calculate_bounds(chunk);
         
-        if bounds.is_none() {
-            return MeshData {
+        let (min, max) = match bounds {
+            Some(b) => b,
+            None => return MeshData {
                 vertices: vec![],
                 indices: vec![],
-            };
-        }
-        
-        let (min, max) = bounds.unwrap();
+            },
+        };
         
         // Generate box vertices
         let vertices = generate_box_vertices(min, max);
@@ -269,13 +273,18 @@ impl MeshOptimizer {
     }
     
     /// Clear mesh cache
-    pub fn clear_cache(&self) {
-        self.mesh_cache.write().unwrap().clear();
+    pub fn clear_cache(&self) -> EngineResult<()> {
+        self.mesh_cache.write()
+            .map_err(|_| EngineError::LockPoisoned { resource: "mesh_cache".to_string() })?
+            .clear();
+        Ok(())
     }
     
     /// Get cache statistics
-    pub fn cache_stats(&self) -> CacheStats {
-        self.mesh_cache.read().unwrap().stats()
+    pub fn cache_stats(&self) -> EngineResult<CacheStats> {
+        Ok(self.mesh_cache.read()
+            .map_err(|_| EngineError::LockPoisoned { resource: "mesh_cache".to_string() })?
+            .stats())
     }
 }
 
@@ -534,7 +543,6 @@ impl GpuMeshGenerator {
         MeshData {
             vertices: vec![],
             indices: vec![],
-            material_groups: HashMap::new(),
         }
     }
 }

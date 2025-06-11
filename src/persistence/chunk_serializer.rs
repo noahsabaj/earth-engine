@@ -124,7 +124,7 @@ impl ChunkSerializer {
             block_count: chunk.size() * chunk.size() * chunk.size(),
             timestamp: std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .unwrap_or_else(|_| std::time::Duration::from_secs(0))
                 .as_secs(),
             checksum,
         };
@@ -198,7 +198,7 @@ impl ChunkSerializer {
             block_count: chunk.size() * chunk.size() * chunk.size(),
             timestamp: std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .unwrap_or_else(|_| std::time::Duration::from_secs(0))
                 .as_secs(),
             checksum,
         };
@@ -282,7 +282,7 @@ impl ChunkSerializer {
             block_count: chunk.size() * chunk.size() * chunk.size(),
             timestamp: std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .unwrap_or_else(|_| std::time::Duration::from_secs(0))
                 .as_secs(),
             checksum,
         };

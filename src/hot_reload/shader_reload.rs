@@ -2,7 +2,8 @@ use std::path::{Path, PathBuf};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use wgpu::{Device, ShaderModule, ShaderModuleDescriptor, ShaderSource};
-use super::{FileWatcher, WatchEvent, WatchEventType};
+use super::{FileWatcher, WatchEvent, WatchEventType, HotReloadResult, HotReloadErrorContext, shader_reload_error};
+use crate::error::EngineError;
 
 /// Shader type identifier
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
@@ -70,10 +71,13 @@ impl ShaderReloader {
         &self,
         name: &str,
         path: impl AsRef<Path>,
-    ) -> Result<Arc<ShaderModule>, ShaderError> {
+    ) -> HotReloadResult<Arc<ShaderModule>> {
         let path = path.as_ref();
         let source = std::fs::read_to_string(path)
-            .map_err(|e| ShaderError::IoError(e))?;
+            .map_err(|e| EngineError::IoError {
+                path: path.to_string_lossy().to_string(),
+                error: e.to_string(),
+            })?;
         
         // Process includes
         let processed_source = self.process_includes(&source, path)?;
@@ -96,13 +100,17 @@ impl ShaderReloader {
             module: module.clone(),
             source: processed_source,
             last_modified: std::fs::metadata(path)
-                .map(|m| m.modified().unwrap_or(std::time::SystemTime::now()))
+                .and_then(|m| m.modified().ok())
                 .unwrap_or(std::time::SystemTime::now()),
             dependents: Vec::new(),
         };
         
-        self.cache.write().unwrap().insert(shader_id.clone(), cached);
-        self.path_map.write().unwrap().insert(path.to_path_buf(), shader_id);
+        self.cache.write()
+            .hot_reload_context("shader_cache")?
+            .insert(shader_id.clone(), cached);
+        self.path_map.write()
+            .hot_reload_context("path_map")?
+            .insert(path.to_path_buf(), shader_id);
         
         Ok(module)
     }
@@ -112,7 +120,7 @@ impl ShaderReloader {
         &self,
         name: &str,
         source: &str,
-    ) -> Arc<ShaderModule> {
+    ) -> HotReloadResult<Arc<ShaderModule>> {
         let module = self.device.create_shader_module(ShaderModuleDescriptor {
             label: Some(name),
             source: ShaderSource::Wgsl(source.into()),
@@ -133,9 +141,11 @@ impl ShaderReloader {
             dependents: Vec::new(),
         };
         
-        self.cache.write().unwrap().insert(shader_id, cached);
+        self.cache.write()
+            .hot_reload_context("shader_cache")?
+            .insert(shader_id, cached);
         
-        module
+        Ok(module)
     }
     
     /// Register pipeline rebuild callback
@@ -144,24 +154,30 @@ impl ShaderReloader {
         pipeline_name: &str,
         shader_name: &str,
         rebuild_fn: impl Fn(&Device, &ShaderModule) + Send + Sync + 'static,
-    ) {
+    ) -> HotReloadResult<()> {
         // Add to dependents
-        if let Some(shader) = self.cache.write().unwrap().get_mut(&ShaderId {
-            name: shader_name.to_string(),
-            path: None,
-        }) {
+        if let Some(shader) = self.cache.write()
+            .hot_reload_context("shader_cache")?
+            .get_mut(&ShaderId {
+                name: shader_name.to_string(),
+                path: None,
+            }) 
+        {
             shader.dependents.push(pipeline_name.to_string());
         }
         
         // Store callback
-        self.rebuild_callbacks.write().unwrap().insert(
-            pipeline_name.to_string(),
-            Box::new(rebuild_fn),
-        );
+        self.rebuild_callbacks.write()
+            .hot_reload_context("rebuild_callbacks")?
+            .insert(
+                pipeline_name.to_string(),
+                Box::new(rebuild_fn),
+            );
+        Ok(())
     }
     
     /// Process file change event
-    pub fn handle_file_change(&self, event: &WatchEvent) -> Result<Vec<String>, ShaderError> {
+    pub fn handle_file_change(&self, event: &WatchEvent) -> HotReloadResult<Vec<String>> {
         match &event.event_type {
             WatchEventType::Modified | WatchEventType::Created => {
                 self.reload_shader(&event.path)
@@ -177,19 +193,25 @@ impl ShaderReloader {
     }
     
     /// Reload shader from file
-    fn reload_shader(&self, path: &Path) -> Result<Vec<String>, ShaderError> {
+    fn reload_shader(&self, path: &Path) -> HotReloadResult<Vec<String>> {
         // Check if this is a shader file
         if !matches!(path.extension().and_then(|e| e.to_str()), Some("wgsl") | Some("glsl")) {
             return Ok(Vec::new());
         }
         
         // Find shader ID
-        let shader_id = self.path_map.read().unwrap().get(path).cloned();
+        let shader_id = self.path_map.read()
+            .hot_reload_context("path_map")?
+            .get(path)
+            .cloned();
         
         if let Some(shader_id) = shader_id {
             // Read new source
             let source = std::fs::read_to_string(path)
-                .map_err(|e| ShaderError::IoError(e))?;
+                .map_err(|e| EngineError::IoError {
+                    path: path.to_string_lossy().to_string(),
+                    error: e.to_string(),
+                })?;
             
             // Process includes
             let processed_source = self.process_includes(&source, path)?;
@@ -207,7 +229,8 @@ impl ShaderReloader {
             let mut rebuilt_pipelines = Vec::new();
             
             {
-                let mut cache = self.cache.write().unwrap();
+                let mut cache = self.cache.write()
+                .hot_reload_context("shader_cache")?;
                 if let Some(cached) = cache.get_mut(&shader_id) {
                     cached.module = Arc::new(new_module);
                     cached.source = processed_source;
@@ -230,16 +253,21 @@ impl ShaderReloader {
     }
     
     /// Remove shader from cache
-    fn remove_shader(&self, path: &Path) -> Result<Vec<String>, ShaderError> {
-        if let Some(shader_id) = self.path_map.write().unwrap().remove(path) {
-            self.cache.write().unwrap().remove(&shader_id);
+    fn remove_shader(&self, path: &Path) -> HotReloadResult<Vec<String>> {
+        if let Some(shader_id) = self.path_map.write()
+            .hot_reload_context("path_map")?
+            .remove(path) 
+        {
+            self.cache.write()
+                .hot_reload_context("shader_cache")?
+                .remove(&shader_id);
             log::info!("Removed shader: {}", shader_id.name);
         }
         Ok(Vec::new())
     }
     
     /// Try to compile shader
-    fn try_compile_shader(&self, name: &str, source: &str) -> Result<ShaderModule, ShaderError> {
+    fn try_compile_shader(&self, name: &str, source: &str) -> HotReloadResult<ShaderModule> {
         // Note: wgpu doesn't provide validation without creating the module
         // In a real implementation, we might use naga for validation
         Ok(self.device.create_shader_module(ShaderModuleDescriptor {
@@ -253,10 +281,12 @@ impl ShaderReloader {
         &self,
         pipeline_names: &[String],
         shader_id: &ShaderId,
-    ) -> Result<(), ShaderError> {
-        let cache = self.cache.read().unwrap();
+    ) -> HotReloadResult<()> {
+        let cache = self.cache.read()
+            .hot_reload_context("shader_cache")?;
         if let Some(cached) = cache.get(shader_id) {
-            let callbacks = self.rebuild_callbacks.read().unwrap();
+            let callbacks = self.rebuild_callbacks.read()
+                .hot_reload_context("rebuild_callbacks")?;
             
             for pipeline_name in pipeline_names {
                 if let Some(callback) = callbacks.get(pipeline_name) {
@@ -270,7 +300,7 @@ impl ShaderReloader {
     }
     
     /// Process shader includes
-    fn process_includes(&self, source: &str, base_path: &Path) -> Result<String, ShaderError> {
+    fn process_includes(&self, source: &str, base_path: &Path) -> HotReloadResult<String> {
         let mut processed = String::new();
         let base_dir = base_path.parent().unwrap_or(Path::new("."));
         
@@ -285,7 +315,10 @@ impl ShaderReloader {
                 let relative_path = base_dir.join(include_path);
                 if relative_path.exists() {
                     let include_source = std::fs::read_to_string(&relative_path)
-                        .map_err(|e| ShaderError::IoError(e))?;
+                        .map_err(|e| EngineError::IoError {
+                            path: relative_path.to_string_lossy().to_string(),
+                            error: e.to_string(),
+                        })?;
                     processed.push_str(&self.process_includes(&include_source, &relative_path)?);
                     found = true;
                 } else {
@@ -294,7 +327,10 @@ impl ShaderReloader {
                         let full_path = include_dir.join(include_path);
                         if full_path.exists() {
                             let include_source = std::fs::read_to_string(&full_path)
-                                .map_err(|e| ShaderError::IoError(e))?;
+                                .map_err(|e| EngineError::IoError {
+                                    path: full_path.to_string_lossy().to_string(),
+                                    error: e.to_string(),
+                                })?;
                             processed.push_str(&self.process_includes(&include_source, &full_path)?);
                             found = true;
                             break;
@@ -303,7 +339,7 @@ impl ShaderReloader {
                 }
                 
                 if !found {
-                    return Err(ShaderError::IncludeNotFound(include_path.to_string()));
+                    return Err(shader_reload_error("shader", format!("Include not found: {}", include_path)));
                 }
             } else {
                 processed.push_str(line);
@@ -315,22 +351,30 @@ impl ShaderReloader {
     }
     
     /// Get cached shader
-    pub fn get_shader(&self, name: &str) -> Option<Arc<ShaderModule>> {
+    pub fn get_shader(&self, name: &str) -> HotReloadResult<Option<Arc<ShaderModule>>> {
         let shader_id = ShaderId {
             name: name.to_string(),
             path: None,
         };
         
-        self.cache.read().unwrap()
+        Ok(self.cache.read()
+            .hot_reload_context("shader_cache")?
             .get(&shader_id)
-            .map(|cached| cached.module.clone())
+            .map(|cached| cached.module.clone()))
     }
     
     /// Clear shader cache
-    pub fn clear_cache(&self) {
-        self.cache.write().unwrap().clear();
-        self.path_map.write().unwrap().clear();
-        self.rebuild_callbacks.write().unwrap().clear();
+    pub fn clear_cache(&self) -> HotReloadResult<()> {
+        self.cache.write()
+            .hot_reload_context("shader_cache")?
+            .clear();
+        self.path_map.write()
+            .hot_reload_context("path_map")?
+            .clear();
+        self.rebuild_callbacks.write()
+            .hot_reload_context("rebuild_callbacks")?
+            .clear();
+        Ok(())
     }
 }
 
@@ -350,8 +394,8 @@ impl ShaderCache {
         &self,
         name: &str,
         path: impl AsRef<Path>,
-    ) -> Result<Arc<ShaderModule>, ShaderError> {
-        if let Some(shader) = self.reloader.get_shader(name) {
+    ) -> HotReloadResult<Arc<ShaderModule>> {
+        if let Some(shader) = self.reloader.get_shader(name)? {
             Ok(shader)
         } else {
             self.reloader.load_shader(name, path)

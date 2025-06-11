@@ -9,6 +9,7 @@
 /// - Safe state preservation during reloads
 /// - Mod development mode with dynamic loading
 
+pub mod error;
 pub mod watcher;
 pub mod shader_reload;
 pub mod asset_reload;
@@ -24,6 +25,7 @@ pub use config_reload::{ConfigReloader, ConfigValue};
 pub use state_preserve::{StatePreserver, SerializableState};
 pub use mod_loader::{ModLoader, ModInfo};
 pub use rust_reload::{RustReloader, HotReloadable};
+pub use error::{HotReloadResult, HotReloadErrorContext, asset_reload_error, shader_reload_error};
 
 /// Hot-reload configuration
 #[derive(Debug, Clone)]

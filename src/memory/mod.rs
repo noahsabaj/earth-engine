@@ -5,6 +5,7 @@
 /// 
 /// Part of Sprint 33: Legacy System Migration & Memory Optimization
 
+pub mod error;
 pub mod persistent_buffer;
 pub mod memory_pool;
 pub mod sync_barrier;
@@ -16,6 +17,7 @@ pub use memory_pool::{MemoryPool, PoolHandle, AllocationStrategy};
 pub use sync_barrier::{SyncBarrier, SyncPoint, FencePool};
 pub use bandwidth_profiler::{BandwidthProfiler, TransferMetrics, TransferType};
 pub use performance_metrics::{PerformanceMetrics, MetricType, Implementation, ComparisonResult};
+pub use error::{MemoryResult, MemoryErrorContext, allocation_error, out_of_memory_error};
 
 use std::sync::Arc;
 use wgpu::Device;
@@ -114,8 +116,8 @@ impl MemoryManager {
     }
     
     /// Create a sync barrier
-    pub fn create_sync_barrier(&mut self) -> SyncBarrier {
-        SyncBarrier::new(self.sync_barriers.acquire())
+    pub fn create_sync_barrier(&mut self) -> MemoryResult<SyncBarrier> {
+        Ok(SyncBarrier::new(self.sync_barriers.acquire()?))
     }
     
     /// Record a transfer for profiling
@@ -134,7 +136,7 @@ impl MemoryManager {
             general_used: self.general_pool.used_bytes(),
             persistent_allocated,
             persistent_used: self.persistent_pool.used_bytes(),
-            sync_barriers_active: self.sync_barriers.active_count(),
+            sync_barriers_active: self.sync_barriers.active_count().unwrap_or(0),
             total_allocated: general_allocated + persistent_allocated,
         }
     }

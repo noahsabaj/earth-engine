@@ -10,7 +10,9 @@ use crate::network::{
     Packet, ClientPacket, ServerPacket,
     MovementState,
     DEFAULT_UDP_PORT,
+    NetworkResult, NetworkErrorContext, connection_error,
 };
+use crate::error::EngineError;
 use crate::world::{World, BlockId, VoxelPos, ChunkPos};
 use crate::ecs::EcsWorld;
 use glam::{Vec3, Quat};
@@ -90,35 +92,41 @@ impl Client {
     }
     
     /// Connect to a server
-    pub fn connect<A: ToSocketAddrs>(&mut self, addr: A) -> Result<(), String> {
+    pub fn connect<A: ToSocketAddrs>(&mut self, addr: A) -> NetworkResult<()> {
         // Resolve address
         let socket_addr = addr.to_socket_addrs()
-            .map_err(|e| format!("Failed to resolve address: {}", e))?
+            .map_err(|e| connection_error("<address>", e))?
             .next()
-            .ok_or_else(|| "No valid address found".to_string())?;
+            .ok_or_else(|| EngineError::ConnectionFailed {
+                addr: "<address>".to_string(),
+                error: "No valid address found".to_string(),
+            })?;
         
         // Update state
-        *self.state.lock().unwrap() = ClientState::Connecting;
+        *self.state.lock().network_context("state")? = ClientState::Connecting;
         
         // Connect TCP
         let tcp_stream = TcpStream::connect_timeout(&socket_addr, Duration::from_secs(5))
-            .map_err(|e| format!("Failed to connect: {}", e))?;
+            .map_err(|e| connection_error(&socket_addr.to_string(), e))?;
         
         // Create connection
         let mut connection = Connection::new(tcp_stream, socket_addr)
-            .map_err(|e| format!("Failed to create connection: {}", e))?;
+            .map_err(|e| connection_error(&socket_addr.to_string(), e))?;
         
         // Bind UDP socket
         let local_addr = format!("0.0.0.0:{}", DEFAULT_UDP_PORT);
         let udp_socket = UdpSocket::bind(&local_addr)
-            .map_err(|e| format!("Failed to bind UDP socket: {}", e))?;
+            .map_err(|e| connection_error(&local_addr, e))?;
         udp_socket.set_nonblocking(true)
-            .map_err(|e| format!("Failed to set UDP non-blocking: {}", e))?;
+            .map_err(|e| EngineError::IoError {
+                path: local_addr.clone(),
+                error: format!("Failed to set non-blocking: {}", e),
+            })?;
         
         // Connect UDP to server
         let server_udp_addr = SocketAddr::new(socket_addr.ip(), DEFAULT_UDP_PORT);
         udp_socket.connect(server_udp_addr)
-            .map_err(|e| format!("Failed to connect UDP: {}", e))?;
+            .map_err(|e| connection_error(&server_udp_addr.to_string(), e))?;
         
         connection.set_udp_socket(Arc::new(udp_socket));
         
@@ -127,7 +135,9 @@ impl Client {
             protocol_version: crate::network::PROTOCOL_VERSION,
             username: self.username.clone(),
             password: None,
-        })).map_err(|e| format!("Failed to send connect packet: {}", e))?;
+        })).map_err(|e| EngineError::ProtocolError {
+            message: format!("Failed to send connect packet: {}", e),
+        })?;
         
         // Store connection
         let connection = Arc::new(Mutex::new(connection));
@@ -137,30 +147,31 @@ impl Client {
         self.start_receive_thread(connection);
         
         // Update state
-        *self.state.lock().unwrap() = ClientState::Connected;
+        *self.state.lock().network_context("state")? = ClientState::Connected;
         
         Ok(())
     }
     
     /// Disconnect from server
-    pub fn disconnect(&mut self) {
+    pub fn disconnect(&mut self) -> NetworkResult<()> {
         if let Some(connection) = &self.connection {
-            let mut conn = connection.lock().unwrap();
+            let mut conn = connection.lock().network_context("connection")?;
             let _ = conn.send_packet(Packet::Client(ClientPacket::Disconnect {
                 reason: "Client disconnecting".to_string(),
             }));
             conn.close();
         }
         
-        *self.state.lock().unwrap() = ClientState::Disconnected;
+        *self.state.lock().network_context("state")? = ClientState::Disconnected;
         self.connection = None;
         self.player_id = None;
-        self.remote_players.lock().unwrap().clear();
+        self.remote_players.lock().network_context("remote_players")?.clear();
+        Ok(())
     }
     
     /// Get current state
-    pub fn state(&self) -> ClientState {
-        *self.state.lock().unwrap()
+    pub fn state(&self) -> NetworkResult<ClientState> {
+        Ok(*self.state.lock().network_context("state")?)
     }
     
     /// Get player ID
@@ -169,20 +180,20 @@ impl Client {
     }
     
     /// Get ping in milliseconds
-    pub fn ping_ms(&self) -> u32 {
-        *self.ping_ms.lock().unwrap()
+    pub fn ping_ms(&self) -> NetworkResult<u32> {
+        Ok(*self.ping_ms.lock().network_context("ping_ms")?)
     }
     
     /// Update local player state and send to server
-    pub fn update_player(&mut self, position: Vec3, rotation: Quat, velocity: Vec3, movement_state: MovementState) {
-        *self.position.lock().unwrap() = position;
-        *self.rotation.lock().unwrap() = rotation;
-        *self.velocity.lock().unwrap() = velocity;
-        *self.movement_state.lock().unwrap() = movement_state;
+    pub fn update_player(&mut self, position: Vec3, rotation: Quat, velocity: Vec3, movement_state: MovementState) -> NetworkResult<()> {
+        *self.position.lock().network_context("position")? = position;
+        *self.rotation.lock().network_context("rotation")? = rotation;
+        *self.velocity.lock().network_context("velocity")? = velocity;
+        *self.movement_state.lock().network_context("movement_state")? = movement_state;
         
         // Increment sequence
         let sequence = {
-            let mut seq = self.input_sequence.lock().unwrap();
+            let mut seq = self.input_sequence.lock().network_context("input_sequence")?;
             *seq += 1;
             *seq
         };
@@ -194,13 +205,14 @@ impl Client {
             velocity,
             movement_state,
             sequence,
-        }));
+        }))?;
+        Ok(())
     }
     
     /// Request to break a block
-    pub fn break_block(&mut self, position: VoxelPos) {
+    pub fn break_block(&mut self, position: VoxelPos) -> NetworkResult<()> {
         let sequence = {
-            let mut seq = self.input_sequence.lock().unwrap();
+            let mut seq = self.input_sequence.lock().network_context("input_sequence")?;
             *seq += 1;
             *seq
         };
@@ -208,13 +220,14 @@ impl Client {
         self.send_packet(Packet::Client(ClientPacket::BlockBreak {
             position,
             sequence,
-        }));
+        }))?;
+        Ok(())
     }
     
     /// Request to place a block
-    pub fn place_block(&mut self, position: VoxelPos, block_id: BlockId, face: crate::network::packet::BlockFace) {
+    pub fn place_block(&mut self, position: VoxelPos, block_id: BlockId, face: crate::network::packet::BlockFace) -> NetworkResult<()> {
         let sequence = {
-            let mut seq = self.input_sequence.lock().unwrap();
+            let mut seq = self.input_sequence.lock().network_context("input_sequence")?;
             *seq += 1;
             *seq
         };
@@ -224,46 +237,55 @@ impl Client {
             block_id,
             face,
             sequence,
-        }));
+        }))?;
+        Ok(())
     }
     
     /// Send chat message
-    pub fn send_chat(&mut self, message: String) {
+    pub fn send_chat(&mut self, message: String) -> NetworkResult<()> {
         self.send_packet(Packet::Client(ClientPacket::ChatMessage {
             message,
-        }));
+        }))?;
+        Ok(())
     }
     
     /// Request chunk data
-    pub fn request_chunk(&mut self, chunk_pos: ChunkPos) {
+    pub fn request_chunk(&mut self, chunk_pos: ChunkPos) -> NetworkResult<()> {
         self.send_packet(Packet::Client(ClientPacket::ChunkRequest {
             chunk_pos,
-        }));
+        }))?;
+        Ok(())
     }
     
     /// Process network updates
-    pub fn update(&mut self) {
+    pub fn update(&mut self) -> NetworkResult<()> {
         // Process received packets
         while let Ok(packet) = self.packet_rx.try_recv() {
-            self.handle_packet(packet);
+            self.handle_packet(packet)?;
         }
         
         // Send keepalive if needed
         let now = Instant::now();
-        if now.duration_since(*self.last_ping.lock().unwrap()) > Duration::from_secs(5) {
-            *self.last_ping.lock().unwrap() = now;
+        let should_ping = {
+            let last_ping = self.last_ping.lock().network_context("last_ping")?;
+            now.duration_since(*last_ping) > Duration::from_secs(5)
+        };
+        
+        if should_ping {
+            *self.last_ping.lock().network_context("last_ping")? = now;
             
             let timestamp = now.elapsed().as_millis() as u64;
             self.send_packet(Packet::Client(ClientPacket::Ping {
                 timestamp,
-            }));
+            }))?;
         }
         
         // Process send queue
         if let Some(connection) = &self.connection {
-            let mut conn = connection.lock().unwrap();
+            let mut conn = connection.lock().network_context("connection")?;
             let _ = conn.process_send_queue();
         }
+        Ok(())
     }
     
     /// Start receive thread
@@ -274,18 +296,35 @@ impl Client {
         thread::spawn(move || {
             loop {
                 // Check if still connected
-                if *state.lock().unwrap() == ClientState::Disconnected {
-                    break;
+                match state.lock() {
+                    Ok(guard) => {
+                        if *guard == ClientState::Disconnected {
+                            break;
+                        }
+                    }
+                    Err(_) => {
+                        eprintln!("Failed to acquire state lock in receive thread");
+                        break;
+                    }
                 }
                 
                 // Receive packets
                 let packets = {
-                    let mut conn = connection.lock().unwrap();
-                    match conn.receive_tcp_packets() {
-                        Ok(packets) => packets,
-                        Err(e) => {
-                            eprintln!("Failed to receive packets: {}", e);
-                            *state.lock().unwrap() = ClientState::Disconnected;
+                    match connection.lock() {
+                        Ok(mut conn) => {
+                            match conn.receive_tcp_packets() {
+                                Ok(packets) => packets,
+                                Err(e) => {
+                                    eprintln!("Failed to receive packets: {}", e);
+                                    if let Ok(mut guard) = state.lock() {
+                                        *guard = ClientState::Disconnected;
+                                    }
+                                    break;
+                                }
+                            }
+                        }
+                        Err(_) => {
+                            eprintln!("Failed to acquire connection lock in receive thread");
                             break;
                         }
                     }
@@ -305,29 +344,30 @@ impl Client {
     }
     
     /// Send packet to server
-    fn send_packet(&self, packet: Packet) {
+    fn send_packet(&self, packet: Packet) -> NetworkResult<()> {
         if let Some(connection) = &self.connection {
-            let mut conn = connection.lock().unwrap();
+            let mut conn = connection.lock().network_context("connection")?;
             if let Err(e) = conn.send_packet(packet) {
                 eprintln!("Failed to send packet: {}", e);
             }
         }
+        Ok(())
     }
     
     /// Handle received packet
-    fn handle_packet(&mut self, packet: Packet) {
+    fn handle_packet(&mut self, packet: Packet) -> NetworkResult<()> {
         match packet {
             Packet::Server(server_packet) => {
                 match server_packet {
                     ServerPacket::ConnectAccept { player_id, spawn_position, world_time } => {
                         self.player_id = Some(player_id);
-                        *self.position.lock().unwrap() = spawn_position;
-                        *self.state.lock().unwrap() = ClientState::InGame;
+                        *self.position.lock().network_context("position")? = spawn_position;
+                        *self.state.lock().network_context("state")? = ClientState::InGame;
                         println!("Connected to server as player {}", player_id);
                     }
                     ServerPacket::ConnectReject { reason } => {
                         eprintln!("Connection rejected: {}", reason);
-                        self.disconnect();
+                        self.disconnect()?;
                     }
                     ServerPacket::PlayerJoin { player_id, username, position, rotation } => {
                         if Some(player_id) != self.player_id {
@@ -340,19 +380,27 @@ impl Client {
                                 movement_state: MovementState::Normal,
                                 last_update: Instant::now(),
                             };
-                            self.remote_players.lock().unwrap().insert(player_id, player);
+                            self.remote_players.lock()
+                                .network_context("remote_players")?
+                                .insert(player_id, player);
                             println!("Player {} joined", username);
                         }
                     }
                     ServerPacket::PlayerDisconnect { player_id, reason } => {
-                        if let Some(player) = self.remote_players.lock().unwrap().remove(&player_id) {
+                        if let Some(player) = self.remote_players.lock()
+                            .network_context("remote_players")?
+                            .remove(&player_id) 
+                        {
                             println!("Player {} disconnected: {}", player.username, reason);
                         }
                     }
                     ServerPacket::PlayerUpdates { updates, server_tick } => {
                         for update in updates {
                             if Some(update.player_id) != self.player_id {
-                                if let Some(player) = self.remote_players.lock().unwrap().get_mut(&update.player_id) {
+                                if let Some(player) = self.remote_players.lock()
+                                    .network_context("remote_players")?
+                                    .get_mut(&update.player_id) 
+                                {
                                     player.position = update.position;
                                     player.rotation = update.rotation;
                                     player.velocity = update.velocity;
@@ -363,7 +411,9 @@ impl Client {
                         }
                     }
                     ServerPacket::BlockChange { position, block_id, sequence } => {
-                        self.world.lock().unwrap().set_block(position, block_id);
+                        self.world.lock()
+                            .network_context("world")?
+                            .set_block(position, block_id);
                     }
                     ServerPacket::ChatBroadcast { player_id, username, message, timestamp } => {
                         println!("[{}] {}: {}", timestamp, username, message);
@@ -375,7 +425,7 @@ impl Client {
                     ServerPacket::Pong { client_timestamp, server_timestamp } => {
                         let now = Instant::now().elapsed().as_millis() as u64;
                         let ping = (now - client_timestamp) as u32;
-                        *self.ping_ms.lock().unwrap() = ping;
+                        *self.ping_ms.lock().network_context("ping_ms")? = ping;
                     }
                     _ => {}
                 }
@@ -384,11 +434,14 @@ impl Client {
                 eprintln!("Client received client packet");
             }
         }
+        Ok(())
     }
     
     /// Get remote players
-    pub fn get_remote_players(&self) -> HashMap<u32, RemotePlayer> {
-        self.remote_players.lock().unwrap().clone()
+    pub fn get_remote_players(&self) -> NetworkResult<HashMap<u32, RemotePlayer>> {
+        Ok(self.remote_players.lock()
+            .network_context("remote_players")?
+            .clone())
     }
     
     /// Get world reference

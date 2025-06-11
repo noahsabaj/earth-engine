@@ -5,6 +5,7 @@
 
 use crate::instance::InstanceId;
 use crate::attributes::AttributeValue;
+use crate::error::{EngineError, EngineResult};
 use std::collections::{HashMap, BTreeMap};
 use serde::{Serialize, Deserialize};
 
@@ -192,7 +193,10 @@ impl AttributeStorage {
     
     /// Update column storage
     fn update_column(&mut self, instance: InstanceId, index: AttributeIndex, value: AttributeValue) {
-        let column = self.columns.get_mut(&index).unwrap();
+        let column = match self.columns.get_mut(&index) {
+            Some(col) => col,
+            None => return, // Silently ignore if column not found
+        };
         
         if let Some(&pos) = column.instance_index.get(&instance) {
             // Update existing

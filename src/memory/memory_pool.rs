@@ -5,6 +5,7 @@
 use std::sync::{Arc, Mutex};
 use std::collections::{HashMap, BTreeMap};
 use wgpu::{Device, Buffer};
+use super::{MemoryResult, MemoryErrorContext, allocation_error};
 
 /// Allocation strategy for the memory pool
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -88,8 +89,8 @@ impl MemoryPool {
     }
     
     /// Allocate memory from the pool
-    pub fn allocate(&self, size: u64, usage: wgpu::BufferUsages) -> PoolHandle {
-        let mut buffers = self.buffers.lock().unwrap();
+    pub fn allocate(&self, size: u64, usage: wgpu::BufferUsages) -> MemoryResult<PoolHandle> {
+        let mut buffers = self.buffers.lock().memory_context("buffers")?;
         
         // Try to find space in existing buffers
         for (buffer_idx, pool_buffer) in buffers.iter_mut().enumerate() {
@@ -98,15 +99,15 @@ impl MemoryPool {
                 pool_buffer.blocks[block_idx].free = false;
                 pool_buffer.free_space -= size;
                 
-                let pool_id = self.get_next_id();
-                self.allocations.lock().unwrap().insert(pool_id, (buffer_idx, block_idx));
+                let pool_id = self.get_next_id()?;
+                self.allocations.lock().memory_context("allocations")?.insert(pool_id, (buffer_idx, block_idx));
                 
-                return PoolHandle {
+                return Ok(PoolHandle {
                     pool_id,
                     buffer: pool_buffer.buffer.clone(),
                     offset: pool_buffer.blocks[block_idx].offset,
                     size,
-                };
+                });
             }
         }
         
@@ -140,9 +141,9 @@ impl MemoryPool {
         }
         
         let buffer_idx = buffers.len();
-        let pool_id = self.get_next_id();
+        let pool_id = self.get_next_id()?;
         
-        self.allocations.lock().unwrap().insert(pool_id, (buffer_idx, 0));
+        self.allocations.lock().memory_context("allocations")?.insert(pool_id, (buffer_idx, 0));
         
         let handle = PoolHandle {
             pool_id,
@@ -153,15 +154,15 @@ impl MemoryPool {
         
         buffers.push(pool_buffer);
         
-        handle
+        Ok(handle)
     }
     
     /// Free an allocation
-    pub fn free(&self, handle: PoolHandle) {
-        let mut allocations = self.allocations.lock().unwrap();
+    pub fn free(&self, handle: PoolHandle) -> MemoryResult<()> {
+        let mut allocations = self.allocations.lock().memory_context("allocations")?;
         
         if let Some((buffer_idx, block_idx)) = allocations.remove(&handle.pool_id) {
-            let mut buffers = self.buffers.lock().unwrap();
+            let mut buffers = self.buffers.lock().memory_context("buffers")?;
             if let Some(pool_buffer) = buffers.get_mut(buffer_idx) {
                 pool_buffer.blocks[block_idx].free = true;
                 pool_buffer.free_space += handle.size;
@@ -170,6 +171,7 @@ impl MemoryPool {
                 self.merge_free_blocks(pool_buffer);
             }
         }
+        Ok(())
     }
     
     /// Find a free block using the configured strategy
@@ -212,23 +214,27 @@ impl MemoryPool {
     }
     
     /// Get next unique pool ID
-    fn get_next_id(&self) -> u64 {
-        let mut next_id = self.next_id.lock().unwrap();
+    fn get_next_id(&self) -> MemoryResult<u64> {
+        let mut next_id = self.next_id.lock().memory_context("next_id")?;
         let id = *next_id;
         *next_id += 1;
-        id
+        Ok(id)
     }
     
     /// Get total allocated bytes
     pub fn allocated_bytes(&self) -> u64 {
-        let buffers = self.buffers.lock().unwrap();
-        buffers.iter().map(|b| b.capacity).sum()
+        self.buffers.lock()
+            .ok()
+            .map(|buffers| buffers.iter().map(|b| b.capacity).sum())
+            .unwrap_or(0)
     }
     
     /// Get total used bytes
     pub fn used_bytes(&self) -> u64 {
-        let buffers = self.buffers.lock().unwrap();
-        buffers.iter().map(|b| b.capacity - b.free_space).sum()
+        self.buffers.lock()
+            .ok()
+            .map(|buffers| buffers.iter().map(|b| b.capacity - b.free_space).sum())
+            .unwrap_or(0)
     }
     
     /// Defragment the pool (expensive operation)
@@ -261,11 +267,11 @@ impl UniformPool {
     }
     
     /// Allocate a uniform block
-    pub fn allocate(&self) -> PoolHandle {
+    pub fn allocate(&self) -> MemoryResult<PoolHandle> {
         // Try to reuse a free block
-        if let Some(handle) = self.free_blocks.lock().unwrap().pop() {
-            self.active_blocks.lock().unwrap().insert(handle.pool_id, handle.clone());
-            return handle;
+        if let Some(handle) = self.free_blocks.lock().memory_context("free_blocks")?.pop() {
+            self.active_blocks.lock().memory_context("active_blocks")?.insert(handle.pool_id, handle.clone());
+            return Ok(handle);
         }
         
         // Create new block
@@ -283,14 +289,15 @@ impl UniformPool {
             size: self.block_size,
         };
         
-        self.active_blocks.lock().unwrap().insert(handle.pool_id, handle.clone());
-        handle
+        self.active_blocks.lock().memory_context("active_blocks")?.insert(handle.pool_id, handle.clone());
+        Ok(handle)
     }
     
     /// Free a uniform block
-    pub fn free(&self, handle: PoolHandle) {
-        if self.active_blocks.lock().unwrap().remove(&handle.pool_id).is_some() {
-            self.free_blocks.lock().unwrap().push(handle);
+    pub fn free(&self, handle: PoolHandle) -> MemoryResult<()> {
+        if self.active_blocks.lock().memory_context("active_blocks")?.remove(&handle.pool_id).is_some() {
+            self.free_blocks.lock().memory_context("free_blocks")?.push(handle);
         }
+        Ok(())
     }
 }

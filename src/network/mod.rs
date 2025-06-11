@@ -1,3 +1,4 @@
+pub mod error;
 pub mod packet;
 pub mod protocol;
 pub mod server;
@@ -50,3 +51,4 @@ pub use anticheat::{
 pub use sync::{
     NetworkSync, SyncStats,
 };
+pub use error::{NetworkResult, NetworkErrorContext, connection_error, protocol_error};

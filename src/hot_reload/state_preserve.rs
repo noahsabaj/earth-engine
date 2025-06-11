@@ -2,6 +2,8 @@ use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use serde::{Serialize, Deserialize};
 use bincode;
+use super::{HotReloadResult, HotReloadErrorContext};
+use crate::error::EngineError;
 
 /// Trait for serializable game state
 pub trait SerializableState: Send + Sync {
@@ -63,18 +65,22 @@ impl StatePreserver {
     }
     
     /// Register state for preservation
-    pub fn register_state(&self, state: Box<dyn SerializableState>) {
+    pub fn register_state(&self, state: Box<dyn SerializableState>) -> HotReloadResult<()> {
         let id = state.state_id().to_string();
-        self.states.write().unwrap().insert(id, state);
+        self.states.write().hot_reload_context("states")?.insert(id, state);
+        Ok(())
     }
     
     /// Create snapshot of all states
-    pub fn create_snapshot(&self) -> Result<Vec<StateSnapshot>, StateError> {
+    pub fn create_snapshot(&self) -> HotReloadResult<Vec<StateSnapshot>> {
         let mut snapshots = Vec::new();
-        let states = self.states.read().unwrap();
+        let states = self.states.read().hot_reload_context("states")?;
         
         for (id, state) in states.iter() {
-            let data = state.serialize()?;
+            let data = state.serialize().map_err(|e| EngineError::StateError {
+                state: id.clone(),
+                error: e.to_string(),
+            })?;
             let snapshot = StateSnapshot {
                 id: id.clone(),
                 data,
@@ -86,8 +92,8 @@ impl StatePreserver {
         }
         
         // Store snapshots
-        let mut snapshot_map = self.snapshots.write().unwrap();
-        let mut history = self.history.write().unwrap();
+        let mut snapshot_map = self.snapshots.write().hot_reload_context("snapshots")?;
+        let mut history = self.history.write().hot_reload_context("history")?;
         
         for snapshot in &snapshots {
             snapshot_map.insert(snapshot.id.clone(), snapshot.clone());
@@ -103,9 +109,9 @@ impl StatePreserver {
     }
     
     /// Restore states from snapshots
-    pub fn restore_snapshot(&self) -> Result<(), StateError> {
-        let snapshots = self.snapshots.read().unwrap();
-        let mut states = self.states.write().unwrap();
+    pub fn restore_snapshot(&self) -> HotReloadResult<()> {
+        let snapshots = self.snapshots.read().hot_reload_context("snapshots")?;
+        let mut states = self.states.write().hot_reload_context("states")?;
         
         for (id, state) in states.iter_mut() {
             if let Some(snapshot) = snapshots.get(id) {
@@ -118,7 +124,10 @@ impl StatePreserver {
                     continue;
                 }
                 
-                state.deserialize(&snapshot.data)?;
+                state.deserialize(&snapshot.data).map_err(|e| EngineError::StateError {
+                    state: id.clone(),
+                    error: e.to_string(),
+                })?;
                 log::info!("Restored state: {}", id);
             }
         }
@@ -127,30 +136,42 @@ impl StatePreserver {
     }
     
     /// Save snapshots to disk
-    pub fn save_to_disk(&self, path: impl AsRef<std::path::Path>) -> Result<(), StateError> {
-        let snapshots: Vec<StateSnapshot> = self.snapshots.read().unwrap()
+    pub fn save_to_disk(&self, path: impl AsRef<std::path::Path>) -> HotReloadResult<()> {
+        let snapshots: Vec<StateSnapshot> = self.snapshots.read().hot_reload_context("snapshots")?
             .values()
             .cloned()
             .collect();
         
         let data = bincode::serialize(&snapshots)
-            .map_err(|e| StateError::SerializationError(e.to_string()))?;
+            .map_err(|e| EngineError::SerializationError {
+                type_name: "StateSnapshot".to_string(),
+                error: e.to_string(),
+            })?;
         
         std::fs::write(path, data)
-            .map_err(|e| StateError::IoError(e))?;
+            .map_err(|e| EngineError::IoError {
+                path: path.as_ref().to_string_lossy().to_string(),
+                error: e.to_string(),
+            })?;
         
         Ok(())
     }
     
     /// Load snapshots from disk
-    pub fn load_from_disk(&self, path: impl AsRef<std::path::Path>) -> Result<(), StateError> {
-        let data = std::fs::read(path)
-            .map_err(|e| StateError::IoError(e))?;
+    pub fn load_from_disk(&self, path: impl AsRef<std::path::Path>) -> HotReloadResult<()> {
+        let data = std::fs::read(&path)
+            .map_err(|e| EngineError::IoError {
+                path: path.as_ref().to_string_lossy().to_string(),
+                error: e.to_string(),
+            })?;
         
         let snapshots: Vec<StateSnapshot> = bincode::deserialize(&data)
-            .map_err(|e| StateError::SerializationError(e.to_string()))?;
+            .map_err(|e| EngineError::DeserializationError {
+                type_name: "StateSnapshot".to_string(),
+                error: e.to_string(),
+            })?;
         
-        let mut snapshot_map = self.snapshots.write().unwrap();
+        let mut snapshot_map = self.snapshots.write().hot_reload_context("snapshots")?;
         snapshot_map.clear();
         
         for snapshot in snapshots {
@@ -162,13 +183,14 @@ impl StatePreserver {
     
     /// Get state by ID
     pub fn get_state(&self, id: &str) -> Option<&dyn SerializableState> {
-        self.states.read().unwrap().get(id).map(|s| s.as_ref())
+        self.states.read().ok()?.get(id).map(|s| s.as_ref())
     }
     
     /// Clear all snapshots
-    pub fn clear_snapshots(&self) {
-        self.snapshots.write().unwrap().clear();
-        self.history.write().unwrap().clear();
+    pub fn clear_snapshots(&self) -> HotReloadResult<()> {
+        self.snapshots.write().hot_reload_context("snapshots")?.clear();
+        self.history.write().hot_reload_context("history")?.clear();
+        Ok(())
     }
 }
 
@@ -257,7 +279,7 @@ pub struct StateScope<'a> {
 
 impl<'a> StateScope<'a> {
     /// Create new state scope
-    pub fn new(preserver: &'a StatePreserver) -> Result<Self, StateError> {
+    pub fn new(preserver: &'a StatePreserver) -> HotReloadResult<Self> {
         // Create snapshot on entry
         preserver.create_snapshot()?;
         
@@ -268,7 +290,7 @@ impl<'a> StateScope<'a> {
     }
     
     /// Restore state (call if reload succeeded)
-    pub fn restore(mut self) -> Result<(), StateError> {
+    pub fn restore(mut self) -> HotReloadResult<()> {
         self.preserver.restore_snapshot()?;
         self.restored = true;
         Ok(())

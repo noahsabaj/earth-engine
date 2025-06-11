@@ -5,6 +5,7 @@
 /// Supports different value types without boxing.
 
 use crate::instance::InstanceId;
+use crate::error::{EngineError, EngineResult};
 use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
 
@@ -258,7 +259,9 @@ impl MetadataStore {
             self.columns.insert(key, column);
         }
         
-        self.columns.get_mut(key).unwrap().set(id, value)
+        self.columns.get_mut(key)
+            .ok_or("Failed to get metadata column")?
+            .set(id, value)
     }
     
     /// Get metadata value

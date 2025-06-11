@@ -6,6 +6,7 @@
 use std::sync::{Arc, Mutex};
 use std::collections::VecDeque;
 use wgpu::Device;
+use super::{MemoryResult, MemoryErrorContext};
 
 /// Synchronization point in the GPU timeline
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -39,33 +40,36 @@ impl Fence {
     }
     
     /// Get current fence value
-    pub fn value(&self) -> u64 {
-        *self.value.lock().unwrap()
+    pub fn value(&self) -> MemoryResult<u64> {
+        Ok(*self.value.lock().memory_context("fence_value")?)
     }
     
     /// Increment and return new fence value
-    pub fn increment(&self) -> u64 {
-        let mut value = self.value.lock().unwrap();
+    pub fn increment(&self) -> MemoryResult<u64> {
+        let mut value = self.value.lock().memory_context("fence_value")?;
         *value += 1;
-        *value
+        Ok(*value)
     }
     
     /// Update completed value
-    pub fn update_completed(&self, value: u64) {
-        let mut completed = self.completed_value.lock().unwrap();
+    pub fn update_completed(&self, value: u64) -> MemoryResult<()> {
+        let mut completed = self.completed_value.lock()
+            .memory_context("completed_value")?;
         *completed = (*completed).max(value);
+        Ok(())
     }
     
     /// Check if a fence value has completed
-    pub fn is_completed(&self, value: u64) -> bool {
-        *self.completed_value.lock().unwrap() >= value
+    pub fn is_completed(&self, value: u64) -> MemoryResult<bool> {
+        Ok(*self.completed_value.lock().memory_context("completed_value")? >= value)
     }
     
     /// Wait for a fence value to complete
-    pub fn wait(&self, value: u64) {
-        while !self.is_completed(value) {
+    pub fn wait(&self, value: u64) -> MemoryResult<()> {
+        while !self.is_completed(value)? {
             std::thread::yield_now();
         }
+        Ok(())
     }
 }
 
@@ -88,35 +92,43 @@ impl FencePool {
     }
     
     /// Acquire a fence from the pool
-    pub fn acquire(&self) -> Arc<Fence> {
-        let mut available = self.available.lock().unwrap();
+    pub fn acquire(&self) -> MemoryResult<Arc<Fence>> {
+        let mut available = self.available.lock()
+            .memory_context("available_fences")?;
         
         let fence = if let Some(fence) = available.pop_front() {
             fence
         } else {
             // Create new fence
-            let mut next_id = self.next_id.lock().unwrap();
+            let mut next_id = self.next_id.lock()
+                .memory_context("next_fence_id")?;
             let id = *next_id;
             *next_id += 1;
             Arc::new(Fence::new(id))
         };
         
-        self.active.lock().unwrap().push(fence.clone());
-        fence
+        self.active.lock()
+            .memory_context("active_fences")?
+            .push(fence.clone());
+        Ok(fence)
     }
     
     /// Release a fence back to the pool
-    pub fn release(&self, fence: Arc<Fence>) {
-        let mut active = self.active.lock().unwrap();
+    pub fn release(&self, fence: Arc<Fence>) -> MemoryResult<()> {
+        let mut active = self.active.lock()
+            .memory_context("active_fences")?;
         if let Some(pos) = active.iter().position(|f| Arc::ptr_eq(f, &fence)) {
             active.remove(pos);
-            self.available.lock().unwrap().push_back(fence);
+            self.available.lock()
+                .memory_context("available_fences")?
+                .push_back(fence);
         }
+        Ok(())
     }
     
     /// Get number of active fences
-    pub fn active_count(&self) -> usize {
-        self.active.lock().unwrap().len()
+    pub fn active_count(&self) -> MemoryResult<usize> {
+        Ok(self.active.lock().memory_context("active_fences")?.len())
     }
 }
 
@@ -135,39 +147,46 @@ impl SyncBarrier {
     }
     
     /// Insert a synchronization point
-    pub fn insert_sync_point(&self) -> SyncPoint {
-        let fence_value = self.fence.increment();
+    pub fn insert_sync_point(&self) -> MemoryResult<SyncPoint> {
+        let fence_value = self.fence.increment()?;
         let sync_point = SyncPoint {
             fence_value,
             timestamp: std::time::Instant::now(),
         };
         
-        self.sync_points.lock().unwrap().push(sync_point);
-        sync_point
+        self.sync_points.lock()
+            .memory_context("sync_points")?
+            .push(sync_point);
+        Ok(sync_point)
     }
     
     /// Wait for a sync point to complete
-    pub fn wait_for_sync_point(&self, sync_point: SyncPoint) {
-        self.fence.wait(sync_point.fence_value);
+    pub fn wait_for_sync_point(&self, sync_point: SyncPoint) -> MemoryResult<()> {
+        self.fence.wait(sync_point.fence_value)
     }
     
     /// Check if a sync point has completed
-    pub fn is_sync_point_complete(&self, sync_point: SyncPoint) -> bool {
+    pub fn is_sync_point_complete(&self, sync_point: SyncPoint) -> MemoryResult<bool> {
         self.fence.is_completed(sync_point.fence_value)
     }
     
     /// Update completion status (called from GPU timeline)
-    pub fn signal_completion(&self, fence_value: u64) {
-        self.fence.update_completed(fence_value);
+    pub fn signal_completion(&self, fence_value: u64) -> MemoryResult<()> {
+        self.fence.update_completed(fence_value)
     }
     
     /// Get all pending sync points
-    pub fn pending_sync_points(&self) -> Vec<SyncPoint> {
-        self.sync_points.lock().unwrap()
-            .iter()
-            .filter(|sp| !self.fence.is_completed(sp.fence_value))
-            .copied()
-            .collect()
+    pub fn pending_sync_points(&self) -> MemoryResult<Vec<SyncPoint>> {
+        let sync_points = self.sync_points.lock()
+            .memory_context("sync_points")?;
+        
+        let mut pending = Vec::new();
+        for sp in sync_points.iter() {
+            if !self.fence.is_completed(sp.fence_value)? {
+                pending.push(*sp);
+            }
+        }
+        Ok(pending)
     }
 }
 
@@ -184,16 +203,17 @@ pub struct FrameSync {
 }
 
 impl FrameSync {
-    pub fn new(fence_pool: &FencePool, max_frames_in_flight: usize) -> Self {
-        let frame_barriers = (0..max_frames_in_flight)
-            .map(|_| SyncBarrier::new(fence_pool.acquire()))
-            .collect();
+    pub fn new(fence_pool: &FencePool, max_frames_in_flight: usize) -> MemoryResult<Self> {
+        let mut frame_barriers = Vec::new();
+        for _ in 0..max_frames_in_flight {
+            frame_barriers.push(SyncBarrier::new(fence_pool.acquire()?));
+        }
         
-        Self {
+        Ok(Self {
             frame_barriers,
             current_frame: 0,
             max_frames_in_flight,
-        }
+        })
     }
     
     /// Begin a new frame
@@ -244,28 +264,32 @@ impl Timeline {
     }
     
     /// Add a stage to the timeline
-    pub fn add_stage(&self, name: String, dependencies: Vec<SyncPoint>) -> SyncPoint {
+    pub fn add_stage(&self, name: String, dependencies: Vec<SyncPoint>) -> MemoryResult<SyncPoint> {
         // Wait for all dependencies
         for dep in &dependencies {
-            self.sync_barrier.wait_for_sync_point(*dep);
+            self.sync_barrier.wait_for_sync_point(*dep)?;
         }
         
-        let sync_point = self.sync_barrier.insert_sync_point();
+        let sync_point = self.sync_barrier.insert_sync_point()?;
         
-        self.stages.lock().unwrap().push(TimelineStage {
-            name,
-            sync_point,
-            dependencies,
-        });
+        self.stages.lock()
+            .memory_context("timeline_stages")?
+            .push(TimelineStage {
+                name,
+                sync_point,
+                dependencies,
+            });
         
-        sync_point
+        Ok(sync_point)
     }
     
     /// Wait for entire timeline to complete
-    pub fn wait_all(&self) {
-        let stages = self.stages.lock().unwrap();
+    pub fn wait_all(&self) -> MemoryResult<()> {
+        let stages = self.stages.lock()
+            .memory_context("timeline_stages")?;
         if let Some(last_stage) = stages.last() {
-            self.sync_barrier.wait_for_sync_point(last_stage.sync_point);
+            self.sync_barrier.wait_for_sync_point(last_stage.sync_point)?;
         }
+        Ok(())
     }
 }
