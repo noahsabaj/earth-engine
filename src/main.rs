@@ -22,7 +22,7 @@ impl EarthGame {
 }
 
 impl Game for EarthGame {
-    fn register_blocks(&mut self, registry: &mut BlockRegistry) {
+    fn register_blocks(&mut self, _registry: &mut BlockRegistry) {
         // Blocks are already registered in the world module
         log::info!("Blocks registered");
     }
