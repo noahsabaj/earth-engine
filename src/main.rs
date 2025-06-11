@@ -1,3 +1,5 @@
+#![deny(warnings, clippy::all)]
+
 /// Main Earth Engine game executable
 /// This is the primary entry point for the full game experience
 /// Features: block placement/breaking, multiple block types, full input handling
@@ -68,6 +70,9 @@ impl Game for EarthGame {
 
 fn main() {
     println!("Starting Earth Engine...");
+    
+    // Install panic handler for telemetry
+    earth_engine::panic_handler::install_panic_handler();
     
     // Create engine with default config
     let config = EngineConfig {

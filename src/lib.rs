@@ -1,3 +1,5 @@
+pub mod error;
+pub mod panic_handler;
 pub mod camera;
 pub mod crafting;
 pub mod ecs;
@@ -40,6 +42,7 @@ pub mod web;
 use anyhow::Result;
 use winit::event_loop::{EventLoop, EventLoopBuilder};
 
+pub use error::{EngineError, EngineResult, OptionExt, ErrorContext};
 pub use camera::Camera;
 pub use game::{Game, GameContext};
 pub use input::KeyCode;

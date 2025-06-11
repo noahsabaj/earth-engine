@@ -126,44 +126,47 @@ impl SaveManager {
     }
     
     /// Stop the automatic save system
-    pub fn stop_auto_save(&mut self) {
-        *self.shutdown_signal.lock().unwrap() = true;
+    pub fn stop_auto_save(&mut self) -> PersistenceResult<()> {
+        *self.shutdown_signal.lock()? = true;
         
         if let Some(thread) = self.save_thread.take() {
             let _ = thread.join();
         }
+        Ok(())
     }
     
     /// Mark a chunk as dirty (needs saving)
-    pub fn mark_chunk_dirty(&self, pos: ChunkPos) {
-        self.dirty_chunks.lock().unwrap().insert(pos);
+    pub fn mark_chunk_dirty(&self, pos: ChunkPos) -> PersistenceResult<()> {
+        self.dirty_chunks.lock()?.insert(pos);
+        Ok(())
     }
     
     /// Mark a chunk as pending unload
-    pub fn mark_chunk_unloading(&self, pos: ChunkPos) {
+    pub fn mark_chunk_unloading(&self, pos: ChunkPos) -> PersistenceResult<()> {
         if self.config.auto_save_config.save_on_chunk_unload {
-            let mut pending = self.pending_chunk_saves.lock().unwrap();
+            let mut pending = self.pending_chunk_saves.lock()?;
             pending.insert(pos, Instant::now());
         }
+        Ok(())
     }
     
     /// Save the entire world immediately
     pub fn save_world(&self, world: &World, metadata: &WorldMetadata) -> PersistenceResult<()> {
         // Set save in progress flag
-        *self.save_in_progress.lock().unwrap() = true;
+        *self.save_in_progress.lock()? = true;
         
         let result = {
-            let mut world_save = self.world_save.lock().unwrap();
+            let mut world_save = self.world_save.lock()?;
             world_save.save_world(world, metadata)
         };
         
         // Clear dirty chunks on successful save
         if result.is_ok() {
-            self.dirty_chunks.lock().unwrap().clear();
-            *self.last_save_time.lock().unwrap() = Instant::now();
+            self.dirty_chunks.lock()?.clear();
+            *self.last_save_time.lock()? = Instant::now();
         }
         
-        *self.save_in_progress.lock().unwrap() = false;
+        *self.save_in_progress.lock()? = false;
         
         result.map_err(|e| PersistenceError::IoError(
             std::io::Error::new(std::io::ErrorKind::Other, e.to_string())
@@ -182,7 +185,7 @@ impl SaveManager {
         
         let chunk_refs = chunks;
         
-        let mut world_save = self.world_save.lock().unwrap();
+        let mut world_save = self.world_save.lock()?;
         world_save.save_chunks(&chunk_refs)
             .map_err(|errors| {
                 PersistenceError::IoError(
@@ -194,7 +197,7 @@ impl SaveManager {
             })?;
         
         // Remove from dirty set
-        let mut dirty = self.dirty_chunks.lock().unwrap();
+        let mut dirty = self.dirty_chunks.lock()?;
         for pos in positions {
             dirty.remove(pos);
         }
@@ -224,71 +227,125 @@ impl SaveManager {
     ) {
         loop {
             // Check shutdown signal
-            if *shutdown_signal.lock().unwrap() {
-                break;
+            match shutdown_signal.lock() {
+                Ok(signal) => {
+                    if *signal {
+                        break;
+                    }
+                },
+                Err(e) => {
+                    eprintln!("[SaveManager] Error accessing shutdown signal: {}", e);
+                    break; // Exit on poisoned lock
+                }
             }
             
             // Sleep for a short interval
             thread::sleep(Duration::from_secs(1));
             
             // Skip if save is already in progress
-            if *save_in_progress.lock().unwrap() {
-                continue;
+            match save_in_progress.lock() {
+                Ok(in_progress) => {
+                    if *in_progress {
+                        continue;
+                    }
+                },
+                Err(e) => {
+                    eprintln!("[SaveManager] Error accessing save_in_progress: {}", e);
+                    continue;
+                }
             }
             
             let now = Instant::now();
             
             // Check if it's time for periodic save
-            let should_save = {
-                let last_save = *last_save_time.lock().unwrap();
-                now.duration_since(last_save) >= config.auto_save_config.interval
-                    && !dirty_chunks.lock().unwrap().is_empty()
+            let should_save = match (last_save_time.lock(), dirty_chunks.lock()) {
+                (Ok(last_save), Ok(dirty)) => {
+                    now.duration_since(*last_save) >= config.auto_save_config.interval
+                        && !dirty.is_empty()
+                },
+                (Err(e), _) => {
+                    eprintln!("[SaveManager] Error checking last save time: {}", e);
+                    false
+                },
+                (_, Err(e)) => {
+                    eprintln!("[SaveManager] Error checking dirty chunks: {}", e);
+                    false
+                }
             };
             
             if should_save {
                 println!("[SaveManager] Starting automatic save...");
-                *save_in_progress.lock().unwrap() = true;
+                match save_in_progress.lock() {
+                    Ok(mut in_progress) => *in_progress = true,
+                    Err(e) => {
+                        eprintln!("[SaveManager] Error setting save_in_progress: {}", e);
+                        continue;
+                    }
+                }
                 
                 // Get dirty chunks to save
-                let chunks_to_save: Vec<ChunkPos> = {
-                    let dirty = dirty_chunks.lock().unwrap();
-                    dirty.iter()
-                        .take(config.auto_save_config.chunk_batch_size)
-                        .cloned()
-                        .collect()
+                let chunks_to_save: Vec<ChunkPos> = match dirty_chunks.lock() {
+                    Ok(dirty) => {
+                        dirty.iter()
+                            .take(config.auto_save_config.chunk_batch_size)
+                            .cloned()
+                            .collect()
+                    },
+                    Err(e) => {
+                        eprintln!("[SaveManager] Error accessing dirty chunks: {}", e);
+                        vec![]
+                    }
                 };
                 
                 // Save chunks (in real implementation, would need World reference)
                 // For now, just clear them from dirty set
-                {
-                    let mut dirty = dirty_chunks.lock().unwrap();
-                    for pos in &chunks_to_save {
-                        dirty.remove(pos);
+                match dirty_chunks.lock() {
+                    Ok(mut dirty) => {
+                        for pos in &chunks_to_save {
+                            dirty.remove(pos);
+                        }
+                    },
+                    Err(e) => {
+                        eprintln!("[SaveManager] Error clearing dirty chunks: {}", e);
                     }
                 }
                 
-                *last_save_time.lock().unwrap() = now;
-                *save_in_progress.lock().unwrap() = false;
+                if let Ok(mut last_save) = last_save_time.lock() {
+                    *last_save = now;
+                }
+                if let Ok(mut in_progress) = save_in_progress.lock() {
+                    *in_progress = false;
+                }
                 
                 println!("[SaveManager] Automatic save completed ({} chunks)", chunks_to_save.len());
             }
             
             // Process pending chunk saves (chunks marked for unload)
-            let chunks_to_save: Vec<ChunkPos> = {
-                let mut pending = pending_chunk_saves.lock().unwrap();
-                let delay = config.auto_save_config.unload_save_delay;
-                
-                pending.iter()
-                    .filter(|(_, time)| now.duration_since(**time) >= delay)
-                    .map(|(pos, _)| *pos)
-                    .collect()
+            let chunks_to_save: Vec<ChunkPos> = match pending_chunk_saves.lock() {
+                Ok(pending) => {
+                    let delay = config.auto_save_config.unload_save_delay;
+                    pending.iter()
+                        .filter(|(_, time)| now.duration_since(**time) >= delay)
+                        .map(|(pos, _)| *pos)
+                        .collect()
+                },
+                Err(e) => {
+                    eprintln!("[SaveManager] Error accessing pending chunks: {}", e);
+                    vec![]
+                }
             };
             
             if !chunks_to_save.is_empty() {
                 // Remove from pending
-                let mut pending = pending_chunk_saves.lock().unwrap();
-                for pos in &chunks_to_save {
-                    pending.remove(pos);
+                match pending_chunk_saves.lock() {
+                    Ok(mut pending) => {
+                        for pos in &chunks_to_save {
+                            pending.remove(pos);
+                        }
+                    },
+                    Err(e) => {
+                        eprintln!("[SaveManager] Error removing pending chunks: {}", e);
+                    }
                 }
                 
                 // In real implementation, would save these chunks
@@ -298,18 +355,18 @@ impl SaveManager {
     }
     
     /// Get save statistics
-    pub fn get_stats(&self) -> SaveStats {
-        SaveStats {
-            dirty_chunk_count: self.dirty_chunks.lock().unwrap().len(),
-            pending_chunk_count: self.pending_chunk_saves.lock().unwrap().len(),
-            save_in_progress: *self.save_in_progress.lock().unwrap(),
-            last_save_time: *self.last_save_time.lock().unwrap(),
-        }
+    pub fn get_stats(&self) -> PersistenceResult<SaveStats> {
+        Ok(SaveStats {
+            dirty_chunk_count: self.dirty_chunks.lock()?.len(),
+            pending_chunk_count: self.pending_chunk_saves.lock()?.len(),
+            save_in_progress: *self.save_in_progress.lock()?,
+            last_save_time: *self.last_save_time.lock()?,
+        })
     }
     
     /// Force save all dirty chunks
     pub fn flush(&self) -> PersistenceResult<()> {
-        let chunks: Vec<ChunkPos> = self.dirty_chunks.lock().unwrap()
+        let chunks: Vec<ChunkPos> = self.dirty_chunks.lock()?
             .iter()
             .cloned()
             .collect();
@@ -319,7 +376,7 @@ impl SaveManager {
         }
         
         // In real implementation, would save these chunks
-        self.dirty_chunks.lock().unwrap().clear();
+        self.dirty_chunks.lock()?.clear();
         
         Ok(())
     }
@@ -353,7 +410,8 @@ struct SaveResult {
 
 impl Drop for SaveManager {
     fn drop(&mut self) {
-        self.stop_auto_save();
+        // Best effort - ignore errors during drop
+        let _ = self.stop_auto_save();
     }
 }
 
@@ -371,7 +429,7 @@ mod tests {
         };
         
         let manager = SaveManager::new(config).unwrap();
-        assert_eq!(manager.get_stats().dirty_chunk_count, 0);
+        assert_eq!(manager.get_stats().unwrap().dirty_chunk_count, 0);
     }
     
     #[test]
@@ -384,10 +442,10 @@ mod tests {
         
         let manager = SaveManager::new(config).unwrap();
         
-        manager.mark_chunk_dirty(ChunkPos { x: 0, y: 0, z: 0 });
-        manager.mark_chunk_dirty(ChunkPos { x: 1, y: 0, z: 0 });
+        manager.mark_chunk_dirty(ChunkPos { x: 0, y: 0, z: 0 }).unwrap();
+        manager.mark_chunk_dirty(ChunkPos { x: 1, y: 0, z: 0 }).unwrap();
         
-        assert_eq!(manager.get_stats().dirty_chunk_count, 2);
+        assert_eq!(manager.get_stats().unwrap().dirty_chunk_count, 2);
     }
     
     #[test]

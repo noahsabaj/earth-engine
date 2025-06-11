@@ -32,6 +32,7 @@ pub enum PersistenceError {
     CorruptedData(String),
     MigrationError(String),
     BackupError(String),
+    LockPoisoned(String),
 }
 
 impl std::fmt::Display for PersistenceError {
@@ -47,6 +48,7 @@ impl std::fmt::Display for PersistenceError {
             PersistenceError::CorruptedData(e) => write!(f, "Corrupted data: {}", e),
             PersistenceError::MigrationError(e) => write!(f, "Migration error: {}", e),
             PersistenceError::BackupError(e) => write!(f, "Backup error: {}", e),
+            PersistenceError::LockPoisoned(e) => write!(f, "Lock poisoned: {}", e),
         }
     }
 }
@@ -62,5 +64,11 @@ impl From<std::io::Error> for PersistenceError {
 impl From<bincode::Error> for PersistenceError {
     fn from(err: bincode::Error) -> Self {
         PersistenceError::SerializationError(err.to_string())
+    }
+}
+
+impl<T> From<std::sync::PoisonError<T>> for PersistenceError {
+    fn from(_: std::sync::PoisonError<T>) -> Self {
+        PersistenceError::LockPoisoned("A thread panicked while holding a lock".to_string())
     }
 }
