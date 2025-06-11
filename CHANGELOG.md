@@ -14,6 +14,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated versioning strategy to be more honest about pre-release status
 - Removed hard 1.0 claims from roadmap
 
+### Removed
+- Entire web implementation (JavaScript/WebGPU) - determined to provide no value
+  - Not using any Rust engine code
+  - Not truly GPU-first as claimed
+  - Never achieved working state
+  - Focus returned to native Rust engine
+
 ## [0.35.0] - 2025-01-10
 
 ### Added

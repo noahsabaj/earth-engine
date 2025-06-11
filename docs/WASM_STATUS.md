@@ -1,6 +1,14 @@
 # Earth Engine WASM Status
 
-## Current State (Sprint 22 - Partially Complete)
+## Current State (Sprint 22 - Abandoned)
+
+### ⛔ Web Implementation Removed
+
+The web implementation has been completely removed from the project. After analysis, it was determined that:
+- It wasn't using any Rust engine code
+- It wasn't truly GPU-first as claimed
+- It wasn't working despite extensive debugging
+- It provided no value to the main engine
 
 ### ✅ What Works
 
@@ -8,13 +16,6 @@
    - Located in `wasm-demo/` directory
    - Successfully compiles with `wasm-pack`
    - Generates working .wasm and .js files
-   - Can be tested at `web/index-wasm.html`
-
-2. **WebGL Visualization**
-   - Full working demo at `web/index.html`
-   - Shows rotating voxel chunk
-   - Demonstrates intended visual output
-   - Works in all modern browsers
 
 ### ❌ What Doesn't Work
 
@@ -31,30 +32,14 @@
 
 ### 🛠️ How to Test
 
-#### Option 1: WebGL Demo (Works Now)
-```bash
-cd web
-python3 serve.py
-# Open http://localhost:8080/index.html
-```
-
-#### Option 2: Minimal WASM Demo
+#### Option 1: Minimal WASM Demo
 ```bash
 # Build WASM demo
 cd wasm-demo
 wasm-pack build --target web
-
-# Copy files
-cp pkg/*.wasm ../web/
-cp pkg/*.js ../web/
-
-# Serve
-cd ../web
-python3 serve.py
-# Open http://localhost:8080/index-wasm.html
 ```
 
-#### Option 3: Try Full Build (Will Fail)
+#### Option 2: Try Full Build (Will Fail)
 ```bash
 # This shows the compilation errors
 wasm-pack build --target web --features web --no-default-features
@@ -100,5 +85,3 @@ A proper WASM port requires:
 - Basic voxel renderer: ~1 week
 - Camera & controls: ~1 week  
 - Full engine port: 2-3 months
-
-The current WebGL demo (`index.html`) provides a good preview of what the WASM version will look like once fully implemented.
