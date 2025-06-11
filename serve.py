@@ -17,14 +17,14 @@ class ESModuleHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
     
     def guess_type(self, path):
         """Ensure JavaScript files are served with module MIME type"""
-        mimetype, _ = super().guess_type(path)
+        mimetype = super().guess_type(path)
         
         if path.endswith('.js'):
             mimetype = 'application/javascript'
         elif path.endswith('.wasm'):
             mimetype = 'application/wasm'
             
-        return mimetype, None
+        return mimetype
 
 def main():
     PORT = 8080
