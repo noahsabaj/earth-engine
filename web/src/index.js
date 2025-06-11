@@ -3,9 +3,6 @@
 
 import { EarthEngine } from './core/earth-engine.js';
 
-// Global engine instance
-let engine = null;
-
 // Create UI overlay
 function createUI() {
     const ui = document.createElement('div');
@@ -81,68 +78,48 @@ function updateStats(ui, engine) {
     `;
 }
 
-// Auto-start if loaded in browser
-if (typeof window !== 'undefined') {
-    window.addEventListener('DOMContentLoaded', async () => {
-        const canvas = document.getElementById('earth-engine-canvas');
-        if (!canvas) {
-            console.error('[Engine] No canvas found with id "earth-engine-canvas"');
-            return;
-        }
-        
-        try {
-            // Set canvas size
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-            
-            // Create UI
-            const ui = createUI();
-            
-            // Create and initialize engine
-            engine = new EarthEngine(canvas);
-            await engine.init();
-            
-            // Start render loop
-            engine.start();
-            
-            // Update stats periodically
-            setInterval(() => {
-                updateStats(ui, engine);
-            }, 100);
-            
-            // Expose to window for debugging
-            window.engine = engine;
-            window.EarthEngine = EarthEngine;
-            
-            console.log('[Engine] Earth Engine started successfully!');
-            console.log('[Engine] Use window.engine to access the engine instance');
-            
-        } catch (error) {
-            console.error('[Engine] Failed to start:', error);
-            
-            // Show error to user
-            const errorDiv = document.createElement('div');
-            errorDiv.style.cssText = `
-                position: fixed;
-                top: 50%;
-                left: 50%;
-                transform: translate(-50%, -50%);
-                background: #ff0000;
-                color: white;
-                padding: 20px;
-                border-radius: 10px;
-                font-family: monospace;
-                text-align: center;
-            `;
-            errorDiv.innerHTML = `
-                <h2>Failed to initialize Earth Engine</h2>
-                <p>${error.message}</p>
-                <p>Make sure your browser supports WebGPU!</p>
-            `;
-            document.body.appendChild(errorDiv);
-        }
-    });
-}
+// Export everything needed for initialization
+export { EarthEngine, createUI, updateStats };
 
-// Export for module usage
-export { EarthEngine };
+// Helper function to initialize the engine
+export async function initializeEngine(canvas) {
+    console.log('[Engine] Starting initialization...');
+    
+    // Set canvas size
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    
+    // Create UI
+    console.log('[Engine] Creating UI...');
+    const ui = createUI();
+    
+    // Create and initialize engine
+    console.log('[Engine] Creating engine instance...');
+    const engine = new EarthEngine(canvas);
+    
+    console.log('[Engine] Initializing engine...');
+    await engine.init();
+    
+    console.log('[Engine] Starting render loop...');
+    engine.start();
+    
+    // Update stats periodically
+    setInterval(() => {
+        updateStats(ui, engine);
+    }, 100);
+    
+    // Handle window resize
+    window.addEventListener('resize', () => {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+    });
+    
+    // Expose to window for debugging
+    window.engine = engine;
+    window.EarthEngine = EarthEngine;
+    
+    console.log('[Engine] Earth Engine started successfully!');
+    console.log('[Engine] Use window.engine to access the engine instance');
+    
+    return engine;
+}

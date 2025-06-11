@@ -119,11 +119,19 @@
                 const module = await Promise.race([modulePromise, timeoutPromise]);
                 console.log('Module loaded:', module);
                 
-                const { EarthEngine } = module;
-                console.log('EarthEngine class:', EarthEngine);
+                const { initializeEngine } = module;
+                console.log('Initialize function:', initializeEngine);
                 
-                // Hide loading screen once module loads
-                // The engine will create its own UI
+                // Get canvas
+                const canvas = document.getElementById('earth-engine-canvas');
+                console.log('Canvas element:', canvas);
+                
+                // Initialize the engine
+                updateLoadingStatus('Initializing Earth Engine...');
+                const engine = await initializeEngine(canvas);
+                console.log('Engine initialized:', engine);
+                
+                // Hide loading screen after successful initialization
                 document.getElementById('loading').style.display = 'none';
                 
             } catch (error) {
