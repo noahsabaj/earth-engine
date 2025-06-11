@@ -127,12 +127,15 @@ impl MemoryManager {
     
     /// Get current memory usage stats
     pub fn get_stats(&self) -> MemoryStats {
+        let general_allocated = self.general_pool.allocated_bytes();
+        let persistent_allocated = self.persistent_pool.allocated_bytes();
         MemoryStats {
-            general_allocated: self.general_pool.allocated_bytes(),
+            general_allocated,
             general_used: self.general_pool.used_bytes(),
-            persistent_allocated: self.persistent_pool.allocated_bytes(),
+            persistent_allocated,
             persistent_used: self.persistent_pool.used_bytes(),
             sync_barriers_active: self.sync_barriers.active_count(),
+            total_allocated: general_allocated + persistent_allocated,
         }
     }
     
@@ -162,6 +165,14 @@ pub struct MemoryStats {
     pub persistent_allocated: u64,
     pub persistent_used: u64,
     pub sync_barriers_active: usize,
+    pub total_allocated: u64,
+}
+
+impl MemoryStats {
+    /// Calculate total allocated memory
+    pub fn total_allocated(&self) -> u64 {
+        self.general_allocated + self.persistent_allocated
+    }
 }
 
 #[cfg(test)]

@@ -124,6 +124,22 @@ impl WebWorldBuffer {
         self.voxel_buffer_size + self.metadata_buffer_size
     }
     
+    /// Get the number of loaded chunks (estimated based on buffer size)
+    pub fn get_loaded_chunk_count(&self) -> u32 {
+        // For now, return a reasonable estimate based on world size
+        let chunks_per_dimension = self.world_size / CHUNK_SIZE;
+        let chunks_per_height = self.world_height / CHUNK_SIZE;
+        // Assume about 1/4 of chunks are loaded in browser
+        (chunks_per_dimension * chunks_per_dimension * chunks_per_height) / 4
+    }
+    
+    /// Clear all chunks (placeholder for future implementation)
+    pub fn clear_chunks(&self) {
+        // In a real implementation, this would clear chunk data
+        // For now, just log the action
+        log::info!("Clearing chunks in WebWorldBuffer");
+    }
+    
     /// Create bind group entries for compute shaders
     pub fn create_bind_group_entries(&self) -> Vec<wgpu::BindGroupEntry> {
         vec![

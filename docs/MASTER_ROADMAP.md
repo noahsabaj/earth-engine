@@ -332,23 +332,31 @@ See [docs/SPRINT_12_SUMMARY.md](docs/SPRINT_12_SUMMARY.md) for detailed implemen
 - Old CPU chunks gradually migrated
 - This is where we commit to the new architecture
 
-### Sprint 22: WebGPU Buffer-First Architecture
-**Status**: Pending
+### Sprint 22: WebGPU Buffer-First Architecture ⚠️
+**Status**: Partially Completed
 **Objective**: Pure data-oriented implementation for web platform
 
-#### Planned Deliverables:
-- [ ] WASM compilation with data-oriented design
-- [ ] WebGPU backend using WorldBuffer from Sprint 21
-- [ ] Browser-specific buffer management
-- [ ] WebTransport for low-latency networking
-- [ ] Shared memory between WASM and GPU
+#### Completed Deliverables:
+- ✅ Web module infrastructure created
+- ✅ WebGPU context and renderer stubs
+- ✅ WASM entry points defined
+- ✅ WebGL demonstration created
+
+#### Remaining Deliverables:
+- [ ] Full WASM compilation (blocked by dependency issues)
+- [ ] WebGPU backend integration
+- [ ] Cross-platform compatibility fixes
+- [ ] WebTransport implementation
+- [ ] Shared memory optimization
 - [ ] Zero-copy asset streaming
 
 #### Technical Details:
-- Web version is pure data-oriented (no legacy OOP)
-- Leverages browser's unified memory architecture
-- Buffer-based networking protocol
-- Becomes the "reference implementation"
+- Infrastructure exists but compilation blocked by:
+  - Tokio async runtime incompatible with WASM
+  - Various crates need platform-specific builds
+  - Web-sys missing some WebGPU features
+- Created WebGL demo as interim solution
+- See `docs/sprints/SPRINT_22_SUMMARY.md` for full details
 
 ### Sprint 23: Data-Oriented World Streaming ✅
 **Status**: Completed

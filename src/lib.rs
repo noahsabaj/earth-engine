@@ -107,48 +107,130 @@ impl Engine {
 #[cfg(target_arch = "wasm32")]
 mod wasm_entry {
     use wasm_bindgen::prelude::*;
-    use crate::web;
+    use wasm_bindgen::JsCast;
+    use web_sys::HtmlCanvasElement;
+    use std::sync::{Arc, Mutex};
+    use crate::web::{WebGpuContext, WebWorldBuffer, WebRenderer};
+    use crate::camera::data_camera::{CameraData, move_forward, move_backward, move_left, move_right, rotate_camera};
+    use crate::memory::{MemoryManager, MemoryConfig};
+    
+    // Thread-safe wrapper for WebGL state
+    type SharedState = Arc<Mutex<EngineState>>;
+    
+    struct EngineState {
+        context: Arc<WebGpuContext>,
+        world_buffer: Arc<WebWorldBuffer>,
+        renderer: WebRenderer,
+        camera: CameraData,
+        memory_manager: Arc<MemoryManager>,
+        frame_count: u64,
+        last_fps_time: f64,
+        fps: f64,
+        wireframe: bool,
+    }
     
     #[wasm_bindgen]
     pub struct EarthEngineWeb {
-        // Internal state would go here
+        state: SharedState,
     }
     
     #[wasm_bindgen]
     impl EarthEngineWeb {
-        #[wasm_bindgen(constructor)]
-        pub fn new() -> Self {
-            Self {}
+        // Camera controls
+        #[wasm_bindgen]
+        pub fn move_forward(&self, amount: f32) {
+            if let Ok(mut state) = self.state.lock() {
+                state.camera = move_forward(&state.camera, amount);
+            }
+        }
+        
+        #[wasm_bindgen]
+        pub fn move_backward(&self, amount: f32) {
+            if let Ok(mut state) = self.state.lock() {
+                state.camera = move_backward(&state.camera, amount);
+            }
+        }
+        
+        #[wasm_bindgen]
+        pub fn move_left(&self, amount: f32) {
+            if let Ok(mut state) = self.state.lock() {
+                state.camera = move_left(&state.camera, amount);
+            }
+        }
+        
+        #[wasm_bindgen]
+        pub fn move_right(&self, amount: f32) {
+            if let Ok(mut state) = self.state.lock() {
+                state.camera = move_right(&state.camera, amount);
+            }
+        }
+        
+        #[wasm_bindgen]
+        pub fn rotate_camera(&self, yaw_delta: f32, pitch_delta: f32) {
+            if let Ok(mut state) = self.state.lock() {
+                state.camera = rotate_camera(&state.camera, yaw_delta, pitch_delta);
+            }
         }
         
         #[wasm_bindgen]
         pub fn get_stats(&self) -> WebStats {
-            WebStats {
-                fps: 60.0,
-                gpu_memory: 100 * 1024 * 1024,
-                draw_calls: 50,
-                vertices: 100000,
-                loaded_chunks: 64,
+            if let Ok(state) = self.state.lock() {
+                let memory_stats = state.memory_manager.get_stats();
+                WebStats {
+                    fps: state.fps,
+                    gpu_memory: memory_stats.total_allocated as u64,
+                    draw_calls: state.renderer.get_draw_calls(),
+                    vertices: state.renderer.get_vertex_count(),
+                    loaded_chunks: state.world_buffer.get_loaded_chunk_count(),
+                }
+            } else {
+                WebStats::default()
             }
         }
         
         #[wasm_bindgen]
         pub fn set_wireframe(&mut self, enabled: bool) {
-            log::info!("Wireframe mode: {}", enabled);
+            if let Ok(mut state) = self.state.lock() {
+                state.wireframe = enabled;
+                state.renderer.set_wireframe(enabled);
+            }
         }
         
         #[wasm_bindgen]
         pub fn reload_chunks(&mut self) {
-            log::info!("Reloading chunks");
+            if let Ok(state) = self.state.lock() {
+                // In a real implementation, this would reload chunks
+                log::info!("Reloading chunks...");
+                state.world_buffer.clear_chunks();
+            }
         }
         
         #[wasm_bindgen]
         pub fn resize(&mut self, width: u32, height: u32) {
-            log::info!("Resizing to {}x{}", width, height);
+            if let Ok(state) = self.state.lock() {
+                state.context.resize(width, height);
+            }
+        }
+        
+        #[wasm_bindgen]
+        pub fn render(&self, timestamp: f64) {
+            if let Ok(mut state) = self.state.lock() {
+                // Update FPS
+                state.frame_count += 1;
+                if state.frame_count % 30 == 0 {
+                    let delta = timestamp - state.last_fps_time;
+                    state.fps = 30000.0 / delta;
+                    state.last_fps_time = timestamp;
+                }
+                
+                // Render frame
+                state.renderer.render(&state.context, &state.world_buffer, &state.camera);
+            }
         }
     }
     
     #[wasm_bindgen]
+    #[derive(Default)]
     pub struct WebStats {
         pub fps: f64,
         pub gpu_memory: u64,
@@ -158,15 +240,81 @@ mod wasm_entry {
     }
     
     #[wasm_bindgen]
-    pub async fn start_earth_engine() -> Result<EarthEngineWeb, JsValue> {
+    pub async fn init_earth_engine(canvas_id: &str) -> Result<EarthEngineWeb, JsValue> {
         // Initialize panic hook for better error messages
         console_error_panic_hook::set_once();
         
-        // Run the web version
-        web::run_web().await
-            .map_err(|e| JsValue::from_str(&e.to_string()))?;
+        // Initialize logging
+        console_log::init_with_level(log::Level::Info)
+            .map_err(|_| JsValue::from_str("Failed to initialize logging"))?;
         
-        Ok(EarthEngineWeb::new())
+        log::info!("Initializing Earth Engine WASM v0.35.0");
+        
+        // Get canvas element
+        let window = web_sys::window()
+            .ok_or_else(|| JsValue::from_str("No window object"))?;
+        let document = window.document()
+            .ok_or_else(|| JsValue::from_str("No document object"))?;
+        let canvas = document
+            .get_element_by_id(canvas_id)
+            .ok_or_else(|| JsValue::from_str("Canvas not found"))?
+            .dyn_into::<HtmlCanvasElement>()
+            .map_err(|_| JsValue::from_str("Not a canvas element"))?;
+        
+        // Initialize WebGPU context
+        let context = Arc::new(
+            WebGpuContext::new(&canvas).await
+                .map_err(|e| JsValue::from_str(&format!("WebGPU init failed: {:?}", e)))?
+        );
+        
+        // Initialize memory manager (Sprint 33)
+        let memory_config = MemoryConfig {
+            general_pool_size: 64 * 1024 * 1024, // 64MB for web
+            persistent_pool_size: 32 * 1024 * 1024, // 32MB
+            enable_profiling: true,
+        };
+        let device = Arc::new(context.device.clone());
+        let memory_manager = Arc::new(
+            MemoryManager::new(device, memory_config)
+        );
+        
+        // Create world buffer (Sprint 21/22)
+        let world_buffer = Arc::new(
+            WebWorldBuffer::new(&context)
+                .map_err(|e| JsValue::from_str(&format!("World buffer init failed: {:?}", e)))?
+        );
+        
+        // Create renderer (Sprint 22)
+        let renderer = WebRenderer::new(&context, &world_buffer)
+            .map_err(|e| JsValue::from_str(&format!("Renderer init failed: {:?}", e)))?;
+        
+        // Initialize camera (Sprint 35 - pure functional)
+        let camera = CameraData {
+            position: [0.0, 10.0, 10.0],
+            yaw_radians: 0.0,
+            pitch_radians: -0.3,
+            fov_radians: 60.0_f32.to_radians(),
+            aspect_ratio: canvas.width() as f32 / canvas.height() as f32,
+            near_plane: 0.1,
+            far_plane: 1000.0,
+        };
+        
+        // Create engine state
+        let state = Arc::new(Mutex::new(EngineState {
+            context,
+            world_buffer,
+            renderer,
+            camera,
+            memory_manager,
+            frame_count: 0,
+            last_fps_time: 0.0,
+            fps: 0.0,
+            wireframe: false,
+        }));
+        
+        log::info!("Earth Engine WASM initialized successfully");
+        
+        Ok(EarthEngineWeb { state })
     }
 }
 

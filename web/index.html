@@ -106,6 +106,59 @@
         <button onclick="toggleStats()">Toggle Stats</button>
         <button onclick="toggleWireframe()">Toggle Wireframe</button>
         <button onclick="reloadChunks()">Reload Chunks</button>
+        <button onclick="toggleArchInfo()">Architecture Info</button>
+    </div>
+    
+    <div id="architecture-info" style="position: absolute; bottom: 10px; left: 10px; background: rgba(0, 0, 0, 0.8); padding: 15px; border-radius: 5px; font-size: 12px; max-width: 400px; display: none;">
+        <h3 style="margin-top: 0;">Earth Engine Architecture v0.35.0</h3>
+        
+        <h4>✅ Completed Systems (Sprints 33-35):</h4>
+        <ul style="margin: 5px 0; padding-left: 20px;">
+            <li><strong>Memory Management (Sprint 33)</strong>
+                <ul>
+                    <li>Unified memory pools with defragmentation</li>
+                    <li>Persistent mapped buffers</li>
+                    <li>Zero-allocation hot paths</li>
+                    <li>Morton encoding for cache efficiency</li>
+                </ul>
+            </li>
+            <li><strong>Unified Kernel (Sprint 34)</strong>
+                <ul>
+                    <li>Single GPU kernel for all compute</li>
+                    <li>GPU-side work scheduling</li>
+                    <li>Sparse voxel octrees</li>
+                    <li>BVH for ray tracing</li>
+                </ul>
+            </li>
+            <li><strong>Pure DOD Architecture (Sprint 35)</strong>
+                <ul>
+                    <li>Functional camera system</li>
+                    <li>Buffer-based world state</li>
+                    <li>Performance profiling suite</li>
+                </ul>
+            </li>
+        </ul>
+        
+        <h4>🚧 WASM Status:</h4>
+        <p style="margin: 5px 0;">This is a <strong>WebGL demonstration</strong> of what Earth Engine will look like. The full WASM implementation requires:</p>
+        <ul style="margin: 5px 0; padding-left: 20px;">
+            <li>Sprint 22 completion (WebAssembly support)</li>
+            <li>WebGPU API bindings</li>
+            <li>Cross-platform compatibility fixes</li>
+        </ul>
+        
+        <h4>📊 Real vs Demo:</h4>
+        <ul style="margin: 5px 0; padding-left: 20px;">
+            <li><strong>Real:</strong> All Rust code in /src/</li>
+            <li><strong>Real:</strong> Memory & compute optimizations</li>
+            <li><strong>Demo:</strong> This WebGL visualization</li>
+            <li><strong>Demo:</strong> Simulated performance stats</li>
+        </ul>
+        
+        <p style="margin: 10px 0 0 0; font-size: 11px; opacity: 0.8;">
+            OOP → DOD transformation: ~15% complete<br>
+            Target: 100% data-oriented by v1.0
+        </p>
     </div>
     
     <script>
@@ -494,6 +547,7 @@
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('stats').style.display = statsVisible ? 'block' : 'none';
                 document.getElementById('controls').style.display = 'block';
+                document.getElementById('architecture-info').style.display = 'block';
                 
                 // Start render loop
                 function render(now) {
@@ -579,6 +633,12 @@
                 earthEngine.reload_chunks();
                 showInfo('Reloading chunks...');
             }
+        };
+        
+        let archInfoVisible = true;
+        window.toggleArchInfo = function() {
+            archInfoVisible = !archInfoVisible;
+            document.getElementById('architecture-info').style.display = archInfoVisible ? 'block' : 'none';
         };
         
         // Error/info display
