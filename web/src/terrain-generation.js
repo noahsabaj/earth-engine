@@ -83,6 +83,11 @@ export function createTerrainShader() {
                 block_type = 2u; // Grass
             }
             
+            // DEBUG: Force a visible block at origin
+            if (id.x == 0u && id.y == 50u && id.z == 0u) {
+                block_type = 5u; // Gold - should be very visible
+            }
+            
             // Add pillars
             if (id.y >= 51u && id.y <= 55u && (id.x % 8u) == 0u && (id.z % 8u) == 0u) {
                 block_type = 1u; // Dirt

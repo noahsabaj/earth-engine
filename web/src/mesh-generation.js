@@ -291,6 +291,7 @@ export async function generateMesh(device) {
     }
     
     console.log('[Mesh] Generating mesh...');
+    console.log('[Mesh] World config:', WORLD_CONFIG);
     const startTime = performance.now();
     
     // Clear counters
