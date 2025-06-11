@@ -28,6 +28,16 @@ desktop.ini
 test-results/
 coverage/
 
+# Compiled binaries in root
+/morton_test
+/morton_benchmark
+
+# WASM build artifacts
+pkg/
+web/earth_engine_web*
+web/*.wasm
+wasm-demo/pkg/
+
 # Profiling data
 *.profdata
 *.profraw

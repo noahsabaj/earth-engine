@@ -14,6 +14,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated versioning strategy to be more honest about pre-release status
 - Removed hard 1.0 claims from roadmap
 
+## [0.35.0] - 2025-01-10
+
+### Added
+- Pure JavaScript WebGPU implementation
+- Data-Oriented Programming (DOP) architecture for web
+- Zero-copy GPU-driven rendering in browser
+- WebGPU terrain generation and mesh generation
+- Complete feature parity with Rust implementation
+
+### Changed
+- Pivoted from WASM to pure JavaScript for browser support
+- Refactored entire web implementation from OOP to DOP
+- Removed all classes in favor of data structures and pure functions
+
+### Technical Details
+- GPU buffers as single source of truth
+- All computation happens on GPU via compute shaders
+- Single draw call renders entire voxel world
+- No CPU-GPU data transfer during runtime
+
+### Removed
+- WASM build system (incompatible with GPU-first architecture)
+- Object-oriented JavaScript code
+- build_web.sh and build_wasm_demo.sh scripts
+
+### Sprints Completed
+- Sprint 33: The Leap to 1.0
+- Sprint 34: Performance Polish
+- Sprint 35: Zero Papercuts
+- Sprint 22: WebAssembly & Browser Support (reimplemented)
+
 ## [0.28.0] - 2025-01-10
 
 ### Added
@@ -142,7 +173,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-[Unreleased]: https://github.com/noahsabaj/earth-engine/compare/v0.26.0...HEAD
+[Unreleased]: https://github.com/noahsabaj/earth-engine/compare/v0.35.0...HEAD
+[0.35.0]: https://github.com/noahsabaj/earth-engine/compare/v0.28.0...v0.35.0
 [0.26.0]: https://github.com/noahsabaj/earth-engine/compare/v0.25.0...v0.26.0
 [0.25.0]: https://github.com/noahsabaj/earth-engine/compare/v0.24.0...v0.25.0
 [0.24.0]: https://github.com/noahsabaj/earth-engine/compare/v0.23.0...v0.24.0
