@@ -44,6 +44,9 @@
 - **Organic economy** - Markets form where players choose
 - **Ultimate freedom** - Be a nation, bandit, hermit, or merchant
 - **One world, your choice** - Thousands online but isolation possible
+- **Local communication only** - Voice 50m range, no global chat
+- **Player expression** - Dye fabric for flags, write signs, create identity
+- **Emergent professions** - Messengers, radio operators, flag makers
 - GPU-first thermal dynamics for realistic physics
 - Engine must be game-agnostic during current phase
 
