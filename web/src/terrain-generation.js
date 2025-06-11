@@ -45,8 +45,7 @@ export function createTerrainShader() {
         }
         
         @group(0) @binding(0) var<storage, read_write> voxels: array<u32>;
-        @group(0) @binding(1) var<storage, read_write> metadata: array<u32>;
-        @group(0) @binding(2) var<uniform> params: TerrainParams;
+        @group(0) @binding(1) var<uniform> params: TerrainParams;
         
         ${SHADER_SNIPPETS.mortonEncode}
         ${SHADER_SNIPPETS.noise3d}
@@ -73,12 +72,22 @@ export function createTerrainShader() {
                 return;
             }
             
-            // DEBUG: Simple flat plane for testing
+            // Simple terrain for testing
             var block_type = 0u; // Air
             
-            // Create a small flat plane at y=50
-            if (id.y == 50u && id.x < 20u && id.z < 20u) {
+            // Create a larger flat plane at y=50
+            if (id.y == 50u && id.x < 100u && id.z < 100u) {
                 block_type = 2u; // Grass
+            }
+            
+            // Add some stone below
+            if (id.y < 50u && id.x < 100u && id.z < 100u) {
+                block_type = 3u; // Stone
+            }
+            
+            // Add a gold pillar at center for visibility
+            if (id.x == 50u && id.z == 50u && id.y >= 50u && id.y < 60u) {
+                block_type = 5u; // Gold
             }
             
             // Store using linear indexing for debugging
@@ -109,8 +118,7 @@ export function initializeTerrainGeneration(device) {
         layout: terrainState.pipeline.getBindGroupLayout(0),
         entries: [
             { binding: 0, resource: { buffer: worldState.buffers.voxel } },
-            { binding: 1, resource: { buffer: worldState.buffers.metadata } },
-            { binding: 2, resource: { buffer: terrainState.paramsBuffer } }
+            { binding: 1, resource: { buffer: terrainState.paramsBuffer } }
         ]
     });
     

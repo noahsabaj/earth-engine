@@ -4,7 +4,7 @@
 console.log('[Engine] Loading engine.js module...');
 
 import { gpuState, initializeGPU, resizeCanvas } from './gpu-state.js';
-import { worldState, initializeWorldBuffers, createWorldBindGroupLayout, WORLD_CONFIG } from './world-state.js';
+import { worldState, initializeWorldBuffers, createWorldBindGroupLayout, WORLD_CONFIG, debugReadVoxel } from './world-state.js';
 import { generateTerrain } from './terrain-generation.js';
 import { meshState, generateMesh } from './mesh-generation.js';
 import { cameraState, initializeCamera, updateCamera } from './camera-state.js';
@@ -170,6 +170,10 @@ async function generateWorld(seed = 42) {
     
     // Generate terrain
     await generateTerrain(gpuState.device, seed);
+    
+    // Debug: Check a voxel that should exist
+    const testVoxel = await debugReadVoxel(gpuState.device, 50, 50, 50); // Gold pillar
+    console.log('[Engine] Test voxel at (50,50,50):', testVoxel, '(should be 5 for gold)');
     
     // Generate mesh from voxels
     await generateMesh(gpuState.device);
