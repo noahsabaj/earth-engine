@@ -123,33 +123,19 @@ export class TerrainGenerator {
                     return;
                 }
                 
-                let world_pos = vec3<f32>(id);
-                let density = terrain_density(world_pos);
-                
-                // Determine block type based on density and height
+                // TEMPORARY: Create a simple flat world for debugging
                 var block_type = 0u; // Air
                 
-                if (density > 0.0) {
-                    let height = f32(id.y);
-                    
-                    if (height < 40.0) {
-                        block_type = 3u; // Stone
-                    } else if (height < 60.0) {
-                        block_type = 1u; // Dirt
-                    } else {
-                        block_type = 2u; // Grass
-                    }
-                    
-                    // Ore generation
-                    let ore_chance = hash(world_pos * 0.1);
-                    if (ore_chance > 0.98 && height < 30.0) {
-                        block_type = 5u; // Ore
-                    }
+                // Create a flat plane at y=50
+                if (id.y < 50u) {
+                    block_type = 3u; // Stone
+                } else if (id.y == 50u) {
+                    block_type = 2u; // Grass
                 }
                 
-                // Water at sea level
-                if (block_type == 0u && id.y < 50u) {
-                    block_type = 4u; // Water
+                // Add some blocks above ground for visibility
+                if (id.y == 51u && (id.x % 8u) == 0u && (id.z % 8u) == 0u) {
+                    block_type = 1u; // Dirt pillars
                 }
                 
                 // Store using Morton encoding for cache efficiency

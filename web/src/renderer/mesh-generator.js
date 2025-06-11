@@ -77,6 +77,16 @@ export class MeshGenerator {
             }
         });
         
+        // Create separate pipeline for finalizing indirect buffer
+        this.finalizePipeline = this.device.createComputePipeline({
+            label: 'FinalizePipeline',
+            layout: 'auto',
+            compute: {
+                module: shaderModule,
+                entryPoint: 'finalize_indirect',
+            }
+        });
+        
         // Create bind group
         this.bindGroup = this.device.createBindGroup({
             label: 'MeshGenBindGroup',
@@ -219,6 +229,7 @@ export class MeshGenerator {
                             let pos = vec3<f32>(f32(world_x), f32(world_y), f32(world_z));
                             
                             // Check each face
+                            // Top (Y+)
                             if (is_face_visible(world_x, world_y, world_z, 0, 1, 0)) {
                                 let vertex_idx = atomicAdd(&counters.vertex_count, 4u);
                                 let index_idx = atomicAdd(&counters.index_count, 6u);
@@ -226,6 +237,7 @@ export class MeshGenerator {
                                         color, vertex_idx, index_idx);
                             }
                             
+                            // Bottom (Y-)
                             if (is_face_visible(world_x, world_y, world_z, 0, -1, 0)) {
                                 let vertex_idx = atomicAdd(&counters.vertex_count, 4u);
                                 let index_idx = atomicAdd(&counters.index_count, 6u);
@@ -233,8 +245,37 @@ export class MeshGenerator {
                                         color, vertex_idx, index_idx);
                             }
                             
-                            // Add other faces (left, right, front, back)...
-                            // Similar code for X and Z axes
+                            // Right (X+)
+                            if (is_face_visible(world_x, world_y, world_z, 1, 0, 0)) {
+                                let vertex_idx = atomicAdd(&counters.vertex_count, 4u);
+                                let index_idx = atomicAdd(&counters.index_count, 6u);
+                                add_face(pos, vec2<f32>(1.0, 1.0), vec3<f32>(1.0, 0.0, 0.0), 
+                                        color, vertex_idx, index_idx);
+                            }
+                            
+                            // Left (X-)
+                            if (is_face_visible(world_x, world_y, world_z, -1, 0, 0)) {
+                                let vertex_idx = atomicAdd(&counters.vertex_count, 4u);
+                                let index_idx = atomicAdd(&counters.index_count, 6u);
+                                add_face(pos, vec2<f32>(1.0, 1.0), vec3<f32>(-1.0, 0.0, 0.0), 
+                                        color, vertex_idx, index_idx);
+                            }
+                            
+                            // Front (Z+)
+                            if (is_face_visible(world_x, world_y, world_z, 0, 0, 1)) {
+                                let vertex_idx = atomicAdd(&counters.vertex_count, 4u);
+                                let index_idx = atomicAdd(&counters.index_count, 6u);
+                                add_face(pos, vec2<f32>(1.0, 1.0), vec3<f32>(0.0, 0.0, 1.0), 
+                                        color, vertex_idx, index_idx);
+                            }
+                            
+                            // Back (Z-)
+                            if (is_face_visible(world_x, world_y, world_z, 0, 0, -1)) {
+                                let vertex_idx = atomicAdd(&counters.vertex_count, 4u);
+                                let index_idx = atomicAdd(&counters.index_count, 6u);
+                                add_face(pos, vec2<f32>(1.0, 1.0), vec3<f32>(0.0, 0.0, -1.0), 
+                                        color, vertex_idx, index_idx);
+                            }
                         }
                     }
                 }
@@ -242,7 +283,7 @@ export class MeshGenerator {
             
             @compute @workgroup_size(1)
             fn finalize_indirect() {
-                indirect.index_count = counters.index_count;
+                indirect.index_count = atomicLoad(&counters.index_count);
                 indirect.instance_count = 1u;
                 indirect.first_index = 0u;
                 indirect.base_vertex = 0;
@@ -257,6 +298,7 @@ export class MeshGenerator {
         }
         
         console.log('[Mesh] Generating mesh...');
+        console.log('[Mesh] World size:', this.worldBuffer.size, 'x', this.worldBuffer.height, 'x', this.worldBuffer.size);
         const startTime = performance.now();
         
         // Clear counters
@@ -281,7 +323,7 @@ export class MeshGenerator {
         // Finalize indirect buffer
         {
             const pass = encoder.beginComputePass();
-            pass.setPipeline(this.meshGenPipeline);
+            pass.setPipeline(this.finalizePipeline);
             pass.setBindGroup(0, this.bindGroup);
             pass.dispatchWorkgroups(1);
             pass.end();

@@ -66,7 +66,7 @@ export class EarthEngine {
             
             // Setup camera
             this.camera = new CameraData({
-                position: [128, 100, 128],
+                position: [128, 55, 128],  // Just above the ground at y=50
                 yaw: Math.PI / 4,
                 pitch: -0.3,
                 fov: Math.PI / 3,

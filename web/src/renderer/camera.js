@@ -196,9 +196,9 @@ export class CameraController {
         // Apply gravity (simplified - no collision)
         this.velocity.y -= 30 * deltaTime;
         
-        // Ground check (simplified)
-        if (this.camera.position[1] <= 80 && this.velocity.y < 0) {
-            this.camera.position[1] = 80;
+        // Ground check (simplified) - ground is at y=50
+        if (this.camera.position[1] <= 52 && this.velocity.y < 0) {
+            this.camera.position[1] = 52;  // Keep camera 2 units above ground
             this.velocity.y = 0;
         }
         

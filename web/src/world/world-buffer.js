@@ -92,16 +92,28 @@ export class WorldBuffer {
     }
     
     async initializePalette() {
-        // Default materials - same as Rust
+        // Default materials - RGBA packed as ABGR for GPU
         const materials = new Uint32Array(256);
-        materials[0] = 0x00000000; // Air
-        materials[1] = 0xFF8B4513; // Dirt
-        materials[2] = 0xFF228B22; // Grass
-        materials[3] = 0xFF808080; // Stone
-        materials[4] = 0xFF0000FF; // Water
-        // ... rest of materials
+        
+        // Helper to pack RGBA into GPU format (ABGR)
+        const packColor = (r, g, b, a = 255) => {
+            return (a << 24) | (b << 16) | (g << 8) | r;
+        };
+        
+        materials[0] = packColor(0, 0, 0, 0);         // Air (transparent)
+        materials[1] = packColor(139, 69, 19);        // Dirt (brown)
+        materials[2] = packColor(34, 139, 34);        // Grass (green)
+        materials[3] = packColor(128, 128, 128);      // Stone (gray)
+        materials[4] = packColor(0, 0, 255, 200);     // Water (blue, semi-transparent)
+        materials[5] = packColor(255, 215, 0);        // Ore (gold)
+        
+        // Fill rest with debug colors
+        for (let i = 6; i < 256; i++) {
+            materials[i] = packColor(255, 0, 255);    // Magenta for undefined
+        }
         
         this.device.queue.writeBuffer(this.paletteBuffer, 0, materials);
+        console.log('[WorldBuffer] Palette initialized with', materials.length, 'materials');
     }
     
     // Morton encoding for cache efficiency (Sprint 27)
