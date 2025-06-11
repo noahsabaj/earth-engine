@@ -40,7 +40,11 @@
 - Stone age → Early space age progression  
 - Intuitive crafting discovery (no recipe books)
 - Anthropologically accurate gameplay
-- GPU-first thermal dynamics for realistic fire/heat
+- **Emergent gameplay, not rules** - Physics enables player stories
+- **Organic economy** - Markets form where players choose
+- **Ultimate freedom** - Be a nation, bandit, hermit, or merchant
+- **One world, your choice** - Thousands online but isolation possible
+- GPU-first thermal dynamics for realistic physics
 - Engine must be game-agnostic during current phase
 
 ## Honest Metrics

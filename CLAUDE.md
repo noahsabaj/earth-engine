@@ -230,16 +230,23 @@ fn generate_chunk(data: &mut ChunkData, gen_params: &GenParams) {
 - Benchmark everything - we need 1000x performance
 
 ## VISION REMINDERS
-This engine enables:
-- Books that must be hand-copied (no copy/paste)
-- Knowledge that can be lost forever
-- Technologies discovered through experimentation
-- Civilizations that develop uniquely per planet
-- Realistic material physics - wood splinters, metal bends, stone crumbles
-- Thermal dynamics calculated per voxel on GPU
-- Voxel-based destruction with real material properties
+This engine enables the ultimate MMO - Earth:
+- **Physical information economy** - Books hand-copied, knowledge can be lost
+- **Emergent gameplay, not rules** - We provide physics, players create meaning
+- **Organic economies** - No forced trading posts, markets emerge where players gather
+- **Freedom to be anyone**:
+  - Build a nation with laws and borders
+  - Live as bandits raiding caravans  
+  - Hermit in the mountains, never seeing another soul
+  - Merchant connecting distant civilizations
+- **One world, your choice** - Thousands online but YOU choose isolation or interaction
+- **Technologies discovered, not given** - No tech tree UI, just experimentation
+- **Real material physics** - Wood splinters, metal bends, stone crumbles
+- **Every voxel simulated** - Thermal dynamics, structural integrity, wear
 
-Every line of code should move us toward this vision, but remember: we're building a game-agnostic ENGINE first.
+The engine provides the physics. Players create the world.
+
+Every line of code should enable emergent stories, not prescribe them. Remember: we're building a game-agnostic ENGINE first.
 
 ## WHEN IN DOUBT
 1. Choose performance over "clean" code
