@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Earth Engine WebGPU</title>
+    <style>
+        body { margin: 0; background: #000; color: #fff; font-family: monospace; overflow: hidden; }
+        canvas { display: block; width: 100vw; height: 100vh; }
+        #info { position: fixed; top: 10px; left: 10px; background: rgba(0,0,0,0.8); padding: 10px; }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    <div id="info">Starting...</div>
+    
+    <script type="module">
+        const info = document.getElementById('info');
+        
+        // Step 1: Test WebGPU
+        if (!navigator.gpu) {
+            info.innerHTML = 'ERROR: WebGPU not supported!<br>Use Chrome Canary with WebGPU enabled';
+            throw new Error('No WebGPU');
+        }
+        
+        info.textContent = 'WebGPU OK, testing adapter...';
+        
+        const adapter = await navigator.gpu.requestAdapter();
+        if (!adapter) {
+            info.innerHTML = 'ERROR: No GPU adapter found!';
+            throw new Error('No adapter');
+        }
+        
+        info.textContent = 'GPU OK, loading Earth Engine...';
+        
+        // Step 2: Import fresh
+        const t = Date.now();
+        const { EarthEngine } = await import(`./src/core/earth-engine.js?t=${t}`);
+        
+        info.textContent = 'Creating engine...';
+        
+        // Step 3: Create engine
+        const canvas = document.getElementById('canvas');
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        
+        const engine = new EarthEngine(canvas);
+        
+        info.textContent = 'Initializing...';
+        await engine.init();
+        
+        info.textContent = 'Starting...';
+        engine.start();
+        
+        // Step 4: Create minimal UI
+        const ui = document.createElement('div');
+        ui.style.cssText = 'position:fixed;top:10px;left:10px;background:rgba(0,0,0,0.8);padding:10px;color:#0f0;font-family:monospace;';
+        document.body.appendChild(ui);
+        
+        // Hide loading
+        info.style.display = 'none';
+        
+        // Update loop
+        setInterval(() => {
+            const stats = engine.getStats();
+            ui.innerHTML = `
+                FPS: ${stats.fps}<br>
+                Vertices: ${stats.vertices}<br>
+                Triangles: ${stats.triangles}<br>
+                Pos: ${engine.camera.position.map(v => v.toFixed(1)).join(', ')}
+            `;
+        }, 100);
+        
+        console.log('Engine running!');
+        window.engine = engine;
+    </script>
+</body>
+</html>
