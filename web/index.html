@@ -3,6 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>Earth Engine - WebGPU Implementation (v0.35.0)</title>
     <style>
         body {
@@ -105,7 +108,8 @@
                 
                 // Load the JavaScript engine
                 updateLoadingStatus('Loading Earth Engine modules...');
-                const { EarthEngine } = await import('./src/index.js');
+                console.log('Loading from:', './src/index.js');
+                const { EarthEngine } = await import('./src/index.js?v=' + Date.now());
                 
                 // Hide loading screen once module loads
                 // The engine will create its own UI

@@ -17,6 +17,9 @@ class ESModuleHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
     
     def guess_type(self, path):
         """Ensure JavaScript files are served with module MIME type"""
+        # Remove query string if present
+        path = path.split('?')[0]
+        
         mimetype = super().guess_type(path)
         
         if path.endswith('.js'):
