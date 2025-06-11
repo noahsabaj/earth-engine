@@ -4,8 +4,8 @@
 console.log('[Engine] Loading engine.js module...');
 
 import { gpuState, initializeGPU, resizeCanvas } from './gpu-state.js';
-import { worldState, initializeWorldBuffers, createWorldBindGroupLayout, debugReadVoxel, WORLD_CONFIG } from './world-state.js';
-import { generateTerrain, debugCountVoxels } from './terrain-generation.js';
+import { worldState, initializeWorldBuffers, createWorldBindGroupLayout, WORLD_CONFIG } from './world-state.js';
+import { generateTerrain } from './terrain-generation.js';
 import { meshState, generateMesh } from './mesh-generation.js';
 import { cameraState, initializeCamera, updateCamera } from './camera-state.js';
 import { rendererState, initializeRenderer, renderFrame, resizeRenderer } from './renderer.js';
