@@ -81,21 +81,9 @@ export function createTerrainShader() {
                 block_type = 2u; // Grass
             }
             
-            // Store using Morton encoding
-            // Using linear indexing for debugging
+            // Store using linear indexing for debugging
             let index = morton_encode_3d(id.x, id.y, id.z);
             voxels[index] = block_type;
-            
-            // DEBUG: Force write at origin
-            if (id.x == 0u && id.y == 50u && id.z == 0u) {
-                voxels[index] = 5u; // Ensure gold block is written
-            }
-            
-            // Update chunk metadata
-            let chunk_pos = id / 32u;
-            let chunk_index = chunk_pos.x + chunk_pos.y * (params.world_size.x / 32u) + 
-                             chunk_pos.z * (params.world_size.x / 32u) * (params.world_size.y / 32u);
-            metadata[chunk_index] = 1u;
         }
     `;
 }
@@ -131,70 +119,6 @@ export function initializeTerrainGeneration(device) {
 }
 
 // Debug function to count voxels
-export async function debugCountVoxels(device) {
-    const shaderCode = `
-        @group(0) @binding(0) var<storage, read> voxels: array<u32>;
-        @group(0) @binding(1) var<storage, read_write> counter: atomic<u32>;
-        
-        @compute @workgroup_size(256)
-        fn count_voxels(@builtin(global_invocation_id) id: vec3<u32>) {
-            let idx = id.x;
-            if (idx >= ${WORLD_CONFIG.totalVoxels}u) { return; }
-            
-            if (voxels[idx] != 0u) {
-                atomicAdd(&counter, 1u);
-            }
-        }
-    `;
-    
-    const pipeline = device.createComputePipeline({
-        label: 'VoxelCounter',
-        layout: 'auto',
-        compute: {
-            module: device.createShaderModule({ code: shaderCode }),
-            entryPoint: 'count_voxels'
-        }
-    });
-    
-    const counterBuffer = device.createBuffer({
-        size: 4,
-        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC,
-        mappedAtCreation: true
-    });
-    new Uint32Array(counterBuffer.getMappedRange())[0] = 0;
-    counterBuffer.unmap();
-    
-    const bindGroup = device.createBindGroup({
-        layout: pipeline.getBindGroupLayout(0),
-        entries: [
-            { binding: 0, resource: { buffer: worldState.buffers.voxel } },
-            { binding: 1, resource: { buffer: counterBuffer } }
-        ]
-    });
-    
-    const encoder = device.createCommandEncoder();
-    const pass = encoder.beginComputePass();
-    pass.setPipeline(pipeline);
-    pass.setBindGroup(0, bindGroup);
-    pass.dispatchWorkgroups(Math.ceil(WORLD_CONFIG.totalVoxels / 256));
-    pass.end();
-    
-    const staging = device.createBuffer({
-        size: 4,
-        usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ
-    });
-    encoder.copyBufferToBuffer(counterBuffer, 0, staging, 0, 4);
-    device.queue.submit([encoder.finish()]);
-    
-    await staging.mapAsync(GPUMapMode.READ);
-    const count = new Uint32Array(staging.getMappedRange())[0];
-    staging.unmap();
-    staging.destroy();
-    counterBuffer.destroy();
-    
-    console.log(`[Terrain] Debug: Total non-zero voxels in buffer: ${count.toLocaleString()}`);
-    return count;
-}
 
 // Generate terrain - main function
 export async function generateTerrain(device, seed = 42) {
@@ -204,6 +128,11 @@ export async function generateTerrain(device, seed = 42) {
     
     console.log('[Terrain] Generating world...');
     const startTime = performance.now();
+    
+    // Clear voxel buffer
+    const clearEncoder = device.createCommandEncoder();
+    clearEncoder.clearBuffer(worldState.buffers.voxel, 0);
+    device.queue.submit([clearEncoder.finish()]);
     
     // Update parameters
     const params = createTerrainParams(seed);
