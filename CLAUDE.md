@@ -251,6 +251,17 @@ This engine enables the ultimate MMO - Earth:
   - Roaming bandit clans with hideouts
   - Hermit scholars preserving ancient knowledge
   - Trade empires spanning continents
+- **Communication mirrors reality**:
+  - Local voice only - shout and you're heard 50m away
+  - No global chat - messages travel physically
+  - Write signs, books, letters - all hand-copied
+  - Dye and sew fabric for banners, flags, uniforms
+  - Late-game radio tech enables long-distance comms
+- **Visual identity emerges**:
+  - Nations design their own flags from dyed fabric
+  - Guilds create banners to mark territory
+  - Shops hang signs with hand-written text
+  - All player-created, no presets
 - **Blend of the best**:
   - Minecraft's building and exploration
   - Rust's survival and raiding
