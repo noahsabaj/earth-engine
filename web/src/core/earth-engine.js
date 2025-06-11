@@ -97,13 +97,20 @@ export class EarthEngine {
         const startTime = performance.now();
         
         // Generate terrain on GPU
+        console.log('[Engine] Step 1: Generating terrain...');
         await this.terrainGenerator.generate(seed);
         
         // Generate mesh from voxels
+        console.log('[Engine] Step 2: Generating mesh from voxels...');
         await this.meshGenerator.generateMesh();
         
         const elapsed = performance.now() - startTime;
         console.log(`[Engine] World generation complete in ${elapsed.toFixed(1)}ms`);
+        
+        // Debug: Check if we have voxels
+        const testVoxel = await this.worldBuffer.getVoxel(128, 50, 128);
+        console.log('[Engine] Test voxel at (128,50,128):', testVoxel);
+        console.log('[Engine] Mesh stats:', this.meshGenerator.getStats());
     }
     
     setupEventHandlers() {

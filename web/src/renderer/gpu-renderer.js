@@ -74,7 +74,7 @@ export class GPURenderer {
                 @location(0) position: vec3<f32>,
                 @location(1) normal: vec3<f32>,
                 @location(2) uv: vec2<f32>,
-                @location(3) color: u32,
+                @location(3) @interpolate(flat) color: u32,
             }
             
             struct VertexOutput {
@@ -255,9 +255,17 @@ export class GPURenderer {
         renderPass.setVertexBuffer(0, this.meshGenerator.vertexBuffer);
         renderPass.setIndexBuffer(this.meshGenerator.indexBuffer, 'uint32');
         
-        // Single indirect draw call - GPU decides what to draw!
+        // Draw the mesh
         if (this.meshGenerator.totalIndices > 0) {
-            renderPass.drawIndexedIndirect(this.meshGenerator.indirectBuffer, 0);
+            // Only log occasionally to avoid spam
+            if (this.frameCount % 60 === 0) {
+                console.log('[Renderer] Drawing', this.meshGenerator.totalIndices, 'indices');
+            }
+            // Direct draw for debugging
+            renderPass.drawIndexed(this.meshGenerator.totalIndices);
+            // TODO: Switch back to indirect: renderPass.drawIndexedIndirect(this.meshGenerator.indirectBuffer, 0);
+        } else if (this.frameCount % 60 === 0) {
+            console.log('[Renderer] No indices to draw!');
         }
         
         renderPass.end();

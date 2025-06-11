@@ -134,8 +134,15 @@ export class TerrainGenerator {
                 }
                 
                 // Add some blocks above ground for visibility
-                if (id.y == 51u && (id.x % 8u) == 0u && (id.z % 8u) == 0u) {
-                    block_type = 1u; // Dirt pillars
+                if (id.y >= 51u && id.y <= 55u && (id.x % 8u) == 0u && (id.z % 8u) == 0u) {
+                    block_type = 1u; // Dirt pillars (5 blocks tall)
+                }
+                
+                // Add a debug cube near spawn
+                if (id.x >= 126u && id.x <= 130u &&
+                    id.y >= 51u && id.y <= 55u &&
+                    id.z >= 126u && id.z <= 130u) {
+                    block_type = 5u; // Gold cube
                 }
                 
                 // Store using Morton encoding for cache efficiency

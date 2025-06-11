@@ -150,11 +150,19 @@ export class MeshGenerator {
                 let voxel = get_voxel(x, y, z);
                 if (voxel == 0u) { return false; } // Air
                 
-                let neighbor_x = u32(i32(x) + nx);
-                let neighbor_y = u32(i32(y) + ny);
-                let neighbor_z = u32(i32(z) + nz);
+                // Check bounds for neighbor
+                let nx_pos = i32(x) + nx;
+                let ny_pos = i32(y) + ny;
+                let nz_pos = i32(z) + nz;
                 
-                let neighbor = get_voxel(neighbor_x, neighbor_y, neighbor_z);
+                // If neighbor is out of bounds, face is visible
+                if (nx_pos < 0 || nx_pos >= i32(WORLD_SIZE) ||
+                    ny_pos < 0 || ny_pos >= i32(WORLD_HEIGHT) ||
+                    nz_pos < 0 || nz_pos >= i32(WORLD_SIZE)) {
+                    return true;
+                }
+                
+                let neighbor = get_voxel(u32(nx_pos), u32(ny_pos), u32(nz_pos));
                 return neighbor == 0u || neighbor == 4u; // Air or water
             }
             
@@ -299,6 +307,64 @@ export class MeshGenerator {
         
         console.log('[Mesh] Generating mesh...');
         console.log('[Mesh] World size:', this.worldBuffer.size, 'x', this.worldBuffer.height, 'x', this.worldBuffer.size);
+        
+        // DEBUG: Create a simple test triangle first
+        if (true) {
+            console.log('[Mesh] DEBUG: Creating test geometry');
+            
+            // Create buffer for mixed types
+            const vertexData = new ArrayBuffer(6 * 36); // 6 vertices * 36 bytes each
+            const floatView = new Float32Array(vertexData);
+            const uintView = new Uint32Array(vertexData);
+            
+            // Vertex 0
+            floatView[0] = 128; floatView[1] = 55; floatView[2] = 128; // Position
+            floatView[3] = 0; floatView[4] = 1; floatView[5] = 0;      // Normal
+            floatView[6] = 0; floatView[7] = 0;                         // UV
+            uintView[8] = 0xFF00FF00;                                   // Color (green)
+            
+            // Vertex 1
+            floatView[9] = 130; floatView[10] = 55; floatView[11] = 128;
+            floatView[12] = 0; floatView[13] = 1; floatView[14] = 0;
+            floatView[15] = 1; floatView[16] = 0;
+            uintView[17] = 0xFF00FF00;
+            
+            // Vertex 2
+            floatView[18] = 129; floatView[19] = 55; floatView[20] = 130;
+            floatView[21] = 0; floatView[22] = 1; floatView[23] = 0;
+            floatView[24] = 0.5; floatView[25] = 1;
+            uintView[26] = 0xFF00FF00;
+            
+            // Vertex 3 (duplicate of 0 for second triangle)
+            floatView[27] = 128; floatView[28] = 55; floatView[29] = 128;
+            floatView[30] = 0; floatView[31] = 1; floatView[32] = 0;
+            floatView[33] = 0; floatView[34] = 0;
+            uintView[35] = 0xFF00FF00;
+            
+            // Vertex 4 (duplicate of 2)
+            floatView[36] = 129; floatView[37] = 55; floatView[38] = 130;
+            floatView[39] = 0; floatView[40] = 1; floatView[41] = 0;
+            floatView[42] = 0.5; floatView[43] = 1;
+            uintView[44] = 0xFF00FF00;
+            
+            // Vertex 5
+            floatView[45] = 128; floatView[46] = 55; floatView[47] = 130;
+            floatView[48] = 0; floatView[49] = 1; floatView[50] = 0;
+            floatView[51] = 0; floatView[52] = 1;
+            uintView[53] = 0xFF00FF00;
+            
+            const testIndices = new Uint32Array([0, 1, 2, 3, 4, 5]);
+            
+            this.device.queue.writeBuffer(this.vertexBuffer, 0, vertexData);
+            this.device.queue.writeBuffer(this.indexBuffer, 0, testIndices);
+            
+            this.totalVertices = 6;
+            this.totalIndices = 6;
+            
+            console.log('[Mesh] Test geometry created:', this.totalVertices, 'vertices');
+            return; // Skip compute shader for now
+        }
+        
         const startTime = performance.now();
         
         // Clear counters
