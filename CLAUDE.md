@@ -6,12 +6,20 @@
 - **Workflow**: Claude makes changes in WSL → pushes to main → User pulls in Windows
 
 ## PROJECT OVERVIEW
-This is **Earth Engine** - a frontier SOTA voxel game engine being built for the **Earth MMO**, a revolutionary game with:
+This is **Earth Engine** - a frontier SOTA voxel game engine. We are building in this order:
+1. **ENGINE** (Current Phase) - Game-agnostic voxel engine with cutting-edge performance
+2. **GAME** (Next Phase) - Earth MMO implementation using the engine
+3. **FRAMEWORK** (Final Phase) - Tools enabling others to build ANY voxel game
+
+### Earth MMO Vision (Future Game)
 - **Physical information economy** - no copy/paste, all information must be hand-copied
 - **Stone age → space age progression** - intuitive discovery, no recipe books
 - **Planetary servers** - each region is its own planet that develops unique culture
-- **1m³ voxels** - uniform, perfect for realistic physics and destruction
+- **1m³ voxels** - uniform, perfect for realistic physics and material properties
+- **Realistic voxel physics** - materials break/burn/flow based on real properties
 - **Target**: 10,000+ concurrent players per planet at 144+ FPS
+
+The engine will eventually be released for others to create their own voxel experiences.
 
 ## CRITICAL PHILOSOPHY
 **DATA-ORIENTED PROGRAMMING ONLY** - This codebase follows strict DOP principles:
@@ -25,11 +33,16 @@ This is **Earth Engine** - a frontier SOTA voxel game engine being built for the
 ## WORKFLOW REQUIREMENTS
 
 ### 1. Documentation Updates (MANDATORY)
-After ANY work session, update:
-- `/docs/status/CURRENT.md` - current sprint progress, completion percentages
-- `/docs/sprints/SPRINT_XX_*.md` - relevant sprint documentation
-- Create/update technical docs for new systems
-- Keep completion percentages HONEST and ACCURATE
+After ANY work session:
+1. **Primary**: Update `/docs/docs/MASTER_ROADMAP.md` - this is THE main sprint and work tracker
+2. **Status**: Update `/docs/status/CURRENT.md` - current progress, completion percentages
+3. **Sprints**: Update `/docs/sprints/SPRINT_XX_*.md` - relevant sprint documentation
+4. **Review ALL docs** in `/docs/` folder for:
+   - Outdated information needing updates
+   - Duplicate content needing consolidation
+   - Missing documentation for new systems
+   - Opportunities to refactor/reorganize
+5. Keep completion percentages HONEST and ACCURATE
 
 ### 2. Git Workflow (ALWAYS)
 ```bash
@@ -64,6 +77,15 @@ Before considering ANY task complete:
 7. Ensure no OOP patterns were introduced
 
 ## CODE STANDARDS
+
+### Long-Term Code Philosophy
+- **NO BANDAIDS** - No temporary solutions, hacks, or "fix it later" code
+- **Build for decades** - This code should decrease technical debt over time
+- **Extensibility without breaking** - New features must not break existing functionality  
+- **Clean code when possible** - Readability matters, but not at the cost of performance
+- **Kaizen over revolution** - Continuous small improvements over big rewrites
+- **Think in systems** - How will this code interact with features we haven't built yet?
+- **Measure twice, code once** - Design decisions should be deliberate and documented
 
 ### Error Handling
 - NEVER use `.unwrap()` - use `?` operator or proper error handling
@@ -119,10 +141,11 @@ This engine enables:
 - Knowledge that can be lost forever
 - Technologies discovered through experimentation
 - Civilizations that develop uniquely per planet
-- Teardown-style voxel destruction
+- Realistic material physics - wood splinters, metal bends, stone crumbles
 - Thermal dynamics calculated per voxel on GPU
+- Voxel-based destruction with real material properties
 
-Every line of code should move us toward this vision.
+Every line of code should move us toward this vision, but remember: we're building a game-agnostic ENGINE first.
 
 ## WHEN IN DOUBT
 1. Choose performance over "clean" code
@@ -130,5 +153,15 @@ Every line of code should move us toward this vision.
 3. Choose GPU computation over CPU
 4. Choose explicit over abstract
 5. Choose measured results over assumptions
+6. Choose boring stability over exciting features
+7. Choose proven patterns over novel experiments
+8. Choose cache-friendly over "logical" organization
+9. Choose batch operations over individual updates
+10. Choose predictable behavior over clever tricks
+11. Choose documentation over self-documenting code
+12. Choose tomorrow's maintainability over today's convenience
+13. Choose real benchmarks over theoretical benefits
+14. Choose user trust over feature count
+15. Choose physics accuracy over gameplay shortcuts
 
-Remember: We're building the future of voxel engines. No compromises.
+Remember: We're building the future of voxel engines. This is a 10-year project, not a 10-week sprint. No compromises on fundamentals.
