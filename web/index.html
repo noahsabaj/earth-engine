@@ -105,7 +105,7 @@
                 
                 // Load the JavaScript engine
                 updateLoadingStatus('Loading Earth Engine modules...');
-                const { EarthEngine } = await import('/earth-engine-js/src/index.js');
+                const { EarthEngine } = await import('./src/index.js');
                 
                 // Hide loading screen once module loads
                 // The engine will create its own UI
