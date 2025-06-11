@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Earth Engine Module Test</title>
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+</head>
+<body>
+    <h1>Module Loading Test</h1>
+    <pre id="output"></pre>
+    
+    <script type="module">
+        const output = document.getElementById('output');
+        
+        async function test() {
+            try {
+                output.textContent = 'Loading index.js module...\n';
+                
+                const module = await import('./src/index.js?' + Date.now());
+                output.textContent += 'Module loaded: ' + typeof module + '\n';
+                output.textContent += 'Module keys: ' + Object.keys(module).join(', ') + '\n';
+                output.textContent += 'initializeEngine type: ' + typeof module.initializeEngine + '\n';
+                
+                if (module.initializeEngine) {
+                    output.textContent += '\n✅ SUCCESS: initializeEngine function found!\n';
+                } else {
+                    output.textContent += '\n❌ ERROR: initializeEngine function NOT found!\n';
+                }
+                
+            } catch (error) {
+                output.textContent += '\n❌ ERROR: ' + error.message + '\n' + error.stack;
+            }
+        }
+        
+        test();
+    </script>
+</body>
+</html>
