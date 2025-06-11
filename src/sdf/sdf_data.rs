@@ -98,8 +98,8 @@ pub struct SdfChunk {
     pub has_surface: bool,
     
     /// Cached mesh (if generated)
-    pub mesh_vertices: Option<Buffer>,
-    pub mesh_indices: Option<Buffer>,
+    pub mesh_vertices: Option<Arc<Buffer>>,
+    pub mesh_indices: Option<Arc<Buffer>>,
     pub vertex_count: u32,
     pub index_count: u32,
 }

@@ -12,6 +12,7 @@ pub mod history;
 pub mod query;
 pub mod copy_on_write;
 pub mod network_sync;
+pub mod error;
 
 pub use instance_id::{InstanceId, InstanceIdGenerator};
 pub use metadata_store::{MetadataStore, MetadataValue, MetadataKey};
@@ -19,6 +20,7 @@ pub use history::{HistoryLog, HistoryEntry, HistoryEvent};
 pub use query::{InstanceQuery, QueryResult, QueryFilter};
 pub use copy_on_write::{CowMetadata, CowHandle};
 pub use network_sync::{InstanceSync, SyncPacket, SyncState};
+pub use error::{InstanceResult, InstanceErrorContext, timestamp_error};
 
 /// Maximum instances supported (16 million)
 pub const MAX_INSTANCES: usize = 1 << 24;
@@ -77,11 +79,11 @@ impl InstanceData {
     }
     
     /// Add a new instance
-    pub fn add(&mut self, id: InstanceId, instance_type: InstanceType, creator: InstanceId) -> usize {
+    pub fn add(&mut self, id: InstanceId, instance_type: InstanceType, creator: InstanceId) -> InstanceResult<usize> {
         let index = self.ids.len();
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
+            .map_err(|_| timestamp_error("instance creation"))?
             .as_secs();
             
         self.ids.push(id);
@@ -92,19 +94,20 @@ impl InstanceData {
         self.versions.push(0);
         self.active.push(true);
         
-        index
+        Ok(index)
     }
     
     /// Mark instance as deleted (soft delete for history)
-    pub fn delete(&mut self, index: usize) {
+    pub fn delete(&mut self, index: usize) -> InstanceResult<()> {
         if index < self.active.len() {
             self.active[index] = false;
             self.versions[index] += 1;
             self.modified_at[index] = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .map_err(|_| timestamp_error("instance deletion"))?
                 .as_secs();
         }
+        Ok(())
     }
 }
 
@@ -118,7 +121,7 @@ mod tests {
         let id = InstanceId::new();
         let creator = InstanceId::new();
         
-        let index = data.add(id, InstanceType::Item, creator);
+        let index = data.add(id, InstanceType::Item, creator).unwrap();
         
         assert_eq!(data.ids[index], id);
         assert_eq!(data.types[index], InstanceType::Item);

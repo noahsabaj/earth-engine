@@ -136,7 +136,9 @@ impl MortonPageTable {
     /// Mark a page as accessed (for LRU tracking)
     pub fn mark_accessed(&mut self, page_x: u32, page_y: u32, page_z: u32) {
         if let Some(idx) = self.page_index(page_x, page_y, page_z) {
-            self.entries[idx].access_count = self.entries[idx].access_count.saturating_add(1);
+            if let Some(entry) = self.entries.get_mut(idx) {
+                entry.access_count = entry.access_count.saturating_add(1);
+            }
         }
     }
     

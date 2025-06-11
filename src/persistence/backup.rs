@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::fs;
 use std::time::{SystemTime, Duration};
-use chrono::{DateTime, Local};
+use chrono::Local;
 
 use crate::persistence::{
     PersistenceResult, PersistenceError,
@@ -195,7 +195,7 @@ impl BackupManager {
         use std::fs::File;
         
         // Create tar archive
-        let tar_file = File::create(dest)?;
+        let _tar_file = File::create(dest)?;
         let compressor = Compressor::new(
             self.policy.compression_type,
             CompressionLevel::Default,

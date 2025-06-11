@@ -37,7 +37,9 @@ impl MeshSoA {
         
         // Add vertices
         for i in 0..4 {
-            self.vertices.push(positions[i], color, normal, light, ao[i]);
+            let ao_value = ao.get(i).copied().unwrap_or(1.0);
+            let position = positions.get(i).copied().unwrap_or([0.0, 0.0, 0.0]);
+            self.vertices.push(position, color, normal, light, ao_value);
         }
         
         // Add indices for two triangles

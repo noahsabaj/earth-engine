@@ -5,7 +5,6 @@ use glam::{Vec3, Quat};
 
 use crate::inventory::{PlayerInventory, ItemStack};
 use crate::persistence::{PersistenceResult, PersistenceError};
-use crate::error::EngineError;
 
 /// Player data that needs to be persisted
 #[derive(Debug, Clone, Serialize, Deserialize)]

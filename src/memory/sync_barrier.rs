@@ -220,18 +220,20 @@ impl FrameSync {
     pub fn begin_frame(&mut self) -> &mut SyncBarrier {
         // Wait for this frame's previous submission to complete
         let frame_barrier = &self.frame_barriers[self.current_frame];
-        if let Some(oldest_sync) = frame_barrier.pending_sync_points().first() {
-            frame_barrier.wait_for_sync_point(*oldest_sync);
+        if let Ok(sync_points) = frame_barrier.pending_sync_points() {
+            if let Some(oldest_sync) = sync_points.first() {
+                frame_barrier.wait_for_sync_point(*oldest_sync);
+            }
         }
         
         &mut self.frame_barriers[self.current_frame]
     }
     
     /// End current frame and advance
-    pub fn end_frame(&mut self) -> SyncPoint {
-        let sync_point = self.frame_barriers[self.current_frame].insert_sync_point();
+    pub fn end_frame(&mut self) -> MemoryResult<SyncPoint> {
+        let sync_point = self.frame_barriers[self.current_frame].insert_sync_point()?;
         self.current_frame = (self.current_frame + 1) % self.max_frames_in_flight;
-        sync_point
+        Ok(sync_point)
     }
     
     /// Get current frame index

@@ -330,21 +330,28 @@ fn save_baseline_metrics(
     use std::fs::File;
     use std::io::Write;
     
-    let mut file = File::create("baseline_metrics.txt").unwrap();
+    let mut file = File::create("baseline_metrics.txt")
+        .expect("Failed to create baseline_metrics.txt file");
     
-    writeln!(file, "=== Baseline Performance Metrics ===").unwrap();
-    writeln!(file, "Date: {}", chrono::Local::now().format("%Y-%m-%d %H:%M:%S")).unwrap();
-    writeln!(file, "\nCache Efficiency: {:.2}%", cache_profiler.cache_efficiency() * 100.0).unwrap();
-    writeln!(file, "Average FPS: {:.2}", perf_metrics.average_fps()).unwrap();
-    writeln!(file, "Chunks per second: {:.2}", perf_metrics.chunks_per_second()).unwrap();
+    writeln!(file, "=== Baseline Performance Metrics ===")
+        .expect("Failed to write metrics header");
+    writeln!(file, "Date: {}", chrono::Local::now().format("%Y-%m-%d %H:%M:%S"))
+        .expect("Failed to write date");
+    writeln!(file, "\nCache Efficiency: {:.2}%", cache_profiler.cache_efficiency() * 100.0)
+        .expect("Failed to write cache efficiency");
+    writeln!(file, "Average FPS: {:.2}", perf_metrics.average_fps())
+        .expect("Failed to write average FPS");
+    writeln!(file, "Chunks per second: {:.2}", perf_metrics.chunks_per_second())
+        .expect("Failed to write chunks per second");
     
-    writeln!(file, "\nHot Paths:").unwrap();
+    writeln!(file, "\nHot Paths:")
+        .expect("Failed to write hot paths header");
     for hot_path in memory_profiler.hot_paths() {
         writeln!(file, "  {} - {} calls, {:.2}ms avg", 
             hot_path.function, 
             hot_path.call_count,
             hot_path.avg_time.as_secs_f64() * 1000.0
-        ).unwrap();
+        ).expect("Failed to write hot path entry");
     }
     
     println!("\nBaseline metrics saved to baseline_metrics.txt");

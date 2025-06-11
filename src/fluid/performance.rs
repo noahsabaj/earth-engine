@@ -303,11 +303,12 @@ impl GpuTimer {
         let buffer_slice = staging_buffer.slice(..);
         let (sender, receiver) = futures::channel::oneshot::channel();
         buffer_slice.map_async(wgpu::MapMode::Read, move |result| {
-            sender.send(result).unwrap();
+            // Ignore send errors - receiver may have been dropped
+            let _ = sender.send(result);
         });
         
         device.poll(wgpu::Maintain::Wait);
-        receiver.await.unwrap().ok()?;
+        receiver.await.ok()?.ok()?;
         
         let data = buffer_slice.get_mapped_range();
         let timestamps: Vec<u64> = bytemuck::cast_slice(&data).to_vec();

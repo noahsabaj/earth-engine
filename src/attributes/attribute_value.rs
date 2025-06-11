@@ -175,7 +175,7 @@ impl AttributeValue {
     pub fn clamp(&self, min: &AttributeValue, max: &AttributeValue) -> AttributeValue {
         match (self, min, max) {
             (AttributeValue::Integer(v), AttributeValue::Integer(min_v), AttributeValue::Integer(max_v)) => {
-                AttributeValue::Integer(v.clamp(*min_v, *max_v))
+                AttributeValue::Integer(*v.clamp(min_v, max_v))
             }
             (AttributeValue::Float(v), AttributeValue::Float(min_v), AttributeValue::Float(max_v)) => {
                 AttributeValue::Float(v.clamp(*min_v, *max_v))

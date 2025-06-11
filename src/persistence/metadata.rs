@@ -148,7 +148,7 @@ impl WorldMetadata {
     pub fn new(name: String, seed: u64, game_version: String) -> Self {
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
+            .unwrap_or_else(|_| std::time::Duration::from_secs(0))
             .as_secs();
         
         Self {
@@ -171,7 +171,7 @@ impl WorldMetadata {
     pub fn touch(&mut self) {
         self.modified_at = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
+            .unwrap_or_else(|_| std::time::Duration::from_secs(0))
             .as_secs();
     }
     
@@ -204,7 +204,7 @@ impl WorldMetadata {
     pub fn age(&self) -> u64 {
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
+            .unwrap_or_else(|_| std::time::Duration::from_secs(0))
             .as_secs();
         now.saturating_sub(self.created_at)
     }

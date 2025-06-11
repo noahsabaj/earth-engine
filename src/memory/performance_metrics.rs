@@ -94,7 +94,10 @@ impl PerformanceMetrics {
             timestamp: Instant::now(),
         };
         
-        self.measurements.lock().unwrap().push(measurement);
+        match self.measurements.lock() {
+            Ok(mut measurements) => measurements.push(measurement),
+            Err(e) => eprintln!("Failed to lock measurements: {}", e),
+        }
     }
     
     /// Start a scoped measurement
@@ -116,7 +119,13 @@ impl PerformanceMetrics {
     
     /// Get comparison results for all metrics
     pub fn get_comparisons(&self) -> Vec<ComparisonResult> {
-        let measurements = self.measurements.lock().unwrap();
+        let measurements = match self.measurements.lock() {
+            Ok(m) => m,
+            Err(e) => {
+                eprintln!("Failed to lock measurements: {}", e);
+                return Vec::new();
+            }
+        };
         let mut results = Vec::new();
         
         // Group measurements by metric type
@@ -174,7 +183,10 @@ impl PerformanceMetrics {
             });
         }
         
-        results.sort_by(|a, b| b.speedup_factor.partial_cmp(&a.speedup_factor).unwrap());
+        results.sort_by(|a, b| {
+            b.speedup_factor.partial_cmp(&a.speedup_factor)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         results
     }
     
@@ -234,7 +246,10 @@ impl PerformanceMetrics {
     
     /// Clear all measurements
     pub fn clear(&self) {
-        self.measurements.lock().unwrap().clear();
+        match self.measurements.lock() {
+            Ok(mut measurements) => measurements.clear(),
+            Err(e) => eprintln!("Failed to lock measurements: {}", e),
+        }
     }
 }
 

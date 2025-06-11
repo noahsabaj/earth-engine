@@ -322,17 +322,23 @@ impl UpdateQueue {
         
         // Take from high priority first
         while !self.high.is_empty() && batch.len() < max_size {
-            batch.push(self.high.pop().unwrap());
+            if let Some(item) = self.high.pop() {
+                batch.push(item);
+            }
         }
         
         // Then medium
         while !self.medium.is_empty() && batch.len() < max_size {
-            batch.push(self.medium.pop().unwrap());
+            if let Some(item) = self.medium.pop() {
+                batch.push(item);
+            }
         }
         
         // Finally low
         while !self.low.is_empty() && batch.len() < max_size {
-            batch.push(self.low.pop().unwrap());
+            if let Some(item) = self.low.pop() {
+                batch.push(item);
+            }
         }
         
         batch

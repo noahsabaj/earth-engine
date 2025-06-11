@@ -95,24 +95,24 @@ impl MemoryManager {
     }
     
     /// Allocate a general purpose buffer
-    pub fn alloc_buffer(&mut self, size: u64, usage: wgpu::BufferUsages) -> PoolHandle {
+    pub fn alloc_buffer(&mut self, size: u64, usage: wgpu::BufferUsages) -> MemoryResult<PoolHandle> {
         self.general_pool.allocate(size, usage)
     }
     
     /// Allocate a persistent mapped buffer
-    pub fn alloc_persistent(&mut self, size: u64, usage: BufferUsage) -> PersistentBuffer {
+    pub fn alloc_persistent(&mut self, size: u64, usage: BufferUsage) -> MemoryResult<PersistentBuffer> {
         let handle = self.persistent_pool.allocate(
             size,
             usage.to_wgpu_usage() | wgpu::BufferUsages::MAP_WRITE | wgpu::BufferUsages::MAP_READ,
-        );
+        )?;
         
-        PersistentBuffer::new(
+        Ok(PersistentBuffer::new(
             self.device.clone(),
             handle,
             size,
             usage,
             self.config.frame_buffer_count,
-        )
+        ))
     }
     
     /// Create a sync barrier

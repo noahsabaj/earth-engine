@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use wgpu::{Device, ComputePipeline, BindGroup, Buffer};
 use bytemuck::{Pod, Zeroable};
 
@@ -36,17 +37,17 @@ pub struct GpuDecompressor {
     scratch_buffers: Vec<Buffer>,
     
     /// Device reference
-    device: wgpu::Device,
+    device: Arc<wgpu::Device>,
 }
 
 impl GpuDecompressor {
     /// Create new GPU decompressor
-    pub fn new(device: &Device) -> Self {
+    pub fn new(device: Arc<Device>) -> Self {
         // Create decompression pipelines
-        let rle_pipeline = create_rle_pipeline(device);
-        let bitpacked_pipeline = create_bitpacked_pipeline(device);
-        let palettized_pipeline = create_palettized_pipeline(device);
-        let hybrid_pipeline = create_hybrid_pipeline(device);
+        let rle_pipeline = create_rle_pipeline(&device);
+        let bitpacked_pipeline = create_bitpacked_pipeline(&device);
+        let palettized_pipeline = create_palettized_pipeline(&device);
+        let hybrid_pipeline = create_hybrid_pipeline(&device);
         
         // Pre-allocate scratch buffers
         let mut scratch_buffers = Vec::new();
@@ -65,7 +66,7 @@ impl GpuDecompressor {
             palettized_pipeline,
             hybrid_pipeline,
             scratch_buffers,
-            device: device.clone(),
+            device,
         }
     }
     

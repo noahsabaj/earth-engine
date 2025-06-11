@@ -317,10 +317,14 @@ impl AdaptiveTessellator {
         // Generate indices
         for i in 0..resolution-1 {
             for j in 0..resolution-1 {
-                let v00 = *vertex_map.get(&(i, j)).unwrap();
-                let v10 = *vertex_map.get(&(i+1, j)).unwrap();
-                let v01 = *vertex_map.get(&(i, j+1)).unwrap();
-                let v11 = *vertex_map.get(&(i+1, j+1)).unwrap();
+                let v00 = *vertex_map.get(&(i, j))
+                    .expect("Vertex (i, j) should exist in map");
+                let v10 = *vertex_map.get(&(i+1, j))
+                    .expect("Vertex (i+1, j) should exist in map");
+                let v01 = *vertex_map.get(&(i, j+1))
+                    .expect("Vertex (i, j+1) should exist in map");
+                let v11 = *vertex_map.get(&(i+1, j+1))
+                    .expect("Vertex (i+1, j+1) should exist in map");
                 
                 // Two triangles per quad
                 indices.extend_from_slice(&[v00, v10, v11]);

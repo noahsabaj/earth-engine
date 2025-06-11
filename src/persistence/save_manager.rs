@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -8,6 +8,7 @@ use crate::world::{World, ChunkPos, Chunk};
 use crate::persistence::{
     PersistenceResult, PersistenceError,
     WorldSave, PlayerSaveData, WorldMetadata,
+    error::LockResultExt,
 };
 
 /// Configuration for the save manager
@@ -127,7 +128,7 @@ impl SaveManager {
     
     /// Stop the automatic save system
     pub fn stop_auto_save(&mut self) -> PersistenceResult<()> {
-        *self.shutdown_signal.lock()? = true;
+        *self.shutdown_signal.lock().persistence_lock("shutdown_signal")? = true;
         
         if let Some(thread) = self.save_thread.take() {
             let _ = thread.join();
@@ -137,14 +138,14 @@ impl SaveManager {
     
     /// Mark a chunk as dirty (needs saving)
     pub fn mark_chunk_dirty(&self, pos: ChunkPos) -> PersistenceResult<()> {
-        self.dirty_chunks.lock()?.insert(pos);
+        self.dirty_chunks.lock().persistence_lock("dirty_chunks")?.insert(pos);
         Ok(())
     }
     
     /// Mark a chunk as pending unload
     pub fn mark_chunk_unloading(&self, pos: ChunkPos) -> PersistenceResult<()> {
         if self.config.auto_save_config.save_on_chunk_unload {
-            let mut pending = self.pending_chunk_saves.lock()?;
+            let mut pending = self.pending_chunk_saves.lock().persistence_lock("pending_chunk_saves")?;
             pending.insert(pos, Instant::now());
         }
         Ok(())
@@ -153,20 +154,20 @@ impl SaveManager {
     /// Save the entire world immediately
     pub fn save_world(&self, world: &World, metadata: &WorldMetadata) -> PersistenceResult<()> {
         // Set save in progress flag
-        *self.save_in_progress.lock()? = true;
+        *self.save_in_progress.lock().persistence_lock("save_in_progress")? = true;
         
         let result = {
-            let mut world_save = self.world_save.lock()?;
+            let mut world_save = self.world_save.lock().persistence_lock("world_save")?;
             world_save.save_world(world, metadata)
         };
         
         // Clear dirty chunks on successful save
         if result.is_ok() {
-            self.dirty_chunks.lock()?.clear();
-            *self.last_save_time.lock()? = Instant::now();
+            self.dirty_chunks.lock().persistence_lock("dirty_chunks")?.clear();
+            *self.last_save_time.lock().persistence_lock("last_save_time")? = Instant::now();
         }
         
-        *self.save_in_progress.lock()? = false;
+        *self.save_in_progress.lock().persistence_lock("save_in_progress")? = false;
         
         result.map_err(|e| PersistenceError::IoError(
             std::io::Error::new(std::io::ErrorKind::Other, e.to_string())
@@ -185,7 +186,7 @@ impl SaveManager {
         
         let chunk_refs = chunks;
         
-        let mut world_save = self.world_save.lock()?;
+        let mut world_save = self.world_save.lock().persistence_lock("world_save")?;
         world_save.save_chunks(&chunk_refs)
             .map_err(|errors| {
                 PersistenceError::IoError(
@@ -197,7 +198,7 @@ impl SaveManager {
             })?;
         
         // Remove from dirty set
-        let mut dirty = self.dirty_chunks.lock()?;
+        let mut dirty = self.dirty_chunks.lock().persistence_lock("dirty_chunks")?;
         for pos in positions {
             dirty.remove(pos);
         }
@@ -357,16 +358,16 @@ impl SaveManager {
     /// Get save statistics
     pub fn get_stats(&self) -> PersistenceResult<SaveStats> {
         Ok(SaveStats {
-            dirty_chunk_count: self.dirty_chunks.lock()?.len(),
-            pending_chunk_count: self.pending_chunk_saves.lock()?.len(),
-            save_in_progress: *self.save_in_progress.lock()?,
-            last_save_time: *self.last_save_time.lock()?,
+            dirty_chunk_count: self.dirty_chunks.lock().persistence_lock("dirty_chunks")?.len(),
+            pending_chunk_count: self.pending_chunk_saves.lock().persistence_lock("pending_chunk_saves")?.len(),
+            save_in_progress: *self.save_in_progress.lock().persistence_lock("save_in_progress")?,
+            last_save_time: *self.last_save_time.lock().persistence_lock("last_save_time")?,
         })
     }
     
     /// Force save all dirty chunks
     pub fn flush(&self) -> PersistenceResult<()> {
-        let chunks: Vec<ChunkPos> = self.dirty_chunks.lock()?
+        let chunks: Vec<ChunkPos> = self.dirty_chunks.lock().persistence_lock("dirty_chunks")?
             .iter()
             .cloned()
             .collect();
@@ -376,7 +377,7 @@ impl SaveManager {
         }
         
         // In real implementation, would save these chunks
-        self.dirty_chunks.lock()?.clear();
+        self.dirty_chunks.lock().persistence_lock("dirty_chunks")?.clear();
         
         Ok(())
     }

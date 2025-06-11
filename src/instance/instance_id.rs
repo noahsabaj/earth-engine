@@ -6,10 +6,11 @@
 
 use serde::{Serialize, Deserialize};
 use std::fmt;
+use crate::instance::error::{InstanceResult, timestamp_error};
 
 /// 128-bit unique instance identifier
 #[repr(C)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct InstanceId {
     /// High 64 bits
     pub high: u64,
@@ -101,10 +102,10 @@ impl InstanceIdGenerator {
     
     /// Generate a new instance ID
     /// Format: [timestamp:48][node:16][sequence:64]
-    pub fn generate(&self) -> InstanceId {
+    pub fn generate(&self) -> InstanceResult<InstanceId> {
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
+            .map_err(|_| timestamp_error("instance ID generation"))?
             .as_millis() as u64;
             
         let sequence = self.counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
@@ -112,10 +113,10 @@ impl InstanceIdGenerator {
         // High 64 bits: timestamp (48) + node_id (16)
         let high = (timestamp << 16) | (self.node_id as u64);
         
-        InstanceId {
+        Ok(InstanceId {
             high,
             low: sequence,
-        }
+        })
     }
 }
 
@@ -202,8 +203,8 @@ mod tests {
     #[test]
     fn test_id_generator() {
         let gen = InstanceIdGenerator::new(42);
-        let id1 = gen.generate();
-        let id2 = gen.generate();
+        let id1 = gen.generate().unwrap();
+        let id2 = gen.generate().unwrap();
         
         assert_ne!(id1, id2);
         // Check node ID is embedded

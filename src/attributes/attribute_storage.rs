@@ -243,16 +243,22 @@ impl AttributeStorage {
         let mut result = Vec::new();
         
         if let Some(attrs) = self.instance_data.get_mut(&instance) {
-            for &index in &attrs.dirty {
-                if let Some(key) = self.get_key(index) {
-                    if let Some(value) = attrs.values.get(&index) {
-                        result.push((key.clone(), value.clone()));
-                    }
-                }
-            }
+            // Collect dirty indices and values first
+            let dirty_items: Vec<_> = attrs.dirty.iter()
+                .filter_map(|&index| {
+                    attrs.values.get(&index).map(|value| (index, value.clone()))
+                })
+                .collect();
             
             // Clear dirty flags
             attrs.dirty.clear();
+            
+            // Now look up keys without borrowing self mutably
+            for (index, value) in dirty_items {
+                if let Some(key) = self.index_key.get(index as usize) {
+                    result.push((key.clone(), value));
+                }
+            }
         }
         
         result

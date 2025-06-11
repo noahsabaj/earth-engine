@@ -350,7 +350,7 @@ pub fn calculate_eviction_candidates(
     }
     
     // Sort by score (highest first) and take top candidates
-    candidates.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap());
+    candidates.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
     candidates.truncate(max_candidates);
     
     candidates

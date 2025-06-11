@@ -8,6 +8,7 @@ pub mod compression;
 pub mod metadata;
 pub mod migration;
 pub mod backup;
+pub mod error;
 
 pub use chunk_serializer::{ChunkSerializer, ChunkFormat};
 pub use world_save::{WorldSave, WorldSaveError};

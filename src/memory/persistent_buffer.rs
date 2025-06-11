@@ -75,20 +75,13 @@ impl PersistentBuffer {
     ) -> Self {
         let mut frame_buffers = Vec::with_capacity(frame_count);
         
-        // First buffer uses the provided handle
-        frame_buffers.push(FrameBuffer {
-            handle,
-            is_mapped: Mutex::new(false),
-            fence: None,
-        });
-        
-        // Create additional buffers for multi-buffering
-        for _ in 1..frame_count {
+        // Create all frame buffers
+        for _ in 0..frame_count {
             // In a real implementation, we'd allocate from the pool
-            // For now, using placeholder
+            // For now, using cloned handle
             frame_buffers.push(FrameBuffer {
-                handle: handle.clone(), // Placeholder - should allocate new
-                    is_mapped: Mutex::new(false),
+                handle: handle.clone(),
+                is_mapped: Mutex::new(false),
                 fence: None,
             });
         }
@@ -112,12 +105,14 @@ impl PersistentBuffer {
         let frame = &self.frame_buffers[self.current_frame];
         
         // Check if already mapped
-        if *frame.is_mapped.lock().memory_context("is_mapped")? {
-            return Err(EngineError::BufferError {
-                buffer: "persistent".to_string(),
-                error: "Buffer already mapped".to_string(),
+        let is_mapped = frame.is_mapped.lock()
+            .map_err(|_| EngineError::LockPoisoned { resource: "persistent_buffer::is_mapped".to_string() })?;
+        if *is_mapped {
+            return Err(EngineError::Internal {
+                message: "Buffer already mapped".to_string(),
             });
         }
+        drop(is_mapped);
         
         let buffer = frame.handle.buffer();
         let buffer_slice = buffer.slice(..);
@@ -130,18 +125,19 @@ impl PersistentBuffer {
         
         // Wait for mapping
         self.device.poll(wgpu::Maintain::Wait);
-        rx.await.map_err(|_| EngineError::BufferError {
-            buffer: "persistent".to_string(),
-            error: "Channel closed while waiting for buffer map".to_string(),
-        })?.map_err(|e| EngineError::BufferError {
-            buffer: "persistent".to_string(),
-            error: format!("Failed to map buffer: {:?}", e),
+        rx.await.map_err(|_| EngineError::ChannelClosed {
+            name: "buffer_map".to_string(),
+        })?.map_err(|e| EngineError::Internal {
+            message: format!("Failed to map buffer: {:?}", e),
         })?;
         
         // Get mapped view
         let view = buffer_slice.get_mapped_range_mut();
         
-        *frame.is_mapped.lock().memory_context("is_mapped")? = true;
+        let mut is_mapped = frame.is_mapped.lock()
+            .map_err(|_| EngineError::LockPoisoned { resource: "persistent_buffer::is_mapped".to_string() })?;
+        *is_mapped = true;
+        drop(is_mapped);
         
         Ok(MappedBuffer {
             buffer: self,
@@ -154,10 +150,13 @@ impl PersistentBuffer {
     pub fn advance_frame(&mut self) -> MemoryResult<()> {
         // Unmap current buffer if mapped
         let frame = &self.frame_buffers[self.current_frame];
-        if *frame.is_mapped.lock().memory_context("is_mapped")? {
+        let mut is_mapped = frame.is_mapped.lock()
+            .map_err(|_| EngineError::LockPoisoned { resource: "persistent_buffer::is_mapped".to_string() })?;
+        if *is_mapped {
             frame.handle.buffer().unmap();
-            *frame.is_mapped.lock().memory_context("is_mapped")? = false;
+            *is_mapped = false;
         }
+        drop(is_mapped);
         
         // Move to next frame
         self.current_frame = (self.current_frame + 1) % self.frame_buffers.len();
@@ -237,9 +236,8 @@ impl StreamingRingBuffer {
         let data_size = data.len() as u64;
         
         if data_size > self.capacity {
-            return Err(EngineError::BufferError {
-                buffer: "ring".to_string(),
-                error: "Data too large for ring buffer".to_string(),
+            return Err(EngineError::Internal {
+                message: "Data too large for ring buffer".to_string(),
             });
         }
         

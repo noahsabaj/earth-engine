@@ -12,6 +12,7 @@ use bytemuck::{Pod, Zeroable};
 #[derive(Copy, Clone, Debug, Pod, Zeroable)]
 pub struct PerformanceSample {
     pub operation_id: u32,
+    pub _padding1: u32, // Align to 8 bytes for u64
     pub start_time_us: u64,
     pub duration_us: u32,
     pub memory_allocated: u32,
@@ -167,7 +168,7 @@ impl FinalProfiler {
         
         // Calculate percentiles
         let mut sorted_fps: Vec<f32> = self.frame_history.clone();
-        sorted_fps.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        sorted_fps.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
         
         let p99_idx = (sorted_fps.len() as f32 * 0.01) as usize;
         let p95_idx = (sorted_fps.len() as f32 * 0.05) as usize;
@@ -321,6 +322,11 @@ pub struct FrameProfiler {
 impl Drop for FrameProfiler {
     fn drop(&mut self) {
         let duration = self.start.elapsed();
+        // SAFETY: Accessing the profiler through raw pointer is safe because:
+        // - The profiler pointer was created from a valid &mut reference in begin_frame
+        // - The profiler lifetime is guaranteed to outlive FrameProfiler
+        // - We have exclusive access during the drop (no other FrameProfiler exists)
+        // - The global PROFILER mutex ensures thread safety at a higher level
         unsafe {
             let profiler = &mut *self.profiler;
             profiler.frame_samples.push(duration);

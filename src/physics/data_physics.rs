@@ -148,7 +148,8 @@ pub mod operations {
         
         // Initialize body data
         let half_size = aabb_size * 0.5;
-        data.bodies[idx] = PhysicsBodyData {
+        if let Some(body) = data.bodies.get_mut(idx) {
+            *body = PhysicsBodyData {
             position: [position.x, position.y, position.z],
             velocity: [velocity.x, velocity.y, velocity.z],
             aabb_min: [-half_size.x, -half_size.y, -half_size.z],
@@ -156,8 +157,11 @@ pub mod operations {
             mass: 1.0,
             friction: 0.8,
             restitution: 0.0,
-            flags: flags::ACTIVE,
-        };
+                flags: flags::ACTIVE,
+            };
+        } else {
+            return None;
+        }
         
         data.id_to_index.insert(id, idx);
         Some(id)
@@ -199,7 +203,10 @@ pub mod operations {
         
         // Phase 1: Calculate updates
         for i in 0..data.active_count {
-            let body = &mut data.bodies[i];
+            let body = match data.bodies.get_mut(i) {
+                Some(b) => b,
+                None => continue,
+            };
             
             if body.flags & flags::ACTIVE == 0 {
                 continue;
@@ -219,20 +226,28 @@ pub mod operations {
             let delta = velocity * dt;
             
             // Store update
-            data.update_buffer[update_count] = PhysicsUpdate {
+            if let Some(update) = data.update_buffer.get_mut(update_count) {
+                *update = PhysicsUpdate {
                 entity_index: i as u32,
                 delta_position: [delta.x, delta.y, delta.z],
                 new_velocity: [velocity.x, velocity.y, velocity.z],
-                new_flags: body.flags,
-            };
+                    new_flags: body.flags,
+                };
+            }
             update_count += 1;
         }
         
         // Phase 2: Apply updates with collision detection
         for i in 0..update_count {
-            let update = &data.update_buffer[i];
+            let update = match data.update_buffer.get(i) {
+                Some(u) => u,
+                None => continue,
+            };
             let idx = update.entity_index as usize;
-            let body = &data.bodies[idx];
+            let body = match data.bodies.get(idx) {
+                Some(b) => b,
+                None => continue,
+            };
             
             // Get overlapping blocks (reuses collision buffer)
             get_overlapping_blocks(
@@ -254,7 +269,10 @@ pub mod operations {
             );
             
             // Apply resolved values
-            let body = &mut data.bodies[idx];
+            let body = match data.bodies.get_mut(idx) {
+                Some(b) => b,
+                None => continue,
+            };
             body.position = resolved_pos;
             body.velocity = resolved_vel;
             
@@ -295,8 +313,10 @@ pub mod operations {
                     
                     let pos = VoxelPos::new(x, y, z);
                     if world.is_block_in_bounds(pos) {
-                        buffer.blocks[buffer.count] = pos;
-                        buffer.count += 1;
+                        if let Some(block_slot) = buffer.blocks.get_mut(buffer.count) {
+                            *block_slot = pos;
+                            buffer.count += 1;
+                        }
                     }
                 }
             }
@@ -321,7 +341,10 @@ pub mod operations {
         
         // Check collisions with blocks
         for i in 0..collision_buffer.count {
-            let block_pos = collision_buffer.blocks[i];
+            let block_pos = match collision_buffer.blocks.get(i) {
+                Some(pos) => *pos,
+                None => continue,
+            };
             let block_id = world.get_block(block_pos);
             
             if block_id != BlockId::AIR {
@@ -344,13 +367,14 @@ pub mod operations {
         id: EntityId,
         alpha: f32,
     ) -> Option<Point3<f32>> {
-        data.id_to_index.get(&id).map(|&idx| {
-            let body = &data.bodies[idx];
-            Point3::new(
-                body.position[0] + body.velocity[0] * (alpha * FIXED_TIMESTEP),
-                body.position[1] + body.velocity[1] * (alpha * FIXED_TIMESTEP),
-                body.position[2] + body.velocity[2] * (alpha * FIXED_TIMESTEP),
-            )
+        data.id_to_index.get(&id).and_then(|&idx| {
+            data.bodies.get(idx).map(|body| {
+                Point3::new(
+                    body.position[0] + body.velocity[0] * (alpha * FIXED_TIMESTEP),
+                    body.position[1] + body.velocity[1] * (alpha * FIXED_TIMESTEP),
+                    body.position[2] + body.velocity[2] * (alpha * FIXED_TIMESTEP),
+                )
+            })
         })
     }
 }

@@ -1,3 +1,10 @@
+//! Unified memory management for GPU world systems
+//! 
+//! This module provides a safe API for managing a single large GPU buffer
+//! that contains all world data. Instead of using dangerous lifetime transmutes,
+//! we return buffer parameters that callers can use to create their own
+//! buffer bindings with appropriate lifetimes.
+
 use std::sync::Arc;
 use wgpu::util::DeviceExt;
 use bytemuck::{Pod, Zeroable};
@@ -101,14 +108,7 @@ pub struct UnifiedMemoryManager {
     layout: UnifiedMemoryLayout,
     
     /// The main unified buffer containing all world data
-    pub unified_buffer: wgpu::Buffer,
-    
-    /// Buffer views for different systems
-    pub voxel_view: wgpu::BufferBinding<'static>,
-    pub metadata_view: wgpu::BufferBinding<'static>,
-    pub lighting_view: wgpu::BufferBinding<'static>,
-    pub entity_view: wgpu::BufferBinding<'static>,
-    pub particle_view: wgpu::BufferBinding<'static>,
+    pub unified_buffer: Arc<wgpu::Buffer>,
 }
 
 impl UnifiedMemoryManager {
@@ -116,55 +116,17 @@ impl UnifiedMemoryManager {
         let layout = UnifiedMemoryLayout::new(world_size, world_height);
         
         // Create the unified buffer
-        let unified_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+        let unified_buffer = Arc::new(device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Unified World Buffer"),
             size: layout.total_size,
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::COPY_SRC,
             mapped_at_creation: false,
-        });
-        
-        // Create buffer views
-        // Note: In real implementation, we'd need to handle lifetime properly
-        // For now, using 'static lifetime as placeholder
-        let voxel_view = wgpu::BufferBinding {
-            buffer: &unified_buffer,
-            offset: layout.voxel_data_offset,
-            size: Some(wgpu::BufferSize::new(layout.voxel_data_size).unwrap()),
-        };
-        
-        let metadata_view = wgpu::BufferBinding {
-            buffer: &unified_buffer,
-            offset: layout.chunk_metadata_offset,
-            size: Some(wgpu::BufferSize::new(layout.chunk_metadata_size).unwrap()),
-        };
-        
-        let lighting_view = wgpu::BufferBinding {
-            buffer: &unified_buffer,
-            offset: layout.lighting_data_offset,
-            size: Some(wgpu::BufferSize::new(layout.lighting_data_size).unwrap()),
-        };
-        
-        let entity_view = wgpu::BufferBinding {
-            buffer: &unified_buffer,
-            offset: layout.entity_data_offset,
-            size: Some(wgpu::BufferSize::new(layout.entity_data_size).unwrap()),
-        };
-        
-        let particle_view = wgpu::BufferBinding {
-            buffer: &unified_buffer,
-            offset: layout.particle_data_offset,
-            size: Some(wgpu::BufferSize::new(layout.particle_data_size).unwrap()),
-        };
+        }));
         
         Self {
             device,
             layout,
             unified_buffer,
-            voxel_view: unsafe { std::mem::transmute(voxel_view) },
-            metadata_view: unsafe { std::mem::transmute(metadata_view) },
-            lighting_view: unsafe { std::mem::transmute(lighting_view) },
-            entity_view: unsafe { std::mem::transmute(entity_view) },
-            particle_view: unsafe { std::mem::transmute(particle_view) },
         }
     }
     
@@ -180,66 +142,58 @@ impl UnifiedMemoryManager {
         }
     }
     
-    /// Create bind group entries for a specific system
-    pub fn create_bind_group_entries(&self, system: SystemType) -> Vec<wgpu::BindGroupEntry> {
+    /// Create buffer binding parameters for a specific region
+    /// Returns (buffer_arc, offset, size) to be used when creating bind groups
+    pub fn get_buffer_binding_params(&self, offset: u64, size: u64) -> (Arc<wgpu::Buffer>, u64, Option<wgpu::BufferSize>) {
+        (self.unified_buffer.clone(), offset, wgpu::BufferSize::new(size))
+    }
+    
+    /// Get buffer regions for a specific system
+    /// Returns a list of (binding_index, offset, size) tuples
+    pub fn get_system_buffer_regions(&self, system: SystemType) -> Vec<(u32, u64, u64)> {
         match system {
             SystemType::TerrainGeneration => vec![
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::Buffer(self.voxel_view.clone()),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Buffer(self.metadata_view.clone()),
-                },
+                (0, self.layout.voxel_data_offset, self.layout.voxel_data_size),
+                (1, self.layout.chunk_metadata_offset, self.layout.chunk_metadata_size),
             ],
             SystemType::Modification => vec![
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::Buffer(self.voxel_view.clone()),
-                },
+                (0, self.layout.voxel_data_offset, self.layout.voxel_data_size),
             ],
             SystemType::Lighting => vec![
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::Buffer(self.voxel_view.clone()),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Buffer(self.lighting_view.clone()),
-                },
+                (0, self.layout.voxel_data_offset, self.layout.voxel_data_size),
+                (1, self.layout.lighting_data_offset, self.layout.lighting_data_size),
             ],
             SystemType::Rendering => vec![
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::Buffer(self.voxel_view.clone()),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Buffer(self.metadata_view.clone()),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 2,
-                    resource: wgpu::BindingResource::Buffer(self.lighting_view.clone()),
-                },
+                (0, self.layout.voxel_data_offset, self.layout.voxel_data_size),
+                (1, self.layout.chunk_metadata_offset, self.layout.chunk_metadata_size),
+                (2, self.layout.lighting_data_offset, self.layout.lighting_data_size),
             ],
             SystemType::Physics => vec![
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::Buffer(self.voxel_view.clone()),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Buffer(self.entity_view.clone()),
-                },
+                (0, self.layout.voxel_data_offset, self.layout.voxel_data_size),
+                (1, self.layout.entity_data_offset, self.layout.entity_data_size),
             ],
             SystemType::Particles => vec![
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::Buffer(self.particle_view.clone()),
-                },
+                (0, self.layout.particle_data_offset, self.layout.particle_data_size),
             ],
         }
+    }
+    
+    /// Helper method to create bind group entries with the unified buffer
+    /// The caller must ensure the buffer reference remains valid for the bind group's lifetime
+    pub fn create_bind_group_layout_entries(&self, system: SystemType) -> Vec<wgpu::BindGroupLayoutEntry> {
+        let regions = self.get_system_buffer_regions(system);
+        regions.iter().map(|(binding, _, _)| {
+            wgpu::BindGroupLayoutEntry {
+                binding: *binding,
+                visibility: wgpu::ShaderStages::COMPUTE | wgpu::ShaderStages::VERTEX_FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Storage { read_only: false },
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            }
+        }).collect()
     }
 }
 

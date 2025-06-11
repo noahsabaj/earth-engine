@@ -335,7 +335,7 @@ impl ProcessMonitor {
     /// Check all conditions
     pub fn check_conditions(
         &self,
-        data: &ProcessData,
+        data: &mut ProcessData,
         control: &mut ProcessControl,
     ) {
         for i in 0..data.len() {

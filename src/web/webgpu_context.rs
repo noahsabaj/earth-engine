@@ -60,6 +60,11 @@ impl WebGpuContext {
         });
         
         // Create surface from canvas
+        // SAFETY: Creating a surface from a canvas is platform-specific but safe
+        // - The canvas is a valid HTMLCanvasElement from the DOM
+        // - The canvas will outlive the surface due to Arc reference counting
+        // - wgpu handles the platform-specific WebGPU/WebGL context creation
+        // - No raw pointers or memory unsafety involved
         let surface = unsafe {
             instance.create_surface_from_canvas(canvas.clone())
                 .map_err(|e| WebError::JsError(format!("Failed to create surface: {:?}", e)))?

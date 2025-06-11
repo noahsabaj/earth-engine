@@ -13,6 +13,7 @@ pub mod process_executor;
 pub mod parallel_processor;
 pub mod process_control;
 pub mod visual_indicators;
+pub mod error;
 
 pub use process_data::{ProcessId, ProcessData, ProcessType, ProcessStatus};
 pub use state_machine::{ProcessState, StateTransition, StateMachine, TransitionAction};
@@ -46,7 +47,7 @@ pub enum ProcessCategory {
 }
 
 /// Time units for processes
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum TimeUnit {
     Ticks(u64),      // Game ticks
     Seconds(f32),    // Real-time seconds
@@ -114,16 +115,16 @@ pub struct ProcessManager {
 }
 
 impl ProcessManager {
-    pub fn new() -> Self {
-        Self {
+    pub fn new() -> Result<Self, crate::error::EngineError> {
+        Ok(Self {
             processes: ProcessData::new(),
             state_machines: Vec::with_capacity(MAX_PROCESSES),
             transform_stages: Vec::with_capacity(MAX_PROCESSES),
             visuals: Vec::with_capacity(MAX_PROCESSES),
             executor: ProcessExecutor::new(),
-            parallel: ParallelProcessor::new(),
+            parallel: ParallelProcessor::new()?,
             control: ProcessControl::new(),
-        }
+        })
     }
     
     /// Start a new process
@@ -209,7 +210,7 @@ mod tests {
     
     #[test]
     fn test_process_creation() {
-        let mut manager = ProcessManager::new();
+        let mut manager = ProcessManager::new().expect("Failed to create manager");
         let owner = InstanceId::new();
         
         let process_id = manager.start_process(

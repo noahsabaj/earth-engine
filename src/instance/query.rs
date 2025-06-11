@@ -99,14 +99,15 @@ impl InstanceQuery {
         if self.filters.is_empty() {
             None
         } else if self.filters.len() == 1 {
-            Some(self.filters.into_iter().next().unwrap())
+            self.filters.into_iter().next()
         } else {
             // Combine all with AND
             let mut iter = self.filters.into_iter();
-            let first = iter.next().unwrap();
-            iter.fold(first, |acc, filter| {
-                QueryFilter::And(Box::new(acc), Box::new(filter))
-            }).into()
+            iter.next().map(|first| {
+                iter.fold(first, |acc, filter| {
+                    QueryFilter::And(Box::new(acc), Box::new(filter))
+                })
+            })
         }
     }
 }
@@ -367,8 +368,8 @@ mod tests {
         let id1 = InstanceId::new();
         let id2 = InstanceId::new();
         
-        data.add(id1, InstanceType::Item, creator);
-        data.add(id2, InstanceType::Block, creator);
+        data.add(id1, InstanceType::Item, creator).unwrap();
+        data.add(id2, InstanceType::Block, creator).unwrap();
         
         metadata.set(id1, "name", MetadataValue::String("Sword".to_string())).unwrap();
         

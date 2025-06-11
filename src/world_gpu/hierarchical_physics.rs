@@ -7,6 +7,8 @@ use wgpu::{Device, Queue, Buffer, ComputePipeline};
 use bytemuck::{Pod, Zeroable};
 use cgmath::Vector3;
 use crate::memory::MemoryManager;
+use crate::world_gpu::error::{WorldGpuResult, WorldGpuErrorContext};
+use crate::error::EngineError;
 
 /// Physics query types
 #[repr(u32)]
@@ -200,15 +202,19 @@ impl HierarchicalPhysics {
         });
         
         // Allocate buffers
-        let query_buffer = memory_manager.alloc_buffer(
-            max_queries as u64 * std::mem::size_of::<PhysicsQuery>() as u64,
-            wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-        ).buffer().clone();
+        let query_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Physics Query Buffer"),
+            size: max_queries as u64 * std::mem::size_of::<PhysicsQuery>() as u64,
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
         
-        let result_buffer = memory_manager.alloc_buffer(
-            max_queries as u64 * std::mem::size_of::<QueryResult>() as u64,
-            wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
-        ).buffer().clone();
+        let result_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Physics Result Buffer"),
+            size: max_queries as u64 * std::mem::size_of::<QueryResult>() as u64,
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
+            mapped_at_creation: false,
+        });
         
         Self {
             device,
@@ -336,7 +342,7 @@ impl HierarchicalPhysics {
         device: &Device,
         queue: &Queue,
         count: usize,
-    ) -> Vec<QueryResult> {
+    ) -> WorldGpuResult<Vec<QueryResult>> {
         // Create staging buffer
         let staging_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Physics Results Staging"),
@@ -364,11 +370,19 @@ impl HierarchicalPhysics {
         let buffer_slice = staging_buffer.slice(..);
         let (sender, receiver) = futures::channel::oneshot::channel();
         buffer_slice.map_async(wgpu::MapMode::Read, move |result| {
-            sender.send(result).unwrap();
+            let _ = sender.send(result);
         });
         
         device.poll(wgpu::Maintain::Wait);
-        receiver.await.unwrap().unwrap();
+        let map_result = receiver.await
+            .map_err(|_| EngineError::SystemError {
+                component: "world_gpu".to_string(),
+                error: "Failed to receive mapping result".to_string(),
+            })?
+            .map_err(|_| EngineError::BufferError {
+                operation: "physics_results".to_string(),
+                error: "Failed to map buffer for reading".to_string(),
+            })?;
         
         let data = buffer_slice.get_mapped_range();
         let results: Vec<QueryResult> = bytemuck::cast_slice(&data).to_vec();
@@ -376,6 +390,6 @@ impl HierarchicalPhysics {
         drop(data);
         staging_buffer.unmap();
         
-        results
+        Ok(results)
     }
 }

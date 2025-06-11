@@ -68,7 +68,8 @@ impl InstanceStreamer {
         let staging_ptr = staging_buffer.slice(..).get_mapped_range_mut().as_mut_ptr();
         
         Self {
-            buffers: buffers.try_into().unwrap(),
+            buffers: buffers.try_into()
+                .expect("Should have exactly 3 buffers"),
             staging_buffer,
             staging_ptr,
             staging_size: buffer_size as usize,
@@ -94,8 +95,10 @@ impl InstanceStreamer {
         }
         
         // Track dirty range
-        let mut dirty = self.dirty_ranges.lock().unwrap();
-        dirty.push(DirtyRange { offset, size });
+        match self.dirty_ranges.lock() {
+            Ok(mut dirty) => dirty.push(DirtyRange { offset, size }),
+            Err(e) => eprintln!("Failed to lock dirty ranges: {}", e),
+        }
     }
     
     /// Update multiple instances efficiently
@@ -116,15 +119,20 @@ impl InstanceStreamer {
         }
         
         // Track dirty range
-        let mut dirty = self.dirty_ranges.lock().unwrap();
-        dirty.push(DirtyRange { offset, size });
+        match self.dirty_ranges.lock() {
+            Ok(mut dirty) => dirty.push(DirtyRange { offset, size }),
+            Err(e) => eprintln!("Failed to lock dirty ranges: {}", e),
+        }
     }
     
     /// Flush updates to GPU (called once per frame)
     pub fn flush(&mut self, encoder: &mut wgpu::CommandEncoder) {
-        let dirty_ranges = {
-            let mut dirty = self.dirty_ranges.lock().unwrap();
-            std::mem::take(&mut *dirty)
+        let dirty_ranges = match self.dirty_ranges.lock() {
+            Ok(mut dirty) => std::mem::take(&mut *dirty),
+            Err(e) => {
+                eprintln!("Failed to lock dirty ranges: {}", e);
+                return;
+            }
         };
         
         if dirty_ranges.is_empty() {

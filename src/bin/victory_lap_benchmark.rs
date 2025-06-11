@@ -74,8 +74,8 @@ async fn run_benchmarks(config: EngineConfig) -> BenchmarkResults {
     let (device, queue) = adapter
         .request_device(&wgpu::DeviceDescriptor {
             label: Some("Victory Lap Device"),
-            features: wgpu::Features::empty(),
-            limits: wgpu::Limits::default(),
+            required_features: wgpu::Features::empty(),
+            required_limits: wgpu::Limits::default(),
         }, None)
         .await
         .expect("Failed to create device");
@@ -203,7 +203,7 @@ async fn run_benchmarks(config: EngineConfig) -> BenchmarkResults {
         if results.total_frames % 60 == 0 {
             print!(".");
             use std::io::Write;
-            std::io::stdout().flush().unwrap();
+            let _ = std::io::stdout().flush(); // Ignore flush errors
         }
     }
     

@@ -172,7 +172,9 @@ impl ParallelQueryExecutor {
                 .collect();
             
             // Sort by distance
-            candidates_with_distance.sort_by(|(_, dist_a, _), (_, dist_b, _)| dist_a.partial_cmp(dist_b).unwrap());
+            candidates_with_distance.sort_by(|(_, dist_a, _), (_, dist_b, _)| {
+                dist_a.partial_cmp(dist_b).unwrap_or(std::cmp::Ordering::Equal)
+            });
             
             // Take the k nearest
             results = candidates_with_distance

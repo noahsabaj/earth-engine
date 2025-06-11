@@ -5,6 +5,7 @@
 /// Part of Sprint 29: Mesh Optimization & Advanced LOD
 
 use crate::renderer::{Vertex, MeshLod};
+use crate::renderer::error::{RendererResult, RendererErrorContext};
 use std::sync::{Arc, Mutex};
 use tokio::sync::mpsc;
 use std::collections::HashMap;
@@ -94,7 +95,15 @@ impl ProgressiveStreamer {
     
     /// Handle single packet
     fn handle_packet(&self, packet: MeshPacket) {
-        let mut states = self.mesh_states.lock().unwrap();
+        let states_result = self.mesh_states.lock();
+        let mut states = match states_result {
+            Ok(guard) => guard,
+            Err(_) => {
+                // Mutex poisoned, log and skip this packet
+                eprintln!("Failed to lock mesh_states mutex");
+                return;
+            }
+        };
         
         // Create state if new chunk
         let state = states.entry(packet.chunk_id).or_insert_with(|| {

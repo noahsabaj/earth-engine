@@ -9,6 +9,7 @@
 /// - Seamless transitions between voxel and smooth rendering
 /// - LOD support with natural smoothing at distance
 
+pub mod error;
 pub mod sdf_data;
 pub mod sdf_generator;
 pub mod marching_cubes;

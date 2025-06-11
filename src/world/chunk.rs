@@ -116,7 +116,8 @@ impl Chunk {
             return BlockId::AIR;
         }
         let index = self.get_index(x, y, z);
-        self.blocks[index]
+        // Safety: index is guaranteed to be in bounds by get_index and the bounds check above
+        self.blocks.get(index).copied().unwrap_or(BlockId::AIR)
     }
     
     /// Get block using VoxelPos (assumes local coordinates)
@@ -130,8 +131,11 @@ impl Chunk {
             return;
         }
         let index = self.get_index(x, y, z);
-        self.blocks[index] = block;
-        self.dirty = true;
+        // Safety: index is guaranteed to be in bounds by get_index and the bounds check above
+        if let Some(block_ref) = self.blocks.get_mut(index) {
+            *block_ref = block;
+            self.dirty = true;
+        }
     }
     
     /// Set block using VoxelPos (assumes local coordinates)
@@ -169,6 +173,9 @@ impl Chunk {
     }
     
     fn get_index(&self, x: u32, y: u32, z: u32) -> usize {
+        debug_assert!(x < self.size && y < self.size && z < self.size,
+                     "get_index called with out-of-bounds coordinates: ({}, {}, {}) for size {}",
+                     x, y, z, self.size);
         (x + y * self.size + z * self.size * self.size) as usize
     }
     

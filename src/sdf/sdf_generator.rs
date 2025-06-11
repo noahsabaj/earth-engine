@@ -1,6 +1,7 @@
 use wgpu::{Device, ComputePipeline, BindGroup, BindGroupLayout};
 use crate::world_gpu::WorldBuffer;
 use crate::sdf::{SdfBuffer, SdfConstants};
+use crate::sdf::error::{SdfResult, SdfErrorContext};
 use std::sync::Arc;
 use bytemuck::{Pod, Zeroable};
 
@@ -84,7 +85,7 @@ impl SdfGenerator {
         world_buffer: &WorldBuffer,
         sdf_buffer: &SdfBuffer,
         params: &SdfGenerationParams,
-    ) {
+    ) -> SdfResult<()> {
         // Create bind group
         let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("SDF Generation Bind Group"),
@@ -93,7 +94,7 @@ impl SdfGenerator {
                 wgpu::BindGroupEntry {
                     binding: 0,
                     resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                        buffer: world_buffer.buffer.as_ref().unwrap(),
+                        buffer: world_buffer.voxel_buffer(),
                         offset: 0,
                         size: None,
                     }),
@@ -101,7 +102,7 @@ impl SdfGenerator {
                 wgpu::BindGroupEntry {
                     binding: 1,
                     resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                        buffer: sdf_buffer.buffer.as_ref().unwrap(),
+                        buffer: sdf_buffer.buffer.as_ref().sdf_context("sdf_buffer")?,
                         offset: 0,
                         size: None,
                     }),
@@ -177,6 +178,8 @@ impl SdfGenerator {
             let workgroups = calculate_workgroups(sdf_buffer.size);
             compute_pass.dispatch_workgroups(workgroups.0, workgroups.1, workgroups.2);
         }
+        
+        Ok(())
     }
     
     /// Update constants

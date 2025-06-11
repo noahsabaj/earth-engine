@@ -25,7 +25,7 @@ struct TransferRecord {
 }
 
 /// Type of memory transfer
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TransferType {
     /// CPU to GPU upload
     Upload,

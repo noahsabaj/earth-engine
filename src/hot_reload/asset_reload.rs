@@ -7,7 +7,7 @@ use super::{WatchEvent, WatchEventType, HotReloadResult, HotReloadErrorContext, 
 use crate::error::EngineError;
 
 /// Asset type
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum AssetType {
     Texture,
     Model,
@@ -232,6 +232,7 @@ impl AssetReloader {
                     data: AssetData::Config(content),
                     path: path.to_path_buf(),
                     last_modified: std::fs::metadata(path)
+                        .ok()
                         .and_then(|m| m.modified().ok())
                         .unwrap_or(std::time::SystemTime::now()),
                     callbacks: Vec::new(),
@@ -260,6 +261,7 @@ impl AssetReloader {
                     data: AssetData::Script(content),
                     path: path.to_path_buf(),
                     last_modified: std::fs::metadata(path)
+                        .ok()
                         .and_then(|m| m.modified().ok())
                         .unwrap_or(std::time::SystemTime::now()),
                     callbacks: Vec::new(),
@@ -282,7 +284,7 @@ impl AssetReloader {
                 
                 let asset_id = AssetId {
                     name: name.to_string(),
-                    asset_type,
+                    asset_type: asset_type.clone(),
                 };
                 
                 let asset_data = match asset_type {
@@ -295,6 +297,7 @@ impl AssetReloader {
                     data: asset_data,
                     path: path.to_path_buf(),
                     last_modified: std::fs::metadata(path)
+                        .ok()
                         .and_then(|m| m.modified().ok())
                         .unwrap_or(std::time::SystemTime::now()),
                     callbacks: Vec::new(),
@@ -502,8 +505,7 @@ impl AssetReloader {
             .hot_reload_context("asset_cache")?;
         if let Some(cached) = cache.get(asset_id) {
             let callbacks = self.callbacks.read()
-                .hot_reload_context("callbacks")?
-                .clone();
+                .hot_reload_context("callbacks")?;
             
             for callback_name in callback_names {
                 if let Some(callback) = callbacks.get(callback_name) {

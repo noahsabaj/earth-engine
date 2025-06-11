@@ -10,6 +10,7 @@
 /// - Atomic operations for world modifications
 /// - Zero-copy architecture between generation and rendering
 
+pub mod error;
 pub mod world_buffer;
 pub mod terrain_generator;
 pub mod chunk_modifier;

@@ -210,7 +210,7 @@ impl SdfLod {
         &mut self,
         encoder: &mut wgpu::CommandEncoder,
         chunk: &mut SdfChunk,
-    ) -> Vec<(LodLevel, Buffer, Buffer, u32, u32)> {
+    ) -> Vec<(LodLevel, Arc<Buffer>, Arc<Buffer>, u32, u32)> {
         let mut lods = Vec::new();
         
         for level in [LodLevel::High, LodLevel::Medium, LodLevel::Low, LodLevel::VeryLow] {

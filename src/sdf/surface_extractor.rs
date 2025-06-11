@@ -6,10 +6,10 @@ use bytemuck::{Pod, Zeroable};
 /// Surface mesh data
 pub struct SurfaceMesh {
     /// Vertex buffer
-    pub vertices: Buffer,
+    pub vertices: Arc<Buffer>,
     
     /// Index buffer  
-    pub indices: Buffer,
+    pub indices: Arc<Buffer>,
     
     /// Number of vertices
     pub vertex_count: u32,
@@ -124,7 +124,7 @@ impl SurfaceExtractor {
             &vertex_buffer,
             &index_buffer,
             params.threshold,
-        );
+        ).ok()?;
         
         // Apply smoothing iterations
         for _ in 0..params.smooth_iterations {
@@ -152,16 +152,19 @@ impl SurfaceExtractor {
             bounds_min[2] + chunk.sdf_buffer.size.2 as f32,
         ];
         
+        let vertex_buffer_arc = Arc::new(vertex_buffer);
+        let index_buffer_arc = Arc::new(index_buffer);
+        
         // Cache mesh in chunk
-        chunk.mesh_vertices = Some(vertex_buffer.clone());
-        chunk.mesh_indices = Some(index_buffer.clone());
+        chunk.mesh_vertices = Some(vertex_buffer_arc.clone());
+        chunk.mesh_indices = Some(index_buffer_arc.clone());
         chunk.vertex_count = vertex_count;
         chunk.index_count = index_count;
         chunk.dirty = false;
         
         Some(SurfaceMesh {
-            vertices: vertex_buffer,
-            indices: index_buffer,
+            vertices: vertex_buffer_arc,
+            indices: index_buffer_arc,
             vertex_count,
             index_count,
             bounds_min,

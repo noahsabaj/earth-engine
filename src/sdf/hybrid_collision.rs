@@ -2,6 +2,7 @@ use crate::sdf::{SdfBuffer, SdfValue};
 use crate::world_gpu::WorldBuffer;
 use crate::physics::AABB;
 use glam::{Vec3, Mat4};
+use cgmath::Point3;
 use std::sync::Arc;
 use wgpu::Device;
 
@@ -123,8 +124,8 @@ impl HybridCollider {
                 for x in min_voxel.x..=max_voxel.x {
                     let voxel_center = Vec3::new(x as f32 + 0.5, y as f32 + 0.5, z as f32 + 0.5);
                     let voxel_aabb = AABB {
-                        min: Vec3::new(x as f32, y as f32, z as f32),
-                        max: Vec3::new((x + 1) as f32, (y + 1) as f32, (z + 1) as f32),
+                        min: Point3::new(x as f32, y as f32, z as f32),
+                        max: Point3::new((x + 1) as f32, (y + 1) as f32, (z + 1) as f32),
                     };
                     
                     // Check if voxel exists (simplified - would query world_buffer)

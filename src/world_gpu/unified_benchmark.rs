@@ -165,10 +165,7 @@ impl UnifiedKernelBenchmark {
                     terrain_gen.generate_chunk(
                         &mut encoder,
                         world_buffer,
-                        &super::TerrainParams::default(),
-                        chunk_pos.x,
-                        chunk_pos.y,
-                        chunk_pos.z,
+                        *chunk_pos,
                     );
                     total_dispatches += 1;
                 }

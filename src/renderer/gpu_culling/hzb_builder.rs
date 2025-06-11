@@ -248,13 +248,13 @@ impl HierarchicalZBuffer {
     }
     
     /// Perform occlusion culling using HZB
-    pub fn cull_occlusion(
+    pub fn cull_occlusion<'a>(
         &self,
         encoder: &mut wgpu::CommandEncoder,
         camera: &super::GpuCamera,
         chunk_instances: &wgpu::Buffer,
-        visible_from_frustum: &wgpu::Buffer,
-    ) -> &wgpu::Buffer {
+        visible_from_frustum: &'a wgpu::Buffer,
+    ) -> &'a wgpu::Buffer {
         // Implementation would perform occlusion culling
         // For now, return the input buffer
         visible_from_frustum

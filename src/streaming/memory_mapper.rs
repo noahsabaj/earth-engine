@@ -17,7 +17,7 @@ pub struct MemorySegment {
     pub size: u64,
     
     /// Associated GPU buffer (if uploaded)
-    pub gpu_buffer: Option<Buffer>,
+    pub gpu_buffer: Option<Arc<Buffer>>,
     
     /// Reference count for this segment
     pub ref_count: u32,
@@ -93,6 +93,12 @@ impl MemoryMapper {
         let segment_size = (PAGE_SIZE_BYTES * 16).min(self.max_mapped_memory / 4);
         let aligned_offset = (page_entry.disk_offset / segment_size) * segment_size;
         
+        // SAFETY: Memory mapping is safe because:
+        // - world_file is a valid file handle opened with read/write permissions
+        // - aligned_offset is aligned to page boundaries (guaranteed by calculation)
+        // - segment_size is within file bounds (we resize file as needed)
+        // - The mmap is wrapped in Arc for shared ownership
+        // - Multiple readers are safe, writers need external synchronization
         let mmap = unsafe {
             MmapOptions::new()
                 .offset(aligned_offset)
@@ -119,7 +125,7 @@ impl MemoryMapper {
     pub fn upload_to_gpu(
         &mut self,
         page_entry: &PageTableEntry,
-    ) -> Option<Buffer> {
+    ) -> Option<Arc<Buffer>> {
         // Find the segment
         let segment = self.segments.iter_mut().find(|s| {
             s.file_offset <= page_entry.disk_offset &&
@@ -135,7 +141,7 @@ impl MemoryMapper {
                 mapped_at_creation: false,
             });
             
-            segment.gpu_buffer = Some(buffer);
+            segment.gpu_buffer = Some(Arc::new(buffer));
         }
         
         let gpu_buffer = segment.gpu_buffer.as_ref()?;
@@ -228,16 +234,16 @@ impl StagingBufferPool {
     /// Get an available staging buffer
     pub fn acquire(&mut self, device: &Device, size: u64) -> Option<&mut Buffer> {
         // Find available buffer of sufficient size
-        for buffer in &mut self.buffers {
-            if !buffer.in_use && buffer.size >= size {
-                buffer.in_use = true;
-                return Some(&mut buffer.buffer);
+        for i in 0..self.buffers.len() {
+            if !self.buffers[i].in_use && self.buffers[i].size >= size {
+                self.buffers[i].in_use = true;
+                return Some(&mut self.buffers[i].buffer);
             }
         }
         
         // Allocate new buffer if under limit
         if self.buffers.len() < self.max_buffers {
-            self.buffers.push(StagingBuffer {
+            let new_buffer = StagingBuffer {
                 buffer: device.create_buffer(&wgpu::BufferDescriptor {
                     label: Some("Staging Buffer"),
                     size,
@@ -246,9 +252,10 @@ impl StagingBufferPool {
                 }),
                 size,
                 in_use: true,
-            });
-            
-            return self.buffers.last_mut().map(|b| &mut b.buffer);
+            };
+            self.buffers.push(new_buffer);
+            let idx = self.buffers.len() - 1;
+            return Some(&mut self.buffers[idx].buffer);
         }
         
         None

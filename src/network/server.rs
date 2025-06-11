@@ -288,10 +288,12 @@ impl Server {
         
         loop {
             // Check if we should stop
-            let should_continue = self.running.lock()
-                .network_context("running_flag")?;
-            if !*should_continue {
-                break;
+            {
+                let should_continue = self.running.lock()
+                    .network_context("running_flag")?;
+                if !*should_continue {
+                    break;
+                }
             }
             let now = Instant::now();
             let delta = now.duration_since(last_tick);

@@ -51,7 +51,8 @@ impl ChunkLightData {
         }
         
         let data = self.light_data.read();
-        let packed = data[self.index(x, y, z)];
+        let idx = self.index(x, y, z);
+        let packed = data.get(idx).copied().unwrap_or(0);
         LightLevel {
             sky: (packed >> 4) & 0x0F,
             block: packed & 0x0F,
@@ -70,14 +71,16 @@ impl ChunkLightData {
         let idx = self.index(x, y, z);
         let mut data = self.light_data.write();
         
-        match light_type {
-            LightType::Sky => {
-                let block_light = data[idx] & 0x0F;
-                data[idx] = ((level.min(15) & 0x0F) << 4) | block_light;
-            }
-            LightType::Block => {
-                let sky_light = data[idx] & 0xF0;
-                data[idx] = sky_light | (level.min(15) & 0x0F);
+        if let Some(light_byte) = data.get_mut(idx) {
+            match light_type {
+                LightType::Sky => {
+                    let block_light = *light_byte & 0x0F;
+                    *light_byte = ((level.min(15) & 0x0F) << 4) | block_light;
+                }
+                LightType::Block => {
+                    let sky_light = *light_byte & 0xF0;
+                    *light_byte = sky_light | (level.min(15) & 0x0F);
+                }
             }
         }
     }

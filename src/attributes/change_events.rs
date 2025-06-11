@@ -48,7 +48,7 @@ pub struct AttributeEvent {
     pub new_value: Option<AttributeValue>,
     
     /// Event timestamp
-    #[serde(skip)]
+    #[serde(skip, default = "std::time::Instant::now")]
     pub timestamp: std::time::Instant,
 }
 

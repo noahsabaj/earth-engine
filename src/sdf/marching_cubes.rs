@@ -1,5 +1,6 @@
 use wgpu::{Device, ComputePipeline, BindGroup, BindGroupLayout, Buffer};
 use crate::sdf::{SdfBuffer, SmoothVertex};
+use crate::sdf::error::{SdfResult, SdfErrorContext};
 use std::sync::Arc;
 use bytemuck::{Pod, Zeroable};
 
@@ -113,7 +114,7 @@ impl MarchingCubes {
         vertex_buffer: &Buffer,
         index_buffer: &Buffer,
         threshold: f32,
-    ) -> (u32, u32) {
+    ) -> SdfResult<(u32, u32)> {
         // Allocate intermediate buffers if needed
         self.ensure_buffers(sdf_buffer.size);
         
@@ -125,7 +126,7 @@ impl MarchingCubes {
                 wgpu::BindGroupEntry {
                     binding: 0,
                     resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                        buffer: sdf_buffer.buffer.as_ref().unwrap(),
+                        buffer: sdf_buffer.buffer.as_ref().sdf_context("sdf_buffer")?,
                         offset: 0,
                         size: None,
                     }),
@@ -133,7 +134,7 @@ impl MarchingCubes {
                 wgpu::BindGroupEntry {
                     binding: 1,
                     resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                        buffer: self.cell_types.as_ref().unwrap(),
+                        buffer: self.cell_types.as_ref().sdf_context("cell_types_buffer")?,
                         offset: 0,
                         size: None,
                     }),
@@ -224,7 +225,7 @@ impl MarchingCubes {
         let max_vertices = (sdf_buffer.size.0 * sdf_buffer.size.1 * sdf_buffer.size.2) * 3;
         let max_indices = max_vertices * 3;
         
-        (max_vertices, max_indices)
+        Ok((max_vertices, max_indices))
     }
     
     /// Ensure intermediate buffers are allocated

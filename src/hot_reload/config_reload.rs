@@ -177,6 +177,7 @@ impl ConfigReloader {
             data: data.clone(),
             raw,
             last_modified: std::fs::metadata(path)
+                .ok()
                 .and_then(|m| m.modified().ok())
                 .unwrap_or(std::time::SystemTime::now()),
             callbacks: Vec::new(),
@@ -505,7 +506,7 @@ impl ConfigBuilder {
     }
     
     /// Build config reloader
-    pub fn build(self) -> Result<ConfigReloader, ConfigError> {
+    pub fn build(self) -> HotReloadResult<ConfigReloader> {
         let reloader = ConfigReloader::new();
         
         // Set defaults

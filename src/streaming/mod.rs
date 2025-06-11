@@ -1,6 +1,7 @@
 // Data-oriented world streaming system
 // Pure data structures for planet-scale voxel worlds
 
+pub mod error;
 pub mod page_table;
 pub mod morton_page_table;
 pub mod memory_mapper;

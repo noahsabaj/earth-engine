@@ -72,27 +72,47 @@ When finishing a sprint:
 - **Regular Reviews** - Check for stale info, consolidation opportunities
 - **Honest Metrics** - Real percentages, not optimistic guesses
 
-### 2. Git Workflow (ALWAYS)
+### 2. Git Workflow (MANDATORY AFTER EVERY WORK SESSION)
+
+**CRITICAL**: You MUST commit, merge to main, and push after EVERY work session. No exceptions.
+
 ```bash
-# 1. Create feature branch
-git checkout -b feature/description
+# 1. Check current status and branch
+git status
+git branch
 
-# 2. Make changes, commit with descriptive messages
+# 2. If not on a feature branch, create one
+git checkout -b feature/sprint-35-1-emergency  # Example name
+
+# 3. Stage ALL changes
 git add -A
-git commit -m "feat: implement thermal dynamics on GPU"
 
-# 3. Push branch
-git push -u origin feature/description
+# 4. Commit with descriptive message
+git commit -m "feat(sprint-35.1): replace all unwrap() calls, add bounds checking, document unsafe blocks"
 
-# 4. Create PR, merge to main
-gh pr create --title "Add thermal dynamics" --body "..."
-gh pr merge
-
-# 5. Update main and clean up
+# 5. Switch to main and merge
 git checkout main
-git pull
-git branch -d feature/description
+git merge feature/sprint-35-1-emergency
+
+# 6. Push to remote (THIS IS MANDATORY)
+git push origin main
+
+# 7. Clean up feature branch
+git branch -d feature/sprint-35-1-emergency
 ```
+
+**IMPORTANT REMINDERS**:
+- ALWAYS push to main after completing work
+- NEVER leave work uncommitted
+- Use descriptive commit messages that explain WHAT changed
+- If you fixed compilation errors, say so in the commit
+- If you completed a sprint, mention it in the commit message
+
+**Example commit messages**:
+- `feat(sprint-35.1): complete emergency stability sprint - zero unwrap() calls`
+- `fix: resolve 330 compilation errors in error handling refactor`
+- `docs: update CURRENT.md with sprint completion status`
+- `refactor: add bounds checking to prevent array access panics`
 
 ### 3. Terminal Safety (IMPORTANT)
 Never run commands that block the terminal:

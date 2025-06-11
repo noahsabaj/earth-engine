@@ -277,7 +277,7 @@ impl DualRepresentation {
         let mut stats = MemoryStats::default();
         
         // Voxel memory (estimated)
-        stats.voxel_memory = self.world_buffer.size_bytes();
+        stats.voxel_memory = self.world_buffer.buffer_size();
         
         // SDF memory
         for chunk in self.sdf_chunks.values() {
@@ -314,8 +314,8 @@ pub enum RenderModeData {
     
     /// Smooth mesh rendering
     Smooth {
-        vertices: Option<Buffer>,
-        indices: Option<Buffer>,
+        vertices: Option<Arc<Buffer>>,
+        indices: Option<Arc<Buffer>>,
         vertex_count: u32,
         index_count: u32,
     },

@@ -100,6 +100,7 @@ impl ShaderReloader {
             module: module.clone(),
             source: processed_source,
             last_modified: std::fs::metadata(path)
+                .ok()
                 .and_then(|m| m.modified().ok())
                 .unwrap_or(std::time::SystemTime::now()),
             dependents: Vec::new(),

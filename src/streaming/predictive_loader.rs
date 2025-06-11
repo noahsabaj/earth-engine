@@ -1,4 +1,5 @@
 use crate::streaming::{PageTable, PAGE_SIZE};
+use crate::streaming::error::{StreamingResult, StreamingErrorContext};
 use std::collections::VecDeque;
 
 /// Access pattern tracking for predictive loading
@@ -32,7 +33,7 @@ impl AccessPattern {
     }
     
     /// Update pattern with new position
-    pub fn update(&mut self, position: (f32, f32, f32), timestamp: f64) {
+    pub fn update(&mut self, position: (f32, f32, f32), timestamp: f64) -> StreamingResult<()> {
         // Add new position
         self.positions.push_back(position);
         self.timestamps.push_back(timestamp);
@@ -45,10 +46,11 @@ impl AccessPattern {
         
         // Calculate velocity and acceleration
         if self.positions.len() >= 2 {
-            let dt = self.timestamps.back().unwrap() - self.timestamps[self.timestamps.len() - 2];
+            let curr_time = self.timestamps.back().streaming_context("current_timestamp")?;
+            let dt = curr_time - self.timestamps[self.timestamps.len() - 2];
             if dt > 0.0 {
                 let prev_pos = self.positions[self.positions.len() - 2];
-                let curr_pos = self.positions.back().unwrap();
+                let curr_pos = self.positions.back().streaming_context("current_position")?;
                 
                 let new_velocity = (
                     (curr_pos.0 - prev_pos.0) / dt as f32,
@@ -71,6 +73,8 @@ impl AccessPattern {
                              new_velocity.2 * new_velocity.2).sqrt();
             }
         }
+        
+        Ok(())
     }
 }
 
@@ -128,7 +132,7 @@ impl PredictiveLoader {
         }
         
         // Update access pattern
-        self.player_patterns[player_id].update(position, timestamp);
+        let _ = self.player_patterns[player_id].update(position, timestamp);
         
         // Clear old load requests
         self.load_queue.clear();
@@ -152,7 +156,7 @@ impl PredictiveLoader {
         }
         
         // Sort by priority (highest first)
-        self.load_queue.sort_by(|a, b| b.priority.partial_cmp(&a.priority).unwrap());
+        self.load_queue.sort_by(|a, b| b.priority.partial_cmp(&a.priority).unwrap_or(std::cmp::Ordering::Equal));
     }
     
     /// Predict future positions based on velocity and acceleration

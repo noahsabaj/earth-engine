@@ -9,19 +9,11 @@ use crate::error::{EngineError, EngineResult};
 pub type NetworkResult<T> = EngineResult<T>;
 
 /// Helper trait for network-specific error contexts
-pub trait NetworkErrorContext {
-    fn network_context(self, context: &str) -> NetworkResult<Self>
-    where
-        Self: Sized;
+pub trait NetworkErrorContext<T> {
+    fn network_context(self, context: &str) -> NetworkResult<T>;
 }
 
-impl<T> NetworkErrorContext for T {
-    fn network_context(self, context: &str) -> NetworkResult<Self> {
-        Ok(self)
-    }
-}
-
-impl<T, E> NetworkErrorContext for Result<T, E>
+impl<T, E> NetworkErrorContext<T> for Result<T, E>
 where
     E: Into<EngineError>,
 {

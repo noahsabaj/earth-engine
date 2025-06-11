@@ -20,45 +20,45 @@ pub struct WorldState {
     
     /// === Voxel Data ===
     /// Main world buffer from Sprint 21
-    pub world_buffer: Buffer,
-    pub chunk_metadata: Buffer,
+    pub world_buffer: Arc<Buffer>,
+    pub chunk_metadata: Arc<Buffer>,
     
     /// === Entity Data ===
     /// All entities stored in SoA layout
-    pub entity_positions: Buffer,
-    pub entity_velocities: Buffer,
-    pub entity_attributes: Buffer,
-    pub entity_metadata: Buffer,
+    pub entity_positions: Arc<Buffer>,
+    pub entity_velocities: Arc<Buffer>,
+    pub entity_attributes: Arc<Buffer>,
+    pub entity_metadata: Arc<Buffer>,
     
     /// === Physics Data ===
     /// Physics bodies and collision data
-    pub physics_bodies: Buffer,
-    pub collision_pairs: Buffer,
-    pub spatial_hash: Buffer,
+    pub physics_bodies: Arc<Buffer>,
+    pub collision_pairs: Arc<Buffer>,
+    pub spatial_hash: Arc<Buffer>,
     
     /// === Rendering Data ===
     /// Mesh and instance data
-    pub mesh_vertices: Buffer,
-    pub mesh_indices: Buffer,
-    pub instance_transforms: Buffer,
-    pub draw_commands: Buffer,
+    pub mesh_vertices: Arc<Buffer>,
+    pub mesh_indices: Arc<Buffer>,
+    pub instance_transforms: Arc<Buffer>,
+    pub draw_commands: Arc<Buffer>,
     
     /// === Fluid Data ===
     /// Fluid simulation state
-    pub fluid_cells: Buffer,
-    pub fluid_pressure: Buffer,
-    pub fluid_velocity: Buffer,
+    pub fluid_cells: Arc<Buffer>,
+    pub fluid_pressure: Arc<Buffer>,
+    pub fluid_velocity: Arc<Buffer>,
     
     /// === Lighting Data ===
     /// Light propagation data
-    pub light_sources: Buffer,
-    pub light_values: Buffer,
-    pub ao_values: Buffer,
+    pub light_sources: Arc<Buffer>,
+    pub light_values: Arc<Buffer>,
+    pub ao_values: Arc<Buffer>,
     
     /// === Network Data ===
     /// Packet buffers for GPU networking
-    pub outgoing_packets: Buffer,
-    pub incoming_packets: Buffer,
+    pub outgoing_packets: Arc<Buffer>,
+    pub incoming_packets: Arc<Buffer>,
     
     /// === Metadata ===
     pub frame_number: u64,
@@ -97,141 +97,141 @@ pub struct FrameParams {
 /// Pure functional world operations
 pub mod operations {
     use super::*;
-    use crate::memory::MemoryManager;
+    use crate::memory::{MemoryManager, MemoryResult};
     
     /// Initialize world state with all buffers
     pub fn init_world_state(
         device: Arc<Device>,
         config: &WorldConfig,
         memory_manager: &mut MemoryManager,
-    ) -> WorldState {
+    ) -> MemoryResult<WorldState> {
         // Calculate buffer sizes
         let voxels_per_chunk = config.chunk_size * config.chunk_size * config.chunk_size;
         let world_buffer_size = (config.max_chunks * voxels_per_chunk * 4) as u64;
         let entity_buffer_size = (config.max_entities * 64) as u64; // 64 bytes per entity component
         
         // Allocate all buffers through memory manager
-        WorldState {
+        Ok(WorldState {
             device: device.clone(),
             
             // Voxel data
             world_buffer: memory_manager.alloc_buffer(
                 world_buffer_size,
                 wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-            ).buffer().clone(),
+            )?.buffer_arc(),
             
             chunk_metadata: memory_manager.alloc_buffer(
                 (config.max_chunks * 64) as u64,
                 wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-            ).buffer().clone(),
+            )?.buffer_arc(),
             
             // Entity data
             entity_positions: memory_manager.alloc_buffer(
                 entity_buffer_size,
                 wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::VERTEX,
-            ).buffer().clone(),
+            )?.buffer_arc(),
             
             entity_velocities: memory_manager.alloc_buffer(
                 entity_buffer_size,
                 wgpu::BufferUsages::STORAGE,
-            ).buffer().clone(),
+            )?.buffer_arc(),
             
             entity_attributes: memory_manager.alloc_buffer(
                 entity_buffer_size * 4, // More space for attributes
                 wgpu::BufferUsages::STORAGE,
-            ).buffer().clone(),
+            )?.buffer_arc(),
             
             entity_metadata: memory_manager.alloc_buffer(
                 entity_buffer_size,
                 wgpu::BufferUsages::STORAGE,
-            ).buffer().clone(),
+            )?.buffer_arc(),
             
             // Physics data
             physics_bodies: memory_manager.alloc_buffer(
                 entity_buffer_size * 2,
                 wgpu::BufferUsages::STORAGE,
-            ).buffer().clone(),
+            )?.buffer_arc(),
             
             collision_pairs: memory_manager.alloc_buffer(
                 1024 * 1024, // 1MB for collision pairs
                 wgpu::BufferUsages::STORAGE,
-            ).buffer().clone(),
+            )?.buffer_arc(),
             
             spatial_hash: memory_manager.alloc_buffer(
                 4 * 1024 * 1024, // 4MB spatial hash
                 wgpu::BufferUsages::STORAGE,
-            ).buffer().clone(),
+            )?.buffer_arc(),
             
             // Rendering data
             mesh_vertices: memory_manager.alloc_buffer(
                 64 * 1024 * 1024, // 64MB vertex buffer
                 wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-            ).buffer().clone(),
+            )?.buffer_arc(),
             
             mesh_indices: memory_manager.alloc_buffer(
                 32 * 1024 * 1024, // 32MB index buffer
                 wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
-            ).buffer().clone(),
+            )?.buffer_arc(),
             
             instance_transforms: memory_manager.alloc_buffer(
                 entity_buffer_size,
                 wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::STORAGE,
-            ).buffer().clone(),
+            )?.buffer_arc(),
             
             draw_commands: memory_manager.alloc_buffer(
                 1024 * 1024, // 1MB for indirect draw commands
                 wgpu::BufferUsages::INDIRECT | wgpu::BufferUsages::STORAGE,
-            ).buffer().clone(),
+            )?.buffer_arc(),
             
             // Fluid data
             fluid_cells: memory_manager.alloc_buffer(
                 8 * 1024 * 1024, // 8MB for fluid cells
                 wgpu::BufferUsages::STORAGE,
-            ).buffer().clone(),
+            )?.buffer_arc(),
             
             fluid_pressure: memory_manager.alloc_buffer(
                 4 * 1024 * 1024,
                 wgpu::BufferUsages::STORAGE,
-            ).buffer().clone(),
+            )?.buffer_arc(),
             
             fluid_velocity: memory_manager.alloc_buffer(
                 8 * 1024 * 1024,
                 wgpu::BufferUsages::STORAGE,
-            ).buffer().clone(),
+            )?.buffer_arc(),
             
             // Lighting data
             light_sources: memory_manager.alloc_buffer(
                 256 * 1024, // 256KB for light sources
                 wgpu::BufferUsages::STORAGE,
-            ).buffer().clone(),
+            )?.buffer_arc(),
             
             light_values: memory_manager.alloc_buffer(
                 world_buffer_size / 4, // 1 byte per voxel
                 wgpu::BufferUsages::STORAGE,
-            ).buffer().clone(),
+            )?.buffer_arc(),
             
             ao_values: memory_manager.alloc_buffer(
                 world_buffer_size / 4,
                 wgpu::BufferUsages::STORAGE,
-            ).buffer().clone(),
+            )?.buffer_arc(),
             
             // Network data
             outgoing_packets: memory_manager.alloc_buffer(
                 1024 * 1024, // 1MB packet buffer
                 wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
-            ).buffer().clone(),
+            )?.buffer_arc(),
             
             incoming_packets: memory_manager.alloc_buffer(
                 1024 * 1024,
                 wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-            ).buffer().clone(),
+            )?.buffer_arc(),
             
             // Initial metadata
             frame_number: 0,
             delta_time_ms: 16,
             active_chunks: 0,
             entity_count: 0,
-        }
+        })
     }
     
     /// Update world state for a frame (GPU dispatch)

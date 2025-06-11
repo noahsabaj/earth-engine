@@ -62,6 +62,15 @@ pub enum EngineError {
     AssetWatchError { path: String, error: String },
     ShaderReloadFailed { name: String, error: String },
     
+    // System Errors (continued)
+    SystemError { component: String, error: String },
+    BufferError { operation: String, error: String },
+    StateError { expected: String, actual: String },
+    ResourceNotFound { resource_type: String, id: String },
+    GpuOperationFailed { operation: String, error: String },
+    SerializationError { context: String, error: String },
+    DeserializationError { context: String, error: String },
+    
     // Generic fallback for unexpected errors
     Internal { message: String },
 }
@@ -143,6 +152,21 @@ impl fmt::Display for EngineError {
             EngineError::ShaderReloadFailed { name, error } => 
                 write!(f, "Shader reload failed for {}: {}", name, error),
             
+            EngineError::SystemError { component, error } => 
+                write!(f, "System error in {}: {}", component, error),
+            EngineError::BufferError { operation, error } => 
+                write!(f, "Buffer error during {}: {}", operation, error),
+            EngineError::StateError { expected, actual } => 
+                write!(f, "State error: expected {}, actual {}", expected, actual),
+            EngineError::ResourceNotFound { resource_type, id } => 
+                write!(f, "Resource not found: {} '{}'", resource_type, id),
+            EngineError::GpuOperationFailed { operation, error } => 
+                write!(f, "GPU operation '{}' failed: {}", operation, error),
+            EngineError::SerializationError { context, error } => 
+                write!(f, "Serialization error in {}: {}", context, error),
+            EngineError::DeserializationError { context, error } => 
+                write!(f, "Deserialization error in {}: {}", context, error),
+            
             EngineError::Internal { message } => 
                 write!(f, "Internal error: {}", message),
         }
@@ -209,6 +233,45 @@ impl From<std::sync::mpsc::RecvError> for EngineError {
     fn from(_: std::sync::mpsc::RecvError) -> Self {
         EngineError::ChannelClosed {
             name: "mpsc".to_string(),
+        }
+    }
+}
+
+impl From<crate::persistence::PersistenceError> for EngineError {
+    fn from(err: crate::persistence::PersistenceError) -> Self {
+        use crate::persistence::PersistenceError;
+        match err {
+            PersistenceError::IoError(e) => EngineError::IoError {
+                path: String::new(),
+                error: e.to_string(),
+            },
+            PersistenceError::SerializationError(e) => EngineError::SerializationError {
+                context: "persistence".to_string(),
+                error: e,
+            },
+            PersistenceError::DeserializationError(e) => EngineError::DeserializationError {
+                context: "persistence".to_string(),
+                error: e,
+            },
+            PersistenceError::CompressionError(e) => EngineError::Internal {
+                message: format!("Compression error: {}", e),
+            },
+            PersistenceError::VersionMismatch { expected, found } => EngineError::VersionMismatch {
+                expected,
+                found,
+            },
+            PersistenceError::CorruptedData(e) => EngineError::CorruptedData {
+                reason: e,
+            },
+            PersistenceError::MigrationError(e) => EngineError::Internal {
+                message: format!("Migration error: {}", e),
+            },
+            PersistenceError::BackupError(e) => EngineError::Internal {
+                message: format!("Backup error: {}", e),
+            },
+            PersistenceError::LockPoisoned(e) => EngineError::LockPoisoned {
+                resource: e,
+            },
         }
     }
 }

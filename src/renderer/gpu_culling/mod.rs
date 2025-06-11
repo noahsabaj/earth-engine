@@ -6,6 +6,7 @@
 use wgpu::{Device, Queue, Buffer, BindGroup, ComputePipeline};
 use cgmath::{Matrix4, Vector3, Vector4, SquareMatrix};
 use bytemuck::{Pod, Zeroable};
+use crate::renderer::error::{RendererResult, RendererErrorContext, buffer_mapping_error};
 
 pub mod frustum_culler;
 pub mod hzb_builder;
@@ -231,7 +232,7 @@ impl GpuCullingSystem {
     }
     
     /// Read back culling statistics
-    pub async fn read_stats(&self, device: &Device, queue: &Queue) -> CullingStats {
+    pub async fn read_stats(&self, device: &Device, queue: &Queue) -> RendererResult<CullingStats> {
         // Copy stats to readback buffer
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("Stats Readback"),
@@ -251,18 +252,22 @@ impl GpuCullingSystem {
         let buffer_slice = self.stats_readback.slice(..);
         let (sender, receiver) = flume::bounded(1);
         buffer_slice.map_async(wgpu::MapMode::Read, move |result| {
-            sender.send(result).unwrap();
+            let _ = sender.send(result);
         });
         
         device.poll(wgpu::Maintain::Wait);
-        receiver.recv_async().await.unwrap().unwrap();
+        receiver.recv_async().await
+            .map_err(|_| buffer_mapping_error("culling stats"))
+            .renderer_context("recv_async")?
+            .map_err(|_| buffer_mapping_error("culling stats"))
+            .renderer_context("map_async")?;
         
         let data = buffer_slice.get_mapped_range();
         let stats = bytemuck::from_bytes::<CullingStats>(&data).clone();
         drop(data);
         self.stats_readback.unmap();
         
-        stats
+        Ok(stats)
     }
 }
 

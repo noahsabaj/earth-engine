@@ -56,11 +56,18 @@ impl StreamingWorldBuffer {
         let world_buffer = WorldBuffer::new(&device, &buffer_desc);
         
         // Create streaming pipeline
+        let page_table_clone = page_table.try_read()
+            .map_err(|_| std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "Failed to acquire read lock on page table"
+            ))?
+            .clone();
+        
         let pipeline = StreamPipeline::new(
             &world_path,
             device.clone(),
             queue.clone(),
-            page_table.try_read().unwrap().clone(),
+            page_table_clone,
             max_gpu_memory,
         )?;
         

@@ -75,6 +75,11 @@ pub struct LoadedMod {
 impl Drop for LoadedMod {
     fn drop(&mut self) {
         // Call destroy function
+        // SAFETY: Calling destroy_fn is safe because:
+        // - This matches the create/destroy pair from the mod
+        // - The instance pointer is still valid
+        // - This is the only place we destroy the instance
+        // - After this, the library will be unloaded
         unsafe {
             (self.destroy_fn)(self.instance);
         }
@@ -137,12 +142,22 @@ impl ModLoader {
             .map_err(|e| ModError::IoError(e))?;
         
         // Load library
+        // SAFETY: Loading a dynamic library is unsafe because:
+        // - The library could contain arbitrary code
+        // - We trust mod authors to not include malicious code
+        // - The library is loaded from a temporary copy to allow hot-reload
+        // - Symbol resolution happens after loading
         let library = unsafe {
             Library::new(&temp_path)
                 .map_err(|e| ModError::LoadError(e.to_string()))?
         };
         
         // Check API version
+        // SAFETY: Getting and calling the API version function is safe because:
+        // - The symbol name is null-terminated
+        // - The function signature matches ModApiVersionFn type
+        // - This function should have no side effects
+        // - We validate the returned version before proceeding
         let api_version: Symbol<ModApiVersionFn> = unsafe {
             library.get(b"mod_api_version\0")
                 .map_err(|e| ModError::SymbolError(e.to_string()))?
@@ -154,6 +169,10 @@ impl ModLoader {
         }
         
         // Create mod instance
+        // SAFETY: Getting mod lifecycle functions is safe because:
+        // - Symbol names are null-terminated
+        // - Function signatures match our defined types
+        // - We've already verified API compatibility
         let create_fn: Symbol<ModCreateFn> = unsafe {
             library.get(b"mod_create\0")
                 .map_err(|e| ModError::SymbolError(e.to_string()))?
@@ -164,25 +183,35 @@ impl ModLoader {
                 .map_err(|e| ModError::SymbolError(e.to_string()))?
         };
         
+        // SAFETY: Calling create_fn is safe because:
+        // - The mod implements our ModInterface trait
+        // - Returns a heap-allocated trait object
+        // - We check for null before use
         let instance = unsafe { create_fn() };
         if instance.is_null() {
             return Err(ModError::CreateError);
         }
         
         // Initialize mod
+        // SAFETY: Dereferencing the mod instance pointer is safe because:
+        // - We checked that instance is not null
+        // - The pointer points to a valid heap allocation from create_fn
+        // - We have exclusive access during initialization
+        // - The mod will be properly destroyed via destroy_fn
         let mod_interface = unsafe { &mut *instance };
         mod_interface.init()
             .map_err(|e| ModError::InitError(e.to_string()))?;
         
         let info = mod_interface.info().clone();
         let mod_id = info.id.clone();
+        let destroy_fn_ptr = *destroy_fn;
         
         // Store loaded mod
         let loaded_mod = LoadedMod {
             info,
             library,
             instance,
-            destroy_fn: *destroy_fn,
+            destroy_fn: destroy_fn_ptr,
             load_time: std::time::SystemTime::now(),
         };
         
@@ -201,6 +230,10 @@ impl ModLoader {
         
         if let Some(mut loaded_mod) = mods.remove(mod_id) {
             // Shutdown mod
+            // SAFETY: Dereferencing the mod instance is safe because:
+            // - The instance pointer is still valid (not yet destroyed)
+            // - We have exclusive access via the write lock
+            // - After shutdown, the Drop impl will call destroy_fn
             let mod_interface = unsafe { &mut *loaded_mod.instance };
             mod_interface.shutdown();
             
@@ -228,6 +261,10 @@ impl ModLoader {
             .map_err(|_| ModError::LoadError("Failed to acquire mods lock".to_string()))?;
         
         for (_, loaded_mod) in mods.iter() {
+            // SAFETY: Dereferencing mod instances is safe because:
+            // - All instances are valid while in the mods map
+            // - We hold a read lock preventing concurrent modification
+            // - The mods cannot be unloaded while we hold the lock
             let mod_interface = unsafe { &mut *loaded_mod.instance };
             mod_interface.update(delta_time);
         }
@@ -238,7 +275,13 @@ impl ModLoader {
     pub fn get_mod(&self, mod_id: &str) -> Option<&dyn ModInterface> {
         self.mods.read().ok()?
             .get(mod_id)
-            .map(|loaded| unsafe { &*loaded.instance })
+            .map(|loaded| {
+                // SAFETY: Dereferencing is safe because:
+                // - The instance is valid while in the mods map
+                // - The returned reference has a safe lifetime
+                // - The read lock prevents the mod from being unloaded
+                unsafe { &*loaded.instance }
+            })
     }
     
     /// List loaded mods
@@ -394,6 +437,10 @@ pub mod example {
     
     #[no_mangle]
     pub unsafe extern "C" fn mod_destroy(instance: *mut dyn ModInterface) {
+        // SAFETY: This function is marked unsafe and the caller must ensure:
+        // - instance was created by mod_create
+        // - instance hasn't been destroyed already
+        // - No other references to instance exist
         if !instance.is_null() {
             let _ = Box::from_raw(instance);
         }

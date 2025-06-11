@@ -1,4 +1,5 @@
 use super::EntityId;
+use super::error::{PhysicsDataResult, PhysicsDataErrorContext, collision_data_error};
 use std::sync::atomic::{AtomicU32, Ordering};
 
 /// Maximum number of collision pairs per frame
@@ -138,7 +139,9 @@ impl CollisionData {
             // Warm start if we have previous frame data
             if let Some(prev_idx) = self.previous_pairs.iter().position(|&p| p == pair) {
                 if prev_idx < self.previous_impulses.len() {
-                    *self.normal_impulses.last_mut().unwrap() = self.previous_impulses[prev_idx];
+                    if let Some(last) = self.normal_impulses.last_mut() {
+                        *last = self.previous_impulses[prev_idx];
+                    }
                 }
             }
             
@@ -161,7 +164,9 @@ impl CollisionData {
             // Warm start if we have previous frame data
             if let Some(prev_idx) = self.previous_pairs.iter().position(|&p| p == pair) {
                 if prev_idx < self.previous_impulses.len() {
-                    *self.normal_impulses.last_mut().unwrap() = self.previous_impulses[prev_idx];
+                    if let Some(last) = self.normal_impulses.last_mut() {
+                        *last = self.previous_impulses[prev_idx];
+                    }
                 }
             }
             

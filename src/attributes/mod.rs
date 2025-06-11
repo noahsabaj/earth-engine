@@ -13,6 +13,7 @@ pub mod attribute_inheritance;
 pub mod bulk_operations;
 pub mod change_events;
 pub mod computed_attributes;
+pub mod error;
 
 pub use attribute_storage::{AttributeStorage, AttributeKey, AttributeIndex};
 pub use attribute_value::{AttributeValue, ValueType, TypedValue};
@@ -32,6 +33,7 @@ pub use change_events::{
 pub use computed_attributes::{
     ComputedAttribute, ComputeFunction, DependencyGraph
 };
+pub use error::{AttributeResult, AttributeErrorContext};
 
 use crate::instance::InstanceId;
 use std::collections::HashMap;
@@ -210,7 +212,7 @@ impl AttributeManager {
         if def.flags.observable {
             self.events.dispatch(AttributeEvent {
                 instance,
-                key,
+                key: key.clone(),
                 event_type: EventType::Changed,
                 old_value,
                 new_value: Some(value),

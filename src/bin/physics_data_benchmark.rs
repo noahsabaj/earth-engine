@@ -29,7 +29,8 @@ fn main() {
         let mut physics_data = PhysicsData::new(entity_count);
         let mut collision_data = CollisionData::new(entity_count * 2);
         let spatial_hash = SpatialHash::new(spatial_config.clone());
-        let mut solver = ParallelPhysicsSolver::new(solver_config.clone());
+        let mut solver = ParallelPhysicsSolver::new(solver_config.clone())
+            .expect("Failed to create physics solver");
         let mut integrator = PhysicsIntegrator::new(entity_count);
         
         // Add random entities

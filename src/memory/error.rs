@@ -9,19 +9,14 @@ use crate::error::{EngineError, EngineResult};
 pub type MemoryResult<T> = EngineResult<T>;
 
 /// Helper trait for memory error contexts
-pub trait MemoryErrorContext {
-    fn memory_context(self, context: &str) -> MemoryResult<Self>
+pub trait MemoryErrorContext<T> {
+    fn memory_context(self, context: &str) -> MemoryResult<T>
     where
         Self: Sized;
 }
 
-impl<T> MemoryErrorContext for T {
-    fn memory_context(self, context: &str) -> MemoryResult<Self> {
-        Ok(self)
-    }
-}
 
-impl<T, E> MemoryErrorContext for Result<T, E>
+impl<T, E> MemoryErrorContext<T> for Result<T, E>
 where
     E: Into<EngineError>,
 {

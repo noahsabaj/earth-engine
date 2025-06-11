@@ -246,7 +246,7 @@ impl InheritanceResolver {
                 for rule in rules {
                     if rule.attribute == *key {
                         if let Some(ref condition) = rule.condition {
-                            allowed = self.check_condition(condition, instance, source, manager);
+                            allowed = self.check_condition(condition, instance, source, key, manager);
                         }
                     }
                 }
@@ -297,15 +297,16 @@ impl InheritanceResolver {
         condition: &InheritanceCondition,
         instance: InstanceId,
         source: &AttributeSource,
+        key: &AttributeKey,
         manager: &AttributeManager,
     ) -> bool {
         match condition {
             InheritanceCondition::NotSet => {
-                manager.storage.get(instance, "").is_none()
+                manager.storage.get(instance, key).is_none()
             }
             
             InheritanceCondition::ValueEquals(value) => {
-                manager.storage.get(instance, "")
+                manager.storage.get(instance, key)
                     .map(|v| v == value)
                     .unwrap_or(false)
             }

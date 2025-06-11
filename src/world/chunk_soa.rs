@@ -46,6 +46,11 @@ impl<T: Copy + Default> AlignedArray<T> {
         let layout = Layout::from_size_align(size, align)
             .expect("Invalid layout");
         
+        // SAFETY: We're allocating aligned memory with proper layout
+        // - Layout is valid (checked by from_size_align)
+        // - We check for null pointer after allocation
+        // - We initialize all memory before use
+        // - The allocated memory is owned by this struct and freed in Drop
         unsafe {
             let ptr = alloc_zeroed(layout) as *mut T;
             if ptr.is_null() {
@@ -64,23 +69,39 @@ impl<T: Copy + Default> AlignedArray<T> {
     /// Get element at Morton-encoded index
     #[inline(always)]
     unsafe fn get_unchecked(&self, index: usize) -> T {
+        // SAFETY: Caller must ensure index < self.len
+        // - The memory at ptr + index is valid and initialized
+        // - T is Copy, so we can safely read the value
         *self.ptr.add(index)
     }
     
     /// Set element at Morton-encoded index
     #[inline(always)]
     unsafe fn set_unchecked(&mut self, index: usize, value: T) {
+        // SAFETY: Caller must ensure index < self.len
+        // - The memory at ptr + index is valid and initialized
+        // - We have exclusive mutable access to self
+        // - T is Copy, so we can safely write the value
         *self.ptr.add(index) = value;
     }
     
     /// Get mutable slice for bulk operations
     unsafe fn as_mut_slice(&mut self) -> &mut [T] {
+        // SAFETY: We own the memory pointed to by ptr
+        // - ptr is non-null and properly aligned
+        // - Memory from ptr to ptr + len is allocated and initialized
+        // - We have exclusive mutable access
+        // - The lifetime is tied to &mut self
         std::slice::from_raw_parts_mut(self.ptr, self.len)
     }
 }
 
 impl<T> Drop for AlignedArray<T> {
     fn drop(&mut self) {
+        // SAFETY: We're deallocating memory we allocated
+        // - ptr was allocated with alloc_zeroed using self.layout
+        // - layout hasn't changed since allocation
+        // - This is the only place we deallocate this memory
         unsafe {
             dealloc(self.ptr as *mut u8, self.layout);
         }
@@ -121,6 +142,9 @@ impl ChunkSoA {
             z: z as i32,
         }) as usize;
         
+        // SAFETY: morton_idx is guaranteed to be < voxel_count
+        // - We've already checked x, y, z are within bounds
+        // - Morton encoding preserves the valid index range
         unsafe { self.block_ids.get_unchecked(morton_idx) }
     }
     
@@ -137,6 +161,10 @@ impl ChunkSoA {
             z: z as i32,
         }) as usize;
         
+        // SAFETY: morton_idx is guaranteed to be < voxel_count
+        // - We've already checked x, y, z are within bounds
+        // - Morton encoding preserves the valid index range
+        // - We have exclusive mutable access to self
         unsafe {
             self.block_ids.set_unchecked(morton_idx, block);
         }
@@ -156,6 +184,9 @@ impl ChunkSoA {
             z: z as i32,
         }) as usize;
         
+        // SAFETY: morton_idx is guaranteed to be < voxel_count
+        // - We've already checked x, y, z are within bounds
+        // - Morton encoding preserves the valid index range
         unsafe {
             LightLevel {
                 sky: self.sky_light.get_unchecked(morton_idx),
@@ -177,6 +208,10 @@ impl ChunkSoA {
             z: z as i32,
         }) as usize;
         
+        // SAFETY: morton_idx is guaranteed to be < voxel_count
+        // - We've already checked x, y, z are within bounds
+        // - Morton encoding preserves the valid index range
+        // - We have exclusive mutable access to self
         unsafe {
             self.sky_light.set_unchecked(morton_idx, light.sky);
             self.block_light.set_unchecked(morton_idx, light.block);
@@ -212,6 +247,9 @@ impl ChunkSoA {
     where
         F: FnMut(u32, u32, u32, BlockId),
     {
+        // SAFETY: We iterate within bounds 0..voxel_count
+        // - All morton_idx values are < voxel_count
+        // - block_ids array has voxel_count elements
         unsafe {
             for morton_idx in 0..self.voxel_count {
                 let block = self.block_ids.get_unchecked(morton_idx);
@@ -240,6 +278,11 @@ impl ChunkSoA {
                        x < self.size as i32 && y < self.size as i32 && z < self.size as i32 {
                         let morton_idx = morton_encode_chunk(VoxelPos { x, y, z }) as usize;
                         
+                        // SAFETY: morton_idx is within bounds
+                        // - We've checked x, y, z are within chunk bounds
+                        // - Morton encoding preserves valid indices
+                        // - read_volatile is safe for initialized memory
+                        // - We're only reading, not modifying
                         unsafe {
                             // Touch the memory to bring it into cache
                             let _ = std::ptr::read_volatile(self.block_ids.ptr.add(morton_idx));

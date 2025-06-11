@@ -32,6 +32,10 @@ impl PoolHandle {
         &self.buffer
     }
     
+    pub fn buffer_arc(&self) -> Arc<Buffer> {
+        self.buffer.clone()
+    }
+    
     pub fn offset(&self) -> u64 {
         self.offset
     }

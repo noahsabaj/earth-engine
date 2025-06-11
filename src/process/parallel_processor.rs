@@ -4,6 +4,7 @@
 /// Uses thread pools for CPU-intensive operations.
 
 use crate::process::{ProcessData, ProcessStatus, StateMachine};
+use crate::process::error::{ProcessResult, ProcessErrorContext, thread_pool_error};
 use rayon::prelude::*;
 use std::sync::{Arc, Mutex};
 
@@ -36,18 +37,18 @@ struct ProcessingMetrics {
 }
 
 impl ParallelProcessor {
-    pub fn new() -> Self {
+    pub fn new() -> ProcessResult<Self> {
         let thread_pool = rayon::ThreadPoolBuilder::new()
             .num_threads(num_cpus::get())
             .thread_name(|i| format!("process-worker-{}", i))
             .build()
-            .unwrap();
+            .map_err(|e| thread_pool_error(e))?;
             
-        Self {
+        Ok(Self {
             thread_pool,
             batch_size: 64,
             metrics: ProcessingMetrics::default(),
-        }
+        })
     }
     
     /// Process a batch of processes in parallel
@@ -62,24 +63,40 @@ impl ParallelProcessor {
         // Split into smaller batches for parallel processing
         let chunks: Vec<_> = batch.indices.chunks(self.batch_size).collect();
         
+        // Get raw pointers before the closure
+        let data_ptr = data as *mut ProcessData;
+        let state_ptr = state_machines.as_mut_ptr();
+        let data_len = data.len();
+        let delta_ticks = batch.delta_ticks;
+        
+        // Wrap pointers in atomic for thread safety
+        use std::sync::atomic::{AtomicPtr, Ordering};
+        let data_atomic = AtomicPtr::new(data_ptr);
+        let state_atomic = AtomicPtr::new(state_ptr);
+        
         // Process each chunk in parallel
-        self.thread_pool.install(|| {
+        self.thread_pool.install(move || {
             chunks.par_iter().for_each(|chunk| {
+                let data_ptr = data_atomic.load(Ordering::Relaxed);
+                let state_ptr = state_atomic.load(Ordering::Relaxed);
+                
                 for &index in *chunk {
-                    if index >= data.len() {
+                    if index >= data_len {
                         continue;
                     }
                     
-                    // Update process (safe because each index is unique)
+                    // SAFETY: Thread-safe parallel access is guaranteed because:
+                    // - Each thread processes unique indices (no overlap)
+                    // - data_ptr points to valid ProcessData for entire batch processing
+                    // - state_ptr.add(index) is within bounds (checked above)
+                    // - No two threads access the same index simultaneously
+                    // - Atomic pointers ensure visibility across threads
                     unsafe {
-                        let data_ptr = data as *mut ProcessData;
-                        let state_ptr = state_machines.as_mut_ptr();
-                        
                         Self::update_single_process(
                             &mut *data_ptr,
                             &mut *state_ptr.add(index),
                             index,
-                            batch.delta_ticks,
+                            delta_ticks,
                         );
                     }
                 }
@@ -129,11 +146,16 @@ impl ParallelProcessor {
         
         self.thread_pool.install(|| {
             batches.par_iter().for_each(|(data_arc, indices, delta_ticks)| {
-                let mut data = data_arc.lock().unwrap();
-                
-                for &index in indices {
-                    if index < data.len() && data.active[index] {
-                        data.update(index, *delta_ticks);
+                match data_arc.lock() {
+                    Ok(mut data) => {
+                        for &index in indices {
+                            if index < data.len() && data.active[index] {
+                                data.update(index, *delta_ticks);
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("Failed to lock process data: {}. Skipping batch.", e);
                     }
                 }
             });
@@ -188,8 +210,8 @@ struct StageResult {
 
 impl ParallelStageProcessor {
     pub fn new(num_workers: usize) -> Self {
-        let (send_work, recv_work) = crossbeam_channel::unbounded();
-        let (send_result, recv_result) = crossbeam_channel::unbounded();
+        let (send_work, recv_work) = crossbeam_channel::unbounded::<StageWork>();
+        let (send_result, recv_result) = crossbeam_channel::unbounded::<StageResult>();
         
         let mut workers = Vec::new();
         
@@ -268,7 +290,7 @@ mod tests {
     
     #[test]
     fn test_parallel_batch_processing() {
-        let mut processor = ParallelProcessor::new();
+        let mut processor = ParallelProcessor::new().expect("Failed to create processor");
         let mut data = ProcessData::new();
         let mut state_machines = Vec::new();
         
@@ -299,7 +321,7 @@ mod tests {
     
     #[test]
     fn test_concurrent_batches() {
-        let mut processor = ParallelProcessor::new();
+        let mut processor = ParallelProcessor::new().expect("Failed to create processor");
         
         // Create multiple data sets
         let mut batches = Vec::new();

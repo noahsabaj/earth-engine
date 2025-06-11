@@ -29,11 +29,27 @@ impl BvhNode {
     }
     
     pub fn intersect_ray(&self, ray_origin: &Vector3<f32>, ray_inv_dir: &Vector3<f32>) -> Option<f32> {
-        let t1 = (Vector3::from(self.aabb_min) - ray_origin).mul_element_wise(*ray_inv_dir);
-        let t2 = (Vector3::from(self.aabb_max) - ray_origin).mul_element_wise(*ray_inv_dir);
+        let t1 = Vector3::new(
+            (self.aabb_min[0] - ray_origin.x) * ray_inv_dir.x,
+            (self.aabb_min[1] - ray_origin.y) * ray_inv_dir.y,
+            (self.aabb_min[2] - ray_origin.z) * ray_inv_dir.z,
+        );
+        let t2 = Vector3::new(
+            (self.aabb_max[0] - ray_origin.x) * ray_inv_dir.x,
+            (self.aabb_max[1] - ray_origin.y) * ray_inv_dir.y,
+            (self.aabb_max[2] - ray_origin.z) * ray_inv_dir.z,
+        );
         
-        let tmin = t1.zip(t2, f32::min);
-        let tmax = t1.zip(t2, f32::max);
+        let tmin = Vector3::new(
+            t1.x.min(t2.x),
+            t1.y.min(t2.y),
+            t1.z.min(t2.z),
+        );
+        let tmax = Vector3::new(
+            t1.x.max(t2.x),
+            t1.y.max(t2.y),
+            t1.z.max(t2.z),
+        );
         
         let tmin_scalar = tmin.x.max(tmin.y).max(tmin.z);
         let tmax_scalar = tmax.x.min(tmax.y).min(tmax.z);
@@ -82,15 +98,19 @@ impl VoxelBvh {
         let node_buffer_size = max_nodes as u64 * std::mem::size_of::<BvhNode>() as u64;
         let primitive_buffer_size = max_primitives as u64 * std::mem::size_of::<u32>() as u64;
         
-        let node_buffer = memory_manager.alloc_buffer(
-            node_buffer_size,
-            wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-        ).buffer().clone();
+        let node_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("BVH Node Buffer"),
+            size: node_buffer_size,
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
         
-        let primitive_buffer = memory_manager.alloc_buffer(
-            primitive_buffer_size,
-            wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-        ).buffer().clone();
+        let primitive_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("BVH Primitive Buffer"),
+            size: primitive_buffer_size,
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
         
         Self {
             device,
@@ -118,7 +138,11 @@ impl VoxelBvh {
                     pos.z as f32 * chunk_size,
                 );
                 let max = min + Vector3::new(chunk_size, chunk_size, chunk_size);
-                let center = Point3::from_vec((min.to_vec() + max.to_vec()) * 0.5);
+                let center = Point3::new(
+                    (min.x + max.x) * 0.5,
+                    (min.y + max.y) * 0.5,
+                    (min.z + max.z) * 0.5,
+                );
                 
                 Primitive {
                     center,
@@ -136,12 +160,13 @@ impl VoxelBvh {
         let mut primitive_indices = Vec::new();
         self.max_depth = 0;
         
+        let primitives_len = primitives.len();
         self.build_recursive(
             &mut nodes,
             &mut primitive_indices,
             &mut primitives,
             0,
-            primitives.len(),
+            primitives_len,
             0,
         );
         
@@ -211,9 +236,14 @@ impl VoxelBvh {
         let (split_axis, split_pos) = self.find_best_split(&primitives[start..end], &aabb_min, &aabb_max);
         
         // Partition primitives
-        let mid = start + primitives[start..end]
-            .iter()
-            .partition_in_place(|p| p.center[split_axis] < split_pos);
+        let mut left_count = 0;
+        for i in start..end {
+            if primitives[i].center[split_axis] < split_pos {
+                primitives.swap(start + left_count, i);
+                left_count += 1;
+            }
+        }
+        let mid = start + left_count;
         
         // Handle degenerate case
         let mid = if mid == start || mid == end {
@@ -254,7 +284,7 @@ impl VoxelBvh {
             let mut centers: Vec<f32> = primitives.iter()
                 .map(|p| p.center[axis])
                 .collect();
-            centers.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            centers.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
             
             // Try split positions
             let samples = centers.len().min(32);

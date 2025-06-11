@@ -85,10 +85,12 @@ impl SparseVoxelOctree {
         
         // Allocate GPU buffer for nodes
         let node_buffer_size = node_capacity as u64 * std::mem::size_of::<OctreeNode>() as u64;
-        let node_buffer = memory_manager.alloc_buffer(
-            node_buffer_size,
-            wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-        ).buffer().clone();
+        let node_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Octree Node Buffer"),
+            size: node_buffer_size,
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
         
         Self {
             device,
@@ -97,7 +99,6 @@ impl SparseVoxelOctree {
             next_free_node: 1, // 0 is reserved for null
             world_size,
             max_depth,
-            morton_encoder: MortonEncoder3D::new(),
         }
     }
     

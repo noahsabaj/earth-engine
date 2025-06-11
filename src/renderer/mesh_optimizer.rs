@@ -6,7 +6,7 @@
 
 use cgmath::Vector3;
 
-use crate::world::{Chunk, ChunkPos};
+use crate::world::{Chunk, ChunkPos, VoxelPos};
 use crate::renderer::{Vertex, greedy_mesher::{GreedyMesher, GreedyMeshStats}};
 use crate::error::{EngineError, EngineResult};
 use wgpu::{Device, Queue, Buffer, ComputePipeline, BindGroupLayout};
@@ -46,6 +46,7 @@ impl MeshLod {
 }
 
 /// Optimized mesh data
+#[derive(Clone)]
 pub struct OptimizedMesh {
     pub vertices: Vec<Vertex>,
     pub indices: Vec<u32>,
@@ -133,6 +134,7 @@ impl MeshOptimizer {
         // Calculate stats
         let original_faces = self.estimate_original_faces(chunk);
         let optimized_quads = mesh.indices.len() as u32 / 6;
+        let triangles = mesh.indices.len() as u32 / 3;
         let reduction_ratio = original_faces as f32 / optimized_quads.max(1) as f32;
         
         let optimized_mesh = OptimizedMesh {
@@ -141,7 +143,7 @@ impl MeshOptimizer {
             stats: MeshStats {
                 original_faces,
                 optimized_quads,
-                triangles: mesh.indices.len() as u32 / 3,
+                triangles,
                 reduction_ratio,
                 generation_time_ms: generation_time,
             },
@@ -455,8 +457,8 @@ impl GpuMeshGenerator {
             for y in 0..self.chunk_size {
                 for z in 0..self.chunk_size {
                     let index = (x + y * self.chunk_size + z * self.chunk_size * self.chunk_size) as usize;
-                    let block = chunk.get_block(x as i32, y as i32, z as i32);
-                    packed_voxels[index] = block.0;
+                    let block = chunk.get_block(x, y, z);
+                    packed_voxels[index] = block.0 as u32;
                 }
             }
         }

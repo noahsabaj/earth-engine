@@ -5,6 +5,7 @@
 /// Uses ring buffer for efficient memory usage.
 
 use crate::instance::{InstanceId, MetadataValue, MetadataKey};
+use crate::instance::error::{InstanceResult, timestamp_error};
 use serde::{Serialize, Deserialize};
 
 /// History event types
@@ -152,13 +153,13 @@ pub struct HistoryBuilder {
 }
 
 impl HistoryBuilder {
-    pub fn new(actor: InstanceId) -> Self {
+    pub fn new(actor: InstanceId) -> InstanceResult<Self> {
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
+            .map_err(|_| timestamp_error("history builder"))?
             .as_secs();
             
-        Self { timestamp, actor }
+        Ok(Self { timestamp, actor })
     }
     
     pub fn created(&self, version: u32) -> HistoryEntry {
@@ -216,7 +217,7 @@ mod tests {
     fn test_ring_buffer() {
         let mut buffer = HistoryRingBuffer::new(3);
         let actor = InstanceId::new();
-        let builder = HistoryBuilder::new(actor);
+        let builder = HistoryBuilder::new(actor).unwrap();
         
         // Fill buffer
         buffer.push(builder.created(1));
@@ -241,7 +242,7 @@ mod tests {
         let mut log = HistoryLog::new(10);
         let instance = InstanceId::new();
         let actor = InstanceId::new();
-        let builder = HistoryBuilder::new(actor);
+        let builder = HistoryBuilder::new(actor).unwrap();
         
         // Record some events
         log.record(instance, builder.created(1));

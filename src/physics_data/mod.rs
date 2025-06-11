@@ -6,6 +6,7 @@ pub mod collision_data;
 pub mod spatial_hash;
 pub mod parallel_solver;
 pub mod integration;
+pub mod error;
 
 pub use physics_tables::{PhysicsData, EntityId, MAX_ENTITIES};
 pub use collision_data::{CollisionData, ContactPoint, ContactPair};

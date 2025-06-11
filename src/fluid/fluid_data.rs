@@ -97,7 +97,16 @@ impl FluidVoxel {
     
     /// Get fluid type
     pub fn fluid_type(&self) -> FluidType {
-        unsafe { std::mem::transmute((self.packed_data & 0xFF) as u8) }
+        let fluid_byte = (self.packed_data & 0xFF) as u8;
+        match fluid_byte {
+            0 => FluidType::Air,
+            1 => FluidType::Water,
+            2 => FluidType::Lava,
+            3 => FluidType::Oil,
+            4 => FluidType::Steam,
+            5 => FluidType::Smoke,
+            _ => FluidType::Air, // Default to air for invalid values
+        }
     }
     
     /// Get fluid level (0-255)

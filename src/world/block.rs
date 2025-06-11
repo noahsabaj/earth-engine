@@ -11,6 +11,12 @@ pub struct BlockId(pub u16);
 unsafe impl bytemuck::Pod for BlockId {}
 unsafe impl bytemuck::Zeroable for BlockId {}
 
+impl Default for BlockId {
+    fn default() -> Self {
+        BlockId::AIR
+    }
+}
+
 impl fmt::Display for BlockId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // Display block name if it's a known block

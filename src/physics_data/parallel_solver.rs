@@ -3,6 +3,7 @@ use super::{
     ContactPoint, ContactPair, collision_data::CollisionStats,
     physics_tables
 };
+use crate::physics_data::error::{PhysicsDataResult, PhysicsDataErrorContext};
 use rayon::prelude::*;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
@@ -56,17 +57,17 @@ pub struct ParallelPhysicsSolver {
 }
 
 impl ParallelPhysicsSolver {
-    pub fn new(config: SolverConfig) -> Self {
+    pub fn new(config: SolverConfig) -> PhysicsDataResult<Self> {
         let thread_pool = rayon::ThreadPoolBuilder::new()
             .num_threads(config.worker_threads)
             .build()
-            .unwrap();
+            .physics_data_context("Failed to create thread pool")?;
         
-        Self {
+        Ok(Self {
             config,
             thread_pool,
             stats: CollisionStats::default(),
-        }
+        })
     }
     
     /// Main physics step

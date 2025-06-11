@@ -139,7 +139,12 @@ impl GreedyMesher {
                         };
                         
                         if is_visible {
-                            mask[u as usize][v as usize] = Some(block);
+                            // Safety: u and v are guaranteed to be < size by the loop bounds
+                            if let Some(row) = mask.get_mut(u as usize) {
+                                if let Some(cell) = row.get_mut(v as usize) {
+                                    *cell = Some(block);
+                                }
+                            }
                         }
                     }
                 }
@@ -166,17 +171,32 @@ impl GreedyMesher {
         // Find rectangles greedily
         for start_u in 0..size {
             for start_v in 0..size {
-                if used[start_u][start_v] || mask[start_u][start_v].is_none() {
+                // Safe access to 2D arrays
+                let is_used = used.get(start_u).and_then(|row| row.get(start_v).copied()).unwrap_or(true);
+                let mask_value = mask.get(start_u).and_then(|row| row.get(start_v).copied()).flatten();
+                
+                if is_used || mask_value.is_none() {
                     continue;
                 }
                 
-                let material = mask[start_u][start_v].unwrap();
+                let material = match mask_value {
+                    Some(m) => m,
+                    None => continue, // Should not happen due to is_none check above
+                };
                 
                 // Find maximum width
                 let mut width = 1;
-                while start_u + width < size &&
-                      !used[start_u + width][start_v] &&
-                      mask[start_u + width][start_v] == Some(material) {
+                while start_u + width < size {
+                    let is_used = used.get(start_u + width)
+                        .and_then(|row| row.get(start_v).copied())
+                        .unwrap_or(true);
+                    let mask_val = mask.get(start_u + width)
+                        .and_then(|row| row.get(start_v).copied())
+                        .flatten();
+                    
+                    if is_used || mask_val != Some(material) {
+                        break;
+                    }
                     width += 1;
                 }
                 
@@ -184,8 +204,14 @@ impl GreedyMesher {
                 let mut height = 1;
                 'height_loop: while start_v + height < size {
                     for u in start_u..start_u + width {
-                        if used[u][start_v + height] ||
-                           mask[u][start_v + height] != Some(material) {
+                        let is_used = used.get(u)
+                            .and_then(|row| row.get(start_v + height).copied())
+                            .unwrap_or(true);
+                        let mask_val = mask.get(u)
+                            .and_then(|row| row.get(start_v + height).copied())
+                            .flatten();
+                        
+                        if is_used || mask_val != Some(material) {
                             break 'height_loop;
                         }
                     }
@@ -195,7 +221,11 @@ impl GreedyMesher {
                 // Mark area as used
                 for u in start_u..start_u + width {
                     for v in start_v..start_v + height {
-                        used[u][v] = true;
+                        if let Some(row) = used.get_mut(u) {
+                            if let Some(cell) = row.get_mut(v) {
+                                *cell = true;
+                            }
+                        }
                     }
                 }
                 
@@ -254,10 +284,10 @@ impl GreedyMesher {
                 
                 verts.push(Vertex {
                     position: [pos.x, pos.y, pos.z],
+                    color: [1.0, 1.0, 1.0], // TODO: Material color based on block type
                     normal,
-                    tex_coords: [tex_u, tex_v],
-                    color: [1.0, 1.0, 1.0, 1.0], // TODO: Material color
-                    ao: quad.ao_values[verts.len()] as f32 / 255.0,
+                    light: 1.0, // TODO: Calculate proper lighting
+                    ao: quad.ao_values.get(verts.len()).copied().unwrap_or(255) as f32 / 255.0,
                 });
             }
             

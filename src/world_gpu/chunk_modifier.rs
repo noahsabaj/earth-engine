@@ -3,7 +3,8 @@ use wgpu::util::DeviceExt;
 use bytemuck::{Pod, Zeroable};
 use cgmath::Vector3;
 use super::world_buffer::{WorldBuffer, VoxelData, CHUNK_SIZE};
-use crate::memory::PersistentBuffer;
+// use crate::memory::PersistentBuffer; // Not needed anymore
+use crate::world_gpu::error::{WorldGpuResult, WorldGpuErrorContext};
 
 /// Command for modifying voxels
 #[repr(C)]
@@ -68,7 +69,7 @@ pub struct ChunkModifier {
     command_capacity: usize,
     
     /// Persistent count buffer to avoid allocations
-    count_buffer: PersistentBuffer,
+    count_buffer: wgpu::Buffer,
     
     /// Pre-allocated bind groups for different scenarios
     cached_bind_groups: std::sync::Mutex<std::collections::HashMap<u64, wgpu::BindGroup>>,
@@ -157,11 +158,12 @@ impl ChunkModifier {
         });
         
         // Create persistent count buffer
-        let count_buffer = PersistentBuffer::new(
-            device.clone(),
-            std::mem::size_of::<u32>() as u64,
-            wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        );
+        let count_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Modification Count Buffer"),
+            size: std::mem::size_of::<u32>() as u64,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
         
         Self {
             device,
@@ -201,12 +203,12 @@ impl ChunkModifier {
         
         // Process block modifications
         if !block_mods.is_empty() {
-            self.apply_block_modifications(encoder, queue, world_buffer, &block_mods);
+            let _ = self.apply_block_modifications(encoder, queue, world_buffer, &block_mods);
         }
         
         // Process explosions
         if !explosions.is_empty() {
-            self.apply_explosions(encoder, queue, world_buffer, &explosions);
+            let _ = self.apply_explosions(encoder, queue, world_buffer, &explosions);
         }
     }
     
@@ -216,7 +218,7 @@ impl ChunkModifier {
         queue: &wgpu::Queue,
         world_buffer: &WorldBuffer,
         commands: &[ModificationCommand],
-    ) {
+    ) -> WorldGpuResult<()> {
         // Upload commands
         queue.write_buffer(
             &self.command_buffer,
@@ -226,11 +228,11 @@ impl ChunkModifier {
         
         // Update count in persistent buffer
         let count_data = [commands.len() as u32];
-        self.count_buffer.write(queue, 0, bytemuck::cast_slice(&count_data));
+        queue.write_buffer(&self.count_buffer, 0, bytemuck::cast_slice(&count_data));
         
         // Get or create cached bind group
         let cache_key = world_buffer.voxel_buffer() as *const _ as u64;
-        let mut cached_groups = self.cached_bind_groups.lock().unwrap();
+        let mut cached_groups = self.cached_bind_groups.lock().world_gpu_context("cached_bind_groups")?;
         
         let bind_group = cached_groups.entry(cache_key).or_insert_with(|| {
             self.device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -247,7 +249,7 @@ impl ChunkModifier {
                     },
                     wgpu::BindGroupEntry {
                         binding: 2,
-                        resource: self.count_buffer.buffer().as_entire_binding(),
+                        resource: self.count_buffer.as_entire_binding(),
                     },
                 ],
             })
@@ -265,6 +267,8 @@ impl ChunkModifier {
         // One thread per command
         let workgroups = ((commands.len() + 63) / 64) as u32;
         compute_pass.dispatch_workgroups(workgroups, 1, 1);
+        
+        Ok(())
     }
     
     fn apply_explosions(
@@ -273,7 +277,7 @@ impl ChunkModifier {
         queue: &wgpu::Queue,
         world_buffer: &WorldBuffer,
         explosions: &[ModificationCommand],
-    ) {
+    ) -> WorldGpuResult<()> {
         // Upload explosion commands
         queue.write_buffer(
             &self.command_buffer,
@@ -283,11 +287,11 @@ impl ChunkModifier {
         
         // Update count in persistent buffer
         let count_data = [explosions.len() as u32];
-        self.count_buffer.write(queue, 0, bytemuck::cast_slice(&count_data));
+        queue.write_buffer(&self.count_buffer, 0, bytemuck::cast_slice(&count_data));
         
         // Use cached bind group (same as block modifications)
         let cache_key = world_buffer.voxel_buffer() as *const _ as u64;
-        let cached_groups = self.cached_bind_groups.lock().unwrap();
+        let cached_groups = self.cached_bind_groups.lock().world_gpu_context("cached_bind_groups")?;
         
         let bind_group = cached_groups.get(&cache_key).expect("Bind group should be cached from block modifications");
         
@@ -307,5 +311,7 @@ impl ChunkModifier {
             8,
             8,
         );
+        
+        Ok(())
     }
 }

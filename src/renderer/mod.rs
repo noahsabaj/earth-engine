@@ -17,6 +17,7 @@ pub mod gpu_culling;
 mod greedy_mesher;
 mod mesh_optimizer;
 pub mod data_mesh_builder;
+pub mod error;
 
 use crate::{EngineConfig, Game};
 use anyhow::Result;

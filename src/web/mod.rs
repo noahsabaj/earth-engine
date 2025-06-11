@@ -112,16 +112,19 @@ fn start_render_loop(
         renderer.render(&context, &world_buffer);
         
         // Request next frame
-        request_animation_frame(f.borrow().as_ref().unwrap());
+        if let Some(closure) = f.borrow().as_ref() {
+            request_animation_frame(closure);
+        }
     }) as Box<dyn FnMut()>));
     
-    request_animation_frame(g.borrow().as_ref().unwrap());
+    if let Some(closure) = g.borrow().as_ref() {
+        request_animation_frame(closure);
+    }
 }
 
 #[cfg(target_arch = "wasm32")]
 fn request_animation_frame(f: &wasm_bindgen::closure::Closure<dyn FnMut()>) {
-    web_sys::window()
-        .unwrap()
-        .request_animation_frame(f.as_ref().unchecked_ref())
-        .unwrap();
+    if let Some(window) = web_sys::window() {
+        let _ = window.request_animation_frame(f.as_ref().unchecked_ref());
+    }
 }

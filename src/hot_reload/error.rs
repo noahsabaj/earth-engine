@@ -9,19 +9,14 @@ use crate::error::{EngineError, EngineResult};
 pub type HotReloadResult<T> = EngineResult<T>;
 
 /// Helper trait for hot reload error contexts
-pub trait HotReloadErrorContext {
-    fn hot_reload_context(self, context: &str) -> HotReloadResult<Self>
+pub trait HotReloadErrorContext<T> {
+    fn hot_reload_context(self, context: &str) -> HotReloadResult<T>
     where
         Self: Sized;
 }
 
-impl<T> HotReloadErrorContext for T {
-    fn hot_reload_context(self, context: &str) -> HotReloadResult<Self> {
-        Ok(self)
-    }
-}
 
-impl<T, E> HotReloadErrorContext for Result<T, E>
+impl<T, E> HotReloadErrorContext<T> for Result<T, E>
 where
     E: Into<EngineError>,
 {

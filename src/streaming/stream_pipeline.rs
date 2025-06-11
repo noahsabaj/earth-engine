@@ -59,7 +59,7 @@ struct StreamTask {
 }
 
 /// Pipeline statistics
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone, Copy)]
 pub struct PipelineStats {
     pub total_streamed: u64,
     pub pages_loaded: u64,
@@ -419,8 +419,3 @@ impl AsyncPageUploader {
     }
 }
 
-impl Clone for PipelineStats {
-    fn clone(&self) -> Self {
-        *self
-    }
-}

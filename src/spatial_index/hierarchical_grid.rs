@@ -145,7 +145,10 @@ impl HierarchicalGrid {
         let cells = self.get_overlapping_cells(level, position, radius);
         
         // Insert into cells
-        let grid_level = &self.levels[level as usize];
+        let grid_level = match self.levels.get(level as usize) {
+            Some(level) => level,
+            None => return,
+        };
         let mut level_cells = grid_level.cells.write();
         
         for cell_id in cells {
@@ -297,8 +300,14 @@ impl HierarchicalGrid {
             return;
         }
         
-        // Get parent
-        let parent_id = child_ids[0].parent().unwrap();
+        // Get parent - we already checked level > 0, so parent exists
+        let parent_id = match child_ids[0].parent() {
+            Some(id) => id,
+            None => {
+                log::error!("Failed to get parent cell ID for merge operation");
+                return;
+            }
+        };
         
         let parent_level = &self.levels[parent_id.level as usize];
         let mut parent_cells = parent_level.cells.write();

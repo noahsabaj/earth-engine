@@ -310,5 +310,6 @@ async fn yield_to_browser() {
     use wasm_bindgen_futures::js_sys;
     
     let promise = js_sys::Promise::resolve(&JsValue::NULL);
-    wasm_bindgen_futures::JsFuture::from(promise).await.unwrap();
+    // Ignore the result of yielding - if it fails, we continue anyway
+    let _ = wasm_bindgen_futures::JsFuture::from(promise).await;
 }

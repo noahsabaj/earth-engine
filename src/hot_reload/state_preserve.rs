@@ -23,7 +23,7 @@ pub trait SerializableState: Send + Sync {
 }
 
 /// State snapshot
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct StateSnapshot {
     /// State identifier
     pub id: String,
@@ -77,8 +77,8 @@ impl StatePreserver {
         let states = self.states.read().hot_reload_context("states")?;
         
         for (id, state) in states.iter() {
-            let data = state.serialize().map_err(|e| EngineError::StateError {
-                state: id.clone(),
+            let data = state.serialize().map_err(|e| EngineError::SerializationError {
+                context: format!("state:{}", id),
                 error: e.to_string(),
             })?;
             let snapshot = StateSnapshot {
@@ -101,8 +101,9 @@ impl StatePreserver {
         }
         
         // Trim history
-        if history.len() > self.max_history {
-            history.drain(0..history.len() - self.max_history);
+        let history_len = history.len();
+        if history_len > self.max_history {
+            history.drain(0..history_len - self.max_history);
         }
         
         Ok(snapshots)
@@ -124,8 +125,8 @@ impl StatePreserver {
                     continue;
                 }
                 
-                state.deserialize(&snapshot.data).map_err(|e| EngineError::StateError {
-                    state: id.clone(),
+                state.deserialize(&snapshot.data).map_err(|e| EngineError::DeserializationError {
+                    context: format!("state:{}", id),
                     error: e.to_string(),
                 })?;
                 log::info!("Restored state: {}", id);
@@ -137,6 +138,7 @@ impl StatePreserver {
     
     /// Save snapshots to disk
     pub fn save_to_disk(&self, path: impl AsRef<std::path::Path>) -> HotReloadResult<()> {
+        let path = path.as_ref();
         let snapshots: Vec<StateSnapshot> = self.snapshots.read().hot_reload_context("snapshots")?
             .values()
             .cloned()
@@ -144,13 +146,13 @@ impl StatePreserver {
         
         let data = bincode::serialize(&snapshots)
             .map_err(|e| EngineError::SerializationError {
-                type_name: "StateSnapshot".to_string(),
+                context: "StateSnapshot".to_string(),
                 error: e.to_string(),
             })?;
         
         std::fs::write(path, data)
             .map_err(|e| EngineError::IoError {
-                path: path.as_ref().to_string_lossy().to_string(),
+                path: path.to_string_lossy().to_string(),
                 error: e.to_string(),
             })?;
         
@@ -167,7 +169,7 @@ impl StatePreserver {
         
         let snapshots: Vec<StateSnapshot> = bincode::deserialize(&data)
             .map_err(|e| EngineError::DeserializationError {
-                type_name: "StateSnapshot".to_string(),
+                context: "StateSnapshot".to_string(),
                 error: e.to_string(),
             })?;
         
@@ -181,9 +183,11 @@ impl StatePreserver {
         Ok(())
     }
     
-    /// Get state by ID
-    pub fn get_state(&self, id: &str) -> Option<&dyn SerializableState> {
-        self.states.read().ok()?.get(id).map(|s| s.as_ref())
+    /// Check if state exists by ID
+    pub fn has_state(&self, id: &str) -> bool {
+        self.states.read().ok()
+            .map(|states| states.contains_key(id))
+            .unwrap_or(false)
     }
     
     /// Clear all snapshots
@@ -352,13 +356,15 @@ mod tests {
         preserver.register_state(Box::new(player));
         
         // Create snapshot
-        let snapshots = preserver.create_snapshot().unwrap();
+        let snapshots = preserver.create_snapshot()
+            .expect("Failed to create snapshot in test");
         assert_eq!(snapshots.len(), 1);
         assert_eq!(snapshots[0].id, "player");
         
         // Modify state would happen here...
         
         // Restore snapshot
-        preserver.restore_snapshot().unwrap();
+        preserver.restore_snapshot()
+            .expect("Failed to restore snapshot in test");
     }
 }

@@ -137,7 +137,9 @@ impl MeshSimplifier {
                 
                 // Add to vertex quadrics
                 for &v in &face {
-                    vertex_quadrics[v as usize] = vertex_quadrics[v as usize].add(&face_quadric);
+                    if let Some(quadric) = vertex_quadrics.get_mut(v as usize) {
+                        *quadric = quadric.add(&face_quadric);
+                    }
                 }
             }
         }
@@ -174,7 +176,10 @@ impl MeshSimplifier {
         let mut current_triangles = self.faces.len();
         
         while current_triangles > target_triangles && !collapse_queue.is_empty() {
-            let candidate = collapse_queue.pop().unwrap();
+            let candidate = match collapse_queue.pop() {
+                Some(c) => c,
+                None => break, // Should not happen due to is_empty check, but be safe
+            };
             let (v0, v1) = candidate.edge;
             
             // Skip if vertices already collapsed
@@ -187,11 +192,14 @@ impl MeshSimplifier {
             vertex_map.insert(v1, v0);
             
             // Update position to optimal
-            self.positions[v0 as usize] = candidate.target_position;
+            if let Some(pos) = self.positions.get_mut(v0 as usize) {
+                *pos = candidate.target_position;
+            }
             
             // Update quadric
-            self.vertex_quadrics[v0 as usize] = 
-                self.vertex_quadrics[v0 as usize].add(&self.vertex_quadrics[v1 as usize]);
+            if let (Some(q0), Some(q1)) = (self.vertex_quadrics.get_mut(v0 as usize), self.vertex_quadrics.get(v1 as usize)) {
+                *q0 = q0.add(q1);
+            }
             
             // Remove degenerate faces and update topology
             if let Some(faces) = self.vertex_faces.get(&v1).cloned() {
@@ -243,11 +251,13 @@ impl MeshSimplifier {
         }
         
         // Compute combined quadric
-        let q_combined = self.vertex_quadrics[v0 as usize].add(&self.vertex_quadrics[v1 as usize]);
+        let q0 = self.vertex_quadrics.get(v0 as usize)?;
+        let q1 = self.vertex_quadrics.get(v1 as usize)?;
+        let q_combined = q0.add(q1);
         
         // Find optimal position (simplified: use midpoint)
-        let pos0 = self.positions[v0 as usize];
-        let pos1 = self.positions[v1 as usize];
+        let pos0 = self.positions.get(v0 as usize)?;
+        let pos1 = self.positions.get(v1 as usize)?;
         let target_position = (pos0 + pos1) * 0.5;
         
         // Compute error
@@ -266,7 +276,7 @@ impl MeshSimplifier {
         
         if let Some(faces) = self.vertex_faces.get(&vertex) {
             for &face_idx in faces {
-                let face = self.faces[face_idx];
+                let face = self.faces.get(face_idx).copied()?;
                 for &v in &face {
                     if v != vertex {
                         connected.push(v);

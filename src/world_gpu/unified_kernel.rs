@@ -211,37 +211,49 @@ impl UnifiedWorldKernel {
         });
         
         // Allocate buffers
-        let config_buffer = memory_manager.alloc_buffer(
-            std::mem::size_of::<UnifiedKernelConfig>() as u64,
-            wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        ).buffer().clone();
+        let config_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Unified Kernel Config"),
+            size: std::mem::size_of::<UnifiedKernelConfig>() as u64,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
         
-        let work_graph_buffer = memory_manager.alloc_buffer(
-            1024 * 1024, // 1MB for work graph
-            wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-        ).buffer().clone();
+        let work_graph_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Work Graph Buffer"),
+            size: 1024 * 1024, // 1MB for work graph
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
         
         // Placeholder buffers for octree and BVH (will be implemented)
-        let octree_buffer = memory_manager.alloc_buffer(
-            16 * 1024 * 1024, // 16MB for octree
-            wgpu::BufferUsages::STORAGE,
-        ).buffer().clone();
+        let octree_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Octree Buffer"),
+            size: 16 * 1024 * 1024, // 16MB for octree
+            usage: wgpu::BufferUsages::STORAGE,
+            mapped_at_creation: false,
+        });
         
-        let bvh_buffer = memory_manager.alloc_buffer(
-            8 * 1024 * 1024, // 8MB for BVH
-            wgpu::BufferUsages::STORAGE,
-        ).buffer().clone();
+        let bvh_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("BVH Buffer"),
+            size: 8 * 1024 * 1024, // 8MB for BVH
+            usage: wgpu::BufferUsages::STORAGE,
+            mapped_at_creation: false,
+        });
         
         // Placeholder for instance and modification buffers
-        let instance_buffer = memory_manager.alloc_buffer(
-            4 * 1024 * 1024, // 4MB
-            wgpu::BufferUsages::STORAGE,
-        ).buffer().clone();
+        let instance_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Instance Buffer"),
+            size: 4 * 1024 * 1024, // 4MB
+            usage: wgpu::BufferUsages::STORAGE,
+            mapped_at_creation: false,
+        });
         
-        let modification_buffer = memory_manager.alloc_buffer(
-            1024 * 1024, // 1MB
-            wgpu::BufferUsages::STORAGE,
-        ).buffer().clone();
+        let modification_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Modification Buffer"),
+            size: 1024 * 1024, // 1MB
+            usage: wgpu::BufferUsages::STORAGE,
+            mapped_at_creation: false,
+        });
         
         // Create main bind group
         let world_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {

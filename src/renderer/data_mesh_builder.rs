@@ -52,6 +52,7 @@ impl MeshBuffer {
             normal: [0.0; 3],
             ao: 0,
             light: 0,
+            _padding: [0; 2],
         });
         indices.resize(MAX_INDICES, 0);
         
@@ -208,14 +209,19 @@ pub mod operations {
         
         // Add vertices
         for i in 0..4 {
-            buffer.vertices[buffer.vertex_count] = Vertex {
-                position: positions[i],
-                tex_coords: tex_coords[i],
-                normal,
-                ao: ao[i],
-                light,
-            };
-            buffer.vertex_count += 1;
+            if let Some(vertex) = buffer.vertices.get_mut(buffer.vertex_count) {
+                *vertex = Vertex {
+                    position: positions[i],
+                    tex_coords: tex_coords[i],
+                    normal,
+                    ao: ao.get(i).copied().unwrap_or(255),
+                    light,
+                    _padding: [0; 2],
+                };
+                buffer.vertex_count += 1;
+            } else {
+                return Err("Vertex buffer index out of bounds");
+            }
         }
         
         // Add indices (two triangles)
@@ -225,8 +231,12 @@ pub mod operations {
         ];
         
         for &idx in &indices {
-            buffer.indices[buffer.index_count] = idx;
-            buffer.index_count += 1;
+            if let Some(index_slot) = buffer.indices.get_mut(buffer.index_count) {
+                *index_slot = idx;
+                buffer.index_count += 1;
+            } else {
+                return Err("Index buffer index out of bounds");
+            }
         }
         
         Ok(())
@@ -304,6 +314,7 @@ pub struct Vertex {
     pub normal: [f32; 3],
     pub ao: u8,
     pub light: u8,
+    pub _padding: [u8; 2], // Align to 4 bytes
 }
 
 // Usage example:
