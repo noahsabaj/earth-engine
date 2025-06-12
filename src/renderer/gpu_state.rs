@@ -5,7 +5,7 @@ use crate::renderer::{SelectionRenderer, GpuDiagnostics, GpuInitProgress, gpu_dr
 use crate::world::{Ray, RaycastHit, ParallelWorld, ParallelWorldConfig};
 use crate::lighting::{DayNightCycle, LightPropagator};
 use anyhow::Result;
-use cgmath::{Matrix4, SquareMatrix, Point3, Vector3, InnerSpace};
+use cgmath::{Matrix4, SquareMatrix, Point3, Vector3, InnerSpace, Zero};
 use std::sync::Arc;
 use wgpu::util::DeviceExt;
 use winit::{
@@ -161,8 +161,8 @@ impl CameraUniform {
 pub struct GpuState {
     window: Arc<Window>,
     surface: wgpu::Surface<'static>,
-    device: wgpu::Device,
-    queue: wgpu::Queue,
+    device: Arc<wgpu::Device>,
+    queue: Arc<wgpu::Queue>,
     config: wgpu::SurfaceConfiguration,
     size: winit::dpi::PhysicalSize<u32>,
     render_pipeline: wgpu::RenderPipeline,
@@ -389,8 +389,8 @@ impl GpuState {
                 log::info!("[GpuState::new] Testing GPU operations...");
                 let test_results = GpuDiagnostics::test_gpu_operations(&dev).await;
                 test_results.print_results();
-                
-                (dev, q)
+
+                (Arc::new(dev), Arc::new(q))
             }
             Err(e) => {
                 log::error!("[GpuState::new] Failed to create GPU device: {}", e);
@@ -613,8 +613,8 @@ impl GpuState {
         // Create GPU-driven renderer
         log::info!("[GpuState::new] Creating GPU-driven renderer...");
         let chunk_renderer = GpuDrivenRenderer::new(
-            Arc::clone(&device),
-            Arc::clone(&queue),
+            device.clone(),
+            queue.clone(),
             config.format,
             &camera_bind_group_layout,
         );

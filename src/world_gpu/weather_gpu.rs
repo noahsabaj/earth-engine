@@ -288,6 +288,7 @@ impl WeatherGpu {
     pub fn update(&self, encoder: &mut wgpu::CommandEncoder) {
         let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
             label: Some("Weather Update Pass"),
+            timestamp_writes: None,
         });
         
         compute_pass.set_pipeline(&self.compute_pipeline);
