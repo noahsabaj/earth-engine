@@ -7,7 +7,6 @@
 use crate::world::{Chunk, BlockId, ChunkPos, BlockRegistry};
 use crate::renderer::{Vertex, mesh::ChunkMesh};
 use cgmath::Vector3;
-use crate::BlockId as BlockIdImport;
 
 /// Direction of a face
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

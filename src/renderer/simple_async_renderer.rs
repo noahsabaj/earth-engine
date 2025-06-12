@@ -219,12 +219,12 @@ impl SimpleAsyncRenderer {
         let total_meshes = self.gpu_meshes.len();
         
         if total_meshes == 0 {
-            // Only log occasionally to avoid spam
-            static mut LAST_LOG: std::time::Instant = std::time::Instant::now();
+            // Log occasionally if no meshes
+            static mut LOG_COUNT: usize = 0;
             unsafe {
-                if LAST_LOG.elapsed().as_secs() >= 1 {
+                if LOG_COUNT < 5 {
                     log::debug!("[SimpleAsyncRenderer::render] No GPU meshes available to render (queued: {})", self.mesh_builder.active_builds());
-                    LAST_LOG = std::time::Instant::now();
+                    LOG_COUNT += 1;
                 }
             }
             return 0;
