@@ -5,9 +5,9 @@
 use std::sync::Arc;
 use wgpu::{Device, Queue, Buffer};
 use bytemuck::{Pod, Zeroable};
-use crate::memory::MemoryManager;
 use crate::morton::morton_encode;
 use crate::world::ChunkPos;
+use crate::memory::MemoryManager;
 
 /// Octree node stored on GPU
 #[repr(C)]

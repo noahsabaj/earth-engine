@@ -1,6 +1,5 @@
-use wgpu::util::DeviceExt;
 use bytemuck::{Pod, Zeroable};
-use cgmath::{Matrix4, Vector3, Vector4};
+use cgmath::{Matrix4, Vector3};
 use std::sync::Arc;
 
 /// Per-instance data stored on GPU

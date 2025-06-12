@@ -1,7 +1,6 @@
 use wgpu::util::DeviceExt;
 use bytemuck::{Pod, Zeroable};
-use cgmath::{Matrix4, Vector3, Vector4};
-use std::sync::Arc;
+use cgmath::{Matrix4};
 use super::indirect_commands::DrawMetadata;
 
 /// Camera data for culling shader

@@ -3,7 +3,7 @@ use wgpu::util::DeviceExt;
 use cgmath::{Vector4, Point3};
 use crate::{
     world::{ChunkPos, Chunk, BlockRegistry, World},
-    renderer::ChunkMesher,
+    renderer::greedy_mesher::GreedyMesher,
     Camera,
 };
 
@@ -31,7 +31,9 @@ impl ChunkRenderer {
         chunk: &Chunk,
         registry: &BlockRegistry,
     ) {
-        let mesh = ChunkMesher::generate_mesh(chunk, registry);
+        let chunk_size = chunk.size();
+        let mut mesher = GreedyMesher::new(chunk_size);
+        let mesh = mesher.generate_mesh(chunk, registry);
         
         if mesh.vertices.is_empty() {
             // Remove empty chunks

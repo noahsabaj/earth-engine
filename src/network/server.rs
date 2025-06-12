@@ -13,7 +13,7 @@ use crate::network::{
     NetworkResult, NetworkErrorContext, connection_error, protocol_error,
 };
 use crate::error::EngineError;
-use crate::world::{World, BlockId, VoxelPos, ChunkPos};
+use crate::world::{BlockId, VoxelPos, ChunkPos, ParallelWorld, ParallelWorldConfig, DefaultWorldGenerator};
 use crate::ecs::EcsWorld;
 use glam::{Vec3, Quat};
 
@@ -67,7 +67,7 @@ pub struct Server {
     udp_socket: Option<Arc<UdpSocket>>,
     connection_manager: Arc<Mutex<ConnectionManager>>,
     players: Arc<Mutex<HashMap<u32, ServerPlayer>>>,
-    world: Arc<Mutex<World>>,
+    world: Arc<ParallelWorld>,
     ecs_world: Arc<Mutex<EcsWorld>>,
     running: Arc<Mutex<bool>>,
     start_time: Instant,
@@ -88,7 +88,25 @@ impl Server {
             udp_socket: None,
             connection_manager: Arc::new(Mutex::new(ConnectionManager::new())),
             players: Arc::new(Mutex::new(HashMap::new())),
-            world: Arc::new(Mutex::new(World::new(32))), // 32x32x32 chunks
+            // Create parallel world for server
+            world: {
+                let generator = Box::new(DefaultWorldGenerator::new(
+                    12345, // seed
+                    BlockId(1), // grass
+                    BlockId(2), // dirt
+                    BlockId(3), // stone
+                    BlockId(4), // water
+                    BlockId(5), // sand
+                ));
+                let config = ParallelWorldConfig {
+                    generation_threads: 2, // Use fewer threads on server
+                    mesh_threads: 0, // Server doesn't need mesh threads
+                    chunks_per_frame: 4,
+                    view_distance: 8,
+                    chunk_size: 32,
+                };
+                Arc::new(ParallelWorld::new(generator, config))
+            },
             ecs_world: Arc::new(Mutex::new(EcsWorld::new())),
             running: Arc::new(Mutex::new(false)),
             start_time: Instant::now(),
@@ -532,7 +550,7 @@ impl Server {
         // TODO: Validate player can break this block
         
         // Break block
-        self.world.lock().network_context("world")?.set_block(position, BlockId::AIR);
+        self.world.set_block(position, BlockId::AIR);
         
         // Notify all players
         self.broadcast(Packet::Server(ServerPacket::BlockChange {
@@ -548,7 +566,7 @@ impl Server {
         // TODO: Validate player can place this block
         
         // Place block
-        self.world.lock().network_context("world")?.set_block(position, block_id);
+        self.world.set_block(position, block_id);
         
         // Notify all players
         self.broadcast(Packet::Server(ServerPacket::BlockChange {
@@ -590,7 +608,8 @@ impl Server {
         // TODO: Validate player should receive this chunk
         
         // Get chunk data
-        if let Some(chunk) = self.world.lock().network_context("world")?.get_chunk(chunk_pos) {
+        if let Some(chunk_lock) = self.world.chunk_manager().get_chunk(chunk_pos) {
+            let chunk = chunk_lock.read();
             // TODO: Compress chunk data
             let compressed_data = Vec::new(); // Placeholder
             

@@ -1,5 +1,6 @@
 pub mod light_map;
 pub mod propagation;
+pub mod optimized_propagation;
 pub mod skylight;
 pub mod time_of_day;
 pub mod parallel_propagator;
@@ -7,6 +8,7 @@ pub mod concurrent_provider;
 
 pub use light_map::{LightMap, LightLevel};
 pub use propagation::LightPropagator;
+pub use optimized_propagation::{OptimizedLightPropagator, propagate_light_thread_local};
 pub use skylight::SkylightCalculator;
 pub use time_of_day::{TimeOfDay, DayNightCycle};
 pub use parallel_propagator::{

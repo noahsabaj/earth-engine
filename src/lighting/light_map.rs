@@ -1,4 +1,3 @@
-use crate::world::VoxelPos;
 
 /// Light level (0-15) with separate sky and block light components
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -39,6 +38,7 @@ impl LightLevel {
 }
 
 /// Light storage for a chunk
+#[derive(Clone)]
 pub struct LightMap {
     size: u32,
     /// Packed light data: sky light in upper 4 bits, block light in lower 4 bits

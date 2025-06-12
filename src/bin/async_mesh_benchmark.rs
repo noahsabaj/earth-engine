@@ -1,6 +1,6 @@
 use earth_engine::{
     world::{ParallelWorld, ParallelWorldConfig, DefaultWorldGenerator, Chunk},
-    renderer::{ChunkMesher, AsyncMeshBuilder, MeshBuildRequest},
+    renderer::{greedy_mesher::GreedyMesher, AsyncMeshBuilder, MeshBuildRequest},
     BlockId, BlockRegistry, Block, RenderData, PhysicsProperties,
 };
 use cgmath::Point3;
@@ -96,7 +96,8 @@ fn main() {
     
     for (_, chunk_lock) in &chunks_to_mesh {
         let chunk = chunk_lock.read();
-        let mesh = ChunkMesher::generate_mesh(&chunk, &registry);
+        let mut mesher = GreedyMesher::new(chunk_size);
+        let mesh = mesher.generate_mesh(&chunk, &registry);
         sync_meshes += 1;
         sync_vertices += mesh.vertices.len();
     }

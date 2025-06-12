@@ -1,5 +1,5 @@
 use cgmath::{Vector3, Point3, InnerSpace};
-use crate::world::{VoxelPos, BlockId, World};
+use crate::world::{VoxelPos, BlockId, WorldInterface};
 
 #[derive(Debug, Clone, Copy)]
 pub struct Ray {
@@ -59,7 +59,7 @@ pub struct RaycastHit {
 }
 
 /// Cast a ray through the world and find the first solid block hit
-pub fn cast_ray(world: &World, ray: Ray, max_distance: f32) -> Option<RaycastHit> {
+pub fn cast_ray(world: &dyn WorldInterface, ray: Ray, max_distance: f32) -> Option<RaycastHit> {
     let mut t = 0.0;
     let step = 0.01; // Small step size for accuracy
     

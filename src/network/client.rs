@@ -13,7 +13,7 @@ use crate::network::{
     NetworkResult, NetworkErrorContext, connection_error,
 };
 use crate::error::EngineError;
-use crate::world::{World, BlockId, VoxelPos, ChunkPos};
+use crate::world::{BlockId, VoxelPos, ChunkPos, ParallelWorld, ParallelWorldConfig, DefaultWorldGenerator};
 use crate::ecs::EcsWorld;
 use glam::{Vec3, Quat};
 
@@ -46,7 +46,7 @@ pub struct Client {
     username: String,
     
     // Game state
-    world: Arc<Mutex<World>>,
+    world: Arc<ParallelWorld>,
     ecs_world: Arc<Mutex<EcsWorld>>,
     remote_players: Arc<Mutex<HashMap<u32, RemotePlayer>>>,
     
@@ -76,7 +76,25 @@ impl Client {
             connection: None,
             player_id: None,
             username,
-            world: Arc::new(Mutex::new(World::new(32))), // 32x32x32 chunks
+            // Create parallel world for client
+            world: {
+                let generator = Box::new(DefaultWorldGenerator::new(
+                    12345, // seed (should match server)
+                    BlockId(1), // grass
+                    BlockId(2), // dirt
+                    BlockId(3), // stone
+                    BlockId(4), // water
+                    BlockId(5), // sand
+                ));
+                let config = ParallelWorldConfig {
+                    generation_threads: num_cpus::get().saturating_sub(2).max(2),
+                    mesh_threads: num_cpus::get().saturating_sub(2).max(2),
+                    chunks_per_frame: num_cpus::get() * 2,
+                    view_distance: 8,
+                    chunk_size: 32,
+                };
+                Arc::new(ParallelWorld::new(generator, config))
+            },
             ecs_world: Arc::new(Mutex::new(EcsWorld::new())),
             remote_players: Arc::new(Mutex::new(HashMap::new())),
             position: Arc::new(Mutex::new(Vec3::ZERO)),
@@ -411,9 +429,7 @@ impl Client {
                         }
                     }
                     ServerPacket::BlockChange { position, block_id, sequence } => {
-                        self.world.lock()
-                            .network_context("world")?
-                            .set_block(position, block_id);
+                        self.world.set_block(position, block_id);
                     }
                     ServerPacket::ChatBroadcast { player_id, username, message, timestamp } => {
                         println!("[{}] {}: {}", timestamp, username, message);
@@ -445,7 +461,7 @@ impl Client {
     }
     
     /// Get world reference
-    pub fn world(&self) -> Arc<Mutex<World>> {
+    pub fn world(&self) -> Arc<ParallelWorld> {
         Arc::clone(&self.world)
     }
 }

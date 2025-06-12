@@ -1,4 +1,4 @@
-use crate::world::{World, VoxelPos, ChunkPos, BlockId};
+use crate::world::{WorldInterface, VoxelPos, ChunkPos, BlockId};
 use crate::lighting::{MAX_LIGHT_LEVEL, LightType};
 
 /// Calculates skylight propagation from the sky downward
@@ -6,7 +6,7 @@ pub struct SkylightCalculator;
 
 impl SkylightCalculator {
     /// Calculate skylight for a newly loaded chunk
-    pub fn calculate_for_chunk(world: &mut World, chunk_pos: ChunkPos, chunk_size: u32) {
+    pub fn calculate_for_chunk(world: &mut dyn WorldInterface, chunk_pos: ChunkPos, chunk_size: u32) {
         let world_x_start = chunk_pos.x * chunk_size as i32;
         let world_y_start = chunk_pos.y * chunk_size as i32;
         let world_z_start = chunk_pos.z * chunk_size as i32;
@@ -57,7 +57,7 @@ impl SkylightCalculator {
     }
     
     /// Update skylight when a block is placed or removed
-    pub fn update_column(world: &mut World, x: i32, y: i32, z: i32) {
+    pub fn update_column(world: &mut dyn WorldInterface, x: i32, y: i32, z: i32) {
         // When a block is removed, skylight might need to propagate down
         let pos = VoxelPos::new(x, y, z);
         

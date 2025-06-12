@@ -1,4 +1,3 @@
-use wgpu::util::DeviceExt;
 use bytemuck::{Pod, Zeroable};
 use std::sync::Arc;
 

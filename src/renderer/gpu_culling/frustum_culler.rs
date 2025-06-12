@@ -3,9 +3,9 @@
 /// Performs frustum culling entirely on GPU using compute shaders.
 /// Part of Sprint 28: GPU-Driven Rendering Optimization
 
-use wgpu::{Device, Buffer, BindGroup, ComputePipeline};
+use wgpu::{Device, Buffer, ComputePipeline};
 use wgpu::util::DeviceExt;
-use super::{GpuCamera, ChunkInstance, DrawCommand, CullingStats};
+use super::{GpuCamera, DrawCommand};
 
 pub struct FrustumCuller {
     pipeline: ComputePipeline,

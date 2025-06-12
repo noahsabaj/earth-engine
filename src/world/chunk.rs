@@ -83,6 +83,7 @@ impl VoxelPos {
 }
 
 /// A chunk of voxels
+#[derive(Clone)]
 pub struct Chunk {
     position: ChunkPos,
     size: u32,

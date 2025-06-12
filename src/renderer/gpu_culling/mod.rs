@@ -3,8 +3,8 @@
 /// Manages frustum and occlusion culling entirely on GPU.
 /// Part of Sprint 28: GPU-Driven Rendering Optimization
 
-use wgpu::{Device, Queue, Buffer, BindGroup, ComputePipeline};
-use cgmath::{Matrix4, Vector3, Vector4, SquareMatrix};
+use wgpu::{Device, Queue, Buffer};
+use cgmath::{Matrix4, Vector3, Vector4};
 use bytemuck::{Pod, Zeroable};
 use crate::renderer::error::{RendererResult, RendererErrorContext, buffer_mapping_error};
 

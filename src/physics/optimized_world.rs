@@ -1,23 +1,55 @@
+/// Zero-allocation physics world implementation
+/// Uses pre-allocated buffers and object pools to eliminate allocations in the physics update loop
+
 use super::{AABB, Vec3, PhysicsBody, FIXED_TIMESTEP, MovementState};
-use crate::{VoxelPos, BlockId};
-use crate::world::WorldInterface;
+use crate::{World, VoxelPos, BlockId};
 use cgmath::{Point3, Vector3, Zero, InnerSpace};
 use std::collections::HashMap;
 
 pub type EntityId = u32;
 
-pub struct PhysicsWorld {
+/// Pre-allocated buffers for physics calculations
+struct PhysicsBuffers {
+    /// Buffer for physics updates
+    updates: Vec<(EntityId, AABB, Point3<f32>, Vec3, Vec3)>,
+    /// Buffer for overlapping blocks
+    overlapping_blocks: Vec<VoxelPos>,
+    /// Buffer for solid block positions
+    solid_blocks: Vec<VoxelPos>,
+}
+
+impl PhysicsBuffers {
+    fn new(capacity: usize) -> Self {
+        Self {
+            updates: Vec::with_capacity(capacity),
+            overlapping_blocks: Vec::with_capacity(64), // Max blocks to check
+            solid_blocks: Vec::with_capacity(32),
+        }
+    }
+    
+    fn clear(&mut self) {
+        self.updates.clear();
+        self.overlapping_blocks.clear();
+        self.solid_blocks.clear();
+    }
+}
+
+/// Optimized physics world with zero allocations per frame
+pub struct OptimizedPhysicsWorld {
     bodies: HashMap<EntityId, Box<dyn PhysicsBody + Send + Sync>>,
     next_entity_id: EntityId,
     accumulator: f32,
+    /// Pre-allocated buffers for physics calculations
+    buffers: PhysicsBuffers,
 }
 
-impl PhysicsWorld {
+impl OptimizedPhysicsWorld {
     pub fn new() -> Self {
         Self {
             bodies: HashMap::new(),
             next_entity_id: 1,
             accumulator: 0.0,
+            buffers: PhysicsBuffers::new(128), // Support up to 128 entities
         }
     }
     
@@ -41,7 +73,7 @@ impl PhysicsWorld {
     }
     
     // Fixed timestep update
-    pub fn update(&mut self, world: &dyn WorldInterface, delta_time: f32) {
+    pub fn update(&mut self, world: &World, delta_time: f32) {
         self.accumulator += delta_time;
         
         // Run physics at fixed timestep
@@ -51,10 +83,11 @@ impl PhysicsWorld {
         }
     }
     
-    fn step(&mut self, world: &dyn WorldInterface, dt: f32) {
-        // Collect updates to apply after iteration
-        let mut updates = Vec::new();
+    fn step(&mut self, world: &World, dt: f32) {
+        // Clear buffers without deallocating
+        self.buffers.clear();
         
+        // Collect updates in pre-allocated buffer
         for (id, body) in self.bodies.iter_mut() {
             // Get current state
             let pos = body.get_position();
@@ -78,12 +111,14 @@ impl PhysicsWorld {
             let velocity = body.get_velocity();
             let delta = velocity * dt;
             
-            // Store update for later
-            updates.push((*id, aabb, pos, delta, velocity));
+            // Store update in pre-allocated buffer
+            self.buffers.updates.push((*id, aabb, pos, delta, velocity));
         }
         
         // Apply collision detection and updates
-        for (id, aabb, pos, delta, velocity) in updates {
+        for i in 0..self.buffers.updates.len() {
+            let (id, aabb, pos, delta, velocity) = self.buffers.updates[i];
+            
             // Collision detection and response
             let (resolved_pos, resolved_vel, grounded, in_water, on_ladder) = self.resolve_collisions(
                 world,
@@ -152,8 +187,8 @@ impl PhysicsWorld {
     }
     
     fn resolve_collisions(
-        &self,
-        world: &dyn WorldInterface,
+        &mut self,
+        world: &World,
         _body_id: EntityId,
         aabb: AABB,
         position: Point3<f32>,
@@ -176,10 +211,10 @@ impl PhysicsWorld {
             
             // Test horizontal movement at raised position
             let test_raised = raised_aabb.translated(horizontal_delta);
-            let raised_blocks = self.get_overlapping_blocks(world, test_raised);
+            self.get_overlapping_blocks_buffered(world, test_raised);
             
             let mut can_step_up = true;
-            for block_pos in &raised_blocks {
+            for block_pos in &self.buffers.overlapping_blocks {
                 if self.is_solid_block(world, *block_pos) {
                     can_step_up = false;
                     break;
@@ -189,10 +224,14 @@ impl PhysicsWorld {
             if can_step_up {
                 // Check if there's ground to step onto
                 let step_test_aabb = test_raised.translated(Vector3::new(0.0, -step_height, 0.0));
-                let step_ground_blocks = self.get_overlapping_blocks(world, step_test_aabb);
+                
+                // Save current overlapping blocks
+                let saved_len = self.buffers.overlapping_blocks.len();
+                self.get_overlapping_blocks_buffered(world, step_test_aabb);
                 
                 let mut found_ground = false;
-                for block_pos in step_ground_blocks {
+                for i in saved_len..self.buffers.overlapping_blocks.len() {
+                    let block_pos = self.buffers.overlapping_blocks[i];
                     if self.is_solid_block(world, block_pos) {
                         // Calculate exact step height
                         let block_top = block_pos.y as f32 + 1.0;
@@ -209,6 +248,9 @@ impl PhysicsWorld {
                         }
                     }
                 }
+                
+                // Restore overlapping blocks buffer
+                self.buffers.overlapping_blocks.truncate(saved_len);
                 
                 if found_ground {
                     return (new_pos, new_vel, grounded, in_water, on_ladder);
@@ -233,12 +275,12 @@ impl PhysicsWorld {
             // Test movement along this axis
             let test_aabb = aabb.translated(new_pos - position + axis_delta);
             
-            // Check collision with blocks
-            let blocks = self.get_overlapping_blocks(world, test_aabb);
+            // Check collision with blocks using buffered function
+            self.get_overlapping_blocks_buffered(world, test_aabb);
             
             let mut collision = false;
-            for block_pos in blocks {
-                let block_id = world.get_block(block_pos);
+            for block_pos in &self.buffers.overlapping_blocks {
+                let block_id = world.get_block(*block_pos);
                 
                 // Check for special blocks
                 if block_id == BlockId(6) { // Water
@@ -288,12 +330,15 @@ impl PhysicsWorld {
             if !collision {
                 new_pos += axis_delta;
             }
+            
+            // Clear buffer for next axis
+            self.buffers.overlapping_blocks.clear();
         }
         
         (new_pos, new_vel, grounded, in_water, on_ladder)
     }
     
-    fn is_solid_block(&self, world: &dyn WorldInterface, pos: VoxelPos) -> bool {
+    fn is_solid_block(&self, world: &World, pos: VoxelPos) -> bool {
         let block_id = world.get_block(pos);
         self.is_solid_block_id(block_id)
     }
@@ -303,8 +348,9 @@ impl PhysicsWorld {
         block_id != BlockId::AIR && block_id != BlockId(6) && block_id != BlockId(7)
     }
     
-    fn get_overlapping_blocks(&self, world: &dyn WorldInterface, aabb: AABB) -> Vec<VoxelPos> {
-        let mut blocks = Vec::new();
+    /// Get overlapping blocks using pre-allocated buffer
+    fn get_overlapping_blocks_buffered(&mut self, world: &World, aabb: AABB) {
+        self.buffers.overlapping_blocks.clear();
         
         // Convert AABB to block coordinates
         let min_x = aabb.min.x.floor() as i32;
@@ -320,13 +366,11 @@ impl PhysicsWorld {
                 for z in min_z..=max_z {
                     let pos = VoxelPos::new(x, y, z);
                     if world.is_block_in_bounds(pos) {
-                        blocks.push(pos);
+                        self.buffers.overlapping_blocks.push(pos);
                     }
                 }
             }
         }
-        
-        blocks
     }
     
     // Get interpolated position for rendering (between physics steps)

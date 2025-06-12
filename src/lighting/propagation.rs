@@ -1,5 +1,5 @@
 use std::collections::VecDeque;
-use crate::world::{World, VoxelPos, BlockId};
+use crate::world::{WorldInterface, VoxelPos, BlockId};
 use crate::lighting::{LightLevel, LightType, MAX_LIGHT_LEVEL, LIGHT_FALLOFF};
 
 /// Light propagation engine using flood-fill algorithm
@@ -29,7 +29,7 @@ impl LightPropagator {
     }
     
     /// Process all pending light updates
-    pub fn propagate(&mut self, world: &mut World) {
+    pub fn propagate(&mut self, world: &mut dyn WorldInterface) {
         // First, process removals
         while let Some((pos, light_type, old_level)) = self.removal_queue.pop_front() {
             self.remove_light_recursive(world, pos, light_type, old_level);
@@ -41,7 +41,7 @@ impl LightPropagator {
         }
     }
     
-    fn propagate_light_recursive(&mut self, world: &mut World, pos: VoxelPos, light_type: LightType, level: u8) {
+    fn propagate_light_recursive(&mut self, world: &mut dyn WorldInterface, pos: VoxelPos, light_type: LightType, level: u8) {
         // Skip if position is solid
         if world.get_block(pos) != BlockId::AIR && !world.is_block_transparent(pos) {
             return;
@@ -89,7 +89,7 @@ impl LightPropagator {
         }
     }
     
-    fn remove_light_recursive(&mut self, world: &mut World, pos: VoxelPos, light_type: LightType, old_level: u8) {
+    fn remove_light_recursive(&mut self, world: &mut dyn WorldInterface, pos: VoxelPos, light_type: LightType, old_level: u8) {
         // Get current light level
         let current_level = match light_type {
             LightType::Sky => world.get_sky_light(pos),
@@ -134,7 +134,7 @@ impl LightPropagator {
     }
     
     /// Calculate initial skylight for a chunk
-    pub fn calculate_chunk_skylight(world: &mut World, chunk_x: i32, chunk_y: i32, chunk_z: i32, chunk_size: u32) {
+    pub fn calculate_chunk_skylight(world: &mut dyn WorldInterface, chunk_x: i32, chunk_y: i32, chunk_z: i32, chunk_size: u32) {
         let world_x_start = chunk_x * chunk_size as i32;
         let world_y_start = chunk_y * chunk_size as i32;
         let world_z_start = chunk_z * chunk_size as i32;

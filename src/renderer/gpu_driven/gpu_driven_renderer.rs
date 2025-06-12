@@ -1,12 +1,12 @@
 use std::sync::Arc;
 use wgpu::util::DeviceExt;
-use cgmath::{Matrix4, Vector3};
+use cgmath::{Vector3};
 use crate::Camera;
 use super::{
-    indirect_commands::{IndirectCommandManager, IndirectDrawIndexedCommand, DrawMetadata},
+    indirect_commands::{IndirectCommandManager, DrawMetadata},
     instance_buffer::{InstanceManager, InstanceData, InstanceBuffer},
     culling_pipeline::{CullingPipeline, CullingData},
-    lod_system::{LodSystem, LodSelection},
+    lod_system::{LodSystem},
 };
 
 /// Statistics for GPU-driven rendering

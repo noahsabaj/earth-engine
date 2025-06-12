@@ -4,10 +4,9 @@
 /// with the same material into larger quads.
 /// Part of Sprint 29: Mesh Optimization & Advanced LOD
 
-use crate::world::{Chunk, BlockId, ChunkPos};
-use crate::renderer::Vertex;
+use crate::world::{Chunk, BlockId, ChunkPos, BlockRegistry};
+use crate::renderer::{Vertex, mesh::ChunkMesh};
 use cgmath::Vector3;
-use std::collections::HashMap;
 
 /// Direction of a face
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -46,7 +45,7 @@ impl FaceDirection {
 }
 
 /// A greedy quad representing multiple merged voxel faces
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct GreedyQuad {
     pub position: Vector3<f32>,
     pub size: Vector3<f32>,
@@ -66,9 +65,32 @@ impl GreedyMesher {
     }
     
     /// Generate optimized mesh using greedy meshing
-    pub fn generate_mesh(&self, chunk: &Chunk) -> Vec<Vertex> {
+    pub fn generate_mesh(&self, chunk: &Chunk, registry: &BlockRegistry) -> ChunkMesh {
         let quads = self.extract_quads(chunk);
-        self.quads_to_vertices(&quads)
+        
+        // Log optimization statistics
+        let total_quads = quads.len();
+        let total_triangles = total_quads * 2;
+        log::debug!(
+            "GreedyMesher: Generated {} quads ({} triangles) for chunk",
+            total_quads, total_triangles
+        );
+        
+        self.quads_to_mesh(&quads)
+    }
+    
+    /// Build chunk mesh with neighbor information for proper face culling
+    pub fn build_chunk_mesh(
+        &mut self,
+        chunk: &Chunk,
+        chunk_pos: ChunkPos,
+        chunk_size: u32,
+        registry: &BlockRegistry,
+        neighbors: &[Option<std::sync::Arc<parking_lot::RwLock<Chunk>>>],
+    ) -> ChunkMesh {
+        // For now, just use generate_mesh
+        // TODO: Implement neighbor-aware face culling
+        self.generate_mesh(chunk, registry)
     }
     
     /// Extract greedy quads from chunk
@@ -260,9 +282,9 @@ impl GreedyMesher {
         quads
     }
     
-    /// Convert greedy quads to vertex data
-    fn quads_to_vertices(&self, quads: &[GreedyQuad]) -> Vec<Vertex> {
-        let mut vertices = Vec::with_capacity(quads.len() * 6); // 2 triangles per quad
+    /// Convert greedy quads to ChunkMesh
+    fn quads_to_mesh(&self, quads: &[GreedyQuad]) -> ChunkMesh {
+        let mut mesh = ChunkMesh::new();
         
         for quad in quads {
             let normal = quad.face.normal();
@@ -278,10 +300,6 @@ impl GreedyMesher {
                 pos[u_axis] += u_offset * quad.size[u_axis];
                 pos[v_axis] += v_offset * quad.size[v_axis];
                 
-                // Calculate texture coordinates based on quad size
-                let tex_u = u_offset * quad.size[u_axis];
-                let tex_v = v_offset * quad.size[v_axis];
-                
                 verts.push(Vertex {
                     position: [pos.x, pos.y, pos.z],
                     color: [1.0, 1.0, 1.0], // TODO: Material color based on block type
@@ -291,22 +309,60 @@ impl GreedyMesher {
                 });
             }
             
-            // Create two triangles from the quad
-            vertices.push(verts[0]);
-            vertices.push(verts[1]);
-            vertices.push(verts[2]);
-            
-            vertices.push(verts[0]);
-            vertices.push(verts[2]);
-            vertices.push(verts[3]);
+            // Add quad to mesh
+            let verts_array: [Vertex; 4] = verts.try_into().unwrap();
+            mesh.add_quad(verts_array);
         }
         
-        vertices
+        mesh
+    }
+    
+    /// Generate mesh with statistics
+    pub fn generate_mesh_with_stats(&self, chunk: &Chunk, registry: &BlockRegistry) -> (ChunkMesh, GreedyMeshStats) {
+        let quads = self.extract_quads(chunk);
+        
+        // Calculate statistics
+        let mut stats = GreedyMeshStats::default();
+        stats.output_quads = quads.len() as u32;
+        stats.output_triangles = stats.output_quads * 2;
+        
+        // Calculate theoretical input faces (without greedy meshing)
+        let mut input_faces = 0u32;
+        for y in 0..self.chunk_size {
+            for z in 0..self.chunk_size {
+                for x in 0..self.chunk_size {
+                    if chunk.get_block(x, y, z) != BlockId::AIR {
+                        // Count visible faces
+                        if x == 0 || chunk.get_block(x - 1, y, z) == BlockId::AIR { input_faces += 1; }
+                        if x == self.chunk_size - 1 || chunk.get_block(x + 1, y, z) == BlockId::AIR { input_faces += 1; }
+                        if y == 0 || chunk.get_block(x, y - 1, z) == BlockId::AIR { input_faces += 1; }
+                        if y == self.chunk_size - 1 || chunk.get_block(x, y + 1, z) == BlockId::AIR { input_faces += 1; }
+                        if z == 0 || chunk.get_block(x, y, z - 1) == BlockId::AIR { input_faces += 1; }
+                        if z == self.chunk_size - 1 || chunk.get_block(x, y, z + 1) == BlockId::AIR { input_faces += 1; }
+                    }
+                }
+            }
+        }
+        
+        stats.input_faces = input_faces;
+        stats.reduction_ratio = if stats.output_quads > 0 {
+            input_faces as f32 / stats.output_quads as f32
+        } else {
+            0.0
+        };
+        
+        // Find largest quad
+        stats.largest_quad = quads.iter()
+            .map(|q| (q.size[0] * q.size[1] * q.size[2]) as u32)
+            .max()
+            .unwrap_or(0);
+        
+        (self.quads_to_mesh(&quads), stats)
     }
 }
 
 /// Statistics for greedy meshing
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct GreedyMeshStats {
     pub input_faces: u32,
     pub output_quads: u32,
@@ -314,3 +370,4 @@ pub struct GreedyMeshStats {
     pub reduction_ratio: f32,
     pub largest_quad: u32,
 }
+

@@ -6,10 +6,10 @@
 
 use cgmath::Vector3;
 
-use crate::world::{Chunk, ChunkPos, VoxelPos};
-use crate::renderer::{Vertex, greedy_mesher::{GreedyMesher, GreedyMeshStats}};
+use crate::world::{Chunk, ChunkPos, BlockRegistry};
+use crate::renderer::{Vertex, greedy_mesher::{GreedyMesher}};
 use crate::error::{EngineError, EngineResult};
-use wgpu::{Device, Queue, Buffer, ComputePipeline, BindGroupLayout};
+use wgpu::{Device, Queue, ComputePipeline, BindGroupLayout};
 use wgpu::util::DeviceExt;
 use std::collections::HashMap;
 use bytemuck::{Pod, Zeroable};
@@ -77,6 +77,7 @@ pub struct MeshOptimizer {
     greedy_mesher: GreedyMesher,
     gpu_mesher: Option<GpuMeshGenerator>,
     mesh_cache: Arc<RwLock<MeshCache>>,
+    block_registry: Arc<BlockRegistry>,
     
     // Configuration
     use_gpu_generation: bool,
@@ -84,7 +85,7 @@ pub struct MeshOptimizer {
 }
 
 impl MeshOptimizer {
-    pub fn new(device: &Device, chunk_size: u32, use_gpu: bool) -> Self {
+    pub fn new(device: &Device, chunk_size: u32, use_gpu: bool, block_registry: Arc<BlockRegistry>) -> Self {
         let greedy_mesher = GreedyMesher::new(chunk_size);
         
         let gpu_mesher = if use_gpu {
@@ -97,6 +98,7 @@ impl MeshOptimizer {
             greedy_mesher,
             gpu_mesher,
             mesh_cache: Arc::new(RwLock::new(MeshCache::new(256))), // 256MB cache
+            block_registry,
             use_gpu_generation: use_gpu,
             cache_size_mb: 256,
         }
@@ -163,14 +165,18 @@ impl MeshOptimizer {
             // Use GPU generation
             // Note: In a real implementation, we'd need access to the device here
             // For now, return CPU-generated mesh as fallback
-            let vertices = self.greedy_mesher.generate_mesh(chunk);
-            let indices = (0..vertices.len() as u32).collect();
-            MeshData { vertices, indices }
+            let mesh = self.greedy_mesher.generate_mesh(chunk, &self.block_registry);
+            MeshData { 
+                vertices: mesh.vertices, 
+                indices: mesh.indices 
+            }
         } else {
             // Use CPU greedy mesher
-            let vertices = self.greedy_mesher.generate_mesh(chunk);
-            let indices = (0..vertices.len() as u32).collect();
-            MeshData { vertices, indices }
+            let mesh = self.greedy_mesher.generate_mesh(chunk, &self.block_registry);
+            MeshData { 
+                vertices: mesh.vertices, 
+                indices: mesh.indices 
+            }
         }
     }
     
@@ -178,9 +184,11 @@ impl MeshOptimizer {
     fn generate_lod_n(&self, chunk: &Chunk, block_size: u32) -> MeshData {
         // Create simplified chunk by merging blocks
         let simplified = self.simplify_chunk(chunk, block_size);
-        let vertices = self.greedy_mesher.generate_mesh(&simplified);
-        let indices = (0..vertices.len() as u32).collect();
-        MeshData { vertices, indices }
+        let mesh = self.greedy_mesher.generate_mesh(&simplified, &self.block_registry);
+        MeshData { 
+            vertices: mesh.vertices, 
+            indices: mesh.indices 
+        }
     }
     
     /// Generate single box for LOD 4

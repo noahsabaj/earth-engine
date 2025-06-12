@@ -1,5 +1,5 @@
-use crate::world::{BlockId, Chunk, ChunkPos, VoxelPos, ChunkManager, WorldGenerator};
-use std::collections::HashMap;
+use crate::world::{BlockId, Chunk, ChunkPos, VoxelPos, ChunkManager, WorldGenerator, WorldInterface};
+use std::collections::{HashMap, HashSet};
 use cgmath::Point3;
 
 pub struct World {
@@ -156,5 +156,60 @@ impl WorldGenerator for FlatWorldGenerator {
     
     fn get_surface_height(&self, _world_x: f64, _world_z: f64) -> i32 {
         8 // Fixed height for flat world
+    }
+}
+
+// Implement WorldInterface for World
+impl WorldInterface for World {
+    fn get_block(&self, pos: VoxelPos) -> BlockId {
+        self.get_block(pos)
+    }
+    
+    fn set_block(&mut self, pos: VoxelPos, block: BlockId) {
+        self.set_block(pos, block);
+    }
+    
+    fn update_loaded_chunks(&mut self, player_pos: Point3<f32>) {
+        self.update_loaded_chunks(player_pos);
+    }
+    
+    fn chunk_size(&self) -> u32 {
+        self.chunk_size()
+    }
+    
+    fn is_block_in_bounds(&self, pos: VoxelPos) -> bool {
+        self.is_block_in_bounds(pos)
+    }
+    
+    fn get_sky_light(&self, pos: VoxelPos) -> u8 {
+        self.get_sky_light(pos)
+    }
+    
+    fn set_sky_light(&mut self, pos: VoxelPos, level: u8) {
+        self.set_sky_light(pos, level);
+    }
+    
+    fn get_block_light(&self, pos: VoxelPos) -> u8 {
+        self.get_block_light(pos)
+    }
+    
+    fn set_block_light(&mut self, pos: VoxelPos, level: u8) {
+        self.set_block_light(pos, level);
+    }
+    
+    fn is_chunk_loaded(&self, pos: ChunkPos) -> bool {
+        self.chunk_manager.get_chunk(pos).is_some()
+    }
+    
+    fn take_dirty_chunks(&mut self) -> HashSet<ChunkPos> {
+        self.take_dirty_chunks()
+    }
+    
+    fn get_surface_height(&self, world_x: f64, world_z: f64) -> i32 {
+        self.get_surface_height(world_x, world_z)
+    }
+    
+    fn is_block_transparent(&self, pos: VoxelPos) -> bool {
+        self.is_block_transparent(pos)
     }
 }

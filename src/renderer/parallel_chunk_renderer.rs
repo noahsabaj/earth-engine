@@ -6,7 +6,7 @@ use rayon::prelude::*;
 use wgpu::util::DeviceExt;
 use crate::{ChunkPos, Chunk, BlockRegistry};
 use crate::world::ConcurrentChunkManager;
-use super::{ChunkMesh, ChunkMesher};
+use super::{ChunkMesh, greedy_mesher::GreedyMesher};
 
 /// Parallel chunk renderer that generates meshes in background threads
 pub struct ParallelChunkRenderer {
@@ -106,7 +106,7 @@ impl ParallelChunkRenderer {
                 let chunk = request.chunk.read();
                 
                 // Create mesh builder with neighbor chunks
-                let mut mesher = ChunkMesher::new();
+                let mut mesher = GreedyMesher::new(chunk_size);
                 
                 // Get neighbor chunks for proper face culling
                 let neighbors = [

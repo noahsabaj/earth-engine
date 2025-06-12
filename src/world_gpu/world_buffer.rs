@@ -1,5 +1,4 @@
 use std::sync::Arc;
-use wgpu::util::DeviceExt;
 use bytemuck::{Pod, Zeroable};
 use crate::morton::morton_encode;
 

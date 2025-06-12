@@ -6,7 +6,7 @@ use rayon::{ThreadPool, ThreadPoolBuilder};
 use dashmap::DashMap;
 use crate::{
     ChunkPos, Chunk, BlockRegistry,
-    renderer::{ChunkMesh, ChunkMesher},
+    renderer::{ChunkMesh, greedy_mesher::GreedyMesher},
 };
 
 /// Request to build a mesh for a chunk
@@ -158,7 +158,7 @@ impl AsyncMeshBuilder {
                     // Build the mesh
                     let mesh = {
                         let chunk = request.chunk.read();
-                        let mut mesher = ChunkMesher::new();
+                        let mut mesher = GreedyMesher::new(chunk_size);
                         mesher.build_chunk_mesh(
                             &chunk,
                             request.chunk_pos,
@@ -221,7 +221,7 @@ impl AsyncMeshBuilder {
         chunk: &Chunk,
         neighbors: &[Option<Arc<RwLock<Chunk>>>; 6],
     ) -> ChunkMesh {
-        let mut mesher = ChunkMesher::new();
+        let mut mesher = GreedyMesher::new(self.chunk_size);
         mesher.build_chunk_mesh(
             chunk,
             chunk_pos,

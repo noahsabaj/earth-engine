@@ -1,4 +1,4 @@
-use crate::world::{BlockId, BlockRegistry, VoxelPos, World, Ray, RaycastHit, cast_ray};
+use crate::world::{BlockId, BlockRegistry, VoxelPos, WorldInterface, Ray, RaycastHit, cast_ray};
 use crate::Camera;
 use crate::input::InputState;
 
@@ -28,7 +28,7 @@ pub trait Game: Send + Sync {
 
 /// Context passed to game update functions
 pub struct GameContext<'a> {
-    pub world: &'a mut World,
+    pub world: &'a mut dyn WorldInterface,
     pub registry: &'a BlockRegistry,
     pub camera: &'a Camera,
     pub input: &'a InputState,
@@ -42,7 +42,7 @@ impl<'a> GameContext<'a> {
             self.camera.position,
             self.camera.get_forward_vector(),
         );
-        cast_ray(self.world, ray, max_distance)
+        cast_ray(&*self.world, ray, max_distance)
     }
     
     /// Break a block at the given position

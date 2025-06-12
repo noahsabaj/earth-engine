@@ -1,9 +1,11 @@
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+use std::collections::HashSet;
 use parking_lot::RwLock;
 use cgmath::Point3;
 use rayon::{ThreadPool, ThreadPoolBuilder};
 use crate::{BlockId, VoxelPos, ChunkPos};
+use crate::world::WorldInterface;
 use super::{ParallelChunkManager, WorldGenerator, GenerationStats};
 
 /// Configuration for parallel world processing
@@ -193,6 +195,11 @@ impl ParallelWorld {
     pub fn config(&self) -> &ParallelWorldConfig {
         &self.config
     }
+    
+    /// Get loaded chunk positions for cleanup purposes
+    pub fn get_loaded_chunk_positions(&self) -> Vec<ChunkPos> {
+        self.chunk_manager.get_loaded_chunk_positions()
+    }
 }
 
 /// Performance metrics for the parallel world
@@ -205,4 +212,91 @@ pub struct WorldPerformanceMetrics {
     pub chunks_per_second: f32,
     pub average_frame_time: Duration,
     pub fps: f32,
+}
+
+// Implement WorldInterface for ParallelWorld
+impl WorldInterface for ParallelWorld {
+    fn get_block(&self, pos: VoxelPos) -> BlockId {
+        self.get_block(pos)
+    }
+    
+    fn set_block(&mut self, pos: VoxelPos, block: BlockId) {
+        self.set_block(pos, block);
+    }
+    
+    fn update_loaded_chunks(&mut self, player_pos: Point3<f32>) {
+        self.update(player_pos);
+    }
+    
+    fn chunk_size(&self) -> u32 {
+        self.config.chunk_size
+    }
+    
+    fn is_block_in_bounds(&self, _pos: VoxelPos) -> bool {
+        true // Infinite world
+    }
+    
+    fn get_sky_light(&self, pos: VoxelPos) -> u8 {
+        let chunk_pos = pos.to_chunk_pos(self.chunk_size());
+        let local_pos = pos.to_local_pos(self.chunk_size());
+        
+        if let Some(chunk_lock) = self.chunk_manager.get_chunk(chunk_pos) {
+            let chunk = chunk_lock.read();
+            chunk.get_sky_light(local_pos.0, local_pos.1, local_pos.2)
+        } else {
+            0
+        }
+    }
+    
+    fn set_sky_light(&mut self, pos: VoxelPos, level: u8) {
+        let chunk_pos = pos.to_chunk_pos(self.chunk_size());
+        let local_pos = pos.to_local_pos(self.chunk_size());
+        
+        if let Some(chunk_lock) = self.chunk_manager.get_chunk(chunk_pos) {
+            let mut chunk = chunk_lock.write();
+            chunk.set_sky_light(local_pos.0, local_pos.1, local_pos.2, level);
+        }
+    }
+    
+    fn get_block_light(&self, pos: VoxelPos) -> u8 {
+        let chunk_pos = pos.to_chunk_pos(self.chunk_size());
+        let local_pos = pos.to_local_pos(self.chunk_size());
+        
+        if let Some(chunk_lock) = self.chunk_manager.get_chunk(chunk_pos) {
+            let chunk = chunk_lock.read();
+            chunk.get_block_light(local_pos.0, local_pos.1, local_pos.2)
+        } else {
+            0
+        }
+    }
+    
+    fn set_block_light(&mut self, pos: VoxelPos, level: u8) {
+        let chunk_pos = pos.to_chunk_pos(self.chunk_size());
+        let local_pos = pos.to_local_pos(self.chunk_size());
+        
+        if let Some(chunk_lock) = self.chunk_manager.get_chunk(chunk_pos) {
+            let mut chunk = chunk_lock.write();
+            chunk.set_block_light(local_pos.0, local_pos.1, local_pos.2, level);
+        }
+    }
+    
+    fn is_chunk_loaded(&self, pos: ChunkPos) -> bool {
+        self.is_chunk_loaded(pos)
+    }
+    
+    fn take_dirty_chunks(&mut self) -> HashSet<ChunkPos> {
+        // ParallelWorld manages dirty chunks internally through the chunk manager
+        self.chunk_manager.take_dirty_chunks()
+    }
+    
+    fn get_surface_height(&self, world_x: f64, world_z: f64) -> i32 {
+        // Delegate to the world generator
+        self.chunk_manager.get_surface_height(world_x, world_z)
+    }
+    
+    fn is_block_transparent(&self, pos: VoxelPos) -> bool {
+        let block_id = self.get_block(pos);
+        // For now, only air and water are transparent
+        block_id == BlockId::AIR || block_id == BlockId(6) // Water
+    }
 }

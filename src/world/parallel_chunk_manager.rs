@@ -1,5 +1,6 @@
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+use std::collections::HashSet;
 use parking_lot::RwLock;
 use dashmap::DashMap;
 use rayon::prelude::*;
@@ -64,10 +65,25 @@ impl ParallelChunkManager {
             completed_sender: comp_sender,
             completed_receiver: comp_receiver,
             stats: Arc::new(RwLock::new(GenerationStats::default())),
-            batch_size: num_cpus::get() * 2, // Process 2x CPU cores per batch
+            batch_size: num_cpus::get().min(8), // Process at most 8 chunks per batch
             chunk_cache: Arc::new(DashMap::new()),
             cache_limit: 128, // Cache up to 128 chunks
         }
+    }
+    
+    /// Set the batch size for chunk generation
+    pub fn set_batch_size(&mut self, size: usize) {
+        self.batch_size = size.max(1).min(32); // Clamp between 1 and 32
+    }
+    
+    /// Get current batch size
+    pub fn get_batch_size(&self) -> usize {
+        self.batch_size
+    }
+    
+    /// Get the number of chunks waiting in the generation queue
+    pub fn get_queue_length(&self) -> usize {
+        self.generation_receiver.len()
     }
     
     /// Update loaded chunks with priority-based generation
@@ -77,6 +93,9 @@ impl ParallelChunkManager {
             (player_pos.y / self.chunk_size as f32).floor() as i32,
             (player_pos.z / self.chunk_size as f32).floor() as i32,
         );
+        
+        // First, unload distant chunks
+        self.unload_distant_chunks(player_chunk);
         
         // Collect chunks that need to be loaded with priority
         let mut generation_requests = Vec::new();
@@ -113,28 +132,36 @@ impl ParallelChunkManager {
         // Sort by priority (closer chunks first)
         generation_requests.sort_by_key(|req| req.priority);
         
-        // Queue generation requests
-        for request in generation_requests {
+        // Only queue a limited number of requests to avoid overwhelming the system
+        let max_new_requests = self.batch_size * 2; // Allow queuing up to 2x batch size
+        for request in generation_requests.into_iter().take(max_new_requests) {
             let _ = self.generation_sender.send(request);
         }
         
-        // Process completed chunks
-        while let Ok((pos, chunk, gen_time)) = self.completed_receiver.try_recv() {
-            self.chunks.insert(pos, Arc::new(RwLock::new(chunk)));
-            
-            // Update statistics
-            let mut stats = self.stats.write();
-            stats.chunks_generated += 1;
-            stats.total_generation_time += gen_time;
-            stats.average_chunk_time = stats.total_generation_time / stats.chunks_generated as u32;
-            let total_secs = stats.total_generation_time.as_secs_f32();
-            if total_secs > 0.0 {
-                stats.chunks_per_second = stats.chunks_generated as f32 / total_secs;
+        // Process completed chunks with a limit to avoid frame stalls
+        let max_completions = self.batch_size; // Process at most batch_size completions per frame
+        let mut processed = 0;
+        
+        while processed < max_completions {
+            match self.completed_receiver.try_recv() {
+                Ok((pos, chunk, gen_time)) => {
+                    self.chunks.insert(pos, Arc::new(RwLock::new(chunk)));
+                    
+                    // Update statistics
+                    let mut stats = self.stats.write();
+                    stats.chunks_generated += 1;
+                    stats.total_generation_time += gen_time;
+                    stats.average_chunk_time = stats.total_generation_time / stats.chunks_generated as u32;
+                    let total_secs = stats.total_generation_time.as_secs_f32();
+                    if total_secs > 0.0 {
+                        stats.chunks_per_second = stats.chunks_generated as f32 / total_secs;
+                    }
+                    
+                    processed += 1;
+                }
+                Err(_) => break, // No more chunks ready
             }
         }
-        
-        // Unload distant chunks
-        self.unload_distant_chunks(player_chunk);
     }
     
     /// Process chunk generation queue in parallel with batching
@@ -275,6 +302,37 @@ impl ParallelChunkManager {
     /// Get number of cached chunks
     pub fn cached_chunk_count(&self) -> usize {
         self.chunk_cache.len()
+    }
+    
+    /// Get loaded chunk positions
+    pub fn get_loaded_chunk_positions(&self) -> Vec<ChunkPos> {
+        self.chunks
+            .iter()
+            .map(|entry| *entry.key())
+            .collect()
+    }
+    
+    /// Take dirty chunks that need remeshing
+    pub fn take_dirty_chunks(&self) -> HashSet<ChunkPos> {
+        let mut dirty_chunks = HashSet::new();
+        
+        for entry in self.chunks.iter() {
+            let chunk_pos = *entry.key();
+            let chunk_lock = entry.value();
+            let mut chunk = chunk_lock.write();
+            
+            if chunk.is_dirty() {
+                chunk.clear_dirty();
+                dirty_chunks.insert(chunk_pos);
+            }
+        }
+        
+        dirty_chunks
+    }
+    
+    /// Get surface height from the world generator
+    pub fn get_surface_height(&self, world_x: f64, world_z: f64) -> i32 {
+        self.generator.get_surface_height(world_x, world_z)
     }
     
     /// Force generate specific chunks (useful for spawn area)

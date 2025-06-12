@@ -1,4 +1,3 @@
-use wgpu::util::DeviceExt;
 use glam::Vec2;
 
 /// UI Color representation

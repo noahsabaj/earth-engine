@@ -1,8 +1,8 @@
-use crate::{Camera, EngineConfig, Game, GameContext, World, BlockRegistry, BlockId, VoxelPos};
+use crate::{Camera, EngineConfig, Game, GameContext, BlockRegistry, BlockId, VoxelPos};
 use crate::input::InputState;
 use crate::physics::{PhysicsWorld, PlayerBody, MovementState, PhysicsBody};
-use crate::renderer::{ChunkRenderer, SelectionRenderer};
-use crate::world::{Ray, RaycastHit, cast_ray};
+use crate::renderer::{SelectionRenderer, SimpleAsyncRenderer};
+use crate::world::{Ray, RaycastHit, ParallelWorld, ParallelWorldConfig};
 use crate::lighting::{DayNightCycle, LightPropagator};
 use anyhow::Result;
 use cgmath::{Matrix4, SquareMatrix, Point3, Vector3, InnerSpace};
@@ -160,9 +160,9 @@ pub struct GpuState {
     camera_bind_group_layout: wgpu::BindGroupLayout,
     depth_texture: wgpu::TextureView,
     // World and rendering
-    world: World,
-    block_registry: BlockRegistry,
-    chunk_renderer: ChunkRenderer,
+    world: ParallelWorld,
+    block_registry: Arc<BlockRegistry>,
+    chunk_renderer: SimpleAsyncRenderer,
     selection_renderer: SelectionRenderer,
     selected_block: Option<RaycastHit>,
     // Block breaking progress
@@ -331,15 +331,17 @@ impl GpuState {
         });
 
         // Create world and registry
-        let mut block_registry = BlockRegistry::new();
+        let mut block_registry_mut = BlockRegistry::new();
         
         // Register basic blocks
-        let grass_id = block_registry.register("test:grass", TestGrassBlock);
-        let dirt_id = block_registry.register("test:dirt", TestDirtBlock);
-        let stone_id = block_registry.register("test:stone", TestStoneBlock);
-        let water_id = block_registry.register("test:water", TestWaterBlock);
-        let sand_id = block_registry.register("test:sand", TestSandBlock);
-        let _torch_id = block_registry.register("test:torch", TestTorchBlock);
+        let grass_id = block_registry_mut.register("test:grass", TestGrassBlock);
+        let dirt_id = block_registry_mut.register("test:dirt", TestDirtBlock);
+        let stone_id = block_registry_mut.register("test:stone", TestStoneBlock);
+        let water_id = block_registry_mut.register("test:water", TestWaterBlock);
+        let sand_id = block_registry_mut.register("test:sand", TestSandBlock);
+        let _torch_id = block_registry_mut.register("test:torch", TestTorchBlock);
+        
+        let block_registry = Arc::new(block_registry_mut);
         
         // Create world with terrain generator
         let seed = 12345; // Fixed seed for consistent worlds
@@ -352,16 +354,32 @@ impl GpuState {
             sand_id,
         ));
         
-        let chunk_size = 32;
-        let view_distance = 4; // Load chunks within 4 chunk radius
-        let mut world = World::new_with_generator(chunk_size, view_distance, generator);
+        // Configure parallel world for better performance
+        let parallel_config = ParallelWorldConfig {
+            generation_threads: num_cpus::get().saturating_sub(2).max(2),
+            mesh_threads: num_cpus::get().saturating_sub(2).max(2),
+            chunks_per_frame: num_cpus::get() * 2,
+            view_distance: 4,
+            chunk_size: 32,
+        };
         
-        // Initial chunk loading around spawn
-        world.update_loaded_chunks(camera.position);
+        // Store chunk_size before moving parallel_config
+        let chunk_size = parallel_config.chunk_size;
         
-        // Create chunk renderer
-        let mut chunk_renderer = ChunkRenderer::new();
-        chunk_renderer.update_dirty_chunks(&device, &mut world, &block_registry);
+        let mut world = ParallelWorld::new(generator, parallel_config);
+        
+        // Pregenerate spawn area for smooth start
+        world.pregenerate_spawn_area(camera.position, 2);
+        
+        // Initial update
+        world.update(camera.position);
+        
+        // Create chunk renderer with async mesh building
+        let chunk_renderer = SimpleAsyncRenderer::new(
+            Arc::clone(&block_registry),
+            chunk_size,
+            None, // Use default thread count
+        );
         
         // Create selection renderer
         let selection_renderer = SelectionRenderer::new(&device, config.format, &camera_bind_group_layout);
@@ -403,6 +421,64 @@ impl GpuState {
         })
     }
 
+    /// Cast ray through parallel world
+    fn cast_ray_parallel(&self, ray: Ray, max_distance: f32) -> Option<RaycastHit> {
+        // Use a simple ray casting implementation that works with ParallelWorld
+        let chunk_manager = self.world.chunk_manager();
+        let chunk_size = self.world.config().chunk_size;
+        
+        // Cast ray by checking blocks along the ray path
+        let step = 0.1; // Step size for ray marching
+        let steps = (max_distance / step) as i32;
+        
+        for i in 0..steps {
+            let t = i as f32 * step;
+            let pos = ray.origin + ray.direction * t;
+            let voxel_pos = VoxelPos::new(
+                pos.x.floor() as i32,
+                pos.y.floor() as i32,
+                pos.z.floor() as i32,
+            );
+            
+            let block = self.world.get_block(voxel_pos);
+            if block != BlockId::AIR {
+                // Found a hit, determine which face
+                let face = self.determine_hit_face(ray, voxel_pos, t);
+                return Some(RaycastHit {
+                    position: voxel_pos,
+                    face,
+                    distance: t,
+                    block,
+                });
+            }
+        }
+        
+        None
+    }
+    
+    /// Determine which face of a block was hit by a ray
+    fn determine_hit_face(&self, ray: Ray, block_pos: VoxelPos, distance: f32) -> crate::world::BlockFace {
+        let hit_point = ray.origin + ray.direction * distance;
+        let block_center = Point3::new(
+            block_pos.x as f32 + 0.5,
+            block_pos.y as f32 + 0.5,
+            block_pos.z as f32 + 0.5,
+        );
+        
+        let diff = hit_point - block_center;
+        let abs_x = diff.x.abs();
+        let abs_y = diff.y.abs();
+        let abs_z = diff.z.abs();
+        
+        if abs_x > abs_y && abs_x > abs_z {
+            if diff.x > 0.0 { crate::world::BlockFace::Right } else { crate::world::BlockFace::Left }
+        } else if abs_y > abs_x && abs_y > abs_z {
+            if diff.y > 0.0 { crate::world::BlockFace::Top } else { crate::world::BlockFace::Bottom }
+        } else {
+            if diff.z > 0.0 { crate::world::BlockFace::Front } else { crate::world::BlockFace::Back }
+        }
+    }
+
     fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
         if new_size.width > 0 && new_size.height > 0 {
             self.size = new_size;
@@ -424,6 +500,20 @@ impl GpuState {
             0,
             bytemuck::cast_slice(&[self.camera_uniform]),
         );
+    }
+    
+    fn update_chunk_renderer(&mut self, input: &InputState) {
+        // Queue dirty chunks for async mesh building
+        self.chunk_renderer.queue_dirty_chunks(&self.world, &self.camera);
+        
+        // Update the async renderer (process queue and upload meshes)
+        self.chunk_renderer.update(&self.device);
+        
+        // Clean up GPU buffers for unloaded chunks
+        self.chunk_renderer.cleanup_unloaded_chunks(&self.world);
+        
+        // World update handles chunk loading/unloading automatically
+        self.world.update(self.camera.position);
     }
     
     fn process_input(&mut self, input: &InputState, delta_time: f32, active_block: BlockId) -> (Option<(VoxelPos, BlockId)>, Option<VoxelPos>) {
@@ -511,7 +601,8 @@ impl GpuState {
             self.camera.position,
             self.camera.get_forward_vector(),
         );
-        self.selected_block = cast_ray(&self.world, ray, 10.0);
+        // Cast ray using parallel world's chunk manager
+        self.selected_block = self.cast_ray_parallel(ray, 10.0);
         
         // Block interactions
         let mut broke_block = None;
@@ -620,10 +711,10 @@ impl GpuState {
                 timestamp_writes: None,
             });
 
-            // Draw chunks with frustum culling
+            // Draw chunks with async rendering
             render_pass.set_pipeline(&self.render_pipeline);
             render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
-            self.chunk_renderer.render_with_frustum_culling(&mut render_pass, &self.camera, self.world.chunk_size());
+            self.chunk_renderer.render(&mut render_pass, &self.camera);
             
             // Draw selection highlight with breaking progress
             let breaking_progress = if self.breaking_block.is_some() {
@@ -687,7 +778,8 @@ pub async fn run_app<G: Game + 'static>(
     let mut gpu_state = GpuState::new(window.clone()).await?;
     
     // Register game blocks
-    game.register_blocks(&mut gpu_state.block_registry);
+    // Note: Blocks are already registered in GpuState::new()
+    // game.register_blocks(&mut gpu_state.block_registry);
     
     let mut input_state = InputState::new();
     let mut last_frame = std::time::Instant::now();
@@ -796,7 +888,7 @@ pub async fn run_app<G: Game + 'static>(
                         }
                         
                         // Update loaded chunks based on player position
-                        gpu_state.world.update_loaded_chunks(gpu_state.camera.position);
+                        gpu_state.world.update(gpu_state.camera.position);
                         
                         // Update day/night cycle
                         gpu_state.day_night_cycle.update(delta_time);
@@ -833,12 +925,8 @@ pub async fn run_app<G: Game + 'static>(
                         gpu_state.update_camera();
                         input_state.clear_mouse_delta();
                         
-                        // Update dirty chunks
-                        gpu_state.chunk_renderer.update_dirty_chunks(
-                            &gpu_state.device, 
-                            &mut gpu_state.world, 
-                            &gpu_state.block_registry
-                        );
+                        // Update async chunk renderer
+                        gpu_state.update_chunk_renderer(&input_state);
 
                         // Update game with context
                         let mut ctx = GameContext {
