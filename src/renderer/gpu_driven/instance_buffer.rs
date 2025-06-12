@@ -44,11 +44,14 @@ pub struct InstanceBuffer {
     
     /// Dirty flag for updates
     dirty: bool,
+    
+    /// Reference to device that created this buffer
+    device: Arc<wgpu::Device>,
 }
 
 impl InstanceBuffer {
     /// Create a new instance buffer
-    pub fn new(device: &wgpu::Device, capacity: u32) -> Self {
+    pub fn new(device: Arc<wgpu::Device>, capacity: u32) -> Self {
         let buffer_size = (std::mem::size_of::<InstanceData>() * capacity as usize) as u64;
         
         let buffer = device.create_buffer(&wgpu::BufferDescriptor {
@@ -64,6 +67,7 @@ impl InstanceBuffer {
             capacity,
             count: 0,
             dirty: false,
+            device,
         }
     }
     
@@ -197,9 +201,9 @@ pub struct InstanceManager {
 impl InstanceManager {
     pub fn new(device: Arc<wgpu::Device>) -> Self {
         Self {
-            chunk_instances: InstanceBuffer::new(&device, 10000),
-            entity_instances: InstanceBuffer::new(&device, 50000),
-            particle_instances: InstanceBuffer::new(&device, 100000),
+            chunk_instances: InstanceBuffer::new(device.clone(), 10000),
+            entity_instances: InstanceBuffer::new(device.clone(), 50000),
+            particle_instances: InstanceBuffer::new(device.clone(), 100000),
             device,
         }
     }

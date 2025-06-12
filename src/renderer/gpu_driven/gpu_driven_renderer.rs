@@ -54,11 +54,15 @@ pub struct GpuDrivenRenderer {
     /// Mesh vertex/index buffers (simplified for example)
     pub mesh_buffers: MeshBufferManager,
     
-    /// Render pipeline
-    render_pipeline: wgpu::RenderPipeline,
+    /// Render pipeline (might be None if creation failed)
+    render_pipeline: Option<wgpu::RenderPipeline>,
     
     /// Statistics
     stats: RenderStats,
+    
+    /// Cached buffer references to ensure they stay alive during rendering
+    cached_vertex_buffer: Option<Arc<wgpu::Buffer>>,
+    cached_index_buffer: Option<Arc<wgpu::Buffer>>,
 }
 
 impl GpuDrivenRenderer {
@@ -71,24 +75,28 @@ impl GpuDrivenRenderer {
         // Create managers
         let command_manager = IndirectCommandManager::new(device.clone(), 10000);
         let instance_manager = InstanceManager::new(device.clone());
-        let culling_pipeline = CullingPipeline::new(&device);
-        let culling_data = CullingData::new(&device, 10000);
+        let culling_pipeline = CullingPipeline::new(device.clone());
+        let culling_data = CullingData::new(device.clone(), 10000);
         let lod_system = LodSystem::new();
         let mesh_buffers = MeshBufferManager::new(device.clone());
         
-        // Create render pipeline
-        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("GPU Driven Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/gpu_driven.wgsl").into()),
-        });
+        // Create render pipeline with error handling
+        let shader_source = include_str!("../shaders/gpu_driven.wgsl");
+        log::debug!("[GpuDrivenRenderer] Loading GPU driven shader ({} bytes)", shader_source.len());
         
-        let render_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("GPU Driven Pipeline Layout"),
-            bind_group_layouts: &[camera_bind_group_layout],
-            push_constant_ranges: &[],
-        });
-        
-        let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        let render_pipeline = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: Some("GPU Driven Shader"),
+                source: wgpu::ShaderSource::Wgsl(shader_source.into()),
+            });
+            
+            let render_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("GPU Driven Pipeline Layout"),
+                bind_group_layouts: &[camera_bind_group_layout],
+                push_constant_ranges: &[],
+            });
+            
+            device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("GPU Driven Pipeline"),
             layout: Some(&render_pipeline_layout),
             vertex: wgpu::VertexState {
@@ -130,7 +138,18 @@ impl GpuDrivenRenderer {
                 alpha_to_coverage_enabled: false,
             },
             multiview: None,
-        });
+            })
+        })) {
+            Ok(pipeline) => {
+                log::info!("[GpuDrivenRenderer] Render pipeline created successfully");
+                Some(pipeline)
+            }
+            Err(e) => {
+                log::error!("[GpuDrivenRenderer] Failed to create render pipeline: {:?}", e);
+                log::error!("[GpuDrivenRenderer] GPU-driven rendering will be disabled");
+                None
+            }
+        };
         
         Self {
             device,
@@ -143,6 +162,8 @@ impl GpuDrivenRenderer {
             mesh_buffers,
             render_pipeline,
             stats: RenderStats::default(),
+            cached_vertex_buffer: None,
+            cached_index_buffer: None,
         }
     }
     
@@ -204,9 +225,21 @@ impl GpuDrivenRenderer {
     
     /// Execute GPU culling phase (must be called before render_draw)
     pub fn execute_culling(&mut self, encoder: &mut wgpu::CommandEncoder) {
+        // Skip if no objects to cull
+        if self.culling_data.metadata.is_empty() {
+            log::debug!("[GpuDrivenRenderer] No objects to cull, skipping GPU culling");
+            return;
+        }
+        
+        // Check if GPU culling is available
+        if !self.culling_pipeline.is_available() {
+            log::warn!("[GpuDrivenRenderer] GPU culling not available, rendering all objects");
+            // In production, we might want to fall back to CPU culling here
+            return;
+        }
+        
         // Create culling bind group
         let culling_bind_group = self.culling_pipeline.create_bind_group(
-            &self.device,
             &self.culling_data.metadata_buffer,
             self.command_manager.opaque_commands().buffer(),
         );
@@ -222,18 +255,32 @@ impl GpuDrivenRenderer {
         self.command_manager.copy_all_to_gpu(encoder);
     }
     
+    /// Update cached buffer references before rendering
+    pub fn update_buffer_cache(&mut self) {
+        if let Some((vb, ib)) = self.mesh_buffers.get_chunk_buffers() {
+            self.cached_vertex_buffer = Some(vb);
+            self.cached_index_buffer = Some(ib);
+        }
+    }
+    
     /// Execute rendering phase (must be called after execute_culling)
     pub fn render_draw<'a>(
         &'a self,
         render_pass: &mut wgpu::RenderPass<'a>,
         camera_bind_group: &'a wgpu::BindGroup,
     ) {
+        // Check if render pipeline is available
+        let Some(render_pipeline) = &self.render_pipeline else {
+            log::debug!("[GpuDrivenRenderer] Skipping render - pipeline not available");
+            return;
+        };
+        
         // Set up render state
-        render_pass.set_pipeline(&self.render_pipeline);
+        render_pass.set_pipeline(render_pipeline);
         render_pass.set_bind_group(0, camera_bind_group, &[]);
         
-        // Bind mesh buffers
-        if let Some((vertex_buffer, index_buffer)) = self.mesh_buffers.get_chunk_buffers() {
+        // Bind mesh buffers from cache
+        if let (Some(vertex_buffer), Some(index_buffer)) = (&self.cached_vertex_buffer, &self.cached_index_buffer) {
             render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
             render_pass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint32);
         }
@@ -296,6 +343,11 @@ impl GpuDrivenRenderer {
     pub fn stats(&self) -> &RenderStats {
         &self.stats
     }
+    
+    /// Check if GPU-driven rendering is available
+    pub fn is_available(&self) -> bool {
+        self.render_pipeline.is_some() && self.culling_pipeline.is_available()
+    }
 }
 
 /// Information about a single mesh in the buffer
@@ -314,8 +366,8 @@ pub struct MeshInfo {
 /// Simple mesh buffer manager
 pub struct MeshBufferManager {
     device: Arc<wgpu::Device>,
-    chunk_vertex_buffer: Option<wgpu::Buffer>,
-    chunk_index_buffer: Option<wgpu::Buffer>,
+    chunk_vertex_buffer: Option<Arc<wgpu::Buffer>>,
+    chunk_index_buffer: Option<Arc<wgpu::Buffer>>,
     /// Map from chunk position hash to mesh ID
     chunk_mesh_ids: std::collections::HashMap<u64, u32>,
     /// Mesh information for each mesh ID
@@ -337,27 +389,42 @@ pub struct MeshBufferManager {
 impl MeshBufferManager {
     fn new(device: Arc<wgpu::Device>) -> Self {
         // Pre-allocate GPU buffers for multiple chunk meshes
-        let max_meshes = 1000u32;
-        let vertices_per_mesh = 65536usize; // 64K vertices per mesh max
-        let indices_per_mesh = vertices_per_mesh * 3 / 2; // 1.5x indices
+        // GPU max buffer size is 2,147,483,648 bytes (2.14 GB)
+        // Vertex size is 44 bytes, so max vertices = 2.14GB / 44 = ~48.8M vertices
+        // We'll use 40M vertices to leave headroom
+        let max_total_vertices = 40_000_000usize;
+        let vertices_per_mesh = 40_000usize; // 40K vertices per mesh (reduced from 64K)
+        let max_meshes = (max_total_vertices / vertices_per_mesh) as u32; // 1000 meshes
+        let indices_per_mesh = vertices_per_mesh * 3 / 2; // 1.5x indices (60K)
         
         let total_vertices = (max_meshes as usize) * vertices_per_mesh;
         let total_indices = (max_meshes as usize) * indices_per_mesh;
         
+        // Calculate buffer sizes
+        let vertex_buffer_size = (total_vertices * std::mem::size_of::<crate::renderer::vertex::Vertex>()) as u64;
+        let index_buffer_size = (total_indices * std::mem::size_of::<u32>()) as u64;
+        
+        log::info!(
+            "[MeshBufferManager] Allocating buffers - Vertex: {:.2} GB, Index: {:.2} GB, Total meshes: {}",
+            vertex_buffer_size as f64 / (1024.0 * 1024.0 * 1024.0),
+            index_buffer_size as f64 / (1024.0 * 1024.0 * 1024.0),
+            max_meshes
+        );
+        
         // Create large GPU buffers to hold all mesh data
-        let chunk_vertex_buffer = Some(device.create_buffer(&wgpu::BufferDescriptor {
+        let chunk_vertex_buffer = Some(Arc::new(device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Chunk Vertex Buffer"),
-            size: (total_vertices * std::mem::size_of::<crate::renderer::vertex::Vertex>()) as u64,
+            size: vertex_buffer_size,
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
-        }));
+        })));
         
-        let chunk_index_buffer = Some(device.create_buffer(&wgpu::BufferDescriptor {
+        let chunk_index_buffer = Some(Arc::new(device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Chunk Index Buffer"),
-            size: (total_indices * std::mem::size_of::<u32>()) as u64,
+            size: index_buffer_size,
             usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
-        }));
+        })));
         
         Self {
             device,
@@ -374,15 +441,16 @@ impl MeshBufferManager {
         }
     }
     
-    fn get_chunk_buffers(&self) -> Option<(&wgpu::Buffer, &wgpu::Buffer)> {
+    fn get_chunk_buffers(&self) -> Option<(Arc<wgpu::Buffer>, Arc<wgpu::Buffer>)> {
         match (&self.chunk_vertex_buffer, &self.chunk_index_buffer) {
-            (Some(vb), Some(ib)) => Some((vb, ib)),
+            (Some(vb), Some(ib)) => Some((Arc::clone(vb), Arc::clone(ib))),
             _ => None,
         }
     }
     
     /// Upload mesh data to GPU and return mesh ID
     /// Following DOP principles - pure function that transforms mesh data to GPU representation
+    /// IMPORTANT: This function now takes ownership of queue reference to ensure proper lifetime
     pub fn upload_mesh(
         &mut self,
         queue: &wgpu::Queue,

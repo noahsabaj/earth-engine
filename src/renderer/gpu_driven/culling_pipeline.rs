@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use wgpu::util::DeviceExt;
 use bytemuck::{Pod, Zeroable};
 use cgmath::{Matrix4};
@@ -60,11 +61,11 @@ pub struct CullingStats {
 
 /// GPU culling pipeline
 pub struct CullingPipeline {
-    /// Compute pipeline for culling
-    cull_pipeline: wgpu::ComputePipeline,
+    /// Compute pipeline for culling (might be None if creation failed)
+    cull_pipeline: Option<wgpu::ComputePipeline>,
     
-    /// Compute pipeline for resetting counters
-    reset_pipeline: wgpu::ComputePipeline,
+    /// Compute pipeline for resetting counters (might be None if creation failed)
+    reset_pipeline: Option<wgpu::ComputePipeline>,
     
     /// Bind group layout
     bind_group_layout: wgpu::BindGroupLayout,
@@ -80,16 +81,23 @@ pub struct CullingPipeline {
     
     /// Staging buffer for stats readback
     stats_staging: wgpu::Buffer,
+    
+    /// Flag indicating if pipelines are available
+    pipelines_available: bool,
+    
+    /// Reference to device that created these resources
+    device: Arc<wgpu::Device>,
 }
 
 impl CullingPipeline {
-    pub fn new(device: &wgpu::Device) -> Self {
-        // Load shader
+    pub fn new(device: Arc<wgpu::Device>) -> Self {
+        // Load shader with error reporting
+        let shader_source = include_str!("../shaders/gpu_culling.wgsl");
+        log::debug!("[CullingPipeline] Loading GPU culling shader ({} bytes)", shader_source.len());
+        
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("GPU Culling Shader"),
-            source: wgpu::ShaderSource::Wgsl(
-                include_str!("../shaders/gpu_culling.wgsl").into()
-            ),
+            source: wgpu::ShaderSource::Wgsl(shader_source.into()),
         });
         
         // Create bind group layout
@@ -161,21 +169,46 @@ impl CullingPipeline {
             push_constant_ranges: &[],
         });
         
-        // Create culling pipeline
-        let cull_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-            label: Some("Cull Instances Pipeline"),
-            layout: Some(&pipeline_layout),
-            module: &shader,
-            entry_point: "cull_instances",
-        });
+        // Try to create culling pipeline with error handling
+        let cull_pipeline = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+                label: Some("Cull Instances Pipeline"),
+                layout: Some(&pipeline_layout),
+                module: &shader,
+                entry_point: "cull_instances",
+            })
+        })) {
+            Ok(pipeline) => {
+                log::info!("[CullingPipeline] Culling compute pipeline created successfully");
+                Some(pipeline)
+            }
+            Err(e) => {
+                log::error!("[CullingPipeline] Failed to create culling pipeline: {:?}", e);
+                log::error!("[CullingPipeline] GPU culling will be disabled for this session");
+                None
+            }
+        };
         
-        // Create reset pipeline
-        let reset_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-            label: Some("Reset Counters Pipeline"),
-            layout: Some(&pipeline_layout),
-            module: &shader,
-            entry_point: "reset_counters",
-        });
+        // Try to create reset pipeline with error handling
+        let reset_pipeline = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+                label: Some("Reset Counters Pipeline"),
+                layout: Some(&pipeline_layout),
+                module: &shader,
+                entry_point: "reset_counters",
+            })
+        })) {
+            Ok(pipeline) => {
+                log::info!("[CullingPipeline] Reset compute pipeline created successfully");
+                Some(pipeline)
+            }
+            Err(e) => {
+                log::error!("[CullingPipeline] Failed to create reset pipeline: {:?}", e);
+                None
+            }
+        };
+        
+        let pipelines_available = cull_pipeline.is_some() && reset_pipeline.is_some();
         
         // Create buffers
         let camera_buffer = device.create_buffer(&wgpu::BufferDescriptor {
@@ -217,6 +250,8 @@ impl CullingPipeline {
             draw_count_buffer,
             stats_buffer,
             stats_staging,
+            pipelines_available,
+            device,
         }
     }
     
@@ -229,11 +264,10 @@ impl CullingPipeline {
     /// Create bind group for culling
     pub fn create_bind_group(
         &self,
-        device: &wgpu::Device,
         metadata_buffer: &wgpu::Buffer,
         commands_buffer: &wgpu::Buffer,
     ) -> wgpu::BindGroup {
-        device.create_bind_group(&wgpu::BindGroupDescriptor {
+        self.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("Culling Bind Group"),
             layout: &self.bind_group_layout,
             entries: &[
@@ -268,32 +302,43 @@ impl CullingPipeline {
         bind_group: &wgpu::BindGroup,
         instance_count: u32,
     ) {
+        // Check if pipelines are available
+        if !self.pipelines_available {
+            log::debug!("[CullingPipeline] Skipping GPU culling - pipelines not available");
+            return;
+        }
+        
         // Reset counters
-        {
+        if let Some(reset_pipeline) = &self.reset_pipeline {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("Reset Counters Pass"),
                 timestamp_writes: None,
             });
             
-            pass.set_pipeline(&self.reset_pipeline);
+            pass.set_pipeline(reset_pipeline);
             pass.set_bind_group(0, bind_group, &[]);
             pass.dispatch_workgroups(1, 1, 1);
         }
         
         // Execute culling
-        {
+        if let Some(cull_pipeline) = &self.cull_pipeline {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("Culling Pass"),
                 timestamp_writes: None,
             });
             
-            pass.set_pipeline(&self.cull_pipeline);
+            pass.set_pipeline(cull_pipeline);
             pass.set_bind_group(0, bind_group, &[]);
             
             // Dispatch with 64 threads per workgroup
             let workgroups = (instance_count + 63) / 64;
             pass.dispatch_workgroups(workgroups, 1, 1);
         }
+    }
+    
+    /// Check if culling is available
+    pub fn is_available(&self) -> bool {
+        self.pipelines_available
     }
     
     /// Copy stats for CPU readback
@@ -335,10 +380,13 @@ pub struct CullingData {
     
     /// GPU buffer for metadata
     pub metadata_buffer: wgpu::Buffer,
+    
+    /// Reference to device that created this buffer
+    device: Arc<wgpu::Device>,
 }
 
 impl CullingData {
-    pub fn new(device: &wgpu::Device, capacity: u32) -> Self {
+    pub fn new(device: Arc<wgpu::Device>, capacity: u32) -> Self {
         let metadata = Vec::with_capacity(capacity as usize);
         
         let metadata_buffer = device.create_buffer(&wgpu::BufferDescriptor {
@@ -351,6 +399,7 @@ impl CullingData {
         Self {
             metadata,
             metadata_buffer,
+            device,
         }
     }
     

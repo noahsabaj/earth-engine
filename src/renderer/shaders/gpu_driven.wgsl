@@ -82,12 +82,17 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     
     // Apply lighting to color
     var final_color = in.color;
-    final_color.rgb *= lighting;
+    final_color.r = final_color.r * lighting;
+    final_color.g = final_color.g * lighting;
+    final_color.b = final_color.b * lighting;
     
     // Optional: Use custom data for effects
     // For example, custom_data.x could be emission strength
     if (in.custom_data.x > 0.0) {
-        final_color.rgb += in.color.rgb * in.custom_data.x;
+        let emission = in.color.rgb * in.custom_data.x;
+        final_color.r = final_color.r + emission.r;
+        final_color.g = final_color.g + emission.g;
+        final_color.b = final_color.b + emission.b;
     }
     
     return final_color;

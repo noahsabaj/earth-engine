@@ -66,12 +66,15 @@ pub struct IndirectCommandBuffer {
     
     /// Size of each command in bytes
     command_size: u32,
+    
+    /// Reference to device that created these buffers
+    device: Arc<wgpu::Device>,
 }
 
 impl IndirectCommandBuffer {
     /// Create a new indirect command buffer
     pub fn new(
-        device: &wgpu::Device,
+        device: Arc<wgpu::Device>,
         capacity: u32,
         indexed: bool,
     ) -> Self {
@@ -105,6 +108,7 @@ impl IndirectCommandBuffer {
             capacity,
             count: 0,
             command_size,
+            device,
         }
     }
     
@@ -186,9 +190,9 @@ pub struct IndirectCommandManager {
 impl IndirectCommandManager {
     pub fn new(device: Arc<wgpu::Device>, max_draws_per_pass: u32) -> Self {
         Self {
-            opaque_commands: IndirectCommandBuffer::new(&device, max_draws_per_pass, true),
-            transparent_commands: IndirectCommandBuffer::new(&device, max_draws_per_pass, true),
-            shadow_commands: IndirectCommandBuffer::new(&device, max_draws_per_pass, true),
+            opaque_commands: IndirectCommandBuffer::new(device.clone(), max_draws_per_pass, true),
+            transparent_commands: IndirectCommandBuffer::new(device.clone(), max_draws_per_pass, true),
+            shadow_commands: IndirectCommandBuffer::new(device.clone(), max_draws_per_pass, true),
             device,
         }
     }

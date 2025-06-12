@@ -8,8 +8,8 @@ use bytemuck::{Pod, Zeroable};
 use parking_lot::Mutex;
 use std::sync::Arc;
 
-/// Maximum vertices per mesh (64K for 16-bit indices)
-pub const MAX_VERTICES: usize = 65536;
+/// Maximum vertices per mesh (40K to fit within GPU buffer limits)
+pub const MAX_VERTICES: usize = 40000;
 /// Maximum indices per mesh
 pub const MAX_INDICES: usize = MAX_VERTICES * 3 / 2;
 /// Pool size for mesh buffers

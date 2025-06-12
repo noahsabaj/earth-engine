@@ -95,10 +95,10 @@ fn cull_instances(@builtin(global_invocation_id) global_id: vec3<u32>) {
         // Always draw this instance
         let draw_index = atomicAdd(&draw_count.count, 1u);
         indirect_commands[draw_index] = IndirectCommand(
-            metadata.lod_info.z,  // Use LOD as index count (simplified)
-            1u,                   // One instance
-            0u,                   // First index
-            0,                    // Base vertex
+            u32(metadata.lod_info.z),  // Cast f32 to u32 for index count
+            1u,                        // One instance
+            0u,                        // First index
+            0,                         // Base vertex
             metadata.instance_offset
         );
         atomicAdd(&culling_stats.drawn, 1u);

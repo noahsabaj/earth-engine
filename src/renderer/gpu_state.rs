@@ -809,21 +809,22 @@ impl GpuState {
         
         // Process dirty chunks and new chunks
         let mut render_objects = Vec::new();
-        let mut chunks_to_rebuild = Vec::new();
+        let mut chunks_to_upload: Vec<(crate::ChunkPos, Vec<crate::renderer::vertex::Vertex>, Vec<u32>)> = Vec::new();
         
         // Check all loaded chunks
-        for (chunk_pos, chunk_lock) in self.world.iter_loaded_chunks() {
+        let mut chunks_needing_rebuild = Vec::new();
+        for (chunk_pos, _chunk_lock) in self.world.iter_loaded_chunks() {
             // Check if this chunk needs rebuilding
             let needs_rebuild = self.dirty_chunks.contains(&chunk_pos) || 
                                !self.chunks_with_meshes.contains(&chunk_pos);
             
             if needs_rebuild {
-                chunks_to_rebuild.push(chunk_pos);
+                chunks_needing_rebuild.push(chunk_pos);
             }
         }
         
         // Process chunks that need rebuilding
-        for chunk_pos in chunks_to_rebuild {
+        for chunk_pos in chunks_needing_rebuild {
             if let Some(chunk_lock) = self.world.get_chunk_for_meshing(chunk_pos) {
                 let chunk = chunk_lock.read();
                 
@@ -840,24 +841,15 @@ impl GpuState {
                 
                 // Upload mesh to GPU if it has vertices
                 if mesh_buffer.vertex_count > 0 {
-                    // Get access to mesh buffer manager through unsafe access
-                    // This is a temporary solution - in production, we'd pass this properly
-                    let mesh_id = unsafe {
-                        let renderer_ptr = &mut self.chunk_renderer as *mut crate::renderer::gpu_driven::GpuDrivenRenderer;
-                        let mesh_buffers_ptr = std::ptr::addr_of_mut!((*renderer_ptr).mesh_buffers);
-                        (*mesh_buffers_ptr).upload_mesh(
-                            &self.queue,
-                            chunk_pos,
-                            &mesh_buffer.vertices[..mesh_buffer.vertex_count],
-                            &mesh_buffer.indices[..mesh_buffer.index_count],
-                        )
-                    };
+                    // Following DOP principles - collect mesh data for batch upload
+                    let vertices = mesh_buffer.vertices[..mesh_buffer.vertex_count].to_vec();
+                    let indices = mesh_buffer.indices[..mesh_buffer.index_count].to_vec();
                     
-                    if let Some(mesh_id) = mesh_id {
-                        // Mark chunk as having a valid mesh
-                        self.chunks_with_meshes.insert(chunk_pos);
-                        self.dirty_chunks.remove(&chunk_pos);
-                    }
+                    // Store for batch upload
+                    chunks_to_upload.push((chunk_pos, vertices, indices));
+                    
+                    // Mark chunk as processed
+                    self.dirty_chunks.remove(&chunk_pos);
                 }
                 
                 // Release mesh buffer back to pool
@@ -865,17 +857,23 @@ impl GpuState {
             }
         }
         
+        // Batch upload all mesh data to GPU
+        for (chunk_pos, vertices, indices) in chunks_to_upload {
+            if let Some(_mesh_id) = self.chunk_renderer.mesh_buffers.upload_mesh(
+                &self.queue,
+                chunk_pos,
+                &vertices,
+                &indices,
+            ) {
+                self.chunks_with_meshes.insert(chunk_pos);
+            }
+        }
+        
         // Create render objects for all chunks with valid meshes
         for (chunk_pos, _) in self.world.iter_loaded_chunks() {
             if self.chunks_with_meshes.contains(&chunk_pos) {
-                // Get mesh ID for this chunk
-                let mesh_id = unsafe {
-                    let renderer_ptr = &self.chunk_renderer as *const crate::renderer::gpu_driven::GpuDrivenRenderer;
-                    let mesh_buffers_ptr = std::ptr::addr_of!((*renderer_ptr).mesh_buffers);
-                    (*mesh_buffers_ptr).get_mesh_id(chunk_pos)
-                };
-                
-                if let Some(mesh_id) = mesh_id {
+                // Get mesh ID for this chunk - no unsafe access needed
+                if let Some(mesh_id) = self.chunk_renderer.mesh_buffers.get_mesh_id(chunk_pos) {
                     // Create render object for this chunk
                     let world_pos = cgmath::Vector3::new(
                         (chunk_pos.x * chunk_size as i32) as f32,
@@ -1100,6 +1098,9 @@ impl GpuState {
         // Execute GPU culling pass before main render pass
         // Following DOP principles - separate data transformation phases
         self.chunk_renderer.execute_culling(&mut encoder);
+        
+        // Update buffer cache to ensure buffers stay alive during rendering
+        self.chunk_renderer.update_buffer_cache();
         
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {

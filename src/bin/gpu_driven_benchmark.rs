@@ -48,8 +48,14 @@ async fn run() {
     // Create test managers
     let mut command_manager = IndirectCommandManager::new(device.clone(), 100000);
     let mut instance_manager = InstanceManager::new(device.clone());
-    let culling_pipeline = CullingPipeline::new(&device);
-    let mut culling_data = CullingData::new(&device, 100000);
+    let culling_pipeline = CullingPipeline::new(device.clone());
+    let mut culling_data = CullingData::new(device.clone(), 100000);
+    
+    // Check if GPU culling is available
+    if !culling_pipeline.is_available() {
+        println!("WARNING: GPU culling pipeline creation failed!");
+        println!("The culling benchmarks will be skipped.\n");
+    }
     
     println!("=== Indirect Command Buffer Performance ===");
     
@@ -131,68 +137,71 @@ async fn run() {
     
     println!("\n=== GPU Culling Performance ===");
     
-    // Create test camera
-    let mut camera = earth_engine::Camera::new(1920, 1080);
-    camera.position = cgmath::Point3::new(0.0, 100.0, 0.0);
-    
-    for &count in &object_counts {
-        culling_data.clear();
+    if culling_pipeline.is_available() {
+        // Create test camera
+        let mut camera = earth_engine::Camera::new(1920, 1080);
+        camera.position = cgmath::Point3::new(0.0, 100.0, 0.0);
         
-        // Generate draw metadata
-        for i in 0..count {
-            let pos = Vector3::new(
-                rng.gen_range(-500.0..500.0),
-                rng.gen_range(-50.0..50.0),
-                rng.gen_range(-500.0..500.0),
+        for &count in &object_counts {
+            culling_data.clear();
+        
+            // Generate draw metadata
+            for i in 0..count {
+                let pos = Vector3::new(
+                    rng.gen_range(-500.0..500.0),
+                    rng.gen_range(-50.0..50.0),
+                    rng.gen_range(-500.0..500.0),
+                );
+                
+                let metadata = DrawMetadata {
+                    bounding_sphere: [pos.x, pos.y, pos.z, 10.0],
+                    lod_info: [50.0, 150.0, 300.0, 0.0],
+                    material_id: rng.gen_range(0..10),
+                    mesh_id: rng.gen_range(0..5),
+                    instance_offset: i,
+                    flags: 1,
+                };
+                
+                culling_data.add_draw(metadata);
+            }
+            
+            // Upload data
+            culling_data.upload(&queue);
+            culling_pipeline.update_camera(&queue, &camera);
+            
+            // Create bind group
+            let bind_group = culling_pipeline.create_bind_group(
+                &culling_data.metadata_buffer,
+                command_manager.opaque_commands().buffer(),
             );
             
-            let metadata = DrawMetadata {
-                bounding_sphere: [pos.x, pos.y, pos.z, 10.0],
-                lod_info: [50.0, 150.0, 300.0, 0.0],
-                material_id: rng.gen_range(0..10),
-                mesh_id: rng.gen_range(0..5),
-                instance_offset: i,
-                flags: 1,
-            };
+            // Measure culling time
+            let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Culling Encoder"),
+            });
             
-            culling_data.add_draw(metadata);
+            let start = Instant::now();
+            culling_pipeline.execute_culling(&mut encoder, &bind_group, count);
+            culling_pipeline.copy_stats(&mut encoder);
+            
+            queue.submit(Some(encoder.finish()));
+            device.poll(wgpu::Maintain::Wait);
+            let cull_time = start.elapsed();
+            
+            // Read stats
+            if let Some(stats) = culling_pipeline.read_stats().await {
+                println!(
+                    "{} objects: {:.2}ms - Drawn: {}, Frustum culled: {}, Distance culled: {}",
+                    count,
+                    cull_time.as_secs_f32() * 1000.0,
+                    stats.drawn,
+                    stats.frustum_culled,
+                    stats.distance_culled
+                );
+            }
         }
-        
-        // Upload data
-        culling_data.upload(&queue);
-        culling_pipeline.update_camera(&queue, &camera);
-        
-        // Create bind group
-        let bind_group = culling_pipeline.create_bind_group(
-            &device,
-            &culling_data.metadata_buffer,
-            command_manager.opaque_commands().buffer(),
-        );
-        
-        // Measure culling time
-        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("Culling Encoder"),
-        });
-        
-        let start = Instant::now();
-        culling_pipeline.execute_culling(&mut encoder, &bind_group, count);
-        culling_pipeline.copy_stats(&mut encoder);
-        
-        queue.submit(Some(encoder.finish()));
-        device.poll(wgpu::Maintain::Wait);
-        let cull_time = start.elapsed();
-        
-        // Read stats
-        if let Some(stats) = culling_pipeline.read_stats().await {
-            println!(
-                "{} objects: {:.2}ms - Drawn: {}, Frustum culled: {}, Distance culled: {}",
-                count,
-                cull_time.as_secs_f32() * 1000.0,
-                stats.drawn,
-                stats.frustum_culled,
-                stats.distance_culled
-            );
-        }
+    } else {
+        println!("Skipping culling benchmarks - pipeline not available");
     }
     
     println!("\n=== Memory Usage ===");
