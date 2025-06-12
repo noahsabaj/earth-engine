@@ -807,7 +807,7 @@ impl GpuState {
                 // Calculate movement direction based on camera yaw
                 let yaw_rad = cgmath::Rad::from(self.camera.yaw).0;
                 let forward = Vector3::new(yaw_rad.cos(), 0.0, yaw_rad.sin());
-                let right = Vector3::new(yaw_rad.sin(), 0.0, -yaw_rad.cos());
+                let right = Vector3::new(-yaw_rad.sin(), 0.0, yaw_rad.cos());
                 
                 let mut move_dir = Vector3::new(0.0, 0.0, 0.0);
                 
@@ -832,12 +832,12 @@ impl GpuState {
                 
                 // Handle movement state changes
                 if !player_body.is_in_water && !player_body.is_on_ladder {
-                    if input.is_key_pressed(KeyCode::ControlLeft) && player_body.rigid_body.grounded {
+                    if input.is_key_pressed(KeyCode::ShiftLeft) && player_body.rigid_body.grounded {
                         // Sprint
                         if player_body.movement_state != MovementState::Sprinting {
                             player_body.set_movement_state(MovementState::Sprinting);
                         }
-                    } else if input.is_key_pressed(KeyCode::ShiftLeft) {
+                    } else if input.is_key_pressed(KeyCode::ControlLeft) {
                         // Crouch
                         if player_body.movement_state != MovementState::Crouching {
                             player_body.set_movement_state(MovementState::Crouching);
@@ -865,7 +865,7 @@ impl GpuState {
                 }
                 
                 // Swim down
-                if player_body.is_in_water && input.is_key_pressed(KeyCode::ShiftLeft) {
+                if player_body.is_in_water && input.is_key_pressed(KeyCode::ControlLeft) {
                     let mut vel = player_body.get_velocity();
                     vel.y = -player_body.swim_speed;
                     player_body.set_velocity(vel);
@@ -1224,6 +1224,22 @@ pub async fn run_app<G: Game + 'static>(
                         }
                     }
                     WindowEvent::MouseInput { button, state, .. } => {
+                        // Re-lock cursor when clicking back into the window
+                        if *state == winit::event::ElementState::Pressed && !input_state.is_cursor_locked() {
+                            // Lock cursor on any mouse button press when not locked
+                            input_state.set_cursor_locked(true);
+                            input_state.reset_mouse_tracking(); // Reset mouse tracking to avoid jumps
+                            match gpu_state.window.set_cursor_grab(CursorGrabMode::Locked) {
+                                Ok(_) => {
+                                    gpu_state.window.set_cursor_visible(false);
+                                }
+                                Err(e) => {
+                                    eprintln!("Failed to re-lock cursor: {:?}. Trying confined mode...", e);
+                                    gpu_state.window.set_cursor_grab(CursorGrabMode::Confined).ok();
+                                    gpu_state.window.set_cursor_visible(false);
+                                }
+                            }
+                        }
                         input_state.process_mouse_button(*button, *state);
                     }
                     WindowEvent::Focused(focused) => {
