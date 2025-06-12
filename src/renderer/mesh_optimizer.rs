@@ -165,14 +165,14 @@ impl MeshOptimizer {
             // Use GPU generation
             // Note: In a real implementation, we'd need access to the device here
             // For now, return CPU-generated mesh as fallback
-            let mesh = self.greedy_mesher.generate_mesh(chunk, &self.block_registry);
+            let mesh = self.greedy_mesher.generate_mesh(chunk, chunk.position(), &self.block_registry);
             MeshData { 
                 vertices: mesh.vertices, 
                 indices: mesh.indices 
             }
         } else {
             // Use CPU greedy mesher
-            let mesh = self.greedy_mesher.generate_mesh(chunk, &self.block_registry);
+            let mesh = self.greedy_mesher.generate_mesh(chunk, chunk.position(), &self.block_registry);
             MeshData { 
                 vertices: mesh.vertices, 
                 indices: mesh.indices 
@@ -184,7 +184,7 @@ impl MeshOptimizer {
     fn generate_lod_n(&self, chunk: &Chunk, block_size: u32) -> MeshData {
         // Create simplified chunk by merging blocks
         let simplified = self.simplify_chunk(chunk, block_size);
-        let mesh = self.greedy_mesher.generate_mesh(&simplified, &self.block_registry);
+        let mesh = self.greedy_mesher.generate_mesh(&simplified, simplified.position(), &self.block_registry);
         MeshData { 
             vertices: mesh.vertices, 
             indices: mesh.indices 

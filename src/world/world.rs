@@ -192,7 +192,7 @@ impl WorldInterface for World {
         let local_pos = pos.to_local_pos(self.chunk_size);
         
         if let Some(chunk) = self.chunk_manager.get_chunk(chunk_pos) {
-            chunk.get_light_level(local_pos.x as u32, local_pos.y as u32, local_pos.z as u32).sky
+            chunk.get_light(local_pos.0, local_pos.1, local_pos.2).sky
         } else {
             0
         }
@@ -204,9 +204,9 @@ impl WorldInterface for World {
         let local_pos = pos.to_local_pos(self.chunk_size);
         
         if let Some(chunk) = self.chunk_manager.get_chunk_mut(chunk_pos) {
-            let mut light = chunk.get_light_level(local_pos.x as u32, local_pos.y as u32, local_pos.z as u32);
+            let mut light = chunk.get_light(local_pos.0, local_pos.1, local_pos.2);
             light.sky = level;
-            chunk.set_light_level(local_pos.x as u32, local_pos.y as u32, local_pos.z as u32, light);
+            chunk.set_light(local_pos.0, local_pos.1, local_pos.2, light);
         }
     }
     
@@ -216,7 +216,7 @@ impl WorldInterface for World {
         let local_pos = pos.to_local_pos(self.chunk_size);
         
         if let Some(chunk) = self.chunk_manager.get_chunk(chunk_pos) {
-            chunk.get_light_level(local_pos.x as u32, local_pos.y as u32, local_pos.z as u32).block
+            chunk.get_light(local_pos.0, local_pos.1, local_pos.2).block
         } else {
             0
         }
@@ -228,9 +228,9 @@ impl WorldInterface for World {
         let local_pos = pos.to_local_pos(self.chunk_size);
         
         if let Some(chunk) = self.chunk_manager.get_chunk_mut(chunk_pos) {
-            let mut light = chunk.get_light_level(local_pos.x as u32, local_pos.y as u32, local_pos.z as u32);
+            let mut light = chunk.get_light(local_pos.0, local_pos.1, local_pos.2);
             light.block = level;
-            chunk.set_light_level(local_pos.x as u32, local_pos.y as u32, local_pos.z as u32, light);
+            chunk.set_light(local_pos.0, local_pos.1, local_pos.2, light);
         }
     }
     

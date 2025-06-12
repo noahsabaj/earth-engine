@@ -1,12 +1,75 @@
 use earth_engine::{
-    EngineConfig, Game, GameContext, Camera, BlockId, VoxelPos,
-    world::{RaycastHit, BlockFace}, run,
+    Engine, EngineConfig, Game, GameContext, BlockId, VoxelPos,
+    BlockRegistry, Block, RenderData, PhysicsProperties,
 };
-use winit::event_loop::EventLoop;
+
+// Define some basic blocks for the test
+struct TestGrassBlock;
+impl Block for TestGrassBlock {
+    fn get_id(&self) -> BlockId { BlockId::GRASS }
+    fn get_render_data(&self) -> RenderData {
+        RenderData {
+            color: [0.3, 0.7, 0.2],
+            texture_id: 0,
+        }
+    }
+    fn get_physics_properties(&self) -> PhysicsProperties {
+        PhysicsProperties {
+            solid: true,
+            density: 1200.0,
+        }
+    }
+    fn get_name(&self) -> &str { "Grass" }
+}
+
+struct TestDirtBlock;
+impl Block for TestDirtBlock {
+    fn get_id(&self) -> BlockId { BlockId::DIRT }
+    fn get_render_data(&self) -> RenderData {
+        RenderData {
+            color: [0.5, 0.3, 0.1],
+            texture_id: 0,
+        }
+    }
+    fn get_physics_properties(&self) -> PhysicsProperties {
+        PhysicsProperties {
+            solid: true,
+            density: 1500.0,
+        }
+    }
+    fn get_name(&self) -> &str { "Dirt" }
+}
+
+struct TestStoneBlock;
+impl Block for TestStoneBlock {
+    fn get_id(&self) -> BlockId { BlockId::STONE }
+    fn get_render_data(&self) -> RenderData {
+        RenderData {
+            color: [0.6, 0.6, 0.6],
+            texture_id: 0,
+        }
+    }
+    fn get_physics_properties(&self) -> PhysicsProperties {
+        PhysicsProperties {
+            solid: true,
+            density: 2500.0,
+        }
+    }
+    fn get_name(&self) -> &str { "Stone" }
+}
 
 struct TestGame;
 
 impl Game for TestGame {
+    fn register_blocks(&mut self, registry: &mut BlockRegistry) {
+        // Register basic blocks for testing
+        registry.register("test:grass", TestGrassBlock);
+        registry.register("test:dirt", TestDirtBlock);
+        registry.register("test:stone", TestStoneBlock);
+        
+        log::info!("[TestGame] Registered {} blocks", 3);
+    }
+    
     fn get_active_block(&self) -> BlockId {
         BlockId(1) // Grass block
     }
@@ -38,15 +101,17 @@ fn main() -> anyhow::Result<()> {
     
     log::info!("[test_render] Starting render test...");
     
-    let event_loop = EventLoop::new()?;
     let config = EngineConfig {
         window_title: "Earth Engine - Render Test".to_string(),
         window_width: 1280,
         window_height: 720,
+        chunk_size: 32,
+        render_distance: 8,
     };
     
+    let engine = Engine::new(config);
     let game = TestGame;
     
     log::info!("[test_render] Launching engine...");
-    run(event_loop, config, game)
+    engine.run(game)
 }

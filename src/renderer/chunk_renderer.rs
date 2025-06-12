@@ -33,7 +33,7 @@ impl ChunkRenderer {
     ) {
         let chunk_size = chunk.size();
         let mut mesher = GreedyMesher::new(chunk_size);
-        let mesh = mesher.generate_mesh(chunk, registry);
+        let mesh = mesher.generate_mesh(chunk, chunk_pos, registry);
         
         if mesh.vertices.is_empty() {
             // Remove empty chunks
