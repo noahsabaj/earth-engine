@@ -85,6 +85,35 @@ impl InstanceBuffer {
         Some(index)
     }
     
+    /// Add multiple instances in batch (DOP compliant)
+    pub fn add_instances_batch(&mut self, instances: &[InstanceData]) -> Vec<Option<u32>> {
+        let mut indices = Vec::with_capacity(instances.len());
+        let available_space = (self.capacity - self.count) as usize;
+        let instances_to_add = instances.len().min(available_space);
+        
+        if instances_to_add > 0 {
+            let start_index = self.count;
+            self.instances.extend_from_slice(&instances[..instances_to_add]);
+            self.count += instances_to_add as u32;
+            self.dirty = true;
+            
+            // Generate indices for successfully added instances
+            for i in 0..instances_to_add {
+                indices.push(Some(start_index + i as u32));
+            }
+            
+            // Mark remaining instances as rejected
+            for _ in instances_to_add..instances.len() {
+                indices.push(None);
+            }
+        } else {
+            // All instances rejected
+            indices.resize(instances.len(), None);
+        }
+        
+        indices
+    }
+    
     /// Update an instance
     pub fn update_instance(&mut self, index: u32, instance: InstanceData) {
         if index < self.count {
@@ -201,7 +230,7 @@ pub struct InstanceManager {
 impl InstanceManager {
     pub fn new(device: Arc<wgpu::Device>) -> Self {
         Self {
-            chunk_instances: InstanceBuffer::new(device.clone(), 10000),
+            chunk_instances: InstanceBuffer::new(device.clone(), 100000),
             entity_instances: InstanceBuffer::new(device.clone(), 50000),
             particle_instances: InstanceBuffer::new(device.clone(), 100000),
             device,
@@ -237,6 +266,19 @@ impl InstanceManager {
         self.chunk_instances.upload_to_gpu(queue);
         self.entity_instances.upload_to_gpu(queue);
         self.particle_instances.upload_to_gpu(queue);
+    }
+    
+    /// Clear all instance buffers
+    pub fn clear_all(&mut self) {
+        self.chunk_instances.clear();
+        self.entity_instances.clear();
+        self.particle_instances.clear();
+        log::debug!(
+            "[InstanceManager::clear_all] Cleared all instance buffers - Chunk: {}, Entity: {}, Particle: {}",
+            self.chunk_instances.count(),
+            self.entity_instances.count(),
+            self.particle_instances.count()
+        );
     }
 }
 

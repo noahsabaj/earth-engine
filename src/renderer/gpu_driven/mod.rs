@@ -16,6 +16,9 @@ pub mod culling_pipeline;
 pub mod gpu_driven_renderer;
 pub mod lod_system;
 
+#[cfg(test)]
+mod tests;
+
 pub use indirect_commands::{IndirectDrawCommand, IndirectCommandBuffer, IndirectCommandManager, IndirectDrawIndexedCommand, DrawMetadata};
 pub use instance_buffer::{InstanceData, InstanceBuffer, InstanceManager, CullingInstanceData};
 pub use culling_pipeline::{CullingPipeline, CullingData};

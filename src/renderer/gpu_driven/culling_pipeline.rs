@@ -408,6 +408,11 @@ impl CullingData {
         self.metadata.push(metadata);
     }
     
+    /// Add multiple draw metadata in batch (DOP compliant)
+    pub fn add_draws_batch(&mut self, metadata: &[DrawMetadata]) {
+        self.metadata.extend_from_slice(metadata);
+    }
+    
     /// Clear all draws
     pub fn clear(&mut self) {
         self.metadata.clear();

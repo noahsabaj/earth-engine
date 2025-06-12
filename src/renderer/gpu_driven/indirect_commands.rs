@@ -148,6 +148,61 @@ impl IndirectCommandBuffer {
         self.count = commands.len() as u32;
     }
     
+    /// Batch append commands (DOP compliant) - allows incremental addition
+    pub fn append_commands_batch(
+        &mut self,
+        queue: &wgpu::Queue,
+        commands: &[IndirectDrawCommand],
+    ) -> bool {
+        let available_space = self.capacity - self.count;
+        let commands_to_add = (commands.len() as u32).min(available_space);
+        
+        if commands_to_add == 0 {
+            return false;
+        }
+        
+        // Write to staging buffer at the correct offset
+        let offset = (self.count * self.command_size) as u64;
+        queue.write_buffer(
+            &self.staging_buffer,
+            offset,
+            bytemuck::cast_slice(&commands[..commands_to_add as usize]),
+        );
+        
+        self.count += commands_to_add;
+        commands_to_add == commands.len() as u32
+    }
+    
+    /// Batch append indexed commands (DOP compliant)
+    pub fn append_indexed_commands_batch(
+        &mut self,
+        queue: &wgpu::Queue,
+        commands: &[IndirectDrawIndexedCommand],
+    ) -> bool {
+        let available_space = self.capacity - self.count;
+        let commands_to_add = (commands.len() as u32).min(available_space);
+        
+        if commands_to_add == 0 {
+            return false;
+        }
+        
+        // Write to staging buffer at the correct offset
+        let offset = (self.count * self.command_size) as u64;
+        queue.write_buffer(
+            &self.staging_buffer,
+            offset,
+            bytemuck::cast_slice(&commands[..commands_to_add as usize]),
+        );
+        
+        self.count += commands_to_add;
+        commands_to_add == commands.len() as u32
+    }
+    
+    /// Clear all commands
+    pub fn clear(&mut self) {
+        self.count = 0;
+    }
+    
     /// Copy staging buffer to GPU buffer
     pub fn copy_to_gpu(&self, encoder: &mut wgpu::CommandEncoder) {
         if self.count > 0 {

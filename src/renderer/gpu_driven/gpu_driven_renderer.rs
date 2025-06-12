@@ -79,10 +79,10 @@ impl GpuDrivenRenderer {
         camera_bind_group_layout: &wgpu::BindGroupLayout,
     ) -> Self {
         // Create managers
-        let command_manager = IndirectCommandManager::new(device.clone(), 10000);
+        let command_manager = IndirectCommandManager::new(device.clone(), 100000);
         let instance_manager = InstanceManager::new(device.clone());
         let culling_pipeline = CullingPipeline::new(device.clone());
-        let culling_data = CullingData::new(device.clone(), 10000);
+        let culling_data = CullingData::new(device.clone(), 100000);
         let lod_system = LodSystem::new();
         let mesh_buffers = MeshBufferManager::new(device.clone());
         
@@ -179,6 +179,10 @@ impl GpuDrivenRenderer {
         self.culling_data.clear();
         self.stats = RenderStats::default();
         
+        // CRITICAL FIX: Clear ALL instance buffers at the start of each frame
+        // This prevents accumulation of instances across frames
+        self.instance_manager.clear_all();
+        
         // Update camera for culling
         self.culling_pipeline.update_camera(&self.queue, camera);
     }
@@ -187,6 +191,14 @@ impl GpuDrivenRenderer {
     pub fn submit_objects(&mut self, objects: &[RenderObject]) {
         let camera_pos = Vector3::new(0.0, 0.0, 0.0); // Get from camera
         let initial_count = self.stats.objects_submitted;
+        
+        // Track active instances for validation
+        let instance_count_before = self.instance_manager.chunk_instances().count();
+        log::debug!(
+            "[GpuDrivenRenderer::submit_objects] Starting submission - Current instances: {}, Objects to submit: {}",
+            instance_count_before,
+            objects.len()
+        );
         
         for object in objects {
             self.stats.objects_submitted += 1;
@@ -235,12 +247,25 @@ impl GpuDrivenRenderer {
         }
         
         let submitted_this_call = self.stats.objects_submitted - initial_count;
+        let instance_count_after = self.instance_manager.chunk_instances().count();
+        
         if submitted_this_call > 0 {
-            log::trace!(
-                "[GpuDrivenRenderer::submit_objects] Submitted {} objects, {} instances added, {} rejected",
+            log::info!(
+                "[GpuDrivenRenderer::submit_objects] Submission complete - Submitted: {}, Instances: {} -> {} (added: {}), Rejected: {}",
                 submitted_this_call,
+                instance_count_before,
+                instance_count_after,
                 self.stats.instances_added,
                 self.stats.objects_rejected
+            );
+        }
+        
+        // Validate instance count
+        if instance_count_after != self.stats.instances_added {
+            log::error!(
+                "[GpuDrivenRenderer::submit_objects] Instance count mismatch! Expected: {}, Actual: {}",
+                self.stats.instances_added,
+                instance_count_after
             );
         }
     }
