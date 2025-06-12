@@ -60,6 +60,7 @@ impl SimpleAsyncRenderer {
         world: &ParallelWorld,
         camera: &Camera,
     ) {
+        let mut queued_count = 0;
         let camera_chunk = ChunkPos::new(
             (camera.position.x / self.chunk_size as f32).floor() as i32,
             (camera.position.y / self.chunk_size as f32).floor() as i32,
@@ -68,6 +69,16 @@ impl SimpleAsyncRenderer {
         
         // Get all chunks from the parallel world's chunk manager
         let chunk_manager = world.chunk_manager();
+        
+        // Log chunk count on first few calls
+        static mut QUEUE_COUNT: usize = 0;
+        unsafe {
+            if QUEUE_COUNT < 10 {
+                let chunk_count = chunk_manager.loaded_chunk_count();
+                log::info!("[SimpleAsyncRenderer::queue_dirty_chunks] Loaded chunks: {}", chunk_count);
+                QUEUE_COUNT += 1;
+            }
+        }
         
         // Process chunks that need mesh updates
         for (chunk_pos, chunk_lock) in chunk_manager.chunks_iter() {
@@ -102,7 +113,12 @@ impl SimpleAsyncRenderer {
                 
                 // Mark chunk as clean after queuing
                 chunk_lock.write().clear_dirty();
+                queued_count += 1;
             }
+        }
+        
+        if queued_count > 0 {
+            log::info!("[SimpleAsyncRenderer::queue_dirty_chunks] Queued {} chunks for mesh building", queued_count);
         }
     }
     
@@ -120,6 +136,11 @@ impl SimpleAsyncRenderer {
         let completed_meshes = self.mesh_builder.get_completed_meshes();
         let mut uploaded = 0;
         
+        // Log completed meshes
+        if !completed_meshes.is_empty() {
+            log::info!("[SimpleAsyncRenderer::upload_completed_meshes] Got {} completed meshes", completed_meshes.len());
+        }
+        
         for completed in completed_meshes {
             if uploaded >= self.max_uploads_per_frame {
                 break;
@@ -127,9 +148,13 @@ impl SimpleAsyncRenderer {
             
             if completed.mesh.vertices.is_empty() {
                 // Empty mesh, remove from GPU
+                log::warn!("[SimpleAsyncRenderer::upload_completed_meshes] Empty mesh for chunk {:?}", completed.chunk_pos);
                 self.gpu_meshes.remove(&completed.chunk_pos);
                 continue;
             }
+            
+            log::info!("[SimpleAsyncRenderer::upload_completed_meshes] Uploading mesh for chunk {:?} with {} vertices, {} indices", 
+                      completed.chunk_pos, completed.mesh.vertices.len(), completed.mesh.indices.len());
             
             // Create GPU buffers - use static labels to avoid allocation
             let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -149,6 +174,9 @@ impl SimpleAsyncRenderer {
                 index_buffer,
                 num_indices: completed.mesh.indices.len() as u32,
             };
+            
+            log::info!("[SimpleAsyncRenderer::upload_completed_meshes] Uploaded mesh for chunk {:?} ({} vertices, {} indices)", 
+                      completed.chunk_pos, completed.mesh.vertices.len(), gpu_mesh.num_indices);
             
             self.gpu_meshes.insert(completed.chunk_pos, gpu_mesh);
             uploaded += 1;
@@ -188,6 +216,28 @@ impl SimpleAsyncRenderer {
     ) -> usize {
         let view_proj = camera.build_projection_matrix() * camera.build_view_matrix();
         let mut chunks_rendered = 0;
+        let total_meshes = self.gpu_meshes.len();
+        
+        if total_meshes == 0 {
+            // Only log occasionally to avoid spam
+            static mut LAST_LOG: std::time::Instant = std::time::Instant::now();
+            unsafe {
+                if LAST_LOG.elapsed().as_secs() >= 1 {
+                    log::debug!("[SimpleAsyncRenderer::render] No GPU meshes available to render (queued: {})", self.mesh_builder.active_builds());
+                    LAST_LOG = std::time::Instant::now();
+                }
+            }
+            return 0;
+        }
+        
+        // Log mesh count on first few renders
+        static mut RENDER_COUNT: usize = 0;
+        unsafe {
+            if RENDER_COUNT < 10 {
+                log::info!("[SimpleAsyncRenderer::render] GPU meshes available: {}", self.gpu_meshes.len());
+                RENDER_COUNT += 1;
+            }
+        }
         
         for (chunk_pos, gpu_mesh) in &self.gpu_meshes {
             // Calculate chunk bounds
@@ -212,19 +262,36 @@ impl SimpleAsyncRenderer {
             let clip_pos = view_proj * Vector4::new(center.x, center.y, center.z, 1.0);
             
             // Check if in frustum (rough check)
-            if clip_pos.w > 0.0 {
-                let ndc_x = clip_pos.x / clip_pos.w;
-                let ndc_y = clip_pos.y / clip_pos.w;
-                let ndc_z = clip_pos.z / clip_pos.w;
+            // TEMPORARY: Bypass frustum culling to debug rendering
+            let bypass_frustum = true;
+            
+            if bypass_frustum || clip_pos.w > 0.0 {
+                let ndc_x = if clip_pos.w != 0.0 { clip_pos.x / clip_pos.w } else { 0.0 };
+                let ndc_y = if clip_pos.w != 0.0 { clip_pos.y / clip_pos.w } else { 0.0 };
+                let ndc_z = if clip_pos.w != 0.0 { clip_pos.z / clip_pos.w } else { 0.0 };
                 
                 // Expand bounds a bit to avoid culling edge chunks
-                if ndc_x >= -1.5 && ndc_x <= 1.5 &&
+                if bypass_frustum || (ndc_x >= -1.5 && ndc_x <= 1.5 &&
                    ndc_y >= -1.5 && ndc_y <= 1.5 &&
-                   ndc_z >= 0.0 && ndc_z <= 1.0 {
+                   ndc_z >= 0.0 && ndc_z <= 1.0) {
                     render_pass.set_vertex_buffer(0, gpu_mesh.vertex_buffer.slice(..));
                     render_pass.set_index_buffer(gpu_mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
                     render_pass.draw_indexed(0..gpu_mesh.num_indices, 0, 0..1);
                     chunks_rendered += 1;
+                }
+            }
+        }
+        
+        // Log rendering stats occasionally
+        static mut RENDER_COUNTER: u32 = 0;
+        unsafe {
+            RENDER_COUNTER += 1;
+            if RENDER_COUNTER % 60 == 0 {  // Every ~1 second at 60fps
+                if chunks_rendered > 0 {
+                    log::info!("[SimpleAsyncRenderer::render] Rendered {}/{} chunks, {} queued for building", 
+                              chunks_rendered, total_meshes, self.mesh_builder.active_builds());
+                } else if total_meshes > 0 {
+                    log::warn!("[SimpleAsyncRenderer::render] All {} chunks were frustum culled!", total_meshes);
                 }
             }
         }

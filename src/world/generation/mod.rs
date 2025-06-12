@@ -55,6 +55,16 @@ impl WorldGenerator for DefaultWorldGenerator {
         let world_y_start = chunk_pos.y * chunk_size as i32;
         let world_z_start = chunk_pos.z * chunk_size as i32;
         
+        // Log chunk generation for debugging
+        static mut GEN_COUNT: usize = 0;
+        unsafe {
+            if GEN_COUNT < 10 {
+                log::info!("[DefaultWorldGenerator::generate_chunk] Generating chunk at {:?}, world coords: ({}, {}, {})", 
+                          chunk_pos, world_x_start, world_y_start, world_z_start);
+                GEN_COUNT += 1;
+            }
+        }
+        
         // Generate terrain
         for x in 0..chunk_size {
             for z in 0..chunk_size {
@@ -142,6 +152,27 @@ impl WorldGenerator for DefaultWorldGenerator {
                         chunk.set_sky_light(x, y, z, 0); // No skylight in solid blocks
                     }
                 }
+            }
+        }
+        
+        // Count non-air blocks for debugging
+        let mut block_count = 0;
+        for y in 0..chunk_size {
+            for z in 0..chunk_size {
+                for x in 0..chunk_size {
+                    if chunk.get_block(x, y, z) != BlockId::AIR {
+                        block_count += 1;
+                    }
+                }
+            }
+        }
+        
+        unsafe {
+            static mut LOG_COUNT: usize = 0;
+            if LOG_COUNT < 10 {
+                log::info!("[DefaultWorldGenerator::generate_chunk] Chunk at {:?} has {} non-air blocks out of {} total", 
+                          chunk_pos, block_count, chunk_size * chunk_size * chunk_size);
+                LOG_COUNT += 1;
             }
         }
         

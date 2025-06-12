@@ -7,6 +7,7 @@
 use crate::world::{Chunk, BlockId, ChunkPos, BlockRegistry};
 use crate::renderer::{Vertex, mesh::ChunkMesh};
 use cgmath::Vector3;
+use crate::BlockId as BlockIdImport;
 
 /// Direction of a face
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -300,9 +301,20 @@ impl GreedyMesher {
                 pos[u_axis] += u_offset * quad.size[u_axis];
                 pos[v_axis] += v_offset * quad.size[v_axis];
                 
+                // Get block color - for now use simple colors based on block ID
+                let color = match quad.material {
+                    BlockId(1) => [0.3, 0.7, 0.2], // Grass - green
+                    BlockId(2) => [0.5, 0.3, 0.1], // Dirt - brown
+                    BlockId(3) => [0.6, 0.6, 0.6], // Stone - gray
+                    BlockId(5) => [0.9, 0.8, 0.6], // Sand - yellow
+                    BlockId(6) => [0.1, 0.4, 0.8], // Water - blue
+                    BlockId(7) => [1.0, 0.8, 0.4], // Torch - orange
+                    _ => [1.0, 1.0, 1.0], // Default - white
+                };
+                
                 verts.push(Vertex {
                     position: [pos.x, pos.y, pos.z],
-                    color: [1.0, 1.0, 1.0], // TODO: Material color based on block type
+                    color,
                     normal,
                     light: 1.0, // TODO: Calculate proper lighting
                     ao: quad.ao_values.get(verts.len()).copied().unwrap_or(255) as f32 / 255.0,

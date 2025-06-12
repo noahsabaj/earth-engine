@@ -130,18 +130,31 @@ impl crate::Block for TestTorchBlock {
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 struct CameraUniform {
+    view: [[f32; 4]; 4],
+    projection: [[f32; 4]; 4],
     view_proj: [[f32; 4]; 4],
+    position: [f32; 3],
+    _padding: f32,
 }
 
 impl CameraUniform {
     fn new() -> Self {
         Self {
+            view: Matrix4::identity().into(),
+            projection: Matrix4::identity().into(),
             view_proj: Matrix4::identity().into(),
+            position: [0.0, 0.0, 0.0],
+            _padding: 0.0,
         }
     }
 
-    fn update_view_proj(&mut self, view: Matrix4<f32>, proj: Matrix4<f32>) {
+    fn update_view_proj(&mut self, camera: &Camera) {
+        let view = camera.build_view_matrix();
+        let proj = camera.build_projection_matrix();
+        self.view = view.into();
+        self.projection = proj.into();
         self.view_proj = (proj * view).into();
+        self.position = [camera.position.x, camera.position.y, camera.position.z];
     }
 }
 
@@ -449,10 +462,7 @@ impl GpuState {
         
         // Create camera uniform buffer
         let mut camera_uniform = CameraUniform::new();
-        camera_uniform.update_view_proj(
-            camera.build_view_matrix(),
-            camera.build_projection_matrix(),
-        );
+        camera_uniform.update_view_proj(&camera);
         
         let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Camera Buffer"),
@@ -594,8 +604,10 @@ impl GpuState {
         // Chunks will be generated asynchronously during the first frames
         log::info!("[GpuState::new] Skipping spawn area pregeneration for non-blocking startup");
         
-        // Don't do initial world update here - let it happen during first frame
-        log::info!("[GpuState::new] World initialization complete (deferred chunk loading)");
+        // Do one initial update to start chunk loading
+        log::info!("[GpuState::new] Performing initial world update to queue chunk generation...");
+        world.update(camera.position);
+        log::info!("[GpuState::new] World initialization complete (chunk loading started)");
         
         // Create chunk renderer with async mesh building
         log::info!("[GpuState::new] Creating async chunk renderer...");
@@ -766,10 +778,7 @@ impl GpuState {
     }
 
     fn update_camera(&mut self) {
-        self.camera_uniform.update_view_proj(
-            self.camera.build_view_matrix(),
-            self.camera.build_projection_matrix(),
-        );
+        self.camera_uniform.update_view_proj(&self.camera);
         self.queue.write_buffer(
             &self.camera_buffer,
             0,
@@ -1003,7 +1012,13 @@ impl GpuState {
             let chunk_count = self.chunk_renderer.render(&mut render_pass, &self.camera);
             if chunk_count > 0 && !self.first_chunks_loaded {
                 self.first_chunks_loaded = true;
-                log::info!("[GpuState::render] First chunks loaded after {} frames", self.frames_rendered);
+                log::info!("[GpuState::render] First chunks rendered after {} frames", self.frames_rendered);
+            } else if chunk_count == 0 && self.frames_rendered % 60 == 0 {
+                // Log every second if no chunks are rendering
+                log::warn!("[GpuState::render] No chunks rendered after {} frames (meshes: {}, queued: {})", 
+                         self.frames_rendered, 
+                         self.chunk_renderer.mesh_count(),
+                         self.chunk_renderer.queued_builds());
             }
             
             // Draw selection highlight with breaking progress
@@ -1247,10 +1262,8 @@ pub async fn run_app<G: Game + 'static>(
                         }
                         
                         // Update loaded chunks based on player position
-                        // For the first few frames, perform world update to start chunk loading
-                        if gpu_state.frames_rendered <= 3 || gpu_state.first_chunks_loaded {
-                            gpu_state.world.update(gpu_state.camera.position);
-                        }
+                        // Always update world to ensure chunks are loaded and unloaded properly
+                        gpu_state.world.update(gpu_state.camera.position);
                         
                         // Update day/night cycle
                         gpu_state.day_night_cycle.update(delta_time);

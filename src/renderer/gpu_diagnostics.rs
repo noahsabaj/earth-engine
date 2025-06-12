@@ -207,12 +207,26 @@ impl GpuDiagnostics {
     }
     
     fn test_texture_creation(device: &Device) -> Result<u32> {
-        // Try creating progressively larger textures
+        // Get device limits to avoid testing beyond hardware capabilities
+        let device_limits = device.limits();
+        let max_hardware_dimension = device_limits.max_texture_dimension_2d;
+        
+        log::debug!("[GPU Test] Hardware max texture dimension: {}", max_hardware_dimension);
+        
+        // Try creating progressively larger textures, but stop at hardware limit
         let dimensions = [512, 1024, 2048, 4096, 8192, 16384];
         
         let mut max_dim = 0u32;
         for &dim in &dimensions {
+            // Skip dimensions that exceed hardware limits
+            if dim > max_hardware_dimension {
+                log::debug!("[GPU Test] Skipping {}x{} texture - exceeds hardware limit of {}", 
+                          dim, dim, max_hardware_dimension);
+                break;
+            }
+            
             // Try to create the texture, catching any errors
+            log::debug!("[GPU Test] Attempting to create {}x{} texture", dim, dim);
             match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                 device.create_texture(&wgpu::TextureDescriptor {
                     label: Some("Test Texture"),
@@ -235,10 +249,16 @@ impl GpuDiagnostics {
                     log::debug!("[GPU Test] Successfully created {}x{} texture", dim, dim);
                 }
                 Err(_) => {
-                    log::debug!("[GPU Test] Failed to create {}x{} texture - exceeds hardware limits", dim, dim);
+                    log::debug!("[GPU Test] Failed to create {}x{} texture - unexpected error", dim, dim);
                     break; // Stop trying larger sizes
                 }
             }
+        }
+        
+        if max_dim == 0 {
+            log::warn!("[GPU Test] Could not create any test textures!");
+        } else {
+            log::info!("[GPU Test] Maximum tested texture dimension: {}x{}", max_dim, max_dim);
         }
         
         Ok(max_dim)
