@@ -5,7 +5,7 @@
 /// Features: block placement/breaking, multiple block types, full input handling
 
 use earth_engine::{Engine, EngineConfig, Game, GameContext};
-use earth_engine::world::{BlockId, BlockRegistry, VoxelPos};
+use earth_engine::world::{BlockId, BlockRegistry};
 use earth_engine::input::KeyCode;
 
 /// Full game implementation with complete gameplay features

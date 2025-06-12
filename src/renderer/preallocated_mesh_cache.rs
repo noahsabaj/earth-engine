@@ -84,7 +84,7 @@ impl PreallocatedMeshCache {
             if let Some(ref mesh) = entry.mesh {
                 *counter += 1;
                 entry.last_access = *counter;
-                return Some(mesh.clone());
+                return Some((*mesh).clone());
             }
         }
         

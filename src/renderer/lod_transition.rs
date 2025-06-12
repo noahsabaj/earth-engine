@@ -4,7 +4,7 @@
 /// and temporal blending to avoid popping artifacts.
 /// Part of Sprint 29: Mesh Optimization & Advanced LOD
 
-use cgmath::{Vector3, Vector4};
+use cgmath::{Vector3, Vector4, InnerSpace, Zero};
 use crate::renderer::{Vertex, MeshLod};
 use std::collections::HashMap;
 
@@ -177,7 +177,7 @@ impl GeomorphLod {
         let mut collapses = Vec::new();
         
         // Build edge list
-        let mut edges = HashMap::new();
+        let mut edges: HashMap<(u32, u32), Vec<u32>> = HashMap::new();
         for chunk in indices.chunks(3) {
             if chunk.len() == 3 {
                 let v0 = chunk[0];

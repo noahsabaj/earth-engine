@@ -277,6 +277,32 @@ impl Particle {
 }
 
 impl ParticleType {
+    /// Convert particle type to u32 ID for data-oriented storage
+    pub fn to_id(&self) -> u32 {
+        match self {
+            ParticleType::Rain => 0,
+            ParticleType::Snow => 1,
+            ParticleType::Smoke => 2,
+            ParticleType::Fire => 3,
+            ParticleType::Spark => 4,
+            ParticleType::Dust => 5,
+            ParticleType::Fog => 6,
+            ParticleType::BlockBreak => 7,
+            ParticleType::BlockPlace => 8,
+            ParticleType::BlockDust => 9,
+            ParticleType::Damage => 10,
+            ParticleType::Heal => 11,
+            ParticleType::Experience => 12,
+            ParticleType::Magic => 13,
+            ParticleType::Enchantment => 14,
+            ParticleType::Portal => 15,
+            ParticleType::WaterSplash => 16,
+            ParticleType::LavaSpark => 17,
+            ParticleType::Bubble => 18,
+            ParticleType::Custom(id) => 1000 + id,
+        }
+    }
+    
     /// Get default properties for particle type
     pub fn default_properties(&self) -> (Vec4, f32, f32) {
         // (color, size, lifetime)

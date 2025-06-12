@@ -27,10 +27,13 @@ pub enum InventoryUIState {
 }
 
 /// Inventory UI data - plain old data
-#[repr(C)]
+#[repr(C, align(4))]
 #[derive(Debug, Clone, Copy, Pod, Zeroable)]
 pub struct InventoryUIData {
     pub state: u8, // InventoryUIState as u8
+    pub _padding1: u8,
+    pub _padding2: u8,
+    pub _padding3: u8,
     pub selected_slot: u32, // u32::MAX means no selection
     pub hotbar_position_x: f32,
     pub hotbar_position_y: f32,
@@ -59,6 +62,9 @@ pub fn init_inventory_ui(screen_width: f32, screen_height: f32) -> InventoryUIDa
     
     InventoryUIData {
         state: InventoryUIState::Closed as u8,
+        _padding1: 0,
+        _padding2: 0,
+        _padding3: 0,
         selected_slot: u32::MAX,
         hotbar_position_x: hotbar_x,
         hotbar_position_y: hotbar_y,
@@ -303,7 +309,7 @@ fn render_item(ui_renderer: &mut UIRenderer, x: f32, y: f32, item: &ItemStackDat
 }
 
 /// UI input state for inventory
-#[repr(C)]
+#[repr(C, align(4))]
 #[derive(Debug, Clone, Copy, Pod, Zeroable)]
 pub struct InventoryInputState {
     pub mouse_x: f32,

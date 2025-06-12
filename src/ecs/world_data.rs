@@ -45,7 +45,7 @@ impl EcsWorldData {
                     velocity: cgmath::Vector3::new(p.velocity[0], p.velocity[1], p.velocity[2]),
                     acceleration: cgmath::Vector3::new(p.acceleration[0], p.acceleration[1], p.acceleration[2]),
                     mass: p.mass,
-                    grounded: p.flags & 1 != 0,
+                    grounded: p.grounded,
                 };
                 // SAFETY: We've verified T is Physics
                 unsafe { std::mem::transmute_copy(&physics) }
@@ -63,9 +63,9 @@ impl EcsWorldData {
         } else if type_id == TypeId::of::<Renderable>() {
             self.components.get_renderable(entity).map(|r| {
                 let renderable = Renderable {
-                    mesh_id: r.mesh_id,
-                    material_id: r.material_id,
-                    visible: r.visible != 0,
+                    mesh_id: r.model_type,
+                    material_id: r.model_data,
+                    visible: r.scale > 0.0,
                 };
                 // SAFETY: We've verified T is Renderable
                 unsafe { std::mem::transmute_copy(&renderable) }
@@ -265,7 +265,10 @@ pub fn spawn_item(
     // Add transform
     world.add_transform(entity, position, [0.0, 0.0, 0.0], [0.5, 0.5, 0.5]);
     
-    // Add physics with velocity
+    // Add physics with small AABB for item
+    world.add_physics(entity, 0.1, [-0.25, -0.25, -0.25], [0.25, 0.25, 0.25]);
+    
+    // Set velocity after adding physics
     if let Some(physics) = world.components.get_physics_mut(entity) {
         physics.velocity = velocity;
     }

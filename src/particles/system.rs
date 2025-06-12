@@ -112,7 +112,7 @@ impl DOPParticleSystem {
         
         self.emitters.emission_rate.push(emission_rate);
         self.emitters.accumulated_particles.push(0.0);
-        self.emitters.particle_type.push(particle_type as u32);
+        self.emitters.particle_type.push(particle_type.to_id());
         
         self.emitters.elapsed_time.push(0.0);
         self.emitters.duration.push(duration.map_or(-1.0, |d| d.as_secs_f32()));
@@ -262,7 +262,7 @@ impl DOPParticleSystem {
     pub fn spawn_particles(&mut self, positions: &[Vec3], velocities: &[Vec3], particle_type: ParticleType) {
         let count = positions.len().min(velocities.len());
         for i in 0..count {
-            spawn_particle(&mut self.particles, positions[i], velocities[i], particle_type as u32);
+            spawn_particle(&mut self.particles, positions[i], velocities[i], particle_type.to_id());
         }
     }
     

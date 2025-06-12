@@ -21,7 +21,7 @@ pub struct MeshPacket {
     pub total_packets: u32,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum PacketType {
     BaseGeometry,    // Lowest LOD full mesh
     VertexDelta,     // Additional vertices for higher LOD
@@ -218,7 +218,7 @@ impl ProgressiveStreamer {
         for (vertex_idx, new_attrs) in updates {
             if let Some(vertex) = state.base_vertices.get_mut(vertex_idx) {
                 vertex.normal = new_attrs.normal;
-                vertex.tex_coords = new_attrs.tex_coords;
+                // Note: tex_coords are not stored in Vertex struct currently
             } else {
                 eprintln!("Vertex index {} out of bounds for base vertices len {}", vertex_idx, state.base_vertices.len());
             }

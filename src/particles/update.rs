@@ -2,7 +2,7 @@ use glam::Vec3;
 use rand::{thread_rng, Rng};
 
 use crate::particles::particle_data::{ParticleData, EmitterData};
-use crate::world::World;
+use crate::world::{World, BlockId, VoxelPos};
 
 /// Update all particles in the system
 pub fn update_particles(
@@ -95,6 +95,18 @@ pub fn integrate_motion(particles: &mut ParticleData, dt: f32) {
     }
 }
 
+/// Check if a block ID represents a solid block
+fn is_block_solid(block_id: BlockId) -> bool {
+    // Air, water, lava, and various vegetation are not solid
+    match block_id {
+        BlockId::AIR | BlockId::WATER | BlockId::LAVA |
+        BlockId::TALL_GRASS | BlockId::FLOWER_RED | BlockId::FLOWER_YELLOW |
+        BlockId::MUSHROOM_RED | BlockId::MUSHROOM_BROWN | BlockId::DEAD_BUSH |
+        BlockId::SUGAR_CANE | BlockId::VINES => false,
+        _ => true
+    }
+}
+
 /// Handle particle collisions with world
 pub fn handle_collisions(particles: &mut ParticleData, world: &World) {
     for i in 0..particles.count {
@@ -104,22 +116,30 @@ pub fn handle_collisions(particles: &mut ParticleData, world: &World) {
             particles.position_z[i],
         );
         
-        // Check if particle is inside a solid voxel
-        if let Ok(voxel) = world.get_voxel(pos.as_ivec3()) {
-            if voxel.is_solid() {
-                // Simple bounce back
-                let bounce = particles.bounce[i];
-                
-                // Reflect velocity
-                particles.velocity_x[i] *= -bounce;
-                particles.velocity_y[i] *= -bounce;
-                particles.velocity_z[i] *= -bounce;
-                
-                // Move particle out of solid
-                particles.position_x[i] -= particles.velocity_x[i] * 0.016;
-                particles.position_y[i] -= particles.velocity_y[i] * 0.016;
-                particles.position_z[i] -= particles.velocity_z[i] * 0.016;
-            }
+        // Convert to voxel position
+        let voxel_pos = VoxelPos::new(
+            pos.x.floor() as i32,
+            pos.y.floor() as i32,
+            pos.z.floor() as i32,
+        );
+        
+        // Get block at position
+        let block_id = world.get_block(voxel_pos);
+        
+        // Check if particle is inside a solid block
+        if is_block_solid(block_id) {
+            // Simple bounce back
+            let bounce = particles.bounce[i];
+            
+            // Reflect velocity
+            particles.velocity_x[i] *= -bounce;
+            particles.velocity_y[i] *= -bounce;
+            particles.velocity_z[i] *= -bounce;
+            
+            // Move particle out of solid
+            particles.position_x[i] -= particles.velocity_x[i] * 0.016;
+            particles.position_y[i] -= particles.velocity_y[i] * 0.016;
+            particles.position_z[i] -= particles.velocity_z[i] * 0.016;
         }
     }
 }

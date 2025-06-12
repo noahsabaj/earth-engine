@@ -19,6 +19,8 @@ mod simple_async_renderer;
 pub mod mesh_optimizer;
 mod preallocated_mesh_cache;
 mod preallocated_texture_atlas;
+mod lod_transition;
+mod progressive_streaming;
 
 use crate::{EngineConfig, Game};
 use anyhow::Result;
@@ -37,6 +39,7 @@ pub use gpu_diagnostics::{GpuDiagnostics, DiagnosticsReport, ValidationResult, O
 pub use gpu_progress::{GpuInitProgress, AsyncProgressReporter, with_timeout, ProgressCallback, LogProgressCallback};
 pub use gpu_recovery::{GpuRecovery, FallbackSettings, GpuHealthMonitor};
 pub use simple_async_renderer::SimpleAsyncRenderer;
+pub use mesh_optimizer::MeshLod;
 
 pub struct Renderer {
     // Will be implemented

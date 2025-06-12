@@ -53,10 +53,19 @@ pub struct ChunkSpatialHash<T> {
 
 impl<T> ChunkSpatialHash<T> {
     pub fn new() -> Self {
+        // Initialize vectors without using clone
+        let mut data = Vec::with_capacity(TOTAL_CHUNK_SLOTS);
+        let mut index_to_active = Vec::with_capacity(TOTAL_CHUNK_SLOTS);
+        
+        for _ in 0..TOTAL_CHUNK_SLOTS {
+            data.push(None);
+            index_to_active.push(None);
+        }
+        
         Self {
-            data: vec![None; TOTAL_CHUNK_SLOTS],
+            data,
             active_indices: Vec::with_capacity(4096), // Reasonable initial capacity
-            index_to_active: vec![None; TOTAL_CHUNK_SLOTS],
+            index_to_active,
         }
     }
     
@@ -135,12 +144,21 @@ impl<T> ChunkSpatialHash<T> {
     
     /// Iterate over all chunks mutably
     pub fn iter_mut(&mut self) -> impl Iterator<Item = (ChunkPos, &mut T)> {
-        let data = &mut self.data;
-        self.active_indices.iter()
-            .filter_map(move |&index| {
-                data[index].as_mut().map(|value| {
-                    (index_to_chunk_pos(index), value)
-                })
+        // Collect indices first to avoid closure capture issues
+        let indices: Vec<usize> = self.active_indices.clone();
+        let data_ptr = self.data.as_mut_ptr();
+        
+        // SAFETY: We're iterating over known valid indices from active_indices
+        // and each index is unique, so we're not creating multiple mutable references
+        // to the same data
+        indices.into_iter()
+            .filter_map(move |index| {
+                unsafe {
+                    let slot = &mut *data_ptr.add(index);
+                    slot.as_mut().map(|value| {
+                        (index_to_chunk_pos(index), value)
+                    })
+                }
             })
     }
     

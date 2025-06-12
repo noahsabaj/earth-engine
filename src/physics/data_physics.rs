@@ -407,7 +407,7 @@ impl PhysicsWorldData {
     }
     
     /// Update physics world
-    pub fn update(&mut self, world: &impl crate::world::WorldInterface, delta_time: f32) {
+    pub fn update<W: crate::world::WorldInterface + 'static>(&mut self, world: &W, delta_time: f32) {
         // Downcast to concrete World type for now
         // In a real implementation, we'd make operations work with WorldInterface
         if let Some(world) = (world as &dyn std::any::Any).downcast_ref::<crate::world::World>() {

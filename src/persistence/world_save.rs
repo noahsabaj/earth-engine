@@ -252,11 +252,11 @@ impl WorldSave {
     /// Flush all cached chunks to disk
     pub fn flush_cache(&mut self) -> Result<(), WorldSaveError> {
         // Take ownership of the cache temporarily
-        let mut cache = std::mem::take(&mut self.chunk_cache);
+        let cache = std::mem::take(&mut self.chunk_cache);
         
         // Save each chunk
-        for (pos, chunk) in &cache {
-            self.save_chunk(chunk)
+        for (pos, chunk) in cache {
+            self.save_chunk(&chunk)
                 .map_err(|e| WorldSaveError::ChunkSave(pos, e))?;
         }
         

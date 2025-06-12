@@ -169,9 +169,8 @@ impl ComponentData {
         let entity_idx = entity.idx();
         
         // Check if entity already has this component
-        if self.transform_sparse[entity_idx].is_some() {
+        if let Some(comp_idx) = self.transform_sparse[entity_idx] {
             // Update existing
-            let comp_idx = self.transform_sparse[entity_idx].unwrap();
             self.transforms[comp_idx] = data;
             return true;
         }
@@ -251,8 +250,7 @@ impl ComponentData {
         
         let entity_idx = entity.idx();
         
-        if self.physics_sparse[entity_idx].is_some() {
-            let comp_idx = self.physics_sparse[entity_idx].unwrap();
+        if let Some(comp_idx) = self.physics_sparse[entity_idx] {
             self.physics[comp_idx] = data;
             return true;
         }
@@ -325,8 +323,7 @@ impl ComponentData {
         
         let entity_idx = entity.idx();
         
-        if self.items_sparse[entity_idx].is_some() {
-            let comp_idx = self.items_sparse[entity_idx].unwrap();
+        if let Some(comp_idx) = self.items_sparse[entity_idx] {
             self.items[comp_idx] = data;
             return true;
         }
@@ -373,12 +370,103 @@ impl ComponentData {
         }
     }
     
+    pub fn get_item(&self, entity: EntityId) -> Option<&ItemData> {
+        if !entity.is_valid() {
+            return None;
+        }
+        
+        self.items_sparse[entity.idx()]
+            .map(|idx| &self.items[idx])
+    }
+    
+    pub fn get_item_mut(&mut self, entity: EntityId) -> Option<&mut ItemData> {
+        if !entity.is_valid() {
+            return None;
+        }
+        
+        self.items_sparse[entity.idx()]
+            .map(|idx| &mut self.items[idx])
+    }
+    
+    // Similar methods for renderable components
+    pub fn add_renderable(&mut self, entity: EntityId, data: RenderableData) -> bool {
+        if !entity.is_valid() {
+            return false;
+        }
+        
+        let entity_idx = entity.idx();
+        
+        if let Some(comp_idx) = self.renderables_sparse[entity_idx] {
+            self.renderables[comp_idx] = data;
+            return true;
+        }
+        
+        if self.renderables_count >= MAX_ENTITIES {
+            return false;
+        }
+        
+        let comp_idx = self.renderables_count;
+        self.renderables[comp_idx] = data;
+        self.renderables_sparse[entity_idx] = Some(comp_idx);
+        self.renderables_entities[comp_idx] = entity;
+        self.renderables_count += 1;
+        
+        true
+    }
+    
+    pub fn remove_renderable(&mut self, entity: EntityId) -> bool {
+        if !entity.is_valid() {
+            return false;
+        }
+        
+        let entity_idx = entity.idx();
+        
+        if let Some(comp_idx) = self.renderables_sparse[entity_idx] {
+            let last_idx = self.renderables_count - 1;
+            
+            if comp_idx != last_idx {
+                self.renderables[comp_idx] = self.renderables[last_idx];
+                let moved_entity = self.renderables_entities[last_idx];
+                self.renderables_entities[comp_idx] = moved_entity;
+                
+                if moved_entity.is_valid() {
+                    self.renderables_sparse[moved_entity.idx()] = Some(comp_idx);
+                }
+            }
+            
+            self.renderables_sparse[entity_idx] = None;
+            self.renderables_count -= 1;
+            
+            true
+        } else {
+            false
+        }
+    }
+    
+    pub fn get_renderable(&self, entity: EntityId) -> Option<&RenderableData> {
+        if !entity.is_valid() {
+            return None;
+        }
+        
+        self.renderables_sparse[entity.idx()]
+            .map(|idx| &self.renderables[idx])
+    }
+    
+    pub fn get_renderable_mut(&mut self, entity: EntityId) -> Option<&mut RenderableData> {
+        if !entity.is_valid() {
+            return None;
+        }
+        
+        self.renderables_sparse[entity.idx()]
+            .map(|idx| &mut self.renderables[idx])
+    }
+    
     // Clear all components for an entity
     pub fn clear_entity(&mut self, entity: EntityId) {
         self.remove_transform(entity);
         self.remove_physics(entity);
         self.remove_item(entity);
-        // Add other component removals as needed
+        self.remove_renderable(entity);
     }
     
     /// Clear all component data
