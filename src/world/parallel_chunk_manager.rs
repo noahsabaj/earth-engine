@@ -240,7 +240,17 @@ impl ParallelChunkManager {
             let start_time = Instant::now();
             
             // Generate chunk
-            let chunk = generator.generate_chunk(request.chunk_pos, chunk_size);
+            let mut chunk = generator.generate_chunk(request.chunk_pos, chunk_size);
+            
+            // IMPORTANT: Mark chunk as dirty after generation so it gets meshed
+            chunk.mark_dirty();
+            
+            // Log chunk generation details
+            let non_air_blocks = chunk.blocks().iter().filter(|&&b| b != crate::BlockId::AIR).count();
+            if count < 5 {
+                log::info!("[ParallelChunkManager] Generated chunk at {:?} with {} non-air blocks, dirty: {}", 
+                         request.chunk_pos, non_air_blocks, chunk.is_dirty());
+            }
             
             let generation_time = start_time.elapsed();
             // Use try_send to avoid blocking

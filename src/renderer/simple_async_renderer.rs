@@ -178,6 +178,10 @@ impl SimpleAsyncRenderer {
             log::info!("[SimpleAsyncRenderer::upload_completed_meshes] Uploaded mesh for chunk {:?} ({} vertices, {} indices)", 
                       completed.chunk_pos, completed.mesh.vertices.len(), gpu_mesh.num_indices);
             
+            // Log the exact key being inserted
+            log::info!("[SimpleAsyncRenderer::upload_completed_meshes] Inserting mesh with key: ChunkPos {{ x: {}, y: {}, z: {} }}", 
+                      completed.chunk_pos.x, completed.chunk_pos.y, completed.chunk_pos.z);
+            
             self.gpu_meshes.insert(completed.chunk_pos, gpu_mesh);
             uploaded += 1;
         }
@@ -230,12 +234,38 @@ impl SimpleAsyncRenderer {
             return 0;
         }
         
+        // Debug: Log camera position and view direction
+        static mut CAM_LOG_COUNT: usize = 0;
+        unsafe {
+            if CAM_LOG_COUNT < 3 {
+                let view = camera.build_view_matrix();
+                let proj = camera.build_projection_matrix();
+                log::info!("[SimpleAsyncRenderer::render] Camera pos: {:?}, yaw: {:?}, pitch: {:?}", 
+                         camera.position, camera.yaw, camera.pitch);
+                log::info!("[SimpleAsyncRenderer::render] View matrix: {:?}", view);
+                log::info!("[SimpleAsyncRenderer::render] Projection matrix: {:?}", proj);
+                CAM_LOG_COUNT += 1;
+            }
+        }
+        
         // Log mesh count on first few renders
         static mut RENDER_COUNT: usize = 0;
         unsafe {
             if RENDER_COUNT < 10 {
                 log::info!("[SimpleAsyncRenderer::render] GPU meshes available: {}", self.gpu_meshes.len());
                 RENDER_COUNT += 1;
+            }
+        }
+        
+        // Log the keys we're iterating over (first time only)
+        static mut KEYS_LOGGED: bool = false;
+        unsafe {
+            if !KEYS_LOGGED && !self.gpu_meshes.is_empty() {
+                log::info!("[SimpleAsyncRenderer::render] GPU mesh keys:");
+                for (pos, _) in &self.gpu_meshes {
+                    log::info!("  - ChunkPos {{ x: {}, y: {}, z: {} }}", pos.x, pos.y, pos.z);
+                }
+                KEYS_LOGGED = true;
             }
         }
         
@@ -274,6 +304,12 @@ impl SimpleAsyncRenderer {
                 if bypass_frustum || (ndc_x >= -1.5 && ndc_x <= 1.5 &&
                    ndc_y >= -1.5 && ndc_y <= 1.5 &&
                    ndc_z >= 0.0 && ndc_z <= 1.0) {
+                    // Log the first few chunks being rendered
+                    if chunks_rendered < 3 {
+                        log::info!("[SimpleAsyncRenderer::render] Drawing chunk {:?} at world pos ({}, {}, {}), {} indices",
+                                  chunk_pos, min.x, min.y, min.z, gpu_mesh.num_indices);
+                    }
+                    
                     render_pass.set_vertex_buffer(0, gpu_mesh.vertex_buffer.slice(..));
                     render_pass.set_index_buffer(gpu_mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
                     render_pass.draw_indexed(0..gpu_mesh.num_indices, 0, 0..1);

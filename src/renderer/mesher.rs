@@ -15,9 +15,16 @@ impl ChunkMesher {
     pub fn new() -> Self {
         Self {}
     }
-    pub fn generate_mesh(chunk: &Chunk, registry: &BlockRegistry) -> ChunkMesh {
+    pub fn generate_mesh(chunk: &Chunk, chunk_pos: ChunkPos, registry: &BlockRegistry) -> ChunkMesh {
         let mut mesh = ChunkMesh::new();
         let size = chunk.size();
+
+        // Calculate world offset for this chunk
+        let world_offset = Vector3::new(
+            (chunk_pos.x * size as i32) as f32,
+            (chunk_pos.y * size as i32) as f32,
+            (chunk_pos.z * size as i32) as f32,
+        );
 
         for y in 0..size {
             for z in 0..size {
@@ -34,7 +41,7 @@ impl ChunkMesher {
                     };
                     let render_data = block.get_render_data();
 
-                    let pos = Vector3::new(x as f32, y as f32, z as f32);
+                    let pos = Vector3::new(x as f32, y as f32, z as f32) + world_offset;
 
                     // Get light level at this position
                     let light_level = chunk.get_light(x, y, z);
@@ -135,7 +142,7 @@ impl ChunkMesher {
     ) -> ChunkMesh {
         // For now, just use the existing generate_mesh method
         // TODO: Implement proper neighbor-aware face culling
-        Self::generate_mesh(chunk, registry)
+        Self::generate_mesh(chunk, chunk_pos, registry)
     }
 
     fn is_face_visible(chunk: &Chunk, x: u32, y: u32, z: u32, size: u32) -> bool {

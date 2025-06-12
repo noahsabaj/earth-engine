@@ -65,18 +65,27 @@ impl GreedyMesher {
     }
     
     /// Generate optimized mesh using greedy meshing
-    pub fn generate_mesh(&self, chunk: &Chunk, registry: &BlockRegistry) -> ChunkMesh {
+    pub fn generate_mesh(&self, chunk: &Chunk, chunk_pos: ChunkPos, registry: &BlockRegistry) -> ChunkMesh {
         let quads = self.extract_quads(chunk);
         
         // Log optimization statistics
         let total_quads = quads.len();
         let total_triangles = total_quads * 2;
-        log::debug!(
-            "GreedyMesher: Generated {} quads ({} triangles) for chunk",
-            total_quads, total_triangles
-        );
         
-        self.quads_to_mesh(&quads)
+        // Enhanced logging for debugging
+        static mut MESH_GEN_COUNT: usize = 0;
+        unsafe {
+            if MESH_GEN_COUNT < 10 {
+                let non_air_blocks = chunk.blocks().iter().filter(|&&b| b != BlockId::AIR).count();
+                log::info!(
+                    "[GreedyMesher::generate_mesh] Chunk {:?}: {} non-air blocks -> {} quads ({} triangles)",
+                    chunk_pos, non_air_blocks, total_quads, total_triangles
+                );
+                MESH_GEN_COUNT += 1;
+            }
+        }
+        
+        self.quads_to_mesh(&quads, chunk_pos)
     }
     
     /// Build chunk mesh with neighbor information for proper face culling
@@ -90,7 +99,7 @@ impl GreedyMesher {
     ) -> ChunkMesh {
         // For now, just use generate_mesh
         // TODO: Implement neighbor-aware face culling
-        self.generate_mesh(chunk, registry)
+        self.generate_mesh(chunk, chunk_pos, registry)
     }
     
     /// Extract greedy quads from chunk
@@ -282,9 +291,16 @@ impl GreedyMesher {
         quads
     }
     
-    /// Convert greedy quads to ChunkMesh
-    fn quads_to_mesh(&self, quads: &[GreedyQuad]) -> ChunkMesh {
+    /// Convert greedy quads to ChunkMesh with world position offset
+    fn quads_to_mesh(&self, quads: &[GreedyQuad], chunk_pos: ChunkPos) -> ChunkMesh {
         let mut mesh = ChunkMesh::new();
+        
+        // Calculate world offset for this chunk
+        let world_offset = Vector3::new(
+            (chunk_pos.x * self.chunk_size as i32) as f32,
+            (chunk_pos.y * self.chunk_size as i32) as f32,
+            (chunk_pos.z * self.chunk_size as i32) as f32,
+        );
         
         for quad in quads {
             let normal = quad.face.normal();
@@ -299,6 +315,9 @@ impl GreedyMesher {
                 let mut pos = quad.position;
                 pos[u_axis] += u_offset * quad.size[u_axis];
                 pos[v_axis] += v_offset * quad.size[v_axis];
+                
+                // Apply world offset to convert from chunk-local to world coordinates
+                pos += world_offset;
                 
                 // Get block color - for now use simple colors based on block ID
                 let color = match quad.material {
@@ -329,7 +348,7 @@ impl GreedyMesher {
     }
     
     /// Generate mesh with statistics
-    pub fn generate_mesh_with_stats(&self, chunk: &Chunk, registry: &BlockRegistry) -> (ChunkMesh, GreedyMeshStats) {
+    pub fn generate_mesh_with_stats(&self, chunk: &Chunk, chunk_pos: ChunkPos, registry: &BlockRegistry) -> (ChunkMesh, GreedyMeshStats) {
         let quads = self.extract_quads(chunk);
         
         // Calculate statistics
@@ -368,7 +387,7 @@ impl GreedyMesher {
             .max()
             .unwrap_or(0);
         
-        (self.quads_to_mesh(&quads), stats)
+        (self.quads_to_mesh(&quads, chunk_pos), stats)
     }
 }
 
