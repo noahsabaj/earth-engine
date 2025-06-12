@@ -239,17 +239,11 @@ impl GpuState {
         log::info!("[GpuState::new] Trying high-performance adapter...");
         let adapter_future = instance.request_adapter(&adapter_options);
         
-        // Use timeout for adapter request (if available)
-        let adapter_timeout = std::time::Duration::from_secs(10);
-        
-        #[cfg(feature = "native")]
-        let adapter_result = tokio::time::timeout(adapter_timeout, adapter_future).await;
-        
-        #[cfg(not(feature = "native"))]
-        let adapter_result = Ok(adapter_future.await);
+        // WGPU has its own internal timeouts, so we don't need to add our own
+        let adapter_result = adapter_future.await;
         
         let adapter = match adapter_result {
-            Ok(Some(adapter)) => {
+            Some(adapter) => {
                 let adapter_time = adapter_start.elapsed();
                 let info = adapter.get_info();
                 log::info!("[GpuState::new] GPU adapter found in {:?}", adapter_time);
@@ -258,7 +252,7 @@ impl GpuState {
                 log::info!("[GpuState::new] Vendor: 0x{:04x}, Device: 0x{:04x}", info.vendor, info.device);
                 adapter
             }
-            Ok(None) => {
+            None => {
                 log::warn!("[GpuState::new] No high-performance adapter found, trying low power...");
                 
                 // Try low power adapter
@@ -293,14 +287,6 @@ impl GpuState {
                     }
                 }
             }
-            #[cfg(feature = "native")]
-            Err(_) => {
-                log::error!("[GpuState::new] Adapter request timed out after {:?}", adapter_timeout);
-                log::error!("[GpuState::new] This indicates a serious GPU initialization issue");
-                return Err(anyhow::anyhow!("GPU adapter request timed out"));
-            }
-            #[cfg(not(feature = "native"))]
-            _ => unreachable!("Timeout not possible without tokio")
         };
         
         // Validate adapter capabilities
@@ -336,16 +322,11 @@ impl GpuState {
             None,
         );
         
-        let device_timeout = std::time::Duration::from_secs(10);
-        
-        #[cfg(feature = "native")]
-        let device_result = tokio::time::timeout(device_timeout, device_future).await;
-        
-        #[cfg(not(feature = "native"))]
-        let device_result = Ok(device_future.await);
+        // WGPU has its own internal timeouts, so we don't need to add our own
+        let device_result = device_future.await;
         
         let (device, queue) = match device_result {
-            Ok(Ok((dev, q))) => {
+            Ok((dev, q)) => {
                 let device_time = device_start.elapsed();
                 log::info!("[GpuState::new] GPU device created successfully in {:?}", device_time);
                 
@@ -370,7 +351,7 @@ impl GpuState {
                 
                 (dev, q)
             }
-            Ok(Err(e)) => {
+            Err(e) => {
                 log::error!("[GpuState::new] Failed to create GPU device: {}", e);
                 log::error!("[GpuState::new] This may be due to:");
                 log::error!("[GpuState::new] - Requested features/limits not supported");
@@ -378,13 +359,6 @@ impl GpuState {
                 log::error!("[GpuState::new] - Out of GPU memory");
                 return Err(anyhow::anyhow!("Device creation failed: {}", e));
             }
-            #[cfg(feature = "native")]
-            Err(_) => {
-                log::error!("[GpuState::new] Device request timed out after {:?}", device_timeout);
-                return Err(anyhow::anyhow!("GPU device request timed out"));
-            }
-            #[cfg(not(feature = "native"))]
-            _ => unreachable!("Timeout not possible without tokio")
         };
 
         // Configure surface with validation

@@ -219,11 +219,17 @@ pub async fn with_timeout<T, F>(
     future: F,
 ) -> Result<T, String>
 where
-    F: std::future::Future<Output = T>,
+    F: std::future::Future<Output = T> + Unpin,
 {
-    match tokio::time::timeout(timeout, future).await {
-        Ok(result) => Ok(result),
-        Err(_) => {
+    // Use futures::future::select and a timer future for timeout without requiring tokio runtime
+    use futures::future::{select, Either};
+    use futures_timer::Delay;
+    
+    let timeout_future = Delay::new(timeout);
+    
+    match select(future, timeout_future).await {
+        Either::Left((result, _)) => Ok(result),
+        Either::Right((_, _)) => {
             let error = format!("{} timed out after {:?}", operation_name, timeout);
             log::error!("[GPU Timeout] {}", error);
             Err(error)
