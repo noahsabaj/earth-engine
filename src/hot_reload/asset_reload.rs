@@ -128,14 +128,39 @@ impl AssetReloader {
         let path = path.as_ref();
         
         // Load image
-        let image = image::open(path)
+        let mut image = image::open(path)
             .map_err(|e| asset_reload_error(name, format!("Failed to load image: {}", e)))?;
+        
+        // Get GPU texture size limits
+        let device_limits = self.device.limits();
+        let max_texture_dimension = device_limits.max_texture_dimension_2d;
+        
+        // Validate and potentially resize image dimensions
+        let original_dimensions = (image.width(), image.height());
+        let (validated_width, validated_height) = validate_and_resize_image(
+            &mut image,
+            max_texture_dimension,
+            name,
+        );
+        
+        // Log if image was resized
+        if (validated_width, validated_height) != original_dimensions {
+            log::warn!(
+                "[AssetReloader::load_texture] Image '{}' resized from {}x{} to {}x{} due to GPU texture limit ({})",
+                name,
+                original_dimensions.0,
+                original_dimensions.1,
+                validated_width,
+                validated_height,
+                max_texture_dimension
+            );
+        }
         
         // Convert to RGBA8
         let rgba = image.to_rgba8();
         let dimensions = rgba.dimensions();
         
-        // Create texture
+        // Create texture with validated dimensions
         let size = wgpu::Extent3d {
             width: dimensions.0,
             height: dimensions.1,
@@ -374,8 +399,33 @@ impl AssetReloader {
             match asset_id.asset_type {
                 AssetType::Texture => {
                     // Reload texture
-                    let image = image::open(path)
+                    let mut image = image::open(path)
                         .map_err(|e| asset_reload_error(&asset_id.name, format!("Failed to reload image: {}", e)))?;
+                    
+                    // Get GPU texture size limits
+                    let device_limits = self.device.limits();
+                    let max_texture_dimension = device_limits.max_texture_dimension_2d;
+                    
+                    // Validate and potentially resize image dimensions
+                    let original_dimensions = (image.width(), image.height());
+                    let (validated_width, validated_height) = validate_and_resize_image(
+                        &mut image,
+                        max_texture_dimension,
+                        &asset_id.name,
+                    );
+                    
+                    // Log if image was resized during reload
+                    if (validated_width, validated_height) != original_dimensions {
+                        log::warn!(
+                            "[AssetReloader::reload_asset] Image '{}' resized from {}x{} to {}x{} due to GPU texture limit ({}) during hot reload",
+                            asset_id.name,
+                            original_dimensions.0,
+                            original_dimensions.1,
+                            validated_width,
+                            validated_height,
+                            max_texture_dimension
+                        );
+                    }
                     
                     let rgba = image.to_rgba8();
                     let dimensions = rgba.dimensions();
@@ -396,36 +446,103 @@ impl AssetReloader {
                     };
                     
                     if let Some(texture) = texture {
-                        // Update texture data
-                        self.queue.write_texture(
-                            wgpu::ImageCopyTexture {
-                                texture: &texture,
-                                mip_level: 0,
-                                origin: wgpu::Origin3d::ZERO,
-                                aspect: wgpu::TextureAspect::All,
-                            },
-                            &rgba,
-                            wgpu::ImageDataLayout {
-                                offset: 0,
-                                bytes_per_row: Some(4 * dimensions.0),
-                                rows_per_image: Some(dimensions.1),
-                            },
-                            wgpu::Extent3d {
-                                width: dimensions.0,
-                                height: dimensions.1,
-                                depth_or_array_layers: 1,
-                            },
-                        );
-                        
-                        // Update cache
-                        let mut cache = self.cache.write()
-                            .hot_reload_context("asset_cache")?;
-                        if let Some(cached) = cache.get_mut(&asset_id) {
-                            if let AssetData::Texture(tex_asset) = &mut cached.data {
-                                tex_asset.image = image;
+                        // Check if the existing texture can accommodate the new dimensions
+                        let texture_size = texture.size();
+                        if dimensions.0 > texture_size.width || dimensions.1 > texture_size.height {
+                            // Need to recreate texture with new dimensions
+                            log::warn!(
+                                "[AssetReloader::reload_asset] Cannot update texture '{}' in-place: new dimensions {}x{} exceed existing texture size {}x{}",
+                                asset_id.name,
+                                dimensions.0,
+                                dimensions.1,
+                                texture_size.width,
+                                texture_size.height
+                            );
+                            
+                            // Create new texture with validated dimensions
+                            let new_texture = self.device.create_texture(&TextureDescriptor {
+                                label: Some(&asset_id.name),
+                                size: wgpu::Extent3d {
+                                    width: dimensions.0,
+                                    height: dimensions.1,
+                                    depth_or_array_layers: 1,
+                                },
+                                mip_level_count: 1,
+                                sample_count: 1,
+                                dimension: wgpu::TextureDimension::D2,
+                                format: TextureFormat::Rgba8UnormSrgb,
+                                usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+                                view_formats: &[],
+                            });
+                            
+                            // Upload data to new texture
+                            self.queue.write_texture(
+                                wgpu::ImageCopyTexture {
+                                    texture: &new_texture,
+                                    mip_level: 0,
+                                    origin: wgpu::Origin3d::ZERO,
+                                    aspect: wgpu::TextureAspect::All,
+                                },
+                                &rgba,
+                                wgpu::ImageDataLayout {
+                                    offset: 0,
+                                    bytes_per_row: Some(4 * dimensions.0),
+                                    rows_per_image: Some(dimensions.1),
+                                },
+                                wgpu::Extent3d {
+                                    width: dimensions.0,
+                                    height: dimensions.1,
+                                    depth_or_array_layers: 1,
+                                },
+                            );
+                            
+                            let new_texture = Arc::new(new_texture);
+                            let new_view = Arc::new(new_texture.create_view(&wgpu::TextureViewDescriptor::default()));
+                            
+                            // Update cache with new texture
+                            let mut cache = self.cache.write()
+                                .hot_reload_context("asset_cache")?;
+                            if let Some(cached) = cache.get_mut(&asset_id) {
+                                if let AssetData::Texture(tex_asset) = &mut cached.data {
+                                    tex_asset.texture = new_texture;
+                                    tex_asset.view = new_view;
+                                    tex_asset.image = image;
+                                }
+                                cached.last_modified = std::time::SystemTime::now();
+                                reloaded_callbacks = cached.callbacks.clone();
                             }
-                            cached.last_modified = std::time::SystemTime::now();
-                            reloaded_callbacks = cached.callbacks.clone();
+                        } else {
+                            // Dimensions fit in existing texture, update in-place
+                            self.queue.write_texture(
+                                wgpu::ImageCopyTexture {
+                                    texture: &texture,
+                                    mip_level: 0,
+                                    origin: wgpu::Origin3d::ZERO,
+                                    aspect: wgpu::TextureAspect::All,
+                                },
+                                &rgba,
+                                wgpu::ImageDataLayout {
+                                    offset: 0,
+                                    bytes_per_row: Some(4 * dimensions.0),
+                                    rows_per_image: Some(dimensions.1),
+                                },
+                                wgpu::Extent3d {
+                                    width: dimensions.0,
+                                    height: dimensions.1,
+                                    depth_or_array_layers: 1,
+                                },
+                            );
+                            
+                            // Update cache
+                            let mut cache = self.cache.write()
+                                .hot_reload_context("asset_cache")?;
+                            if let Some(cached) = cache.get_mut(&asset_id) {
+                                if let AssetData::Texture(tex_asset) = &mut cached.data {
+                                    tex_asset.image = image;
+                                }
+                                cached.last_modified = std::time::SystemTime::now();
+                                reloaded_callbacks = cached.callbacks.clone();
+                            }
                         }
                     }
                 }
@@ -576,3 +693,55 @@ impl std::fmt::Display for AssetError {
 }
 
 impl std::error::Error for AssetError {}
+
+/// Validates image dimensions against GPU limits and resizes if necessary
+/// Following DOP principles - pure function that transforms image data
+/// Returns (final_width, final_height) after validation/resizing
+fn validate_and_resize_image(
+    image: &mut DynamicImage,
+    max_dimension: u32,
+    asset_name: &str,
+) -> (u32, u32) {
+    let width = image.width();
+    let height = image.height();
+    
+    // Check if dimensions exceed GPU limits
+    if width <= max_dimension && height <= max_dimension {
+        // Image dimensions are within limits
+        return (width, height);
+    }
+    
+    // Calculate scaling factor to fit within limits while maintaining aspect ratio
+    let scale_factor = if width > height {
+        max_dimension as f32 / width as f32
+    } else {
+        max_dimension as f32 / height as f32
+    };
+    
+    // Calculate new dimensions
+    let new_width = (width as f32 * scale_factor) as u32;
+    let new_height = (height as f32 * scale_factor) as u32;
+    
+    // Ensure dimensions don't exceed limits due to rounding
+    let final_width = new_width.min(max_dimension);
+    let final_height = new_height.min(max_dimension);
+    
+    log::info!(
+        "[validate_and_resize_image] Resizing image '{}' from {}x{} to {}x{} (scale factor: {:.3})",
+        asset_name,
+        width,
+        height,
+        final_width,
+        final_height,
+        scale_factor
+    );
+    
+    // Resize the image using high-quality filtering
+    *image = image.resize_exact(
+        final_width,
+        final_height,
+        image::imageops::FilterType::Lanczos3,
+    );
+    
+    (final_width, final_height)
+}

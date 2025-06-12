@@ -106,9 +106,12 @@ impl GpuDiagnostics {
         // Check minimum texture size
         if limits.max_texture_dimension_2d < 4096 {
             result.warnings.push(format!(
-                "Low max texture dimension: {} (recommended: 4096+)",
+                "Low max texture dimension: {} (recommended: 4096+ for high-quality terrain textures)",
                 limits.max_texture_dimension_2d
             ));
+        } else if limits.max_texture_dimension_2d >= 8192 {
+            log::info!("[GPU Validation] Excellent texture support: {} (can use high-res terrain textures)", 
+                     limits.max_texture_dimension_2d);
         }
         
         // Check buffer size
@@ -205,26 +208,37 @@ impl GpuDiagnostics {
     
     fn test_texture_creation(device: &Device) -> Result<u32> {
         // Try creating progressively larger textures
-        let dimensions = [512, 1024, 2048, 4096, 8192];
+        let dimensions = [512, 1024, 2048, 4096, 8192, 16384];
         
         let mut max_dim = 0u32;
         for &dim in &dimensions {
-            let texture = device.create_texture(&wgpu::TextureDescriptor {
-                label: Some("Test Texture"),
-                size: wgpu::Extent3d {
-                    width: dim,
-                    height: dim,
-                    depth_or_array_layers: 1,
-                },
-                mip_level_count: 1,
-                sample_count: 1,
-                dimension: wgpu::TextureDimension::D2,
-                format: wgpu::TextureFormat::Rgba8UnormSrgb,
-                usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
-                view_formats: &[],
-            });
-            max_dim = dim;
-            drop(texture); // Immediately release
+            // Try to create the texture, catching any errors
+            match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                device.create_texture(&wgpu::TextureDescriptor {
+                    label: Some("Test Texture"),
+                    size: wgpu::Extent3d {
+                        width: dim,
+                        height: dim,
+                        depth_or_array_layers: 1,
+                    },
+                    mip_level_count: 1,
+                    sample_count: 1,
+                    dimension: wgpu::TextureDimension::D2,
+                    format: wgpu::TextureFormat::Rgba8UnormSrgb,
+                    usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+                    view_formats: &[],
+                })
+            })) {
+                Ok(texture) => {
+                    max_dim = dim;
+                    drop(texture); // Immediately release
+                    log::debug!("[GPU Test] Successfully created {}x{} texture", dim, dim);
+                }
+                Err(_) => {
+                    log::debug!("[GPU Test] Failed to create {}x{} texture - exceeds hardware limits", dim, dim);
+                    break; // Stop trying larger sizes
+                }
+            }
         }
         
         Ok(max_dim)

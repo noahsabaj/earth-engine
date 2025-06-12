@@ -62,12 +62,27 @@ impl TextureAtlas {
     pub fn new(device: &Device, atlas_size: u32, tile_size: u32) -> Self {
         let padding = 2; // 2 pixel padding to prevent bleeding
         
+        // Get device limits to ensure we don't exceed GPU capabilities
+        let device_limits = device.limits();
+        let max_dimension = device_limits.max_texture_dimension_2d;
+        
+        // Validate and clamp atlas size
+        let clamped_atlas_size = atlas_size.min(max_dimension);
+        
+        // Log if dimensions were clamped
+        if clamped_atlas_size != atlas_size {
+            log::warn!(
+                "[TextureAtlas::new] Atlas size clamped from {} to {} due to GPU limits (max: {})",
+                atlas_size, clamped_atlas_size, max_dimension
+            );
+        }
+        
         // Create atlas texture
         let texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("Texture Atlas"),
             size: wgpu::Extent3d {
-                width: atlas_size,
-                height: atlas_size,
+                width: clamped_atlas_size,
+                height: clamped_atlas_size,
                 depth_or_array_layers: 1,
             },
             mip_level_count: 1,
@@ -92,13 +107,13 @@ impl TextureAtlas {
             ..Default::default()
         });
         
-        let atlas_image = RgbaImage::new(atlas_size, atlas_size);
+        let atlas_image = RgbaImage::new(clamped_atlas_size, clamped_atlas_size);
         
         Self {
             texture,
             view,
             sampler,
-            atlas_size,
+            atlas_size: clamped_atlas_size,
             tile_size,
             padding,
             material_uvs: HashMap::new(),

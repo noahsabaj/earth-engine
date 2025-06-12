@@ -303,15 +303,43 @@ impl GpuState {
         log::info!("[GpuState::new] Requesting GPU device...");
         let device_start = std::time::Instant::now();
         
-        // Use conservative limits for better compatibility
-        let mut limits = wgpu::Limits::downlevel_webgl2_defaults();
-        // Increase some limits if supported
+        // Query actual hardware limits first
         let adapter_limits = adapter.limits();
-        limits.max_texture_dimension_2d = limits.max_texture_dimension_2d.min(adapter_limits.max_texture_dimension_2d);
-        limits.max_buffer_size = limits.max_buffer_size.min(adapter_limits.max_buffer_size);
+        let adapter_info = adapter.get_info();
         
-        log::info!("[GpuState::new] Requesting device with limits: max_texture_2d={}, max_buffer_size={}", 
-                  limits.max_texture_dimension_2d, limits.max_buffer_size);
+        log::info!("[GpuState::new] Adapter hardware limits:");
+        log::info!("[GpuState::new]   max_texture_dimension_2d: {}", adapter_limits.max_texture_dimension_2d);
+        log::info!("[GpuState::new]   max_texture_dimension_3d: {}", adapter_limits.max_texture_dimension_3d);
+        log::info!("[GpuState::new]   max_buffer_size: {} MB", adapter_limits.max_buffer_size / 1024 / 1024);
+        log::info!("[GpuState::new]   max_vertex_buffers: {}", adapter_limits.max_vertex_buffers);
+        log::info!("[GpuState::new]   max_bind_groups: {}", adapter_limits.max_bind_groups);
+        log::info!("[GpuState::new]   max_compute_workgroup_size: {} x {} x {}", 
+                  adapter_limits.max_compute_workgroup_size_x,
+                  adapter_limits.max_compute_workgroup_size_y,
+                  adapter_limits.max_compute_workgroup_size_z);
+        
+        // Detect GPU tier based on multiple factors
+        let gpu_tier = determine_gpu_tier(&adapter_info, &adapter_limits);
+        log::info!("[GpuState::new] Detected GPU tier: {:?}", gpu_tier);
+        
+        // Select appropriate limits based on GPU tier and actual capabilities
+        let mut limits = select_limits_for_tier(gpu_tier, &adapter_limits);
+        
+        // For Earth Engine voxel rendering, optimize specific limits
+        optimize_limits_for_voxel_engine(&mut limits, &adapter_limits, gpu_tier);
+        
+        log::info!("[GpuState::new] Final requested limits:");
+        log::info!("[GpuState::new]   max_texture_2d: {} ({}x{})", 
+                  limits.max_texture_dimension_2d,
+                  limits.max_texture_dimension_2d,
+                  limits.max_texture_dimension_2d);
+        log::info!("[GpuState::new]   max_texture_3d: {}", limits.max_texture_dimension_3d);
+        log::info!("[GpuState::new]   max_buffer_size: {} MB", limits.max_buffer_size / 1024 / 1024);
+        log::info!("[GpuState::new]   max_vertex_buffers: {}", limits.max_vertex_buffers);
+        log::info!("[GpuState::new]   max_bind_groups: {}", limits.max_bind_groups);
+        log::info!("[GpuState::new]   max_vertex_attributes: {}", limits.max_vertex_attributes);
+        log::info!("[GpuState::new]   max_uniform_buffer_binding_size: {} KB", 
+                  limits.max_uniform_buffer_binding_size / 1024);
         
         let device_future = adapter.request_device(
             &wgpu::DeviceDescriptor {
@@ -695,12 +723,45 @@ impl GpuState {
 
     fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
         if new_size.width > 0 && new_size.height > 0 {
-            self.size = new_size;
-            self.config.width = new_size.width;
-            self.config.height = new_size.height;
+            // Get device limits for texture size validation
+            let device_limits = self.device.limits();
+            let max_texture_dimension = device_limits.max_texture_dimension_2d;
+            
+            // Clamp window size to GPU texture limits
+            let clamped_width = new_size.width.min(max_texture_dimension);
+            let clamped_height = new_size.height.min(max_texture_dimension);
+            
+            // Log warnings if clamping occurred
+            if new_size.width > max_texture_dimension {
+                log::warn!(
+                    "[GpuState::resize] Window width {} exceeds GPU texture limit {}, clamping to {}",
+                    new_size.width,
+                    max_texture_dimension,
+                    clamped_width
+                );
+            }
+            if new_size.height > max_texture_dimension {
+                log::warn!(
+                    "[GpuState::resize] Window height {} exceeds GPU texture limit {}, clamping to {}",
+                    new_size.height,
+                    max_texture_dimension,
+                    clamped_height
+                );
+            }
+            
+            // Update size with clamped values
+            self.size = winit::dpi::PhysicalSize::new(clamped_width, clamped_height);
+            self.config.width = clamped_width;
+            self.config.height = clamped_height;
+            
+            // Configure surface with validated size
             self.surface.configure(&self.device, &self.config);
+            
+            // Create depth texture with validated size
             self.depth_texture = create_depth_texture(&self.device, &self.config);
-            self.camera.resize(new_size.width, new_size.height);
+            
+            // Update camera with validated size
+            self.camera.resize(clamped_width, clamped_height);
         }
     }
 
@@ -967,15 +1028,57 @@ impl GpuState {
     }
 }
 
+/// Validates and clamps texture dimensions to GPU limits
+/// Following DOP principles - pure function that transforms data
+/// Returns (clamped_width, clamped_height, was_clamped)
+fn validate_texture_dimensions(
+    requested_width: u32,
+    requested_height: u32,
+    max_dimension: u32,
+) -> (u32, u32, bool) {
+    let clamped_width = requested_width.min(max_dimension);
+    let clamped_height = requested_height.min(max_dimension);
+    let was_clamped = clamped_width != requested_width || clamped_height != requested_height;
+    
+    (clamped_width, clamped_height, was_clamped)
+}
+
+/// Creates a depth texture with validated dimensions
+/// Pure function following DOP - transforms configuration data into texture view
 fn create_depth_texture(
     device: &wgpu::Device,
     config: &wgpu::SurfaceConfiguration,
 ) -> wgpu::TextureView {
+    // Get device limits
+    let device_limits = device.limits();
+    let max_texture_dimension = device_limits.max_texture_dimension_2d;
+    
+    // Validate dimensions using pure function
+    let (width, height, was_clamped) = validate_texture_dimensions(
+        config.width,
+        config.height,
+        max_texture_dimension,
+    );
+    
+    // Log if dimensions were clamped
+    if was_clamped {
+        log::warn!(
+            "[create_depth_texture] Texture dimensions clamped from {}x{} to {}x{} due to GPU limits (max: {})",
+            config.width, config.height, width, height, max_texture_dimension
+        );
+    }
+    
     let size = wgpu::Extent3d {
-        width: config.width,
-        height: config.height,
+        width,
+        height,
         depth_or_array_layers: 1,
     };
+    
+    log::debug!(
+        "[create_depth_texture] Creating depth texture with size {}x{} (device limit: {})",
+        width, height, max_texture_dimension
+    );
+    
     let desc = wgpu::TextureDescriptor {
         label: Some("Depth Texture"),
         size,
@@ -986,6 +1089,8 @@ fn create_depth_texture(
         usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
         view_formats: &[],
     };
+    
+    // Create texture with validated dimensions
     let texture = device.create_texture(&desc);
     texture.create_view(&wgpu::TextureViewDescriptor::default())
 }
@@ -1229,4 +1334,361 @@ pub async fn run_app<G: Game + 'static>(
         })?;
 
     Ok(())
+}
+
+/// GPU tier classification for intelligent limit selection
+/// 
+/// This system automatically detects GPU capabilities and selects appropriate
+/// resource limits to maximize performance while maintaining compatibility.
+/// 
+/// # Tier Classifications:
+/// 
+/// - **HighEnd**: RTX 4070+, RX 7800+, M1/M2/M3 Pro/Max
+///   - 8192x8192+ textures, 2GB+ buffers, all features enabled
+///   - Special case: RTX 4060 Ti (despite name, has high-end capabilities)
+/// 
+/// - **MidRange**: RTX 4060/3070/3080, RX 7600/6600, standard M1/M2/M3
+///   - 4096-8192 textures, 1GB buffers, most features enabled
+/// 
+/// - **Entry**: GTX 1660/2060, older RX cards, Intel Arc
+///   - 4096 textures, 512MB buffers, core features only
+/// 
+/// - **LowEnd**: Intel Iris Xe, older integrated graphics
+///   - 2048-4096 textures, 256MB buffers, minimal features
+/// 
+/// - **Fallback**: Software renderers, unknown GPUs
+///   - WebGL2 compatible limits, maximum compatibility
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum GpuTier {
+    /// High-end modern GPUs (RTX 4070+, RX 7800+, etc)
+    HighEnd,
+    /// Mid-range modern GPUs (RTX 4060, RX 7600, etc)  
+    MidRange,
+    /// Entry-level or older GPUs
+    Entry,
+    /// Integrated graphics or very old GPUs
+    LowEnd,
+    /// Software renderer or unknown
+    Fallback,
+}
+
+/// Determine GPU tier based on adapter info and capabilities
+fn determine_gpu_tier(info: &wgpu::AdapterInfo, limits: &wgpu::Limits) -> GpuTier {
+    // Check device type first
+    if info.device_type == wgpu::DeviceType::Cpu {
+        log::warn!("[GPU Tier] Software renderer detected");
+        return GpuTier::Fallback;
+    }
+    
+    // Vendor IDs
+    const NVIDIA: u32 = 0x10DE;
+    const AMD: u32 = 0x1002;
+    const INTEL: u32 = 0x8086;
+    const APPLE: u32 = 0x106B;
+    
+    // Check for modern GPU features and capabilities
+    let has_high_texture_support = limits.max_texture_dimension_2d >= 16384;
+    let has_large_buffers = limits.max_buffer_size >= 2 * 1024 * 1024 * 1024; // 2GB
+    let has_many_bind_groups = limits.max_bind_groups >= 8;
+    let name_lower = info.name.to_lowercase();
+    
+    log::info!("[GPU Tier] Analyzing GPU: {} (vendor: 0x{:04x})", info.name, info.vendor);
+    
+    match info.vendor {
+        NVIDIA => {
+            // NVIDIA GPU detection
+            if name_lower.contains("rtx 40") || name_lower.contains("rtx 4080") || name_lower.contains("rtx 4090") {
+                log::info!("[GPU Tier] Detected high-end NVIDIA RTX 40 series");
+                GpuTier::HighEnd
+            } else if name_lower.contains("rtx 4070") || name_lower.contains("rtx 4060") || 
+                      name_lower.contains("rtx 30") || name_lower.contains("rtx 3070") || 
+                      name_lower.contains("rtx 3080") || name_lower.contains("rtx 3090") {
+                // RTX 4060 Ti has excellent capabilities despite mid-range positioning
+                if name_lower.contains("rtx 4060 ti") && has_high_texture_support {
+                    log::info!("[GPU Tier] Detected NVIDIA RTX 4060 Ti - using high-end profile");
+                    GpuTier::HighEnd
+                } else {
+                    log::info!("[GPU Tier] Detected mid-range NVIDIA RTX");
+                    GpuTier::MidRange
+                }
+            } else if name_lower.contains("rtx") || name_lower.contains("gtx 16") || 
+                      name_lower.contains("gtx 20") {
+                log::info!("[GPU Tier] Detected entry-level NVIDIA GPU");
+                GpuTier::Entry
+            } else if has_high_texture_support && has_large_buffers {
+                // Unknown NVIDIA GPU but has good capabilities
+                GpuTier::MidRange
+            } else {
+                GpuTier::LowEnd
+            }
+        }
+        AMD => {
+            // AMD GPU detection
+            if name_lower.contains("rx 7900") || name_lower.contains("rx 7800") ||
+               name_lower.contains("rx 6900") || name_lower.contains("rx 6800") {
+                log::info!("[GPU Tier] Detected high-end AMD GPU");
+                GpuTier::HighEnd
+            } else if name_lower.contains("rx 7700") || name_lower.contains("rx 7600") ||
+                      name_lower.contains("rx 6700") || name_lower.contains("rx 6600") ||
+                      name_lower.contains("rx 5700") {
+                log::info!("[GPU Tier] Detected mid-range AMD GPU");
+                GpuTier::MidRange
+            } else if name_lower.contains("rx") && has_high_texture_support {
+                GpuTier::Entry
+            } else {
+                GpuTier::LowEnd
+            }
+        }
+        INTEL => {
+            // Intel GPU detection
+            if name_lower.contains("arc a7") || name_lower.contains("arc a770") {
+                log::info!("[GPU Tier] Detected high-end Intel Arc");
+                GpuTier::MidRange
+            } else if name_lower.contains("arc") {
+                log::info!("[GPU Tier] Detected Intel Arc GPU");
+                GpuTier::Entry
+            } else if name_lower.contains("iris xe") || name_lower.contains("iris plus") {
+                log::info!("[GPU Tier] Detected Intel Iris integrated graphics");
+                GpuTier::LowEnd
+            } else {
+                log::info!("[GPU Tier] Detected Intel integrated graphics");
+                GpuTier::Fallback
+            }
+        }
+        APPLE => {
+            // Apple Silicon detection
+            if name_lower.contains("m2 pro") || name_lower.contains("m2 max") || 
+               name_lower.contains("m3 pro") || name_lower.contains("m3 max") ||
+               name_lower.contains("m1 pro") || name_lower.contains("m1 max") {
+                log::info!("[GPU Tier] Detected high-end Apple Silicon");
+                GpuTier::HighEnd
+            } else if name_lower.contains("m1") || name_lower.contains("m2") || name_lower.contains("m3") {
+                log::info!("[GPU Tier] Detected Apple Silicon");
+                GpuTier::MidRange
+            } else {
+                GpuTier::Entry
+            }
+        }
+        _ => {
+            // Unknown vendor - use capabilities to determine tier
+            log::info!("[GPU Tier] Unknown vendor, analyzing capabilities...");
+            if has_high_texture_support && has_large_buffers && has_many_bind_groups {
+                log::info!("[GPU Tier] Unknown GPU with high-end capabilities");
+                GpuTier::MidRange
+            } else if limits.max_texture_dimension_2d >= 8192 && limits.max_buffer_size >= 512 * 1024 * 1024 {
+                log::info!("[GPU Tier] Unknown GPU with mid-range capabilities");
+                GpuTier::Entry
+            } else {
+                log::info!("[GPU Tier] Unknown GPU with limited capabilities");
+                GpuTier::LowEnd
+            }
+        }
+    }
+}
+
+/// Select appropriate limits based on GPU tier
+fn select_limits_for_tier(tier: GpuTier, hardware_limits: &wgpu::Limits) -> wgpu::Limits {
+    match tier {
+        GpuTier::HighEnd => {
+            log::info!("[GPU Limits] Using high-end GPU profile");
+            // Start with default limits (which are quite generous)
+            let mut limits = wgpu::Limits::default();
+            
+            // But ensure we don't exceed hardware capabilities
+            limits.max_texture_dimension_1d = limits.max_texture_dimension_1d.min(hardware_limits.max_texture_dimension_1d);
+            limits.max_texture_dimension_2d = limits.max_texture_dimension_2d.min(hardware_limits.max_texture_dimension_2d);
+            limits.max_texture_dimension_3d = limits.max_texture_dimension_3d.min(hardware_limits.max_texture_dimension_3d);
+            limits.max_buffer_size = limits.max_buffer_size.min(hardware_limits.max_buffer_size);
+            limits.max_vertex_buffers = limits.max_vertex_buffers.min(hardware_limits.max_vertex_buffers);
+            limits.max_bind_groups = limits.max_bind_groups.min(hardware_limits.max_bind_groups);
+            limits.max_vertex_attributes = limits.max_vertex_attributes.min(hardware_limits.max_vertex_attributes);
+            limits.max_uniform_buffer_binding_size = limits.max_uniform_buffer_binding_size.min(hardware_limits.max_uniform_buffer_binding_size);
+            
+            limits
+        }
+        GpuTier::MidRange => {
+            log::info!("[GPU Limits] Using mid-range GPU profile");
+            // Use downlevel defaults as a base, but allow higher limits where available
+            let mut limits = wgpu::Limits::downlevel_defaults();
+            
+            // Override specific limits for better performance on mid-range GPUs
+            if hardware_limits.max_texture_dimension_2d >= 8192 {
+                limits.max_texture_dimension_2d = 8192;
+            }
+            if hardware_limits.max_buffer_size >= 1024 * 1024 * 1024 {
+                limits.max_buffer_size = 1024 * 1024 * 1024; // 1GB
+            }
+            
+            // Ensure we don't exceed hardware
+            limits.max_texture_dimension_1d = limits.max_texture_dimension_1d.min(hardware_limits.max_texture_dimension_1d);
+            limits.max_texture_dimension_2d = limits.max_texture_dimension_2d.min(hardware_limits.max_texture_dimension_2d);
+            limits.max_texture_dimension_3d = limits.max_texture_dimension_3d.min(hardware_limits.max_texture_dimension_3d);
+            limits.max_buffer_size = limits.max_buffer_size.min(hardware_limits.max_buffer_size);
+            limits.max_vertex_buffers = limits.max_vertex_buffers.min(hardware_limits.max_vertex_buffers);
+            limits.max_bind_groups = limits.max_bind_groups.min(hardware_limits.max_bind_groups);
+            
+            limits
+        }
+        GpuTier::Entry => {
+            log::info!("[GPU Limits] Using entry-level GPU profile");
+            // Use downlevel defaults
+            let mut limits = wgpu::Limits::downlevel_defaults();
+            
+            // Ensure minimum texture size for Earth Engine
+            if hardware_limits.max_texture_dimension_2d >= 4096 {
+                limits.max_texture_dimension_2d = 4096;
+            }
+            
+            // Clamp to hardware
+            limits.max_texture_dimension_1d = limits.max_texture_dimension_1d.min(hardware_limits.max_texture_dimension_1d);
+            limits.max_texture_dimension_2d = limits.max_texture_dimension_2d.min(hardware_limits.max_texture_dimension_2d);
+            limits.max_texture_dimension_3d = limits.max_texture_dimension_3d.min(hardware_limits.max_texture_dimension_3d);
+            limits.max_buffer_size = limits.max_buffer_size.min(hardware_limits.max_buffer_size);
+            
+            limits
+        }
+        GpuTier::LowEnd | GpuTier::Fallback => {
+            log::info!("[GPU Limits] Using low-end/fallback GPU profile");
+            // Use WebGL2 defaults for maximum compatibility
+            let mut limits = wgpu::Limits::downlevel_webgl2_defaults();
+            
+            // Still try to get 4096 textures if possible
+            if hardware_limits.max_texture_dimension_2d >= 4096 {
+                limits.max_texture_dimension_2d = 4096;
+            }
+            
+            // Clamp to hardware
+            limits.max_texture_dimension_1d = limits.max_texture_dimension_1d.min(hardware_limits.max_texture_dimension_1d);
+            limits.max_texture_dimension_2d = limits.max_texture_dimension_2d.min(hardware_limits.max_texture_dimension_2d);
+            limits.max_texture_dimension_3d = limits.max_texture_dimension_3d.min(hardware_limits.max_texture_dimension_3d);
+            limits.max_buffer_size = limits.max_buffer_size.min(hardware_limits.max_buffer_size);
+            
+            limits
+        }
+    }
+}
+
+/// Optimize limits specifically for voxel engine requirements
+fn optimize_limits_for_voxel_engine(limits: &mut wgpu::Limits, hardware_limits: &wgpu::Limits, tier: GpuTier) {
+    log::info!("[GPU Limits] Optimizing for voxel engine...");
+    
+    // Texture requirements for voxel engines
+    match tier {
+        GpuTier::HighEnd | GpuTier::MidRange => {
+            // Modern GPUs should use at least 8192x8192 for texture atlases
+            if hardware_limits.max_texture_dimension_2d >= 8192 {
+                limits.max_texture_dimension_2d = 8192;
+                log::info!("[GPU Limits] Using 8192x8192 texture atlas support");
+            } else if hardware_limits.max_texture_dimension_2d >= 4096 {
+                limits.max_texture_dimension_2d = 4096;
+                log::info!("[GPU Limits] Using 4096x4096 texture atlas support");
+            }
+            
+            // 3D textures for volumetric effects
+            if hardware_limits.max_texture_dimension_3d >= 512 {
+                limits.max_texture_dimension_3d = 512;
+            }
+        }
+        _ => {
+            // Even low-end GPUs should try for 4096 if available
+            if hardware_limits.max_texture_dimension_2d >= 4096 {
+                limits.max_texture_dimension_2d = 4096;
+                log::info!("[GPU Limits] Using 4096x4096 texture atlas support (minimum for quality)");
+            } else {
+                log::warn!("[GPU Limits] GPU doesn't support 4096x4096 textures, quality may be reduced");
+            }
+        }
+    }
+    
+    // Buffer size requirements for chunk data
+    match tier {
+        GpuTier::HighEnd => {
+            // High-end GPUs can handle large chunk buffers
+            if hardware_limits.max_buffer_size >= 2 * 1024 * 1024 * 1024 {
+                limits.max_buffer_size = 2 * 1024 * 1024 * 1024; // 2GB
+                log::info!("[GPU Limits] Using 2GB buffer size for large world support");
+            }
+        }
+        GpuTier::MidRange => {
+            // Mid-range GPUs should have at least 1GB
+            if hardware_limits.max_buffer_size >= 1024 * 1024 * 1024 {
+                limits.max_buffer_size = 1024 * 1024 * 1024; // 1GB
+                log::info!("[GPU Limits] Using 1GB buffer size");
+            }
+        }
+        _ => {
+            // Ensure minimum buffer size for chunk data
+            let min_buffer_size = 256 * 1024 * 1024; // 256MB minimum
+            if hardware_limits.max_buffer_size >= min_buffer_size {
+                limits.max_buffer_size = limits.max_buffer_size.max(min_buffer_size);
+                log::info!("[GPU Limits] Using {}MB buffer size", limits.max_buffer_size / 1024 / 1024);
+            }
+        }
+    }
+    
+    // Uniform buffer requirements for rendering
+    if tier == GpuTier::HighEnd || tier == GpuTier::MidRange {
+        // Larger uniform buffers for more complex shaders
+        if hardware_limits.max_uniform_buffer_binding_size >= 65536 {
+            limits.max_uniform_buffer_binding_size = 65536;
+            log::info!("[GPU Limits] Using 64KB uniform buffer size");
+        }
+    }
+    
+    // Compute workgroup sizes for GPU physics/lighting
+    if hardware_limits.max_compute_workgroup_size_x >= 256 {
+        log::info!("[GPU Limits] GPU supports 256+ compute workgroup size - good for parallel algorithms");
+    }
+    
+    // Log any potential issues
+    if limits.max_texture_dimension_2d < 4096 {
+        log::warn!("[GPU Limits] Texture size below 4096x4096 may impact visual quality");
+    }
+    if limits.max_buffer_size < 256 * 1024 * 1024 {
+        log::warn!("[GPU Limits] Buffer size below 256MB may limit world size");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_validate_texture_dimensions() {
+        // Test case 1: Dimensions within limits
+        let (width, height, clamped) = validate_texture_dimensions(1024, 768, 4096);
+        assert_eq!(width, 1024);
+        assert_eq!(height, 768);
+        assert!(!clamped);
+
+        // Test case 2: Width exceeds limit
+        let (width, height, clamped) = validate_texture_dimensions(8192, 768, 4096);
+        assert_eq!(width, 4096);
+        assert_eq!(height, 768);
+        assert!(clamped);
+
+        // Test case 3: Height exceeds limit
+        let (width, height, clamped) = validate_texture_dimensions(1024, 8192, 4096);
+        assert_eq!(width, 1024);
+        assert_eq!(height, 4096);
+        assert!(clamped);
+
+        // Test case 4: Both dimensions exceed limit
+        let (width, height, clamped) = validate_texture_dimensions(8192, 8192, 4096);
+        assert_eq!(width, 4096);
+        assert_eq!(height, 4096);
+        assert!(clamped);
+
+        // Test case 5: Exact limit dimensions
+        let (width, height, clamped) = validate_texture_dimensions(4096, 4096, 4096);
+        assert_eq!(width, 4096);
+        assert_eq!(height, 4096);
+        assert!(!clamped);
+
+        // Test case 6: Very small GPU limit
+        let (width, height, clamped) = validate_texture_dimensions(1920, 1080, 1024);
+        assert_eq!(width, 1024);
+        assert_eq!(height, 1024);
+        assert!(clamped);
+    }
 }

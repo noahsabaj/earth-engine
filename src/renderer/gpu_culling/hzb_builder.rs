@@ -19,15 +19,31 @@ pub struct HierarchicalZBuffer {
 
 impl HierarchicalZBuffer {
     pub fn new(device: &Device, width: u32, height: u32) -> Self {
-        // Calculate required mip levels
-        let mip_levels = (width.max(height) as f32).log2().ceil() as u32 + 1;
+        // Get device limits to ensure we don't exceed GPU capabilities
+        let device_limits = device.limits();
+        let max_dimension = device_limits.max_texture_dimension_2d;
+        
+        // Validate and clamp dimensions
+        let clamped_width = width.min(max_dimension);
+        let clamped_height = height.min(max_dimension);
+        
+        // Log if dimensions were clamped
+        if clamped_width != width || clamped_height != height {
+            log::warn!(
+                "[HierarchicalZBuffer::new] HZB texture dimensions clamped from {}x{} to {}x{} due to GPU limits (max: {})",
+                width, height, clamped_width, clamped_height, max_dimension
+            );
+        }
+        
+        // Calculate required mip levels based on clamped dimensions
+        let mip_levels = (clamped_width.max(clamped_height) as f32).log2().ceil() as u32 + 1;
         
         // Create HZB texture with mip chain
         let hzb_texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("HZB Texture"),
             size: wgpu::Extent3d {
-                width,
-                height,
+                width: clamped_width,
+                height: clamped_height,
                 depth_or_array_layers: 1,
             },
             mip_level_count: mip_levels,
@@ -218,8 +234,8 @@ impl HierarchicalZBuffer {
             build_pipeline,
             occlusion_pipeline,
             sampler,
-            width,
-            height,
+            width: clamped_width,
+            height: clamped_height,
             mip_levels,
         }
     }

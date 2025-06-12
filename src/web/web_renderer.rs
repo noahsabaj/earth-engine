@@ -413,11 +413,28 @@ pub struct WebRenderStats {
     pub supports_timestamp_queries: bool,
 }
 
-/// Create depth texture for rendering
+/// Create depth texture with GPU limit validation
 fn create_depth_texture(context: &WebGpuContext) -> wgpu::TextureView {
+    // Get device limits to ensure we don't exceed GPU capabilities
+    let device_limits = context.device.limits();
+    let max_dimension = device_limits.max_texture_dimension_2d;
+    
+    // Validate and clamp dimensions
+    let width = context.surface_config.width.min(max_dimension);
+    let height = context.surface_config.height.min(max_dimension);
+    
+    // Log if dimensions were clamped
+    if width != context.surface_config.width || height != context.surface_config.height {
+        log::warn!(
+            "[create_depth_texture] Web texture dimensions clamped from {}x{} to {}x{} due to GPU limits (max: {})",
+            context.surface_config.width, context.surface_config.height, 
+            width, height, max_dimension
+        );
+    }
+    
     let size = wgpu::Extent3d {
-        width: context.surface_config.width,
-        height: context.surface_config.height,
+        width,
+        height,
         depth_or_array_layers: 1,
     };
     
