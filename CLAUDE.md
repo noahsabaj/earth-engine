@@ -240,7 +240,7 @@ fn generate_chunk(data: &mut ChunkData, gen_params: &GenParams) {
 
 ## WHERE TO FIND CURRENT PRIORITIES
 - **Active Sprint**: Check `/docs/status/CURRENT.md` for current sprint number and focus
-- **Sprint Details**: Check `/docs/docs/MASTER_ROADMAP.md` for full sprint planning
+- **Sprint Details**: Check `/docs/MASTER_ROADMAP.md` for full sprint planning
 - **Progress Tracking**: Check relevant `/docs/sprints/SPRINT_XX_*.md` files
 
 ## EVERGREEN PRIORITIES (Always True)
