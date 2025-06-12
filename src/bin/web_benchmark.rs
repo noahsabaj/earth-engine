@@ -1,10 +1,22 @@
-use earth_engine::web::*;
 use std::time::Instant;
 
 /// Benchmark WebGPU buffer operations
 fn main() {
     println!("Earth Engine Web Benchmark");
     println!("=========================");
+    
+    #[cfg(target_arch = "wasm32")]
+    {
+        // Only available when compiling for WASM
+        use earth_engine::web::*;
+        // Run actual web benchmarks here
+    }
+    
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        println!("\nThis benchmark requires WASM target to run actual tests.");
+        println!("Run with: cargo build --target wasm32-unknown-unknown --bin web_benchmark");
+    }
     
     // This benchmark would normally run in a browser environment
     // For now, we'll just outline what it would test

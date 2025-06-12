@@ -174,10 +174,10 @@ impl ComputePipelineManager {
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
         });
         
-        // Create vertex buffer (9 floats per vertex: position, color, normal)
+        // Create vertex buffer (11 floats per vertex: position, color, normal, light, ao)
         let vertex_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Mesh Vertex Buffer"),
-            size: (max_vertices * 9 * 4) as u64, // 9 floats * 4 bytes
+            size: (max_vertices * 11 * 4) as u64, // 11 floats * 4 bytes
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_SRC,
             mapped_at_creation: false,
         });
@@ -274,7 +274,7 @@ impl ComputePipelineManager {
         
         output.vertex_staging = Some(self.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Mesh Vertex Staging Buffer"),
-            size: (max_vertices * 9 * 4) as u64,
+            size: (max_vertices * 11 * 4) as u64,
             usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         }));

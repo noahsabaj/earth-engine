@@ -21,6 +21,8 @@ mod preallocated_mesh_cache;
 mod preallocated_texture_atlas;
 mod lod_transition;
 mod progressive_streaming;
+pub mod chunk_mesh_adapter;
+pub mod chunk_rendering;
 
 use crate::{EngineConfig, Game};
 use anyhow::Result;
@@ -40,6 +42,16 @@ pub use gpu_progress::{GpuInitProgress, AsyncProgressReporter, with_timeout, Pro
 pub use gpu_recovery::{GpuRecovery, FallbackSettings, GpuHealthMonitor};
 pub use simple_async_renderer::SimpleAsyncRenderer;
 pub use mesh_optimizer::MeshLod;
+pub use chunk_mesh_adapter::{
+    build_chunk_mesh_dop, mesh_buffer_to_chunk_mesh, 
+    NeighborData, ChunkMeshBatch
+};
+pub use chunk_rendering::{
+    ChunkRenderConfig, build_chunk_mesh_data, chunk_to_render_object,
+    chunk_world_position, chunk_bounding_radius, chunk_distance_squared,
+    calculate_chunk_lod, is_chunk_in_frustum, chunk_render_priority,
+    batch_chunks_to_render_objects, filter_visible_chunks
+};
 
 pub struct Renderer {
     // Will be implemented

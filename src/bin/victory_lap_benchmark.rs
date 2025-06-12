@@ -41,12 +41,15 @@ fn main() {
     // Initialize engine with data-oriented architecture
     let config = EngineConfig {
         window_title: "Victory Lap".to_string(),
-        initial_width: 1920,
-        initial_height: 1080,
-        view_distance: 32,
+        window_width: 1920,
+        window_height: 1080,
         chunk_size: 32,
-        max_entities: 10000,
+        render_distance: 32,
     };
+    
+    // Additional config values we'll use directly
+    let max_entities = 10000;
+    let view_distance = 32;
     
     println!("🚀 Initializing Data-Oriented Engine...");
     let start = Instant::now();
@@ -86,10 +89,10 @@ async fn run_benchmarks(config: EngineConfig) -> BenchmarkResults {
     let mut memory_manager = memory::MemoryManager::new(
         device.clone(),
         memory::MemoryConfig {
-            general_pool_size: 512 * 1024 * 1024, // 512MB
-            persistent_pool_size: 256 * 1024 * 1024, // 256MB
-            chunk_size: 64 * 1024, // 64KB chunks
+            max_persistent_size: 256 * 1024 * 1024, // 256MB
+            frame_buffer_count: 3,
             enable_profiling: true,
+            allocation_strategy: memory::AllocationStrategy::BestFit,
         },
     );
     
@@ -97,9 +100,9 @@ async fn run_benchmarks(config: EngineConfig) -> BenchmarkResults {
     let world_config = world_state::WorldConfig {
         world_size: 1024,
         chunk_size: config.chunk_size,
-        max_entities: config.max_entities,
+        max_entities,
         max_chunks: 4096,
-        view_distance: config.view_distance,
+        view_distance,
         physics_substeps: 4,
         network_tick_rate: 60,
         _padding: 0,
@@ -116,7 +119,8 @@ async fn run_benchmarks(config: EngineConfig) -> BenchmarkResults {
         device.clone(),
         &world_gpu::WorldBufferDescriptor {
             world_size: 1024,
-            chunk_size: config.chunk_size,
+            enable_atomics: true,
+            enable_readback: false,
         },
     );
     

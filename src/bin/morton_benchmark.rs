@@ -48,7 +48,7 @@ fn main() {
             for y in 0..CHUNK_SIZE {
                 for z in 0..CHUNK_SIZE {
                     let block = linear_chunk.get_block(x, y, z);
-                    sum += block as u32;
+                    sum += block.0 as u32;
                 }
             }
         }
@@ -64,7 +64,7 @@ fn main() {
             for y in 0..CHUNK_SIZE {
                 for z in 0..CHUNK_SIZE {
                     let block = morton_chunk.get_block(x, y, z);
-                    sum += block as u32;
+                    sum += block.0 as u32;
                 }
             }
         }
@@ -80,7 +80,7 @@ fn main() {
             for y in 0..CHUNK_SIZE {
                 for z in 0..CHUNK_SIZE {
                     let block = soa_chunk.get_block(x, y, z);
-                    sum += block as u32;
+                    sum += block.0 as u32;
                 }
             }
         }
@@ -115,7 +115,7 @@ fn main() {
         let mut sum = 0u32;
         for &(x, y, z) in &accesses {
             let block = linear_chunk.get_block(x, y, z);
-            sum += block as u32;
+            sum += block.0 as u32;
         }
         std::hint::black_box(sum);
     }
@@ -127,7 +127,7 @@ fn main() {
         let mut sum = 0u32;
         for &(x, y, z) in &accesses {
             let block = morton_chunk.get_block(x, y, z);
-            sum += block as u32;
+            sum += block.0 as u32;
         }
         std::hint::black_box(sum);
     }
@@ -139,7 +139,7 @@ fn main() {
         let mut sum = 0u32;
         for &(x, y, z) in &accesses {
             let block = soa_chunk.get_block(x, y, z);
-            sum += block as u32;
+            sum += block.0 as u32;
         }
         std::hint::black_box(sum);
     }
@@ -177,7 +177,7 @@ fn main() {
                         let y = (cy as i32 + dy) as u32;
                         let z = (cz as i32 + dz) as u32;
                         let block = linear_chunk.get_block(x, y, z);
-                        sum += block as u32;
+                        sum += block.0 as u32;
                     }
                 }
             }
@@ -192,7 +192,7 @@ fn main() {
         let mut sum = 0u32;
         for &(cx, cy, cz) in &test_positions {
             for (_, _, _, block) in morton_chunk.iter_neighbors(cx, cy, cz) {
-                sum += block as u32;
+                sum += block.0 as u32;
             }
         }
         std::hint::black_box(sum);
@@ -214,7 +214,7 @@ fn main() {
                         let y = (cy as i32 + dy) as u32;
                         let z = (cz as i32 + dz) as u32;
                         let block = soa_chunk.get_block(x, y, z);
-                        sum += block as u32;
+                        sum += block.0 as u32;
                     }
                 }
             }

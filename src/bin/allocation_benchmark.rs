@@ -7,11 +7,12 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use earth_engine::{
-    renderer::{OptimizedGreedyMesher, ObjectPool, with_meshing_buffers},
+    renderer::{ObjectPool, with_meshing_buffers, data_mesh_builder::build_chunk_mesh_dop},
     physics::PhysicsWorldData,
     lighting::OptimizedLightPropagator,
     world::{World, VoxelPos, BlockId, Chunk, ChunkPos},
     Camera,
+    BlockRegistry,
 };
 use cgmath::Point3;
 
@@ -109,10 +110,9 @@ fn create_test_chunk() -> Chunk {
 fn benchmark_meshing() {
     println!("\n=== Meshing Benchmark ===");
     
-    let mut mesher = OptimizedGreedyMesher::new(32);
     let chunk = create_test_chunk();
     let chunk_arc = Arc::new(parking_lot::RwLock::new(chunk));
-    let registry = Arc::new(earth_engine::BlockRegistry::new());
+    let registry = Arc::new(BlockRegistry::new());
     
     // Warmup
     for _ in 0..10 {
@@ -130,17 +130,21 @@ fn benchmark_meshing() {
     const ITERATIONS: usize = 1000;
     for _ in 0..ITERATIONS {
         let chunk = chunk_arc.read();
-        let mesh = mesher.build_chunk_mesh(
-            &chunk,
-            ChunkPos::new(0, 0, 0),
-            32,
-            &registry,
-            &[None, None, None, None, None, None],
-        );
         
-        // Simulate using the mesh
-        let _ = mesh.vertices.len();
-        let _ = mesh.indices.len();
+        // Use the data-oriented mesh builder
+        with_meshing_buffers(32, |_buffers| {
+            let mesh_buffer = build_chunk_mesh_dop(
+                &chunk,
+                ChunkPos::new(0, 0, 0),
+                32,
+                &registry,
+                &[None, None, None, None, None, None],
+            );
+            
+            // Simulate using the mesh
+            let _ = mesh_buffer.vertex_count;
+            let _ = mesh_buffer.index_count;
+        });
     }
     
     let duration = start.elapsed();

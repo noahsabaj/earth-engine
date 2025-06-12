@@ -40,3 +40,9 @@ pub use frame_budget::{FrameBudget, ChunkLoadThrottler};
 
 // Re-export ChunkSoA as Chunk for compatibility
 pub use chunk_soa::ChunkSoA as Chunk;
+
+/// Helper function to convert voxel position to chunk position
+/// Following DOP principles - pure function that transforms data
+pub fn voxel_to_chunk_pos(voxel_pos: VoxelPos, chunk_size: u32) -> ChunkPos {
+    voxel_pos.to_chunk_pos(chunk_size)
+}

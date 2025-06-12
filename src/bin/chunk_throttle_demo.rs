@@ -1,5 +1,7 @@
 use earth_engine::{
-    BlockId, BlockRegistry, DefaultWorldGenerator, ChunkManager,
+    BlockId, BlockRegistry,
+    world::generation::DefaultWorldGenerator,
+    world::chunk_manager::ChunkManager,
 };
 use cgmath::Point3;
 use std::time::Instant;

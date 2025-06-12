@@ -4,7 +4,7 @@ use std::time::{Duration, Instant};
 use std::collections::HashSet;
 use parking_lot::RwLock;
 use cgmath::Point3;
-use crate::{BlockId, VoxelPos, ChunkPos};
+use crate::{BlockId, VoxelPos, ChunkPos, Chunk};
 use crate::world::WorldInterface;
 use crate::thread_pool::{ThreadPoolManager, PoolCategory};
 use super::{ParallelChunkManager, WorldGenerator, GenerationStats};
@@ -368,6 +368,103 @@ impl ParallelWorld {
     /// Get loaded chunk positions for cleanup purposes
     pub fn get_loaded_chunk_positions(&self) -> Vec<ChunkPos> {
         self.chunk_manager.get_loaded_chunk_positions()
+    }
+    
+    /// Iterator over loaded chunks for mesh generation
+    /// Returns chunk position and thread-safe chunk reference
+    pub fn iter_loaded_chunks(&self) -> impl Iterator<Item = (ChunkPos, Arc<RwLock<Chunk>>)> {
+        self.chunk_manager.chunks_iter()
+    }
+    
+    /// Get chunk data for mesh building (thread-safe)
+    /// Returns None if chunk is not loaded
+    pub fn get_chunk_for_meshing(&self, pos: ChunkPos) -> Option<Arc<RwLock<Chunk>>> {
+        self.chunk_manager.get_chunk(pos)
+    }
+    
+    /// Get all neighbor chunks for a given chunk position
+    /// Used for mesh generation to handle block faces at chunk boundaries
+    pub fn get_neighbor_chunks(&self, center: ChunkPos) -> [Option<Arc<RwLock<Chunk>>>; 6] {
+        [
+            self.chunk_manager.get_chunk(ChunkPos::new(center.x - 1, center.y, center.z)), // Left
+            self.chunk_manager.get_chunk(ChunkPos::new(center.x + 1, center.y, center.z)), // Right
+            self.chunk_manager.get_chunk(ChunkPos::new(center.x, center.y - 1, center.z)), // Bottom
+            self.chunk_manager.get_chunk(ChunkPos::new(center.x, center.y + 1, center.z)), // Top
+            self.chunk_manager.get_chunk(ChunkPos::new(center.x, center.y, center.z - 1)), // Back
+            self.chunk_manager.get_chunk(ChunkPos::new(center.x, center.y, center.z + 1)), // Front
+        ]
+    }
+    
+    /// Check if a chunk and all its neighbors are loaded
+    /// Used to determine if a chunk is ready for mesh generation
+    pub fn is_chunk_ready_for_meshing(&self, pos: ChunkPos) -> bool {
+        // Check if the chunk itself is loaded
+        if !self.chunk_manager.is_chunk_loaded(pos) {
+            return false;
+        }
+        
+        // Check all 6 neighbors
+        let neighbors = [
+            ChunkPos::new(pos.x - 1, pos.y, pos.z),
+            ChunkPos::new(pos.x + 1, pos.y, pos.z),
+            ChunkPos::new(pos.x, pos.y - 1, pos.z),
+            ChunkPos::new(pos.x, pos.y + 1, pos.z),
+            ChunkPos::new(pos.x, pos.y, pos.z - 1),
+            ChunkPos::new(pos.x, pos.y, pos.z + 1),
+        ];
+        
+        // All neighbors must be loaded for proper face culling
+        neighbors.iter().all(|&neighbor_pos| self.chunk_manager.is_chunk_loaded(neighbor_pos))
+    }
+    
+    /// Get multiple chunks at once for batch processing
+    /// Returns a vector of (position, chunk) pairs for chunks that are loaded
+    pub fn get_chunks_batch(&self, positions: &[ChunkPos]) -> Vec<(ChunkPos, Arc<RwLock<Chunk>>)> {
+        positions.iter()
+            .filter_map(|&pos| {
+                self.chunk_manager.get_chunk(pos)
+                    .map(|chunk| (pos, chunk))
+            })
+            .collect()
+    }
+    
+    /// Get all chunks that need meshing (dirty and have all neighbors loaded)
+    /// This is optimized for the mesh generation pipeline
+    pub fn get_chunks_needing_mesh(&self) -> Vec<(ChunkPos, Arc<RwLock<Chunk>>)> {
+        let dirty_chunks = self.chunk_manager.take_dirty_chunks();
+        
+        dirty_chunks.into_iter()
+            .filter(|&pos| self.is_chunk_ready_for_meshing(pos))
+            .filter_map(|pos| {
+                self.chunk_manager.get_chunk(pos)
+                    .map(|chunk| (pos, chunk))
+            })
+            .collect()
+    }
+    
+    /// Get block at position from a specific chunk (for mesh building)
+    /// This is more efficient than going through world coordinates when you already have the chunk
+    pub fn get_block_in_chunk(&self, chunk_pos: ChunkPos, local_x: u32, local_y: u32, local_z: u32) -> BlockId {
+        if let Some(chunk_lock) = self.chunk_manager.get_chunk(chunk_pos) {
+            let chunk = chunk_lock.read();
+            chunk.get_block(local_x, local_y, local_z)
+        } else {
+            BlockId::AIR
+        }
+    }
+    
+    /// Check if a block face is visible (for mesh optimization)
+    /// A face is visible if the adjacent block is transparent
+    pub fn is_face_visible(&self, pos: VoxelPos, face_offset: (i32, i32, i32)) -> bool {
+        let adjacent_pos = VoxelPos::new(
+            pos.x + face_offset.0,
+            pos.y + face_offset.1,
+            pos.z + face_offset.2,
+        );
+        
+        let adjacent_block = self.get_block(adjacent_pos);
+        // A face is visible if the adjacent block is air or transparent
+        adjacent_block == BlockId::AIR || self.is_block_transparent(adjacent_pos)
     }
 }
 

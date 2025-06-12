@@ -6,10 +6,10 @@
 use earth_engine::renderer::gpu_culling::{
     GpuCullingSystem, GpuCamera, ChunkInstance, CullingStats, GpuCullingMetrics
 };
-use earth_engine::renderer::GpuState;
 use cgmath::{Matrix4, Vector3, Point3, Deg, perspective};
 use std::time::Instant;
 use bytemuck::{Pod, Zeroable};
+use wgpu::util::DeviceExt;
 
 /// Test configuration
 const TEST_CHUNKS: usize = 100_000; // 100k chunks to cull
@@ -21,22 +21,49 @@ fn main() {
     println!("GPU Culling System Test");
     println!("=======================\n");
     
-    // Initialize GPU
-    let gpu_state = pollster::block_on(GpuState::new(None))
-        .expect("Failed to create GPU state");
+    // Initialize GPU directly without GpuState
+    let (device, queue) = pollster::block_on(async {
+        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
+            backends: wgpu::Backends::all(),
+            ..Default::default()
+        });
+        
+        let adapter = instance
+            .request_adapter(&wgpu::RequestAdapterOptions {
+                power_preference: wgpu::PowerPreference::HighPerformance,
+                force_fallback_adapter: false,
+                compatible_surface: None,
+            })
+            .await
+            .expect("Failed to find adapter");
+            
+        let (device, queue) = adapter
+            .request_device(
+                &wgpu::DeviceDescriptor {
+                    label: Some("Test Device"),
+                    required_features: wgpu::Features::empty(),
+                    required_limits: wgpu::Limits::default(),
+                },
+                None,
+            )
+            .await
+            .expect("Failed to create device");
+            
+        (device, queue)
+    });
     
     println!("Testing with {} chunks", TEST_CHUNKS);
     println!("World size: {}x{}x{}", WORLD_SIZE, WORLD_SIZE, WORLD_SIZE);
     println!("Chunk size: {}\n", CHUNK_SIZE);
     
     // Create culling system
-    let mut culling_system = GpuCullingSystem::new(&gpu_state.device, TEST_CHUNKS);
+    let mut culling_system = GpuCullingSystem::new(&device, TEST_CHUNKS);
     
     // Generate random chunk positions
     let chunks = generate_test_chunks(TEST_CHUNKS, WORLD_SIZE, CHUNK_SIZE);
     
     // Create chunk instance buffer
-    let chunk_buffer = gpu_state.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+    let chunk_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("Test Chunk Buffer"),
         contents: bytemuck::cast_slice(&chunks),
         usage: wgpu::BufferUsages::STORAGE,
@@ -64,16 +91,16 @@ fn main() {
         let camera = GpuCamera::from_matrices(&view, &proj, eye);
         
         // Create depth texture (dummy for testing)
-        let depth_texture = create_depth_texture(&gpu_state.device, 2048, 2048);
+        let depth_texture = create_depth_texture(&device, 2048, 2048);
         
         // Warm up
         for _ in 0..10 {
-            let mut encoder = gpu_state.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("Warmup Encoder"),
             });
             
             culling_system.cull(
-                &gpu_state.device,
+                &device,
                 &mut encoder,
                 &camera,
                 &chunk_buffer,
@@ -81,19 +108,19 @@ fn main() {
                 &depth_texture.create_view(&wgpu::TextureViewDescriptor::default()),
             );
             
-            gpu_state.queue.submit(Some(encoder.finish()));
+            queue.submit(Some(encoder.finish()));
         }
         
         // Benchmark
         let start = Instant::now();
         
         for _ in 0..ITERATIONS {
-            let mut encoder = gpu_state.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("Culling Encoder"),
             });
             
             culling_system.cull(
-                &gpu_state.device,
+                &device,
                 &mut encoder,
                 &camera,
                 &chunk_buffer,
@@ -101,7 +128,7 @@ fn main() {
                 &depth_texture.create_view(&wgpu::TextureViewDescriptor::default()),
             );
             
-            gpu_state.queue.submit(Some(encoder.finish()));
+            queue.submit(Some(encoder.finish()));
         }
         
         gpu_state.device.poll(wgpu::Maintain::Wait);

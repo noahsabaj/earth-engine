@@ -173,7 +173,7 @@ fn generate_mesh(@builtin(global_invocation_id) global_id: vec3<u32>) {
         // Add 4 vertices for the face
         for (var v = 0u; v < 4u; v++) {
             let vertex_pos = world_pos + FACE_VERTICES[face][v];
-            let vertex_idx = (base_vertex + v) * 9u; // 9 floats per vertex
+            let vertex_idx = (base_vertex + v) * 11u; // 11 floats per vertex
             
             // Position (3 floats)
             vertices[vertex_idx + 0u] = vertex_pos.x;
@@ -189,6 +189,12 @@ fn generate_mesh(@builtin(global_invocation_id) global_id: vec3<u32>) {
             vertices[vertex_idx + 6u] = face_normal.x;
             vertices[vertex_idx + 7u] = face_normal.y;
             vertices[vertex_idx + 8u] = face_normal.z;
+            
+            // Light (1 float) - default to full brightness for now
+            vertices[vertex_idx + 9u] = 1.0;
+            
+            // Ambient Occlusion (1 float) - default to no occlusion
+            vertices[vertex_idx + 10u] = 1.0;
         }
         
         // Add 6 indices for 2 triangles

@@ -1,4 +1,4 @@
-use earth_engine::renderer::gpu_diagnostics::{GpuDiagnostics, OperationTestResult};
+use earth_engine::renderer::{GpuDiagnostics, OperationTestResult};
 use env_logger;
 use log;
 
@@ -42,7 +42,6 @@ async fn main() {
                     label: Some("Test Device"),
                     required_features: wgpu::Features::empty(),
                     required_limits: wgpu::Limits::default(),
-                    memory_hints: Default::default(),
                 },
                 None,
             )

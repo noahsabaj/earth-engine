@@ -157,10 +157,6 @@ name = "parallel_test"
 path = "src/bin/parallel_test.rs"
 
 [[bin]]
-name = "async_mesh_benchmark"
-path = "src/bin/async_mesh_benchmark.rs"
-
-[[bin]]
 name = "async_render_test"
 path = "src/bin/async_render_test.rs"
 

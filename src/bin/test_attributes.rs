@@ -9,9 +9,26 @@
 /// - Change events
 
 use earth_engine::attributes::*;
-use earth_engine::instance::{InstanceId, InstanceManager};
+use earth_engine::instance::{InstanceId, InstanceIdGenerator};
 use std::sync::Arc;
 use std::time::Instant;
+
+// Simple instance manager for testing
+struct InstanceManager {
+    id_gen: InstanceIdGenerator,
+}
+
+impl InstanceManager {
+    fn new() -> Self {
+        Self {
+            id_gen: InstanceIdGenerator::new(),
+        }
+    }
+    
+    fn create_instance(&mut self) -> InstanceId {
+        self.id_gen.next()
+    }
+}
 
 fn main() {
     println!("=== Earth Engine: Dynamic Attribute System Test ===\n");
