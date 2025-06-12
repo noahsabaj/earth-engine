@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 use std::collections::HashSet;
 use parking_lot::RwLock;
@@ -25,6 +26,25 @@ struct GenerationRequest {
     priority: i32, // Lower is higher priority
 }
 
+/// Queue metrics for monitoring performance
+#[derive(Debug, Clone)]
+pub struct QueueMetrics {
+    /// Number of chunks waiting to be generated
+    pub generation_queue_length: usize,
+    /// Number of completed chunks waiting to be processed
+    pub completed_queue_length: usize,
+    /// Maximum queue size
+    pub max_queue_size: usize,
+    /// Generation queue usage percentage
+    pub generation_queue_usage: f32,
+    /// Completed queue usage percentage
+    pub completed_queue_usage: f32,
+    /// Current batch size setting
+    pub current_batch_size: usize,
+    /// Dynamic batch size based on queue pressure
+    pub dynamic_batch_size: usize,
+}
+
 /// Enhanced parallel chunk manager with priority generation and metrics
 pub struct ParallelChunkManager {
     /// Thread-safe chunk storage
@@ -48,6 +68,8 @@ pub struct ParallelChunkManager {
     /// Chunk cache for unloaded chunks
     chunk_cache: Arc<DashMap<ChunkPos, Arc<RwLock<Chunk>>>>,
     cache_limit: usize,
+    /// Counter for total chunks generated
+    chunks_generated_counter: Arc<AtomicUsize>,
 }
 
 impl ParallelChunkManager {
@@ -71,6 +93,7 @@ impl ParallelChunkManager {
             batch_size: num_cpus::get().min(8), // Process at most 8 chunks per batch
             chunk_cache: Arc::new(DashMap::new()),
             cache_limit: 128, // Cache up to 128 chunks
+            chunks_generated_counter: Arc::new(AtomicUsize::new(0)),
         }
     }
     
@@ -96,6 +119,49 @@ impl ParallelChunkManager {
         self.generation_receiver.len()
     }
     
+    /// Get the number of chunks waiting in the generation queue
+    pub fn get_generation_queue_depth(&self) -> usize {
+        self.generation_receiver.len()
+    }
+    
+    /// Get the number of completed chunks waiting to be processed
+    pub fn get_completed_queue_depth(&self) -> usize {
+        self.completed_receiver.len()
+    }
+    
+    /// Get the maximum queue size
+    pub fn get_max_queue_size(&self) -> usize {
+        // Return the capacity used when creating the bounded channels
+        let view_distance = self.view_distance;
+        ((view_distance * 2 + 1).pow(3) * 2).max(1000) as usize
+    }
+    
+    /// Get the queue fullness as a percentage (0-100)
+    pub fn get_queue_fullness_percent(&self) -> f32 {
+        let queue_length = self.generation_receiver.len();
+        let max_queue_size = self.generation_receiver.capacity().unwrap_or(1000);
+        (queue_length as f32 / max_queue_size as f32) * 100.0
+    }
+    
+    /// Calculate dynamic batch size based on queue pressure
+    fn calculate_dynamic_batch_size(&self) -> usize {
+        let queue_depth = self.get_queue_length();
+        let completed_depth = self.get_completed_queue_depth();
+        let base_batch = self.batch_size;
+        
+        // Adjust batch size based on queue pressure
+        if queue_depth > base_batch * 4 {
+            // Queue is backing up, generate more chunks
+            (base_batch * 2).min(32)
+        } else if completed_depth > base_batch * 2 {
+            // Completed queue is backing up, slow down generation
+            (base_batch / 2).max(1)
+        } else {
+            // Normal operation
+            base_batch
+        }
+    }
+    
     /// Update loaded chunks with priority-based generation
     pub fn update_loaded_chunks(&self, player_pos: Point3<f32>) {
         let player_chunk = ChunkPos::new(
@@ -114,6 +180,16 @@ impl ParallelChunkManager {
         
         // First, unload distant chunks
         self.unload_distant_chunks(player_chunk);
+        
+        // Log queue metrics periodically
+        if count % 30 == 0 && count > 0 {
+            let gen_depth = self.get_generation_queue_depth();
+            let comp_depth = self.get_completed_queue_depth();
+            let max_size = self.get_max_queue_size();
+            log::info!("[ParallelChunkManager] Queue metrics - Gen: {} ({:.1}%), Comp: {} ({:.1}%)",
+                     gen_depth, (gen_depth as f32 / max_size as f32) * 100.0,
+                     comp_depth, (comp_depth as f32 / max_size as f32) * 100.0);
+        }
         
         // Collect chunks that need to be loaded with priority
         let mut generation_requests = Vec::new();
@@ -157,23 +233,48 @@ impl ParallelChunkManager {
         // Only queue a limited number of requests to avoid overwhelming the system
         let max_new_requests = self.batch_size * 2; // Allow queuing up to 2x batch size
         let mut queued_count = 0;
+        let mut skipped_count = 0;
+        
         for request in generation_requests.into_iter().take(max_new_requests) {
             // Use try_send to avoid blocking if channel is full
             match self.generation_sender.try_send(request) {
                 Ok(_) => { queued_count += 1; },
                 Err(e) => {
-                    log::debug!("[ParallelChunkManager] Generation queue full, skipping chunk: {:?}", e);
+                    skipped_count += 1;
+                    let queue_fullness = self.get_queue_fullness_percent();
+                    if queue_fullness > 90.0 {
+                        log::error!("[ParallelChunkManager] CRITICAL: Generation queue {:.1}% full! Skipping chunk at {:?}. Consider increasing queue size or processing rate.", 
+                                  queue_fullness, e.into_inner().chunk_pos);
+                    } else if queue_fullness > 70.0 {
+                        log::warn!("[ParallelChunkManager] Generation queue {:.1}% full, skipping chunk at {:?}", 
+                                 queue_fullness, e.into_inner().chunk_pos);
+                    } else {
+                        log::debug!("[ParallelChunkManager] Generation queue full, skipping chunk: {:?}", e);
+                    }
                     break;
                 }
             }
+        }
+        
+        if skipped_count > 0 {
+            log::warn!("[ParallelChunkManager] Skipped {} chunks due to full queue (queued {} successfully)", 
+                     skipped_count, queued_count);
         }
         
         if count < 5 && queued_count > 0 {
             log::info!("[ParallelChunkManager::update_loaded_chunks] Queued {} chunks for generation", queued_count);
         }
         
-        // Process completed chunks with a limit to avoid frame stalls
-        let max_completions = self.batch_size; // Process at most batch_size completions per frame
+        // Process completed chunks more aggressively to match generation rate
+        // Calculate how many to consume based on queue depth
+        let completed_queue_depth = self.get_completed_queue_depth();
+        let max_completions = if completed_queue_depth > self.batch_size * 4 {
+            // Queue is backing up, consume more aggressively
+            (self.batch_size * 3).min(completed_queue_depth)
+        } else {
+            self.batch_size
+        };
+        
         let mut processed = 0;
         
         while processed < max_completions {
@@ -205,10 +306,28 @@ impl ParallelChunkManager {
     
     /// Process chunk generation queue in parallel with batching
     pub fn process_generation_queue(&self) {
+        // Check if we should process based on completed queue pressure
+        let completed_queue_depth = self.get_completed_queue_depth();
+        let max_queue_size = self.get_max_queue_size();
+        
+        // Don't generate if completed queue is too full
+        if completed_queue_depth >= max_queue_size * 3 / 4 {
+            static STALL_COUNT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+            let stall_count = STALL_COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            if stall_count % 100 == 0 {
+                log::warn!("[ParallelChunkManager] Generation stalled - completed queue at {}/{} capacity", 
+                         completed_queue_depth, max_queue_size);
+            }
+            return;
+        }
+        
         let mut pending_requests = Vec::new();
         
-        // Collect up to batch_size requests
-        for _ in 0..self.batch_size {
+        // Calculate dynamic batch size based on queue pressure
+        let dynamic_batch_size = self.calculate_dynamic_batch_size();
+        
+        // Collect up to dynamic_batch_size requests
+        for _ in 0..dynamic_batch_size {
             if let Ok(request) = self.generation_receiver.try_recv() {
                 pending_requests.push(request);
             } else {
@@ -220,12 +339,14 @@ impl ParallelChunkManager {
             return;
         }
         
-        // Log the first few generation batches
+        // Log the first few generation batches or emergency situations
         static GEN_COUNT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
         let count = GEN_COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        if count < 5 {
-            log::info!("[ParallelChunkManager::process_generation_queue] Processing {} chunks (batch #{})", 
-                     pending_requests.len(), count + 1);
+        let is_emergency = dynamic_batch_size > self.batch_size * 2;
+        if count < 5 || is_emergency {
+            log::info!("[ParallelChunkManager::process_generation_queue] Processing {} chunks (batch #{}, dynamic_batch: {}){}",
+                     pending_requests.len(), count + 1, dynamic_batch_size,
+                     if is_emergency { " [EMERGENCY DRAIN]" } else { "" });
         }
         
         // Sort by priority again in case new requests came in
@@ -253,11 +374,20 @@ impl ParallelChunkManager {
             }
             
             let generation_time = start_time.elapsed();
-            // Use try_send to avoid blocking
-            if let Err(e) = sender.try_send((request.chunk_pos, chunk, generation_time)) {
-                log::debug!("[ParallelChunkManager] Completed queue full, dropping chunk: {:?}", e);
+            // Use send instead of try_send to ensure no chunks are dropped
+            // The bounded channel will block if full, providing natural backpressure
+            match sender.send((request.chunk_pos, chunk, generation_time)) {
+                Ok(_) => {},
+                Err(e) => {
+                    log::error!("[ParallelChunkManager] Failed to send completed chunk: {:?}", e);
+                }
             }
         });
+        
+        // Log when emergency drain completes
+        if is_emergency {
+            log::info!("[ParallelChunkManager] Emergency drain completed. Processed {} chunks.", pending_requests.len());
+        }
     }
     
     /// Unload chunks that are too far from the player
@@ -308,6 +438,23 @@ impl ParallelChunkManager {
     /// Clear generation statistics
     pub fn reset_stats(&self) {
         *self.stats.write() = GenerationStats::default();
+    }
+    
+    /// Log comprehensive queue statistics
+    pub fn log_queue_stats(&self) {
+        let metrics = self.get_queue_metrics();
+        let stats = self.get_stats();
+        
+        log::info!("[ParallelChunkManager] === Queue Statistics ===");
+        log::info!("  Generation Queue: {} / {} ({:.1}% full)", 
+                 metrics.generation_queue_length, metrics.max_queue_size, metrics.generation_queue_usage);
+        log::info!("  Completed Queue: {} / {} ({:.1}% full)", 
+                 metrics.completed_queue_length, metrics.max_queue_size, metrics.completed_queue_usage);
+        log::info!("  Batch Size: {} (dynamic: {})", metrics.current_batch_size, metrics.dynamic_batch_size);
+        log::info!("  Generation Performance: {:.2} chunks/s (avg {:.2}ms per chunk)",
+                 stats.chunks_per_second, stats.average_chunk_time.as_millis());
+        log::info!("  Total Generated: {} chunks", stats.chunks_generated);
+        log::info!("========================");
     }
     
     /// Get immutable chunk reference (thread-safe)
@@ -395,6 +542,23 @@ impl ParallelChunkManager {
         self.generator.get_surface_height(world_x, world_z)
     }
     
+    /// Get current queue metrics
+    pub fn get_queue_metrics(&self) -> QueueMetrics {
+        let generation_queue_length = self.get_generation_queue_depth();
+        let completed_queue_length = self.get_completed_queue_depth();
+        let max_queue_size = self.get_max_queue_size();
+        
+        QueueMetrics {
+            generation_queue_length,
+            completed_queue_length,
+            max_queue_size,
+            generation_queue_usage: (generation_queue_length as f32 / max_queue_size as f32) * 100.0,
+            completed_queue_usage: (completed_queue_length as f32 / max_queue_size as f32) * 100.0,
+            current_batch_size: self.batch_size,
+            dynamic_batch_size: self.calculate_dynamic_batch_size(),
+        }
+    }
+    
     /// Force generate specific chunks (useful for spawn area)
     pub fn pregenerate_chunks(&self, center: ChunkPos, radius: i32) {
         let requests: Vec<GenerationRequest> = (-radius..=radius)
@@ -429,14 +593,21 @@ impl ParallelChunkManager {
         let chunk_size = self.chunk_size;
         let generator = Arc::clone(&self.generator);
         let sender = self.completed_sender.clone();
+        let gen_counter = Arc::clone(&self.chunks_generated_counter);
         
         requests.par_iter().for_each(|request| {
             let start_time = Instant::now();
             let chunk = generator.generate_chunk(request.chunk_pos, chunk_size);
             let generation_time = start_time.elapsed();
-            // Use try_send to avoid blocking
-            if let Err(e) = sender.try_send((request.chunk_pos, chunk, generation_time)) {
-                log::debug!("[ParallelChunkManager] Completed queue full, dropping chunk: {:?}", e);
+            // Use send to ensure chunks aren't dropped during pregeneration
+            match sender.send((request.chunk_pos, chunk, generation_time)) {
+                Ok(_) => {
+                    // Increment generation counter
+                    gen_counter.fetch_add(1, Ordering::Relaxed);
+                },
+                Err(e) => {
+                    log::error!("[ParallelChunkManager] Failed to send pregenerated chunk: {:?}", e);
+                }
             }
         });
     }
@@ -458,6 +629,7 @@ impl ParallelChunkManager {
         let chunk_size = self.chunk_size;
         let generator = Arc::clone(&self.generator);
         let sender = self.completed_sender.clone();
+        let gen_counter = Arc::clone(&self.chunks_generated_counter);
         
         // Generate chunks in parallel
         chunks.par_iter().for_each(|&chunk_pos| {
@@ -465,11 +637,19 @@ impl ParallelChunkManager {
                 let start_time = Instant::now();
                 let chunk = generator.generate_chunk(chunk_pos, chunk_size);
                 let generation_time = start_time.elapsed();
-                // Try to send, but don't panic if channel is full
-                let _ = sender.try_send((chunk_pos, chunk, generation_time));
+                // Use send to ensure chunks aren't dropped
+                match sender.send((chunk_pos, chunk, generation_time)) {
+                    Ok(_) => {
+                        gen_counter.fetch_add(1, Ordering::Relaxed);
+                    },
+                    Err(e) => {
+                        log::error!("[ParallelChunkManager] Failed to send batch chunk: {:?}", e);
+                    }
+                }
             }
         });
     }
+    
 }
 
 impl Clone for GenerationStats {
@@ -482,3 +662,4 @@ impl Clone for GenerationStats {
         }
     }
 }
+

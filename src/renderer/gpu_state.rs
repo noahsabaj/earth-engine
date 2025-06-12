@@ -195,6 +195,11 @@ pub struct GpuState {
     dirty_chunks: std::collections::HashSet<crate::ChunkPos>,
     // Track which chunks have valid meshes
     chunks_with_meshes: std::collections::HashSet<crate::ChunkPos>,
+    // Render object submission tracking
+    last_render_object_count: u32,
+    frames_without_objects: u32,
+    total_objects_submitted: u64,
+    last_submission_time: std::time::Instant,
 }
 
 impl GpuState {
@@ -686,6 +691,10 @@ impl GpuState {
             init_time: std::time::Instant::now(),
             dirty_chunks: std::collections::HashSet::new(),
             chunks_with_meshes: std::collections::HashSet::new(),
+            last_render_object_count: 0,
+            frames_without_objects: 0,
+            total_objects_submitted: 0,
+            last_submission_time: std::time::Instant::now(),
         })
     }
 
@@ -807,13 +816,32 @@ impl GpuState {
         // Get chunk size from config
         let chunk_size = self.world.config().chunk_size;
         
+        // Recovery mechanism: Force dirty all chunks if no objects for too long
+        if self.frames_without_objects >= 600 && self.chunks_with_meshes.len() > 0 {
+            log::warn!(
+                "[GpuState::update_chunk_renderer] Attempting recovery - marking all {} chunks as dirty",
+                self.chunks_with_meshes.len()
+            );
+            
+            // Mark all chunks with meshes as dirty to force rebuild
+            for chunk_pos in self.chunks_with_meshes.clone() {
+                self.dirty_chunks.insert(chunk_pos);
+            }
+            
+            // Clear chunks_with_meshes to force complete rebuild
+            self.chunks_with_meshes.clear();
+        }
+        
         // Process dirty chunks and new chunks
         let mut render_objects = Vec::new();
         let mut chunks_to_upload: Vec<(crate::ChunkPos, Vec<crate::renderer::vertex::Vertex>, Vec<u32>)> = Vec::new();
         
         // Check all loaded chunks
         let mut chunks_needing_rebuild = Vec::new();
-        for (chunk_pos, _chunk_lock) in self.world.iter_loaded_chunks() {
+        let loaded_chunks: Vec<_> = self.world.iter_loaded_chunks().collect();
+        let loaded_count = loaded_chunks.len();
+        
+        for (chunk_pos, _chunk_lock) in loaded_chunks {
             // Check if this chunk needs rebuilding
             let needs_rebuild = self.dirty_chunks.contains(&chunk_pos) || 
                                !self.chunks_with_meshes.contains(&chunk_pos);
@@ -821,6 +849,14 @@ impl GpuState {
             if needs_rebuild {
                 chunks_needing_rebuild.push(chunk_pos);
             }
+        }
+        
+        if chunks_needing_rebuild.len() > 0 {
+            log::trace!(
+                "[GpuState::update_chunk_renderer] {} chunks need rebuilding out of {} loaded chunks",
+                chunks_needing_rebuild.len(),
+                loaded_count
+            );
         }
         
         // Process chunks that need rebuilding
@@ -850,6 +886,20 @@ impl GpuState {
                     
                     // Mark chunk as processed
                     self.dirty_chunks.remove(&chunk_pos);
+                    
+                    log::trace!(
+                        "[GpuState::update_chunk_renderer] Generated mesh for chunk {:?} with {} vertices, {} indices",
+                        chunk_pos,
+                        mesh_buffer.vertex_count,
+                        mesh_buffer.index_count
+                    );
+                } else {
+                    // Empty mesh - still mark as processed to avoid repeated attempts
+                    self.dirty_chunks.remove(&chunk_pos);
+                    log::trace!(
+                        "[GpuState::update_chunk_renderer] Chunk {:?} generated empty mesh (likely all air)",
+                        chunk_pos
+                    );
                 }
                 
                 // Release mesh buffer back to pool
@@ -858,6 +908,14 @@ impl GpuState {
         }
         
         // Batch upload all mesh data to GPU
+        let upload_count = chunks_to_upload.len();
+        if upload_count > 0 {
+            log::debug!(
+                "[GpuState::update_chunk_renderer] Uploading {} chunk meshes to GPU",
+                upload_count
+            );
+        }
+        
         for (chunk_pos, vertices, indices) in chunks_to_upload {
             if let Some(_mesh_id) = self.chunk_renderer.mesh_buffers.upload_mesh(
                 &self.queue,
@@ -866,10 +924,22 @@ impl GpuState {
                 &indices,
             ) {
                 self.chunks_with_meshes.insert(chunk_pos);
+                log::trace!(
+                    "[GpuState::update_chunk_renderer] Successfully uploaded mesh for chunk {:?}",
+                    chunk_pos
+                );
+            } else {
+                log::warn!(
+                    "[GpuState::update_chunk_renderer] Failed to upload mesh for chunk {:?}",
+                    chunk_pos
+                );
             }
         }
         
         // Create render objects for all chunks with valid meshes
+        let mut chunks_without_mesh_id = 0;
+        let mut lost_meshes = Vec::new();
+        
         for (chunk_pos, _) in self.world.iter_loaded_chunks() {
             if self.chunks_with_meshes.contains(&chunk_pos) {
                 // Get mesh ID for this chunk - no unsafe access needed
@@ -891,19 +961,151 @@ impl GpuState {
                     };
                     
                     render_objects.push(render_object);
+                } else {
+                    chunks_without_mesh_id += 1;
+                    lost_meshes.push(chunk_pos);
                 }
             }
         }
         
-        // Submit all render objects to GPU-driven renderer
-        if !render_objects.is_empty() {
-            self.chunk_renderer.submit_objects(&render_objects);
+        if chunks_without_mesh_id > 0 {
+            log::warn!(
+                "[GpuState::update_chunk_renderer] {} chunks marked as having meshes but no mesh ID found",
+                chunks_without_mesh_id
+            );
+            
+            // Remove lost meshes from tracking and mark as dirty for rebuild
+            for chunk_pos in lost_meshes {
+                log::warn!(
+                    "[GpuState::update_chunk_renderer] Chunk {:?} lost its mesh, marking for rebuild",
+                    chunk_pos
+                );
+                self.chunks_with_meshes.remove(&chunk_pos);
+                self.dirty_chunks.insert(chunk_pos);
+            }
         }
+        
+        // Submit all render objects to GPU-driven renderer
+        let render_object_count = render_objects.len() as u32;
+        
+        // Track submission metrics
+        if render_object_count > 0 {
+            log::debug!(
+                "[GpuState::update_chunk_renderer] Submitting {} render objects (chunks with meshes: {}, loaded chunks: {})",
+                render_object_count,
+                self.chunks_with_meshes.len(),
+                self.world.chunk_manager().loaded_chunk_count()
+            );
+            
+            self.chunk_renderer.submit_objects(&render_objects);
+            self.total_objects_submitted += render_object_count as u64;
+            self.last_submission_time = std::time::Instant::now();
+            
+            // Reset counter if we had objects
+            if self.frames_without_objects > 0 {
+                log::info!(
+                    "[GpuState::update_chunk_renderer] Resumed object submission after {} frames",
+                    self.frames_without_objects
+                );
+            }
+            self.frames_without_objects = 0;
+        } else {
+            // No objects submitted
+            self.frames_without_objects += 1;
+            
+            // Log warnings at different thresholds
+            if self.frames_without_objects == 60 {
+                log::warn!(
+                    "[GpuState::update_chunk_renderer] No render objects submitted for 60 frames (1 second). \
+                    Chunks with meshes: {}, loaded chunks: {}, dirty chunks: {}",
+                    self.chunks_with_meshes.len(),
+                    self.world.chunk_manager().loaded_chunk_count(),
+                    self.dirty_chunks.len()
+                );
+            } else if self.frames_without_objects == 300 {
+                log::error!(
+                    "[GpuState::update_chunk_renderer] No render objects submitted for 300 frames (5 seconds)! \
+                    This indicates a problem with chunk meshing or world loading. \
+                    Total objects ever submitted: {}",
+                    self.total_objects_submitted
+                );
+                
+                // Log diagnostic information
+                self.log_render_diagnostics();
+            } else if self.frames_without_objects % 600 == 0 {
+                // Every 10 seconds after that
+                log::error!(
+                    "[GpuState::update_chunk_renderer] Still no render objects after {} frames ({} seconds)",
+                    self.frames_without_objects,
+                    self.frames_without_objects / 60
+                );
+                self.log_render_diagnostics();
+            }
+        }
+        
+        // Track changes in submission count
+        if render_object_count != self.last_render_object_count {
+            let delta = render_object_count as i32 - self.last_render_object_count as i32;
+            log::info!(
+                "[GpuState::update_chunk_renderer] Render object count changed: {} → {} (delta: {})",
+                self.last_render_object_count,
+                render_object_count,
+                if delta > 0 { format!("+{}", delta) } else { delta.to_string() }
+            );
+        }
+        self.last_render_object_count = render_object_count;
         
         // Build GPU commands
         self.chunk_renderer.build_commands();
         
+        // Final verification of submission state
+        if render_object_count > 0 && self.frames_rendered % 60 == 0 {
+            let stats = self.chunk_renderer.stats();
+            if stats.objects_rejected > 0 {
+                log::warn!(
+                    "[GpuState::update_chunk_renderer] Instance buffer may be full: {} objects rejected",
+                    stats.objects_rejected
+                );
+            }
+        }
+        
         // Note: Actual rendering happens in the render() method
+    }
+    
+    /// Log detailed diagnostic information about render state
+    fn log_render_diagnostics(&self) {
+        log::error!("[GpuState] === RENDER DIAGNOSTICS ===");
+        log::error!("[GpuState] Chunks with meshes: {}", self.chunks_with_meshes.len());
+        log::error!("[GpuState] Loaded chunks: {}", self.world.chunk_manager().loaded_chunk_count());
+        log::error!("[GpuState] Dirty chunks: {}", self.dirty_chunks.len());
+        log::error!("[GpuState] Total objects submitted (lifetime): {}", self.total_objects_submitted);
+        log::error!("[GpuState] Frames without objects: {}", self.frames_without_objects);
+        log::error!("[GpuState] Camera position: {:?}", self.camera.position);
+        log::error!("[GpuState] Time since last submission: {:.1}s", self.last_submission_time.elapsed().as_secs_f32());
+        
+        // Get renderer stats
+        let stats = self.chunk_renderer.stats();
+        log::error!("[GpuState] Renderer - Objects submitted: {}, drawn: {}, instances: {}, rejected: {}",
+                   stats.objects_submitted, stats.objects_drawn, stats.instances_added, stats.objects_rejected);
+        
+        // Log chunk positions if there are any
+        if self.chunks_with_meshes.len() > 0 && self.chunks_with_meshes.len() <= 10 {
+            log::error!("[GpuState] Chunks with meshes: {:?}", self.chunks_with_meshes);
+        }
+        
+        // Check if renderer pipeline is available
+        if !self.chunk_renderer.is_available() {
+            log::error!("[GpuState] WARNING: GPU-driven renderer is not available!");
+        }
+        
+        // Check for sync issues
+        let loaded_count = self.world.chunk_manager().loaded_chunk_count();
+        let mesh_count = self.chunks_with_meshes.len();
+        if loaded_count > 0 && mesh_count == 0 {
+            log::error!("[GpuState] WARNING: {} chunks loaded but no meshes generated!", loaded_count);
+        }
+        
+        log::error!("[GpuState] === END DIAGNOSTICS ===");
     }
     
     fn process_input(&mut self, input: &InputState, delta_time: f32, active_block: BlockId) -> (Option<(VoxelPos, BlockId)>, Option<VoxelPos>) {
@@ -1159,16 +1361,18 @@ impl GpuState {
         } else if stats.objects_drawn == 0 {
             // Log more frequently in the first few seconds
             if self.frames_rendered <= 180 && self.frames_rendered % 20 == 0 {
-                log::warn!("[GpuState::render] No chunks rendered after {} frames (objects submitted: {}, world chunks: {})", 
+                log::warn!("[GpuState::render] No chunks rendered after {} frames (objects submitted: {}, world chunks: {}, chunks with meshes: {})", 
                          self.frames_rendered, 
                          stats.objects_submitted,
-                         self.world.chunk_manager().loaded_chunk_count());
+                         self.world.chunk_manager().loaded_chunk_count(),
+                         self.chunks_with_meshes.len());
             } else if self.frames_rendered % 60 == 0 {
                 // Log every second after initial period
-                log::warn!("[GpuState::render] No chunks rendered after {} frames (objects submitted: {}, world chunks: {})", 
+                log::warn!("[GpuState::render] No chunks rendered after {} frames (objects submitted: {}, world chunks: {}, chunks with meshes: {})", 
                          self.frames_rendered, 
                          stats.objects_submitted,
-                         self.world.chunk_manager().loaded_chunk_count());
+                         self.world.chunk_manager().loaded_chunk_count(),
+                         self.chunks_with_meshes.len());
             }
         }
 
@@ -1415,6 +1619,28 @@ pub async fn run_app<G: Game + 'static>(
                         }
                         gpu_state.world.update(gpu_state.camera.position);
                         
+                        // Periodic sync check
+                        if gpu_state.frames_rendered % 300 == 0 && gpu_state.frames_rendered > 0 {
+                            let loaded_chunks = gpu_state.world.chunk_manager().loaded_chunk_count();
+                            let chunks_with_meshes = gpu_state.chunks_with_meshes.len();
+                            let render_objects = gpu_state.last_render_object_count;
+                            
+                            log::info!(
+                                "[render loop] Periodic sync check - Loaded chunks: {}, Chunks with meshes: {}, Render objects: {}",
+                                loaded_chunks,
+                                chunks_with_meshes,
+                                render_objects
+                            );
+                            
+                            // Detect sync issues
+                            if loaded_chunks > 0 && render_objects == 0 {
+                                log::warn!(
+                                    "[render loop] Sync issue detected: {} chunks loaded but no render objects!",
+                                    loaded_chunks
+                                );
+                            }
+                        }
+                        
                         // Update day/night cycle
                         gpu_state.day_night_cycle.update(delta_time);
                         
@@ -1453,13 +1679,24 @@ pub async fn run_app<G: Game + 'static>(
                         // Update async chunk renderer
                         gpu_state.update_chunk_renderer(&input_state);
                         
-                        // Log chunk renderer state for first few frames
+                        // Log chunk renderer state for first few frames and periodically
                         if gpu_state.frames_rendered <= 10 && gpu_state.frames_rendered % 2 == 0 {
                             let stats = gpu_state.chunk_renderer.stats();
                             log::info!("[render loop] Frame {}: chunk renderer has {} objects submitted, {} drawn", 
                                      gpu_state.frames_rendered,
                                      stats.objects_submitted,
                                      stats.objects_drawn);
+                        } else if gpu_state.frames_rendered % 600 == 0 {
+                            // Log every 10 seconds
+                            let stats = gpu_state.chunk_renderer.stats();
+                            let time_since_submission = gpu_state.last_submission_time.elapsed();
+                            log::info!(
+                                "[render loop] Frame {}: {} objects submitted, {} drawn, last submission: {:.1}s ago",
+                                gpu_state.frames_rendered,
+                                stats.objects_submitted,
+                                stats.objects_drawn,
+                                time_since_submission.as_secs_f32()
+                            );
                         }
 
                         // Update game with context

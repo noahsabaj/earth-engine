@@ -127,16 +127,43 @@ impl ParallelWorld {
         // Update chunk loading state
         self.chunk_manager.update_loaded_chunks(player_pos);
         
-        // Process generation queue in parallel
-        let manager = Arc::clone(&self.chunk_manager);
-        let max_chunks = self.config.chunks_per_frame;
+        // Check queue depths for backpressure
+        let completed_queue_depth = self.chunk_manager.get_completed_queue_depth();
+        let generation_queue_depth = self.chunk_manager.get_generation_queue_depth();
         
-        ThreadPoolManager::global().spawn(PoolCategory::WorldGeneration, move || {
-            // Process up to max_chunks per frame
-            for _ in 0..max_chunks {
-                manager.process_generation_queue();
-            }
-        });
+        // Calculate dynamic generation rate based on queue pressure
+        let queue_pressure = completed_queue_depth as f32 / self.chunk_manager.get_max_queue_size() as f32;
+        let chunks_to_process = if queue_pressure > 0.8 {
+            // High pressure - slow down generation
+            1
+        } else if queue_pressure > 0.5 {
+            // Medium pressure - reduce generation rate
+            self.config.chunks_per_frame / 2
+        } else {
+            // Low pressure - normal generation rate
+            self.config.chunks_per_frame
+        };
+        
+        // Only spawn generation if there's capacity
+        if completed_queue_depth < self.chunk_manager.get_max_queue_size() * 3 / 4 {
+            let manager = Arc::clone(&self.chunk_manager);
+            
+            ThreadPoolManager::global().spawn(PoolCategory::WorldGeneration, move || {
+                // Process only the calculated number of chunks based on queue pressure
+                for _ in 0..chunks_to_process {
+                    // Check queue depth before each generation
+                    if manager.get_completed_queue_depth() >= manager.get_max_queue_size() * 3 / 4 {
+                        // Stop generating if queue is getting full
+                        break;
+                    }
+                    manager.process_generation_queue();
+                }
+            });
+        } else if count % 60 == 0 {
+            // Log warning every 60 frames if generation is stalled
+            log::warn!("[ParallelWorld::update] Generation stalled - completed queue at {}/{} capacity", 
+                      completed_queue_depth, self.chunk_manager.get_max_queue_size());
+        }
         
         // Track frame time
         let frame_time = start_time.elapsed();

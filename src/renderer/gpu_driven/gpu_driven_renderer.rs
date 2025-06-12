@@ -29,6 +29,12 @@ pub struct RenderStats {
     
     /// Frame time in ms
     pub frame_time_ms: f32,
+    
+    /// Total instances added successfully
+    pub instances_added: u32,
+    
+    /// Objects rejected (no instance space)
+    pub objects_rejected: u32,
 }
 
 /// GPU-driven renderer
@@ -180,6 +186,7 @@ impl GpuDrivenRenderer {
     /// Submit objects for rendering
     pub fn submit_objects(&mut self, objects: &[RenderObject]) {
         let camera_pos = Vector3::new(0.0, 0.0, 0.0); // Get from camera
+        let initial_count = self.stats.objects_submitted;
         
         for object in objects {
             self.stats.objects_submitted += 1;
@@ -190,6 +197,8 @@ impl GpuDrivenRenderer {
             if let Some(instance_id) = self.instance_manager
                 .chunk_instances_mut()
                 .add_instance(instance_data) {
+                
+                self.stats.instances_added += 1;
                 
                 // Create draw metadata for culling
                 let metadata = DrawMetadata {
@@ -207,7 +216,32 @@ impl GpuDrivenRenderer {
                 };
                 
                 self.culling_data.add_draw(metadata);
+            } else {
+                self.stats.objects_rejected += 1;
+                
+                // Log warning when instance buffer is full
+                if self.stats.objects_rejected == 1 {
+                    log::warn!(
+                        "[GpuDrivenRenderer::submit_objects] Instance buffer full! Cannot add more objects. \
+                        Consider increasing buffer size."
+                    );
+                } else if self.stats.objects_rejected % 100 == 0 {
+                    log::warn!(
+                        "[GpuDrivenRenderer::submit_objects] {} objects rejected due to full instance buffer",
+                        self.stats.objects_rejected
+                    );
+                }
             }
+        }
+        
+        let submitted_this_call = self.stats.objects_submitted - initial_count;
+        if submitted_this_call > 0 {
+            log::trace!(
+                "[GpuDrivenRenderer::submit_objects] Submitted {} objects, {} instances added, {} rejected",
+                submitted_this_call,
+                self.stats.instances_added,
+                self.stats.objects_rejected
+            );
         }
     }
     
@@ -337,6 +371,23 @@ impl GpuDrivenRenderer {
             self.stats.objects_drawn = draw_count;
         }
         self.stats.frame_time_ms = start_time.elapsed().as_secs_f32() * 1000.0;
+        
+        // Log performance metrics periodically
+        static mut FRAME_COUNT: u32 = 0;
+        unsafe {
+            FRAME_COUNT += 1;
+            if FRAME_COUNT % 300 == 0 {
+                log::debug!(
+                    "[GpuDrivenRenderer] Frame {} stats - Submitted: {}, Drawn: {}, Instances: {}, Rejected: {}, Frame time: {:.2}ms",
+                    FRAME_COUNT,
+                    self.stats.objects_submitted,
+                    self.stats.objects_drawn,
+                    self.stats.instances_added,
+                    self.stats.objects_rejected,
+                    self.stats.frame_time_ms
+                );
+            }
+        }
     }
     
     /// Get rendering statistics
