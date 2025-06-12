@@ -1,7 +1,11 @@
 // GPU-driven rendering shader with instancing
 
 struct CameraUniform {
-    view_proj: mat4x4<f32>,
+    view: mat4x4<f32>,              // View matrix (not used in this shader)
+    projection: mat4x4<f32>,         // Projection matrix (not used in this shader)
+    view_proj: mat4x4<f32>,          // Combined view-projection matrix
+    position: vec3<f32>,             // Camera world position (could be used for fog)
+    _padding: f32,                   // Padding to ensure 16-byte alignment
 }
 
 struct VertexInput {

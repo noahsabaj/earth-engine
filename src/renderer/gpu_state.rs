@@ -127,6 +127,7 @@ impl crate::Block for TestTorchBlock {
     fn is_transparent(&self) -> bool { true }
 }
 
+// Full camera data for CPU-side operations
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct CameraUniform {
@@ -136,6 +137,9 @@ pub struct CameraUniform {
     position: [f32; 3],
     _padding: f32,
 }
+
+// Note: Both voxel.wgsl and gpu_driven.wgsl now use the full CameraUniform struct
+// This ensures compatibility across all render pipelines
 
 impl CameraUniform {
     fn new() -> Self {
@@ -155,6 +159,12 @@ impl CameraUniform {
         self.projection = proj.into();
         self.view_proj = (proj * view).into();
         self.position = [camera.position.x, camera.position.y, camera.position.z];
+        
+        // Log camera matrices for debugging
+        log::debug!("[CameraUniform] Camera position: {:?}", camera.position);
+        log::debug!("[CameraUniform] View matrix: {:?}", view);
+        log::debug!("[CameraUniform] Projection matrix: {:?}", proj);
+        log::debug!("[CameraUniform] View-Proj matrix: {:?}", self.view_proj);
     }
 }
 
@@ -473,11 +483,15 @@ impl GpuState {
         let mut camera_uniform = CameraUniform::new();
         camera_uniform.update_view_proj(&camera);
         
+        // Create buffer with full camera uniform size (used by voxel.wgsl)
         let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Camera Buffer"),
             contents: bytemuck::cast_slice(&[camera_uniform]),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
+        
+        log::info!("[GpuState::new] Camera buffer created with size: {} bytes (full CameraUniform for voxel.wgsl)", 
+                   std::mem::size_of::<CameraUniform>());
 
         // Create bind group layout
         let camera_bind_group_layout =
@@ -802,6 +816,12 @@ impl GpuState {
 
     fn update_camera(&mut self) {
         self.camera_uniform.update_view_proj(&self.camera);
+        
+        // Write the full camera uniform to the buffer
+        // This is required by voxel.wgsl which expects all camera data
+        log::trace!("[GpuState::update_camera] Writing full camera uniform: {} bytes", 
+                   std::mem::size_of::<CameraUniform>());
+        
         self.queue.write_buffer(
             &self.camera_buffer,
             0,
@@ -1589,6 +1609,17 @@ pub async fn run_app<G: Game + 'static>(
                         // Update input and camera
                         let active_block = game.get_active_block();
                         let (broken_block_info, placed_block_pos) = gpu_state.process_input(&input_state, delta_time, active_block);
+                        
+                        // Log camera info periodically for debugging
+                        if gpu_state.frames_rendered % 60 == 0 {
+                            log::info!("[render loop] Frame {}: Camera pos: ({:.2}, {:.2}, {:.2}), yaw: {:.2}, pitch: {:.2}", 
+                                gpu_state.frames_rendered,
+                                gpu_state.camera.position.x, 
+                                gpu_state.camera.position.y, 
+                                gpu_state.camera.position.z,
+                                gpu_state.camera.yaw.0,
+                                gpu_state.camera.pitch.0);
+                        }
                         
                         // Update physics
                         gpu_state.physics_world.update(&gpu_state.world, delta_time);
