@@ -1,15 +1,15 @@
 use std::sync::Arc;
 use parking_lot::RwLock;
 use cgmath::Point3;
-use rayon::ThreadPoolBuilder;
 use crate::{BlockId, VoxelPos, ChunkPos};
+use crate::thread_pool::{ThreadPoolManager, PoolCategory};
 use super::{ConcurrentChunkManager, WorldGenerator};
 
 /// Thread-safe world implementation for parallel operations
 pub struct ConcurrentWorld {
     chunk_manager: Arc<ConcurrentChunkManager>,
     chunk_size: u32,
-    generation_pool: rayon::ThreadPool,
+    thread_pool_manager: Arc<ThreadPoolManager>,
 }
 
 impl ConcurrentWorld {
@@ -18,12 +18,8 @@ impl ConcurrentWorld {
         view_distance: i32,
         generator: Box<dyn WorldGenerator>
     ) -> Self {
-        // Create dedicated thread pool for chunk generation
-        let generation_pool = ThreadPoolBuilder::new()
-            .num_threads(num_cpus::get().saturating_sub(2).max(2))
-            .thread_name(|idx| format!("chunk-gen-{}", idx))
-            .build()
-            .expect("Failed to create generation thread pool");
+        // Get thread pool manager
+        let thread_pool_manager = ThreadPoolManager::global();
 
         let chunk_manager = Arc::new(ConcurrentChunkManager::new(
             view_distance,
@@ -34,7 +30,7 @@ impl ConcurrentWorld {
         Self {
             chunk_manager,
             chunk_size,
-            generation_pool,
+            thread_pool_manager,
         }
     }
 
@@ -45,7 +41,7 @@ impl ConcurrentWorld {
 
         // Process generation queue in parallel
         let manager = Arc::clone(&self.chunk_manager);
-        self.generation_pool.spawn(move || {
+        self.thread_pool_manager.spawn(PoolCategory::WorldGeneration, move || {
             manager.process_generation_queue();
         });
     }

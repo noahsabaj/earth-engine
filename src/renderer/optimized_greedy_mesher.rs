@@ -253,38 +253,21 @@ impl OptimizedGreedyMesher {
 
 /// Thread pool specifically for mesh generation with pinned threads
 pub struct MeshGenerationPool {
-    pool: rayon::ThreadPool,
+    thread_pool_manager: Arc<crate::thread_pool::ThreadPoolManager>,
 }
 
 impl MeshGenerationPool {
-    pub fn new(thread_count: usize) -> Self {
-        use rayon::ThreadPoolBuilder;
+    pub fn new(_thread_count: usize) -> Self {
+        // Use the global thread pool manager
+        let thread_pool_manager = crate::thread_pool::ThreadPoolManager::global();
         
-        let pool = ThreadPoolBuilder::new()
-            .num_threads(thread_count)
-            .thread_name(|idx| format!("mesh-gen-{}", idx))
-            .start_handler(|_idx| {
-                // Pin thread to CPU for better cache performance
-                #[cfg(target_os = "linux")]
-                {
-                    use std::os::raw::c_ulong;
-                    unsafe {
-                        let mut cpu_set: libc::cpu_set_t = std::mem::zeroed();
-                        libc::CPU_SET(_idx, &mut cpu_set);
-                        libc::sched_setaffinity(0, std::mem::size_of::<libc::cpu_set_t>(), &cpu_set);
-                    }
-                }
-            })
-            .build()
-            .expect("Failed to create mesh generation pool");
-            
-        Self { pool }
+        Self { thread_pool_manager }
     }
     
     pub fn generate_mesh<F>(&self, f: F)
     where
         F: FnOnce() + Send + 'static,
     {
-        self.pool.spawn(f);
+        self.thread_pool_manager.spawn(crate::thread_pool::PoolCategory::MeshBuilding, f);
     }
 }

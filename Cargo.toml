@@ -218,3 +218,7 @@ path = "src/bin/test_process.rs"
 [[bin]]
 name = "victory_lap_benchmark"
 path = "src/bin/victory_lap_benchmark.rs"
+
+[[bin]]
+name = "test_gpu_diagnostics"
+path = "src/bin/test_gpu_diagnostics.rs"

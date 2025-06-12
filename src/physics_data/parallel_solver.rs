@@ -5,6 +5,8 @@ use super::{
 };
 use crate::physics_data::error::{PhysicsDataResult, PhysicsDataErrorContext};
 use rayon::prelude::*;
+use crate::thread_pool::{ThreadPoolManager, PoolCategory};
+use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
 
@@ -52,20 +54,17 @@ impl Default for SolverConfig {
 /// Parallel physics solver for data-oriented physics
 pub struct ParallelPhysicsSolver {
     config: SolverConfig,
-    thread_pool: rayon::ThreadPool,
+    thread_pool_manager: Arc<ThreadPoolManager>,
     stats: CollisionStats,
 }
 
 impl ParallelPhysicsSolver {
     pub fn new(config: SolverConfig) -> PhysicsDataResult<Self> {
-        let thread_pool = rayon::ThreadPoolBuilder::new()
-            .num_threads(config.worker_threads)
-            .build()
-            .physics_data_context("Failed to create thread pool")?;
+        let thread_pool_manager = ThreadPoolManager::global();
         
         Ok(Self {
             config,
-            thread_pool,
+            thread_pool_manager,
             stats: CollisionStats::default(),
         })
     }
@@ -141,7 +140,7 @@ impl ParallelPhysicsSolver {
         self.stats.broad_phase_pairs = potential_pairs.len();
         
         // Check AABB intersections in parallel
-        let intersecting_pairs: Vec<_> = self.thread_pool.install(|| {
+        let intersecting_pairs: Vec<_> = self.thread_pool_manager.execute(PoolCategory::Physics, || {
             potential_pairs.par_iter()
                 .filter_map(|&(entity_a, entity_b)| {
                     let idx_a = entity_a.index();
@@ -194,7 +193,7 @@ impl ParallelPhysicsSolver {
         // Process collision pairs in parallel batches
         let batches = collision_data.prepare_parallel_batches(self.config.batch_size);
         
-        let contacts: Vec<_> = self.thread_pool.install(|| {
+        let contacts: Vec<_> = self.thread_pool_manager.execute(PoolCategory::Physics, || {
             batches.par_iter()
                 .flat_map(|&(start, end)| {
                     let mut batch_contacts = Vec::new();
@@ -308,7 +307,7 @@ impl ParallelPhysicsSolver {
         let batches = collision_data.prepare_parallel_batches(self.config.batch_size);
         
         // Collect all updates in parallel, then apply them sequentially
-        let updates: Vec<_> = self.thread_pool.install(|| {
+        let updates: Vec<_> = self.thread_pool_manager.execute(PoolCategory::Physics, || {
             batches.par_iter().flat_map(|&(start, end)| {
                 let mut batch_updates = Vec::new();
                 
@@ -426,7 +425,7 @@ impl ParallelPhysicsSolver {
         let count = physics_data.entity_count();
         
         // Collect integration updates in parallel
-        let updates: Vec<_> = self.thread_pool.install(|| {
+        let updates: Vec<_> = self.thread_pool_manager.execute(PoolCategory::Physics, || {
             (0..count).into_par_iter().filter_map(|i| {
                 if physics_data.flags[i].is_active() && physics_data.flags[i].is_dynamic() {
                     let mut vel = physics_data.velocities[i];

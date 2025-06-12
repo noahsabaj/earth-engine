@@ -1,10 +1,10 @@
 use std::sync::Arc;
 use rayon::prelude::*;
+use crate::thread_pool::{ThreadPoolManager, PoolCategory};
 use super::{SpatialQuery, QueryResult, HierarchicalGrid, entity_store::EntityStore, QueryType};
 
 /// Executes spatial queries in parallel
 pub struct ParallelQueryExecutor {
-    thread_pool: rayon::ThreadPool,
 }
 
 /// A batch of queries to execute together
@@ -22,13 +22,7 @@ pub enum QueryPriority {
 
 impl ParallelQueryExecutor {
     pub fn new(num_threads: usize) -> Self {
-        let thread_pool = rayon::ThreadPoolBuilder::new()
-            .num_threads(num_threads)
-            .thread_name(|i| format!("spatial-query-{}", i))
-            .build()
-            .expect("Failed to create query thread pool");
-            
-        Self { thread_pool }
+        Self {}
     }
     
     /// Execute a batch of queries in parallel
@@ -38,7 +32,7 @@ impl ParallelQueryExecutor {
         grid: &HierarchicalGrid,
         entity_store: &EntityStore,
     ) -> Vec<Vec<QueryResult>> {
-        self.thread_pool.install(|| {
+        ThreadPoolManager::global().execute(PoolCategory::Compute, || {
             queries
                 .par_iter()
                 .map(|query| self.execute_single(query, grid, entity_store))

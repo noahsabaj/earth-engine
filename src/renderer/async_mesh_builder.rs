@@ -2,11 +2,11 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use parking_lot::RwLock;
 use crossbeam_channel::{unbounded, bounded, Sender, Receiver};
-use rayon::{ThreadPool, ThreadPoolBuilder};
 use dashmap::DashMap;
 use crate::{
     ChunkPos, Chunk, BlockRegistry,
     renderer::{ChunkMesh, greedy_mesher::GreedyMesher},
+    thread_pool::{ThreadPoolManager, PoolCategory},
 };
 
 /// Request to build a mesh for a chunk
@@ -40,8 +40,6 @@ pub struct MeshBuildStats {
 
 /// Async mesh builder that processes mesh generation in background threads
 pub struct AsyncMeshBuilder {
-    /// Thread pool for mesh building
-    mesh_pool: Arc<ThreadPool>,
     /// Send mesh build requests
     request_sender: Sender<MeshBuildRequest>,
     request_receiver: Receiver<MeshBuildRequest>,
@@ -70,19 +68,11 @@ impl AsyncMeshBuilder {
             num_cpus::get().saturating_sub(2).max(2)
         });
         
-        // Create thread pool for mesh building
-        let mesh_pool = ThreadPoolBuilder::new()
-            .num_threads(threads)
-            .thread_name(|idx| format!("mesh-builder-{}", idx))
-            .build()
-            .expect("Failed to create mesh builder thread pool");
-        
         // Channels for communication
         let (req_send, req_recv) = unbounded();
         let (comp_send, comp_recv) = bounded(threads * 4); // Limit completed queue
         
         Self {
-            mesh_pool: Arc::new(mesh_pool),
             request_sender: req_send,
             request_receiver: req_recv,
             completed_sender: comp_send,
@@ -144,14 +134,14 @@ impl AsyncMeshBuilder {
         
         // Process requests in parallel
         if !requests.is_empty() {
-            let pool = Arc::clone(&self.mesh_pool);
             let registry = Arc::clone(&self.registry);
             let sender = self.completed_sender.clone();
             let stats = Arc::clone(&self.stats);
             let active = Arc::clone(&self.active_builds);
             let chunk_size = self.chunk_size;
             
-            pool.spawn(move || {
+            ThreadPoolManager::global().spawn(PoolCategory::MeshBuilding, move || {
+                use rayon::prelude::*;
                 requests.into_par_iter().for_each(|request| {
                     let start_time = Instant::now();
                     

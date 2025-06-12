@@ -5,7 +5,7 @@ use parking_lot::RwLock;
 use dashmap::DashMap;
 use rayon::prelude::*;
 use cgmath::Point3;
-use crossbeam_channel::{unbounded, Sender, Receiver};
+use crossbeam_channel::{bounded, Sender, Receiver};
 use crate::{Chunk, ChunkPos, VoxelPos, BlockId};
 use super::generation::WorldGenerator;
 
@@ -52,8 +52,11 @@ pub struct ParallelChunkManager {
 
 impl ParallelChunkManager {
     pub fn new(view_distance: i32, chunk_size: u32, generator: Box<dyn WorldGenerator>) -> Self {
-        let (gen_sender, gen_receiver) = unbounded();
-        let (comp_sender, comp_receiver) = unbounded();
+        // Use bounded channels to prevent memory issues
+        // Queue size is based on view distance - allow up to 2x the visible chunks
+        let max_queue_size = ((view_distance * 2 + 1).pow(3) * 2).max(1000) as usize;
+        let (gen_sender, gen_receiver) = bounded(max_queue_size);
+        let (comp_sender, comp_receiver) = bounded(max_queue_size);
         
         Self {
             chunks: Arc::new(DashMap::new()),
@@ -79,6 +82,13 @@ impl ParallelChunkManager {
     /// Get current batch size
     pub fn get_batch_size(&self) -> usize {
         self.batch_size
+    }
+    
+    /// Set view distance
+    pub fn set_view_distance(&self, view_distance: i32) {
+        // For now, we can't change the view distance of an immutable reference
+        // This would need to be changed to &mut self or use interior mutability
+        log::warn!("set_view_distance called but ParallelChunkManager view distance is immutable");
     }
     
     /// Get the number of chunks waiting in the generation queue
@@ -135,7 +145,14 @@ impl ParallelChunkManager {
         // Only queue a limited number of requests to avoid overwhelming the system
         let max_new_requests = self.batch_size * 2; // Allow queuing up to 2x batch size
         for request in generation_requests.into_iter().take(max_new_requests) {
-            let _ = self.generation_sender.send(request);
+            // Use try_send to avoid blocking if channel is full
+            match self.generation_sender.try_send(request) {
+                Ok(_) => {},
+                Err(e) => {
+                    log::debug!("[ParallelChunkManager] Generation queue full, skipping chunk: {:?}", e);
+                    break;
+                }
+            }
         }
         
         // Process completed chunks with a limit to avoid frame stalls
@@ -196,7 +213,10 @@ impl ParallelChunkManager {
             let chunk = generator.generate_chunk(request.chunk_pos, chunk_size);
             
             let generation_time = start_time.elapsed();
-            let _ = sender.send((request.chunk_pos, chunk, generation_time));
+            // Use try_send to avoid blocking
+            if let Err(e) = sender.try_send((request.chunk_pos, chunk, generation_time)) {
+                log::debug!("[ParallelChunkManager] Completed queue full, dropping chunk: {:?}", e);
+            }
         });
     }
     
@@ -365,13 +385,50 @@ impl ParallelChunkManager {
             })
             .collect();
         
-        // Send all requests
-        for request in requests {
-            let _ = self.generation_sender.send(request);
-        }
+        // Generate all chunks directly in parallel for faster startup
+        let chunk_size = self.chunk_size;
+        let generator = Arc::clone(&self.generator);
+        let sender = self.completed_sender.clone();
         
-        // Process immediately
-        self.process_generation_queue();
+        requests.par_iter().for_each(|request| {
+            let start_time = Instant::now();
+            let chunk = generator.generate_chunk(request.chunk_pos, chunk_size);
+            let generation_time = start_time.elapsed();
+            // Use try_send to avoid blocking
+            if let Err(e) = sender.try_send((request.chunk_pos, chunk, generation_time)) {
+                log::debug!("[ParallelChunkManager] Completed queue full, dropping chunk: {:?}", e);
+            }
+        });
+    }
+    
+    /// Queue a single chunk for generation with explicit priority
+    pub fn queue_chunk_generation(&self, chunk_pos: ChunkPos, priority: i32) {
+        if !self.is_chunk_loaded(chunk_pos) {
+            let request = GenerationRequest {
+                chunk_pos,
+                priority,
+            };
+            // Try to send, but don't block if channel is full
+            let _ = self.generation_sender.try_send(request);
+        }
+    }
+    
+    /// Pregenerate a batch of chunks
+    pub fn pregenerate_chunks_batch(&self, chunks: &[ChunkPos]) {
+        let chunk_size = self.chunk_size;
+        let generator = Arc::clone(&self.generator);
+        let sender = self.completed_sender.clone();
+        
+        // Generate chunks in parallel
+        chunks.par_iter().for_each(|&chunk_pos| {
+            if !self.is_chunk_loaded(chunk_pos) {
+                let start_time = Instant::now();
+                let chunk = generator.generate_chunk(chunk_pos, chunk_size);
+                let generation_time = start_time.elapsed();
+                // Try to send, but don't panic if channel is full
+                let _ = sender.try_send((chunk_pos, chunk, generation_time));
+            }
+        });
     }
 }
 

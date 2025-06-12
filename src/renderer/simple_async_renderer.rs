@@ -180,12 +180,14 @@ impl SimpleAsyncRenderer {
     }
     
     /// Render visible chunks with frustum culling
+    /// Returns the number of chunks rendered
     pub fn render<'a>(
         &'a self,
         render_pass: &mut wgpu::RenderPass<'a>,
         camera: &Camera,
-    ) {
+    ) -> usize {
         let view_proj = camera.build_projection_matrix() * camera.build_view_matrix();
+        let mut chunks_rendered = 0;
         
         for (chunk_pos, gpu_mesh) in &self.gpu_meshes {
             // Calculate chunk bounds
@@ -222,9 +224,12 @@ impl SimpleAsyncRenderer {
                     render_pass.set_vertex_buffer(0, gpu_mesh.vertex_buffer.slice(..));
                     render_pass.set_index_buffer(gpu_mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
                     render_pass.draw_indexed(0..gpu_mesh.num_indices, 0, 0..1);
+                    chunks_rendered += 1;
                 }
             }
         }
+        
+        chunks_rendered
     }
     
     /// Get total number of GPU meshes

@@ -3,11 +3,11 @@ use std::collections::{VecDeque, HashSet};
 use std::time::{Duration, Instant};
 use parking_lot::{RwLock, Mutex};
 use crossbeam_channel::{unbounded, bounded, Sender, Receiver};
-use rayon::{ThreadPool, ThreadPoolBuilder};
 use dashmap::DashMap;
 use crate::{
     world::{ChunkPos, VoxelPos, BlockId},
     lighting::{LightLevel, LightType, MAX_LIGHT_LEVEL, LIGHT_FALLOFF},
+    thread_pool::{ThreadPoolManager, PoolCategory},
 };
 
 /// Light update request
@@ -98,8 +98,6 @@ pub struct LightingStats {
 
 /// Parallel light propagation system
 pub struct ParallelLightPropagator {
-    /// Thread pool for light calculations
-    light_pool: Arc<ThreadPool>,
     /// Light update queue
     update_sender: Sender<LightUpdate>,
     update_receiver: Receiver<LightUpdate>,
@@ -135,20 +133,9 @@ impl ParallelLightPropagator {
         chunk_size: u32,
         thread_count: Option<usize>,
     ) -> Self {
-        let threads = thread_count.unwrap_or_else(|| {
-            num_cpus::get().saturating_sub(2).max(2)
-        });
-        
-        let light_pool = ThreadPoolBuilder::new()
-            .num_threads(threads)
-            .thread_name(|idx| format!("light-prop-{}", idx))
-            .build()
-            .expect("Failed to create light propagation thread pool");
-        
         let (update_send, update_recv) = unbounded();
         
         Self {
-            light_pool: Arc::new(light_pool),
             update_sender: update_send,
             update_receiver: update_recv,
             chunk_lights: Arc::new(DashMap::new()),
@@ -223,14 +210,15 @@ impl ParallelLightPropagator {
         let total_updates = count;
         
         // Process each chunk's updates in parallel
-        let pool = Arc::clone(&self.light_pool);
         let chunk_lights = Arc::clone(&self.chunk_lights);
         let block_provider = Arc::clone(&self.block_provider);
         let active_jobs = Arc::clone(&self.active_jobs);
         let chunk_size = self.chunk_size;
         let stats = Arc::clone(&self.stats);
         
-        pool.scope(|s| {
+        ThreadPoolManager::global().execute(PoolCategory::Lighting, || {
+            use rayon::prelude::*;
+            rayon::scope(|s| {
             for (chunk_pos, updates) in updates_by_chunk {
                 let chunk_lights = Arc::clone(&chunk_lights);
                 let block_provider = Arc::clone(&block_provider);
@@ -268,6 +256,7 @@ impl ParallelLightPropagator {
                     );
                 });
             }
+            });
         });
         
         // Collect boundary updates from all jobs and requeue them

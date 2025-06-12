@@ -4,6 +4,11 @@ use web_sys::HtmlCanvasElement;
 use wgpu::{Adapter, Device, Queue, Surface, SurfaceConfiguration};
 use crate::web::WebError;
 
+#[cfg(target_arch = "wasm32")]
+use instant::Instant;
+#[cfg(not(target_arch = "wasm32"))]
+use std::time::Instant;
+
 /// Configuration for WebGPU initialization
 #[derive(Debug, Clone)]
 pub struct WebGpuConfig {
@@ -49,41 +54,104 @@ impl WebGpuContext {
         canvas: &HtmlCanvasElement,
         config: WebGpuConfig,
     ) -> Result<Self, WebError> {
-        log::info!("Initializing WebGPU context");
+        log::info!("[WebGpuContext] Initializing WebGPU context");
+        let init_start = Instant::now();
         
-        // WebGPU support will be checked by wgpu instance
+        // Check WebGPU support first
+        let window = web_sys::window().ok_or(WebError::JsError("No window object".to_string()))?;
+        let navigator = window.navigator();
+        
+        // Log GPU capabilities
+        if let Ok(gpu) = js_sys::Reflect::get(&navigator, &"gpu".into()) {
+            if !gpu.is_undefined() {
+                log::info!("[WebGpuContext] WebGPU API is available");
+            } else {
+                log::warn!("[WebGpuContext] WebGPU API not available, will fall back to WebGL");
+            }
+        }
         
         // Create WGPU instance with WebGL fallback
+        log::info!("[WebGpuContext] Creating WGPU instance...");
+        let instance_start = Instant::now();
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::BROWSER_WEBGPU | wgpu::Backends::GL,
             dx12_shader_compiler: Default::default(),
         });
+        let instance_time = instance_start.elapsed();
+        log::info!("[WebGpuContext] WGPU instance created in {:?}", instance_time);
         
-        // Create surface from canvas
+        // Create surface from canvas with error diagnostics
+        log::info!("[WebGpuContext] Creating surface from canvas...");
+        let surface_start = Instant::now();
+        
         // SAFETY: Creating a surface from a canvas is platform-specific but safe
         // - The canvas is a valid HTMLCanvasElement from the DOM
         // - The canvas will outlive the surface due to Arc reference counting
         // - wgpu handles the platform-specific WebGPU/WebGL context creation
         // - No raw pointers or memory unsafety involved
         let surface = unsafe {
-            instance.create_surface_from_canvas(canvas.clone())
-                .map_err(|e| WebError::JsError(format!("Failed to create surface: {:?}", e)))?
+            match instance.create_surface_from_canvas(canvas.clone()) {
+                Ok(surf) => {
+                    let surface_time = surface_start.elapsed();
+                    log::info!("[WebGpuContext] Surface created successfully in {:?}", surface_time);
+                    surf
+                }
+                Err(e) => {
+                    log::error!("[WebGpuContext] Failed to create surface: {:?}", e);
+                    log::error!("[WebGpuContext] This may be due to:");
+                    log::error!("[WebGpuContext] - Canvas not attached to DOM");
+                    log::error!("[WebGpuContext] - Browser WebGPU/WebGL support issues");
+                    log::error!("[WebGpuContext] - Canvas context already in use");
+                    return Err(WebError::JsError(format!("Surface creation failed: {:?}", e)));
+                }
+            }
         };
         
-        // Request adapter
-        let adapter = instance
-            .request_adapter(&wgpu::RequestAdapterOptions {
-                power_preference: config.power_preference,
-                force_fallback_adapter: false,
-                compatible_surface: Some(&surface),
-            })
-            .await
-            .ok_or(WebError::AdapterError)?;
+        // Request adapter with timeout and fallback
+        log::info!("[WebGpuContext] Requesting GPU adapter...");
+        let adapter_start = Instant::now();
         
-        log::info!("Got adapter: {:?}", adapter.get_info());
+        // Try with requested power preference first
+        let mut adapter_options = wgpu::RequestAdapterOptions {
+            power_preference: config.power_preference,
+            force_fallback_adapter: false,
+            compatible_surface: Some(&surface),
+        };
         
-        // Request device and queue
-        let (device, queue) = adapter
+        let adapter = match instance.request_adapter(&adapter_options).await {
+            Some(adapter) => {
+                let adapter_time = adapter_start.elapsed();
+                let info = adapter.get_info();
+                log::info!("[WebGpuContext] Adapter found in {:?}", adapter_time);
+                log::info!("[WebGpuContext] Adapter: {} ({:?})", info.name, info.device_type);
+                log::info!("[WebGpuContext] Backend: {:?}", info.backend);
+                adapter
+            }
+            None => {
+                log::warn!("[WebGpuContext] No adapter found with preference {:?}, trying fallback", config.power_preference);
+                
+                // Try fallback adapter
+                adapter_options.force_fallback_adapter = true;
+                match instance.request_adapter(&adapter_options).await {
+                    Some(adapter) => {
+                        let info = adapter.get_info();
+                        log::warn!("[WebGpuContext] Using fallback adapter: {}", info.name);
+                        adapter
+                    }
+                    None => {
+                        log::error!("[WebGpuContext] No GPU adapter found!");
+                        log::error!("[WebGpuContext] This browser may not support WebGPU/WebGL");
+                        return Err(WebError::AdapterError);
+                    }
+                }
+            }
+        };
+        
+        // Request device and queue with error handling
+        log::info!("[WebGpuContext] Requesting device...");
+        let device_start = Instant::now();
+        
+        let (device, queue) = match adapter
             .request_device(
                 &wgpu::DeviceDescriptor {
                     label: Some("WebGPU Device"),
@@ -93,7 +161,25 @@ impl WebGpuContext {
                 None,
             )
             .await
-            .map_err(|e| WebError::DeviceError)?;
+        {
+            Ok((dev, q)) => {
+                let device_time = device_start.elapsed();
+                log::info!("[WebGpuContext] Device created successfully in {:?}", device_time);
+                
+                // Set up device error handler
+                dev.on_uncaptured_error(Box::new(|error| {
+                    web_sys::console::error_1(&format!("[WebGPU] Uncaptured device error: {:?}", error).into());
+                }));
+                
+                (dev, q)
+            }
+            Err(e) => {
+                log::error!("[WebGpuContext] Failed to create device: {:?}", e);
+                log::error!("[WebGpuContext] Requested features: {:?}", config.required_features);
+                log::error!("[WebGpuContext] Requested limits: {:?}", config.required_limits);
+                return Err(WebError::DeviceError);
+            }
+        };
         
         // Configure surface
         let surface_caps = surface.get_capabilities(&adapter);
@@ -117,7 +203,9 @@ impl WebGpuContext {
         
         surface.configure(&device, &surface_config);
         
-        log::info!("WebGPU context initialized successfully");
+        let total_time = init_start.elapsed();
+        log::info!("[WebGpuContext] WebGPU context initialized successfully in {:?}", total_time);
+        log::info!("[WebGpuContext] Using backend: {:?}", adapter.get_info().backend);
         
         Ok(Self {
             device,

@@ -1,12 +1,48 @@
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 use std::collections::HashSet;
 use parking_lot::RwLock;
 use cgmath::Point3;
-use rayon::{ThreadPool, ThreadPoolBuilder};
 use crate::{BlockId, VoxelPos, ChunkPos};
 use crate::world::WorldInterface;
+use crate::thread_pool::{ThreadPoolManager, PoolCategory};
 use super::{ParallelChunkManager, WorldGenerator, GenerationStats};
+
+/// Handle for tracking spawn area generation progress
+#[derive(Clone)]
+pub struct SpawnGenerationHandle {
+    pub total_chunks: usize,
+    pub chunks_generated: Arc<AtomicUsize>,
+    pub is_complete: Arc<AtomicBool>,
+    pub start_time: Instant,
+}
+
+impl SpawnGenerationHandle {
+    /// Check if generation is complete
+    pub fn is_complete(&self) -> bool {
+        self.is_complete.load(Ordering::Relaxed)
+    }
+    
+    /// Get number of chunks generated so far
+    pub fn chunks_generated(&self) -> usize {
+        self.chunks_generated.load(Ordering::Relaxed)
+    }
+    
+    /// Get progress as a percentage
+    pub fn progress_percent(&self) -> f32 {
+        if self.total_chunks == 0 {
+            100.0
+        } else {
+            (self.chunks_generated() as f32 / self.total_chunks as f32) * 100.0
+        }
+    }
+    
+    /// Get elapsed time since generation started
+    pub fn elapsed(&self) -> Duration {
+        self.start_time.elapsed()
+    }
+}
 
 /// Configuration for parallel world processing
 #[derive(Debug, Clone)]
@@ -36,12 +72,24 @@ impl Default for ParallelWorldConfig {
     }
 }
 
+impl ParallelWorldConfig {
+    /// Create config from engine config to ensure consistency
+    pub fn from_engine_config(engine_config: &crate::EngineConfig) -> Self {
+        let cpu_count = num_cpus::get();
+        Self {
+            generation_threads: cpu_count.saturating_sub(2).max(2),
+            mesh_threads: cpu_count.saturating_sub(2).max(2),
+            chunks_per_frame: cpu_count * 2,
+            view_distance: engine_config.render_distance as i32,
+            chunk_size: engine_config.chunk_size,
+        }
+    }
+}
+
 /// High-performance parallel world implementation
 pub struct ParallelWorld {
     /// Parallel chunk manager
     chunk_manager: Arc<ParallelChunkManager>,
-    /// Generation thread pool
-    generation_pool: ThreadPool,
     /// Configuration
     config: ParallelWorldConfig,
     /// Performance metrics
@@ -51,13 +99,6 @@ pub struct ParallelWorld {
 
 impl ParallelWorld {
     pub fn new(generator: Box<dyn WorldGenerator>, config: ParallelWorldConfig) -> Self {
-        // Create generation thread pool
-        let generation_pool = ThreadPoolBuilder::new()
-            .num_threads(config.generation_threads)
-            .thread_name(|idx| format!("world-gen-{}", idx))
-            .build()
-            .expect("Failed to create generation thread pool");
-        
         let chunk_manager = Arc::new(ParallelChunkManager::new(
             config.view_distance,
             config.chunk_size,
@@ -66,7 +107,6 @@ impl ParallelWorld {
         
         Self {
             chunk_manager,
-            generation_pool,
             config,
             last_update_time: Arc::new(RwLock::new(Instant::now())),
             frame_times: Arc::new(RwLock::new(Vec::with_capacity(120))),
@@ -84,7 +124,7 @@ impl ParallelWorld {
         let manager = Arc::clone(&self.chunk_manager);
         let max_chunks = self.config.chunks_per_frame;
         
-        self.generation_pool.spawn(move || {
+        ThreadPoolManager::global().spawn(PoolCategory::WorldGeneration, move || {
             // Process up to max_chunks per frame
             for _ in 0..max_chunks {
                 manager.process_generation_queue();
@@ -105,32 +145,154 @@ impl ParallelWorld {
     }
     
     /// Pregenerate spawn area for smooth start
-    pub fn pregenerate_spawn_area(&self, spawn_pos: Point3<f32>, radius: i32) {
+    /// This function is non-blocking and uses progressive generation to avoid freezes
+    pub fn pregenerate_spawn_area(&self, spawn_pos: Point3<f32>, radius: i32) -> Result<SpawnGenerationHandle, String> {
+        log::info!("[ParallelWorld] Starting spawn area pregeneration at {:?}, radius {}", spawn_pos, radius);
+        
+        // Limit radius to prevent excessive memory usage
+        let effective_radius = radius.min(4); // Max 4 chunks in each direction
+        if radius > effective_radius {
+            log::warn!("[ParallelWorld] Spawn radius reduced from {} to {} to prevent memory issues", radius, effective_radius);
+        }
+        
         let spawn_chunk = ChunkPos::new(
             (spawn_pos.x / self.config.chunk_size as f32).floor() as i32,
             (spawn_pos.y / self.config.chunk_size as f32).floor() as i32,
             (spawn_pos.z / self.config.chunk_size as f32).floor() as i32,
         );
         
-        println!("Pregenerating {} chunks around spawn...", 
-            (2 * radius + 1).pow(3));
+        // Calculate actual number of chunks in a sphere (more accurate)
+        let mut chunk_positions = Vec::new();
+        for dx in -effective_radius..=effective_radius {
+            for dy in -effective_radius..=effective_radius {
+                for dz in -effective_radius..=effective_radius {
+                    let distance_sq = dx * dx + dy * dy + dz * dz;
+                    // Use floating point for more accurate sphere calculation
+                    let radius_sq = effective_radius as f32 * effective_radius as f32;
+                    if (distance_sq as f32) <= radius_sq {
+                        chunk_positions.push(ChunkPos::new(
+                            spawn_chunk.x + dx,
+                            spawn_chunk.y + dy,
+                            spawn_chunk.z + dz,
+                        ));
+                    }
+                }
+            }
+        }
+        
+        let expected_chunks = chunk_positions.len();
+        log::info!("[ParallelWorld] Pregenerating {} chunks around spawn (radius: {})", expected_chunks, effective_radius);
         
         let start_time = Instant::now();
-        self.chunk_manager.pregenerate_chunks(spawn_chunk, radius);
+        let initial_count = self.chunk_manager.loaded_chunk_count();
         
-        // Wait for generation to complete
-        while self.chunk_manager.loaded_chunk_count() < (2 * radius + 1).pow(3) as usize {
-            self.generation_pool.spawn({
-                let manager = Arc::clone(&self.chunk_manager);
-                move || {
-                    manager.process_generation_queue();
-                }
+        // Create handle for tracking progress
+        let handle = SpawnGenerationHandle {
+            total_chunks: expected_chunks,
+            chunks_generated: Arc::new(AtomicUsize::new(0)),
+            is_complete: Arc::new(AtomicBool::new(false)),
+            start_time,
+        };
+        
+        // Start non-blocking generation
+        let manager = Arc::clone(&self.chunk_manager);
+        let chunks_generated = Arc::clone(&handle.chunks_generated);
+        let is_complete = Arc::clone(&handle.is_complete);
+        
+        // Use the thread pool to process chunks in batches
+        ThreadPoolManager::global().spawn(PoolCategory::WorldGeneration, move || {
+            log::debug!("[ParallelWorld] Starting progressive spawn chunk generation");
+            
+            // Process chunks in priority order (closest to spawn first)
+            let mut sorted_positions = chunk_positions;
+            sorted_positions.sort_by_key(|pos| {
+                let dx = pos.x - spawn_chunk.x;
+                let dy = pos.y - spawn_chunk.y;
+                let dz = pos.z - spawn_chunk.z;
+                dx * dx + dy * dy + dz * dz
             });
+            
+            // Generate chunks in small batches to avoid overwhelming the system
+            const BATCH_SIZE: usize = 8;
+            for batch in sorted_positions.chunks(BATCH_SIZE) {
+                // Check if any chunks in this batch need generation
+                let chunks_to_generate: Vec<_> = batch
+                    .iter()
+                    .filter(|pos| !manager.is_chunk_loaded(**pos))
+                    .cloned()
+                    .collect();
+                
+                if !chunks_to_generate.is_empty() {
+                    // Queue generation requests with priority
+                    for (idx, chunk_pos) in chunks_to_generate.iter().enumerate() {
+                        manager.queue_chunk_generation(*chunk_pos, idx as i32);
+                    }
+                    
+                    // Process the generation queue
+                    for _ in 0..chunks_to_generate.len() {
+                        manager.process_generation_queue();
+                        std::thread::sleep(Duration::from_millis(10));
+                    }
+                }
+                
+                // Update progress
+                let current_generated = manager.loaded_chunk_count().saturating_sub(initial_count);
+                chunks_generated.store(current_generated, Ordering::Relaxed);
+                
+                // Log progress
+                if current_generated % 10 == 0 || current_generated == expected_chunks {
+                    log::debug!("[ParallelWorld] Spawn generation progress: {}/{} chunks", 
+                              current_generated, expected_chunks);
+                }
+                
+                // Yield to other threads
+                std::thread::yield_now();
+            }
+            
+            // Mark as complete
+            is_complete.store(true, Ordering::Relaxed);
+            let final_count = manager.loaded_chunk_count().saturating_sub(initial_count);
+            let elapsed = start_time.elapsed();
+            
+            log::info!("[ParallelWorld] Spawn pregeneration complete: {} chunks in {:.2}s", 
+                      final_count, elapsed.as_secs_f32());
+        });
+        
+        Ok(handle)
+    }
+    
+    /// Pregenerate spawn area synchronously (blocking)
+    /// Use this only during initial world setup
+    pub fn pregenerate_spawn_area_blocking(&self, spawn_pos: Point3<f32>, radius: i32) -> Result<(), String> {
+        let handle = self.pregenerate_spawn_area(spawn_pos, radius)?;
+        
+        // Wait for completion with timeout
+        let timeout = Duration::from_secs(10); // Reduced timeout for smaller radius
+        let start = Instant::now();
+        let mut last_log = Instant::now();
+        
+        while !handle.is_complete() {
+            if start.elapsed() > timeout {
+                return Err(format!("Spawn generation timed out after {} seconds", timeout.as_secs()));
+            }
+            
+            // Help process the queue
+            self.chunk_manager.process_generation_queue();
+            
+            // Log progress periodically
+            if last_log.elapsed() > Duration::from_secs(1) {
+                log::info!("[ParallelWorld] Spawn generation progress: {:.1}% ({}/{} chunks)", 
+                          handle.progress_percent(), 
+                          handle.chunks_generated(), 
+                          handle.total_chunks);
+                last_log = Instant::now();
+            }
+            
             std::thread::sleep(Duration::from_millis(10));
         }
         
-        let elapsed = start_time.elapsed();
-        println!("Pregeneration complete in {:.2}s", elapsed.as_secs_f32());
+        log::info!("[ParallelWorld] Spawn generation completed in {:.2}s", handle.elapsed().as_secs_f32());
+        Ok(())
     }
     
     /// Get world performance metrics

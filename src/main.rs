@@ -69,12 +69,22 @@ impl Game for EarthGame {
 }
 
 fn main() {
-    println!("Starting Earth Engine...");
+    println!("[MAIN] Starting Earth Engine...");
+    
+    // Initialize logging first so we can see what's happening
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("debug"))
+        .format_timestamp_millis()
+        .init();
+    
+    log::info!("[MAIN] Logger initialized");
     
     // Install panic handler for telemetry
+    log::info!("[MAIN] Installing panic handler...");
     earth_engine::panic_handler::install_panic_handler();
+    log::info!("[MAIN] Panic handler installed");
     
     // Create engine with default config
+    log::info!("[MAIN] Creating engine config...");
     let config = EngineConfig {
         window_title: "Earth Engine".to_string(),
         window_width: 1280,
@@ -82,12 +92,28 @@ fn main() {
         chunk_size: 32,
         render_distance: 8,
     };
+    log::info!("[MAIN] Engine config created: {:?}", config);
     
+    log::info!("[MAIN] Creating Engine instance...");
     let engine = Engine::new(config);
+    log::info!("[MAIN] Engine instance created");
+    
+    log::info!("[MAIN] Creating game instance...");
     let game = EarthGame::new();
+    log::info!("[MAIN] Game instance created");
     
     // Run the game
-    if let Err(e) = engine.run(game) {
-        log::error!("Engine error: {}", e);
+    log::info!("[MAIN] Starting game loop...");
+    match engine.run(game) {
+        Ok(_) => {
+            log::info!("[MAIN] Game loop exited normally");
+        }
+        Err(e) => {
+            log::error!("[MAIN] Engine error: {}", e);
+            eprintln!("[MAIN] Fatal error: {}", e);
+            std::process::exit(1);
+        }
     }
+    
+    log::info!("[MAIN] Application exiting normally");
 }

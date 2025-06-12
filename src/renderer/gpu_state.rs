@@ -1,7 +1,7 @@
 use crate::{Camera, EngineConfig, Game, GameContext, BlockRegistry, BlockId, VoxelPos};
 use crate::input::InputState;
 use crate::physics::{PhysicsWorld, PlayerBody, MovementState, PhysicsBody};
-use crate::renderer::{SelectionRenderer, SimpleAsyncRenderer};
+use crate::renderer::{SelectionRenderer, SimpleAsyncRenderer, GpuDiagnostics, GpuInitProgress};
 use crate::world::{Ray, RaycastHit, ParallelWorld, ParallelWorldConfig};
 use crate::lighting::{DayNightCycle, LightPropagator};
 use anyhow::Result;
@@ -174,63 +174,270 @@ pub struct GpuState {
     // Lighting
     day_night_cycle: DayNightCycle,
     light_propagator: LightPropagator,
+    // Loading state
+    first_chunks_loaded: bool,
+    frames_rendered: u32,
+    init_time: std::time::Instant,
 }
 
 impl GpuState {
     async fn new(window: Arc<Window>) -> Result<Self> {
+        log::info!("[GpuState::new] Starting GPU initialization");
+        let init_start = std::time::Instant::now();
+        let progress = GpuInitProgress::new();
+        
         let size = window.inner_size();
+        log::debug!("[GpuState::new] Window size: {}x{}", size.width, size.height);
 
-        // Create wgpu instance
+        // Create wgpu instance with timeout and diagnostics
+        log::info!("[GpuState::new] Creating WGPU instance...");
+        log::info!("[GpuState::new] Available backends: {:?}", wgpu::Backends::all());
+        
+        let instance_start = std::time::Instant::now();
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
             ..Default::default()
         });
+        let instance_time = instance_start.elapsed();
+        log::info!("[GpuState::new] WGPU instance created in {:?}", instance_time);
+        
+        // Run comprehensive GPU diagnostics
+        log::info!("[GpuState::new] Running GPU diagnostics...");
+        let diagnostics_report = GpuDiagnostics::run_diagnostics(&instance).await;
+        diagnostics_report.print_report();
 
-        // Create surface
-        let surface = instance.create_surface(window.clone())?;
+        // Create surface with detailed error handling
+        log::info!("[GpuState::new] Creating surface...");
+        let surface_start = std::time::Instant::now();
+        let surface = match instance.create_surface(window.clone()) {
+            Ok(surf) => {
+                let surface_time = surface_start.elapsed();
+                log::info!("[GpuState::new] Surface created successfully in {:?}", surface_time);
+                surf
+            }
+            Err(e) => {
+                log::error!("[GpuState::new] Failed to create surface: {}", e);
+                log::error!("[GpuState::new] This may be due to:");
+                log::error!("[GpuState::new] - X11/Wayland display not available");
+                log::error!("[GpuState::new] - WSL GPU passthrough not configured");
+                log::error!("[GpuState::new] - Missing window system integration");
+                return Err(anyhow::anyhow!("Surface creation failed: {}", e));
+            }
+        };
 
-        // Request adapter
-        let adapter = instance
-            .request_adapter(&wgpu::RequestAdapterOptions {
-                power_preference: wgpu::PowerPreference::default(),
-                compatible_surface: Some(&surface),
-                force_fallback_adapter: false,
-            })
-            .await
-            .ok_or_else(|| anyhow::anyhow!("Failed to find adapter"))?;
+        // Request adapter with timeout and fallback options
+        log::info!("[GpuState::new] Requesting GPU adapter...");
+        let adapter_start = std::time::Instant::now();
+        
+        // Try high performance first
+        let mut adapter_options = wgpu::RequestAdapterOptions {
+            power_preference: wgpu::PowerPreference::HighPerformance,
+            compatible_surface: Some(&surface),
+            force_fallback_adapter: false,
+        };
+        
+        log::info!("[GpuState::new] Trying high-performance adapter...");
+        let adapter_future = instance.request_adapter(&adapter_options);
+        
+        // Use timeout for adapter request (if available)
+        let adapter_timeout = std::time::Duration::from_secs(10);
+        
+        #[cfg(feature = "native")]
+        let adapter_result = tokio::time::timeout(adapter_timeout, adapter_future).await;
+        
+        #[cfg(not(feature = "native"))]
+        let adapter_result = Ok(adapter_future.await);
+        
+        let adapter = match adapter_result {
+            Ok(Some(adapter)) => {
+                let adapter_time = adapter_start.elapsed();
+                let info = adapter.get_info();
+                log::info!("[GpuState::new] GPU adapter found in {:?}", adapter_time);
+                log::info!("[GpuState::new] Adapter: {} ({:?})", info.name, info.device_type);
+                log::info!("[GpuState::new] Backend: {:?}", info.backend);
+                log::info!("[GpuState::new] Vendor: 0x{:04x}, Device: 0x{:04x}", info.vendor, info.device);
+                adapter
+            }
+            Ok(None) => {
+                log::warn!("[GpuState::new] No high-performance adapter found, trying low power...");
+                
+                // Try low power adapter
+                adapter_options.power_preference = wgpu::PowerPreference::LowPower;
+                match instance.request_adapter(&adapter_options).await {
+                    Some(adapter) => {
+                        let info = adapter.get_info();
+                        log::info!("[GpuState::new] Low-power adapter found: {}", info.name);
+                        adapter
+                    }
+                    None => {
+                        log::warn!("[GpuState::new] No low-power adapter found, trying fallback...");
+                        
+                        // Try fallback adapter
+                        adapter_options.force_fallback_adapter = true;
+                        match instance.request_adapter(&adapter_options).await {
+                            Some(adapter) => {
+                                let info = adapter.get_info();
+                                log::warn!("[GpuState::new] Using fallback adapter: {}", info.name);
+                                adapter
+                            }
+                            None => {
+                                log::error!("[GpuState::new] No suitable GPU adapter found!");
+                                log::error!("[GpuState::new] Tried: high-performance, low-power, and fallback adapters");
+                                log::error!("[GpuState::new] This might be due to:");
+                                log::error!("[GpuState::new] - No GPU available or GPU drivers not installed");
+                                log::error!("[GpuState::new] - Running in WSL without GPU passthrough");
+                                log::error!("[GpuState::new] - Incompatible graphics backend");
+                                return Err(anyhow::anyhow!("No GPU adapter available"));
+                            }
+                        }
+                    }
+                }
+            }
+            #[cfg(feature = "native")]
+            Err(_) => {
+                log::error!("[GpuState::new] Adapter request timed out after {:?}", adapter_timeout);
+                log::error!("[GpuState::new] This indicates a serious GPU initialization issue");
+                return Err(anyhow::anyhow!("GPU adapter request timed out"));
+            }
+            #[cfg(not(feature = "native"))]
+            _ => unreachable!("Timeout not possible without tokio")
+        };
+        
+        // Validate adapter capabilities
+        log::info!("[GpuState::new] Validating adapter capabilities...");
+        let validation_result = GpuDiagnostics::validate_capabilities(&adapter);
+        validation_result.print_results();
+        
+        if !validation_result.is_valid {
+            log::error!("[GpuState::new] GPU validation failed!");
+            return Err(anyhow::anyhow!("GPU does not meet minimum requirements"));
+        }
 
-        // Create device and queue
-        let (device, queue) = adapter
-            .request_device(
-                &wgpu::DeviceDescriptor {
-                    required_features: wgpu::Features::empty(),
-                    required_limits: wgpu::Limits::default(),
-                    label: None,
-                },
-                None,
-            )
-            .await?;
+        // Create device and queue with timeout and validation
+        log::info!("[GpuState::new] Requesting GPU device...");
+        let device_start = std::time::Instant::now();
+        
+        // Use conservative limits for better compatibility
+        let mut limits = wgpu::Limits::downlevel_webgl2_defaults();
+        // Increase some limits if supported
+        let adapter_limits = adapter.limits();
+        limits.max_texture_dimension_2d = limits.max_texture_dimension_2d.min(adapter_limits.max_texture_dimension_2d);
+        limits.max_buffer_size = limits.max_buffer_size.min(adapter_limits.max_buffer_size);
+        
+        log::info!("[GpuState::new] Requesting device with limits: max_texture_2d={}, max_buffer_size={}", 
+                  limits.max_texture_dimension_2d, limits.max_buffer_size);
+        
+        let device_future = adapter.request_device(
+            &wgpu::DeviceDescriptor {
+                required_features: wgpu::Features::empty(),
+                required_limits: limits,
+                label: Some("Earth Engine Device"),
+            },
+            None,
+        );
+        
+        let device_timeout = std::time::Duration::from_secs(10);
+        
+        #[cfg(feature = "native")]
+        let device_result = tokio::time::timeout(device_timeout, device_future).await;
+        
+        #[cfg(not(feature = "native"))]
+        let device_result = Ok(device_future.await);
+        
+        let (device, queue) = match device_result {
+            Ok(Ok((dev, q))) => {
+                let device_time = device_start.elapsed();
+                log::info!("[GpuState::new] GPU device created successfully in {:?}", device_time);
+                
+                // Set up device error handler
+                dev.on_uncaptured_error(Box::new(|error| {
+                    log::error!("[GPU] Uncaptured device error: {:?}", error);
+                    match error {
+                        wgpu::Error::OutOfMemory { .. } => {
+                            log::error!("[GPU] Out of GPU memory! Try reducing texture sizes or buffer allocations.");
+                        }
+                        wgpu::Error::Validation { description, .. } => {
+                            log::error!("[GPU] Validation error: {}", description);
+                        }
+                        _ => {}
+                    }
+                }));
+                
+                // Run GPU operation tests
+                log::info!("[GpuState::new] Testing GPU operations...");
+                let test_results = GpuDiagnostics::test_gpu_operations(&dev).await;
+                test_results.print_results();
+                
+                (dev, q)
+            }
+            Ok(Err(e)) => {
+                log::error!("[GpuState::new] Failed to create GPU device: {}", e);
+                log::error!("[GpuState::new] This may be due to:");
+                log::error!("[GpuState::new] - Requested features/limits not supported");
+                log::error!("[GpuState::new] - GPU driver issues");
+                log::error!("[GpuState::new] - Out of GPU memory");
+                return Err(anyhow::anyhow!("Device creation failed: {}", e));
+            }
+            #[cfg(feature = "native")]
+            Err(_) => {
+                log::error!("[GpuState::new] Device request timed out after {:?}", device_timeout);
+                return Err(anyhow::anyhow!("GPU device request timed out"));
+            }
+            #[cfg(not(feature = "native"))]
+            _ => unreachable!("Timeout not possible without tokio")
+        };
 
-        // Configure surface
+        // Configure surface with validation
+        log::info!("[GpuState::new] Getting surface capabilities...");
         let surface_caps = surface.get_capabilities(&adapter);
+        
+        if surface_caps.formats.is_empty() {
+            log::error!("[GpuState::new] No surface formats available!");
+            return Err(anyhow::anyhow!("No surface formats supported"));
+        }
+        
+        log::info!("[GpuState::new] Available surface formats: {:?}", surface_caps.formats);
+        log::info!("[GpuState::new] Available present modes: {:?}", surface_caps.present_modes);
+        log::info!("[GpuState::new] Available alpha modes: {:?}", surface_caps.alpha_modes);
+        
         let surface_format = surface_caps
             .formats
             .iter()
             .copied()
             .find(|f| f.is_srgb())
-            .unwrap_or(surface_caps.formats[0]);
+            .unwrap_or_else(|| {
+                log::warn!("[GpuState::new] No sRGB format found, using first available: {:?}", surface_caps.formats[0]);
+                surface_caps.formats[0]
+            });
+        log::info!("[GpuState::new] Selected surface format: {:?}", surface_format);
+        
+        // Choose present mode with fallback
+        let present_mode = if surface_caps.present_modes.contains(&wgpu::PresentMode::Fifo) {
+            wgpu::PresentMode::Fifo
+        } else if surface_caps.present_modes.contains(&wgpu::PresentMode::AutoVsync) {
+            log::warn!("[GpuState::new] Fifo not available, using AutoVsync");
+            wgpu::PresentMode::AutoVsync
+        } else {
+            log::warn!("[GpuState::new] Using first available present mode: {:?}", surface_caps.present_modes[0]);
+            surface_caps.present_modes[0]
+        };
 
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format: surface_format,
-            width: size.width,
-            height: size.height,
-            present_mode: wgpu::PresentMode::Fifo,
+            width: size.width.max(1),
+            height: size.height.max(1),
+            present_mode,
             alpha_mode: surface_caps.alpha_modes[0],
             view_formats: vec![],
             desired_maximum_frame_latency: 2,
         };
+        
+        log::info!("[GpuState::new] Configuring surface with size {}x{}...", config.width, config.height);
+        let config_start = std::time::Instant::now();
         surface.configure(&device, &config);
+        let config_time = config_start.elapsed();
+        log::info!("[GpuState::new] Surface configured successfully in {:?}", config_time);
 
         // Create depth texture
         let depth_texture = create_depth_texture(&device, &config);
@@ -331,19 +538,23 @@ impl GpuState {
         });
 
         // Create world and registry
+        log::info!("[GpuState::new] Creating block registry...");
         let mut block_registry_mut = BlockRegistry::new();
         
         // Register basic blocks
+        log::info!("[GpuState::new] Registering blocks...");
         let grass_id = block_registry_mut.register("test:grass", TestGrassBlock);
         let dirt_id = block_registry_mut.register("test:dirt", TestDirtBlock);
         let stone_id = block_registry_mut.register("test:stone", TestStoneBlock);
         let water_id = block_registry_mut.register("test:water", TestWaterBlock);
         let sand_id = block_registry_mut.register("test:sand", TestSandBlock);
         let _torch_id = block_registry_mut.register("test:torch", TestTorchBlock);
+        log::info!("[GpuState::new] {} blocks registered", 6);
         
         let block_registry = Arc::new(block_registry_mut);
         
         // Create world with terrain generator
+        log::info!("[GpuState::new] Creating world generator...");
         let seed = 12345; // Fixed seed for consistent worlds
         let generator = Box::new(crate::world::DefaultWorldGenerator::new(
             seed,
@@ -355,44 +566,70 @@ impl GpuState {
         ));
         
         // Configure parallel world for better performance
+        let cpu_count = num_cpus::get();
+        log::info!("[GpuState::new] System has {} CPUs", cpu_count);
+        
         let parallel_config = ParallelWorldConfig {
-            generation_threads: num_cpus::get().saturating_sub(2).max(2),
-            mesh_threads: num_cpus::get().saturating_sub(2).max(2),
-            chunks_per_frame: num_cpus::get() * 2,
-            view_distance: 4,
+            generation_threads: cpu_count.saturating_sub(2).max(2),
+            mesh_threads: cpu_count.saturating_sub(2).max(2),
+            chunks_per_frame: cpu_count * 2,
+            view_distance: 4,  // Balanced view distance for reasonable startup time
             chunk_size: 32,
         };
+        
+        log::info!("[GpuState::new] World config: {} gen threads, {} mesh threads, {} chunks/frame",
+                  parallel_config.generation_threads, 
+                  parallel_config.mesh_threads,
+                  parallel_config.chunks_per_frame);
         
         // Store chunk_size before moving parallel_config
         let chunk_size = parallel_config.chunk_size;
         
+        log::info!("[GpuState::new] Creating parallel world...");
         let mut world = ParallelWorld::new(generator, parallel_config);
         
-        // Pregenerate spawn area for smooth start
-        world.pregenerate_spawn_area(camera.position, 2);
+        // Skip all pregeneration to ensure fast startup
+        // Chunks will be generated asynchronously during the first frames
+        log::info!("[GpuState::new] Skipping spawn area pregeneration for non-blocking startup");
         
-        // Initial update
-        world.update(camera.position);
+        // Don't do initial world update here - let it happen during first frame
+        log::info!("[GpuState::new] World initialization complete (deferred chunk loading)");
         
         // Create chunk renderer with async mesh building
+        log::info!("[GpuState::new] Creating async chunk renderer...");
         let chunk_renderer = SimpleAsyncRenderer::new(
             Arc::clone(&block_registry),
             chunk_size,
             None, // Use default thread count
         );
+        log::info!("[GpuState::new] Chunk renderer created");
         
         // Create selection renderer
+        log::info!("[GpuState::new] Creating selection renderer...");
         let selection_renderer = SelectionRenderer::new(&device, config.format, &camera_bind_group_layout);
+        log::info!("[GpuState::new] Selection renderer created");
         
         // Create physics world and player entity
+        log::info!("[GpuState::new] Creating physics world...");
         let mut physics_world = PhysicsWorld::new();
         let player_body = PlayerBody::new(camera.position);
         let player_entity = physics_world.add_body(Box::new(player_body));
+        log::info!("[GpuState::new] Physics world created with player entity");
         
         // Create lighting systems
+        log::info!("[GpuState::new] Creating lighting systems...");
         let day_night_cycle = DayNightCycle::default(); // Starts at noon
         let light_propagator = LightPropagator::new();
+        log::info!("[GpuState::new] Lighting systems created");
 
+        let total_time = init_start.elapsed();
+        log::info!("[GpuState::new] GPU state initialization complete in {:?}!", total_time);
+        log::info!("[GpuState::new] GPU initialization summary:");
+        log::info!("[GpuState::new] - Adapter: {}", adapter.get_info().name);
+        log::info!("[GpuState::new] - Backend: {:?}", adapter.get_info().backend);
+        log::info!("[GpuState::new] - Surface format: {:?}", surface_format);
+        log::info!("[GpuState::new] - Present mode: {:?}", present_mode);
+        
         Ok(Self {
             window,
             surface,
@@ -418,6 +655,9 @@ impl GpuState {
             player_entity,
             day_night_cycle,
             light_propagator,
+            first_chunks_loaded: false,
+            frames_rendered: 0,
+            init_time: std::time::Instant::now(),
         })
     }
 
@@ -683,6 +923,15 @@ impl GpuState {
                 label: Some("Render Encoder"),
             });
 
+        // Track frames rendered
+        self.frames_rendered += 1;
+        
+        // Log time to first frame
+        if self.frames_rendered == 1 {
+            let elapsed = self.init_time.elapsed();
+            log::info!("[GpuState::render] First frame rendered in {:.2}ms", elapsed.as_millis());
+        }
+
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Render Pass"),
@@ -714,7 +963,13 @@ impl GpuState {
             // Draw chunks with async rendering
             render_pass.set_pipeline(&self.render_pipeline);
             render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
-            self.chunk_renderer.render(&mut render_pass, &self.camera);
+            
+            // Check if we have chunks loaded
+            let chunk_count = self.chunk_renderer.render(&mut render_pass, &self.camera);
+            if chunk_count > 0 && !self.first_chunks_loaded {
+                self.first_chunks_loaded = true;
+                log::info!("[GpuState::render] First chunks loaded after {} frames", self.frames_rendered);
+            }
             
             // Draw selection highlight with breaking progress
             let breaking_progress = if self.breaking_block.is_some() {
@@ -766,16 +1021,37 @@ pub async fn run_app<G: Game + 'static>(
     config: EngineConfig,
     mut game: G,
 ) -> Result<()> {
-    env_logger::init();
+    log::info!("[gpu_state::run_app] Starting GPU state initialization");
+    
+    // Don't reinit if already initialized
+    if let Err(e) = env_logger::try_init() {
+        log::debug!("[gpu_state::run_app] env_logger already initialized: {}", e);
+    }
 
+    log::info!("[gpu_state::run_app] Creating window...");
     let window = Arc::new(
         WindowBuilder::new()
             .with_title(&config.window_title)
             .with_inner_size(LogicalSize::new(config.window_width, config.window_height))
-            .build(&event_loop)?,
+            .build(&event_loop)
+            .map_err(|e| {
+                log::error!("[gpu_state::run_app] Window creation failed: {}", e);
+                e
+            })?,
     );
+    log::info!("[gpu_state::run_app] Window created successfully");
 
-    let mut gpu_state = GpuState::new(window.clone()).await?;
+    log::info!("[gpu_state::run_app] Creating GPU state...");
+    let mut gpu_state = match GpuState::new(window.clone()).await {
+        Ok(state) => {
+            log::info!("[gpu_state::run_app] GPU state created successfully");
+            state
+        }
+        Err(e) => {
+            log::error!("[gpu_state::run_app] GPU state creation failed: {}", e);
+            return Err(e);
+        }
+    };
     
     // Register game blocks
     // Note: Blocks are already registered in GpuState::new()
@@ -796,6 +1072,10 @@ pub async fn run_app<G: Game + 'static>(
             gpu_state.window.set_cursor_visible(false);
         }
     }
+
+    // Request immediate redraw to render first frame ASAP
+    log::info!("[gpu_state::run_app] Requesting initial redraw for immediate first frame");
+    gpu_state.window.request_redraw();
 
     event_loop
         .run(move |event, elwt| {
@@ -888,7 +1168,10 @@ pub async fn run_app<G: Game + 'static>(
                         }
                         
                         // Update loaded chunks based on player position
-                        gpu_state.world.update(gpu_state.camera.position);
+                        // For the first few frames, perform world update to start chunk loading
+                        if gpu_state.frames_rendered <= 3 || gpu_state.first_chunks_loaded {
+                            gpu_state.world.update(gpu_state.camera.position);
+                        }
                         
                         // Update day/night cycle
                         gpu_state.day_night_cycle.update(delta_time);

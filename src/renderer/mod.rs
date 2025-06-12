@@ -1,5 +1,8 @@
 mod chunk_renderer;
 mod gpu_state;
+mod gpu_diagnostics;
+mod gpu_progress;
+mod gpu_recovery;
 mod mesh;
 mod mesher;
 mod pipeline;
@@ -46,6 +49,9 @@ pub use optimized_greedy_mesher::{OptimizedGreedyMesher, MeshGenerationPool};
 pub use allocation_optimizations::{ObjectPool, PooledObject, StringPool, with_meshing_buffers, STRING_POOL};
 pub use mesh_optimizer::{MeshOptimizer, MeshLod, OptimizedMesh, CacheStats};
 pub use data_mesh_builder::{MeshBuffer, MeshBufferPool, MeshMetadata, MESH_BUFFER_POOL};
+pub use gpu_diagnostics::{GpuDiagnostics, DiagnosticsReport, ValidationResult, OperationTestResult};
+pub use gpu_progress::{GpuInitProgress, AsyncProgressReporter, with_timeout, ProgressCallback, LogProgressCallback};
+pub use gpu_recovery::{GpuRecovery, FallbackSettings, GpuHealthMonitor};
 
 pub struct Renderer {
     // Will be implemented
@@ -56,6 +62,18 @@ pub fn run<G: Game + 'static>(
     config: EngineConfig,
     game: G,
 ) -> Result<()> {
+    log::info!("[renderer::run] Starting renderer initialization");
+    log::debug!("[renderer::run] Config: {:?}", config);
+    
     // Will be implemented - this is the main entry point
-    pollster::block_on(gpu_state::run_app(event_loop, config, game))
+    log::info!("[renderer::run] Calling pollster::block_on with gpu_state::run_app");
+    
+    let result = pollster::block_on(gpu_state::run_app(event_loop, config, game));
+    
+    match &result {
+        Ok(_) => log::info!("[renderer::run] gpu_state::run_app completed successfully"),
+        Err(e) => log::error!("[renderer::run] gpu_state::run_app failed: {}", e),
+    }
+    
+    result
 }

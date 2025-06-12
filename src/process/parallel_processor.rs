@@ -5,6 +5,7 @@
 
 use crate::process::{ProcessData, ProcessStatus, StateMachine};
 use crate::process::error::{ProcessResult, ProcessErrorContext, thread_pool_error};
+use crate::thread_pool::{ThreadPoolManager, PoolCategory};
 use rayon::prelude::*;
 use std::sync::{Arc, Mutex};
 
@@ -18,9 +19,6 @@ pub struct ProcessBatch {
 
 /// Parallel processor for batch updates
 pub struct ParallelProcessor {
-    /// Thread pool for parallel execution
-    thread_pool: rayon::ThreadPool,
-    
     /// Batch size for parallel processing
     batch_size: usize,
     
@@ -38,14 +36,7 @@ struct ProcessingMetrics {
 
 impl ParallelProcessor {
     pub fn new() -> ProcessResult<Self> {
-        let thread_pool = rayon::ThreadPoolBuilder::new()
-            .num_threads(num_cpus::get())
-            .thread_name(|i| format!("process-worker-{}", i))
-            .build()
-            .map_err(|e| thread_pool_error(e))?;
-            
         Ok(Self {
-            thread_pool,
             batch_size: 64,
             metrics: ProcessingMetrics::default(),
         })
@@ -75,7 +66,7 @@ impl ParallelProcessor {
         let state_atomic = AtomicPtr::new(state_ptr);
         
         // Process each chunk in parallel
-        self.thread_pool.install(move || {
+        ThreadPoolManager::global().execute(PoolCategory::Compute, move || {
             chunks.par_iter().for_each(|chunk| {
                 let data_ptr = data_atomic.load(Ordering::Relaxed);
                 let state_ptr = state_atomic.load(Ordering::Relaxed);
@@ -145,7 +136,7 @@ impl ParallelProcessor {
     ) {
         let start = std::time::Instant::now();
         
-        self.thread_pool.install(|| {
+        ThreadPoolManager::global().execute(PoolCategory::Compute, || {
             batches.par_iter().for_each(|(data_arc, indices, delta_ticks)| {
                 match data_arc.lock() {
                     Ok(mut data) => {

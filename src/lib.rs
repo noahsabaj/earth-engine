@@ -1,5 +1,6 @@
 pub mod error;
 pub mod panic_handler;
+pub mod thread_pool;
 pub mod camera;
 pub mod crafting;
 pub mod ecs;
@@ -80,18 +81,52 @@ pub struct Engine {
 
 impl Engine {
     pub fn new(config: EngineConfig) -> Self {
+        log::debug!("[Engine::new] Starting engine initialization");
+        
         // Force X11 backend for WSL compatibility
         #[cfg(target_os = "linux")]
         let event_loop = {
+            log::debug!("[Engine::new] Creating X11 event loop for Linux...");
             use winit::platform::x11::EventLoopBuilderExtX11;
-            EventLoopBuilder::new()
+            let result = EventLoopBuilder::new()
                 .with_x11()
-                .build()
-                .expect("Failed to create event loop")
+                .build();
+            match result {
+                Ok(loop_) => {
+                    log::info!("[Engine::new] X11 event loop created successfully");
+                    loop_
+                }
+                Err(e) => {
+                    log::error!("[Engine::new] Failed to create X11 event loop: {}", e);
+                    panic!("Failed to create event loop: {}", e);
+                }
+            }
         };
         
         #[cfg(not(target_os = "linux"))]
-        let event_loop = EventLoop::new().expect("Failed to create event loop");
+        let event_loop = {
+            log::debug!("[Engine::new] Creating default event loop...");
+            match EventLoop::new() {
+                Ok(loop_) => {
+                    log::info!("[Engine::new] Event loop created successfully");
+                    loop_
+                }
+                Err(e) => {
+                    log::error!("[Engine::new] Failed to create event loop: {}", e);
+                    panic!("Failed to create event loop: {}", e);
+                }
+            }
+        };
+        
+        // Initialize thread pool manager with optimized configuration
+        let thread_pool_config = thread_pool::ThreadPoolConfig::default();
+        if let Err(e) = thread_pool::ThreadPoolManager::initialize(thread_pool_config) {
+            log::warn!("[Engine::new] Thread pool manager already initialized or failed: {}", e);
+        } else {
+            log::info!("[Engine::new] Thread pool manager initialized successfully");
+        }
+        
+        log::info!("[Engine::new] Engine initialization complete");
         
         Self {
             config,
@@ -100,11 +135,31 @@ impl Engine {
     }
 
     pub fn run<G: Game + 'static>(mut self, game: G) -> Result<()> {
-        let event_loop = self.event_loop.take().expect("Event loop already taken");
+        log::info!("[Engine::run] Starting engine run method");
+        
+        let event_loop = match self.event_loop.take() {
+            Some(loop_) => {
+                log::debug!("[Engine::run] Event loop retrieved successfully");
+                loop_
+            }
+            None => {
+                log::error!("[Engine::run] Event loop already taken!");
+                panic!("Event loop already taken");
+            }
+        };
+        
         let config = self.config.clone();
+        log::info!("[Engine::run] Calling renderer::run with config: {:?}", config);
         
         // This will be implemented when we create the renderer
-        renderer::run(event_loop, config, game)
+        let result = renderer::run(event_loop, config, game);
+        
+        match &result {
+            Ok(_) => log::info!("[Engine::run] Renderer returned successfully"),
+            Err(e) => log::error!("[Engine::run] Renderer error: {}", e),
+        }
+        
+        result
     }
 }
 

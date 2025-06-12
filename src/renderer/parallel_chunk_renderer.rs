@@ -3,6 +3,7 @@ use parking_lot::RwLock;
 use dashmap::DashMap;
 use crossbeam_channel::{unbounded, Sender, Receiver};
 use rayon::prelude::*;
+use crate::thread_pool::{ThreadPoolManager, PoolCategory};
 use wgpu::util::DeviceExt;
 use crate::{ChunkPos, Chunk, BlockRegistry};
 use crate::world::ConcurrentChunkManager;
@@ -18,8 +19,8 @@ pub struct ParallelChunkRenderer {
     /// Completed meshes ready for GPU upload
     completed_sender: Sender<(ChunkPos, ChunkMesh)>,
     completed_receiver: Receiver<(ChunkPos, ChunkMesh)>,
-    /// Thread pool for mesh generation
-    mesh_pool: rayon::ThreadPool,
+    /// Thread pool manager reference
+    thread_pool_manager: Arc<ThreadPoolManager>,
 }
 
 struct MeshRequest {
@@ -38,12 +39,8 @@ impl ParallelChunkRenderer {
         let (mesh_sender, mesh_receiver) = unbounded();
         let (completed_sender, completed_receiver) = unbounded();
         
-        // Create dedicated thread pool for mesh generation
-        let mesh_pool = rayon::ThreadPoolBuilder::new()
-            .num_threads(num_cpus::get().saturating_sub(2).max(2))
-            .thread_name(|idx| format!("mesh-gen-{}", idx))
-            .build()
-            .expect("Failed to create mesh generation thread pool");
+        // Get thread pool manager
+        let thread_pool_manager = ThreadPoolManager::global();
         
         Self {
             gpu_meshes: Arc::new(RwLock::new(std::collections::HashMap::new())),
@@ -51,7 +48,7 @@ impl ParallelChunkRenderer {
             mesh_receiver,
             completed_sender,
             completed_receiver,
-            mesh_pool,
+            thread_pool_manager,
         }
     }
     
@@ -99,8 +96,8 @@ impl ParallelChunkRenderer {
         let completed_sender = self.completed_sender.clone();
         let chunk_size = 32; // TODO: Get from chunk manager
         
-        // Generate meshes in parallel
-        self.mesh_pool.install(|| {
+        // Generate meshes in parallel using thread pool manager
+        self.thread_pool_manager.execute(PoolCategory::MeshBuilding, || {
             pending_requests.par_iter().for_each(|request| {
                 // Lock chunk for reading
                 let chunk = request.chunk.read();
