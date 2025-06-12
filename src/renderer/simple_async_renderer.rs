@@ -217,6 +217,7 @@ impl SimpleAsyncRenderer {
         &'a self,
         render_pass: &mut wgpu::RenderPass<'a>,
         camera: &Camera,
+        camera_bind_group: &'a wgpu::BindGroup,
     ) -> usize {
         let view_proj = camera.build_projection_matrix() * camera.build_view_matrix();
         let mut chunks_rendered = 0;
@@ -310,6 +311,8 @@ impl SimpleAsyncRenderer {
                                   chunk_pos, min.x, min.y, min.z, gpu_mesh.num_indices);
                     }
                     
+                    // Set camera bind group before drawing
+                    render_pass.set_bind_group(0, camera_bind_group, &[]);
                     render_pass.set_vertex_buffer(0, gpu_mesh.vertex_buffer.slice(..));
                     render_pass.set_index_buffer(gpu_mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
                     render_pass.draw_indexed(0..gpu_mesh.num_indices, 0, 0..1);

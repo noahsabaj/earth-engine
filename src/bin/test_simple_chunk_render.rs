@@ -3,9 +3,41 @@ use earth_engine::{
     renderer::{SimpleAsyncRenderer, Vertex},
     Camera,
 };
-use cgmath::{Point3, Vector3};
+use cgmath::{Point3, Vector3, Matrix4, SquareMatrix};
 use std::sync::Arc;
 use wgpu::util::DeviceExt;
+
+// Camera uniform structure matching what the shader expects
+#[repr(C)]
+#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+struct CameraUniform {
+    view: [[f32; 4]; 4],
+    projection: [[f32; 4]; 4],
+    view_proj: [[f32; 4]; 4],
+    position: [f32; 3],
+    _padding: f32,
+}
+
+impl CameraUniform {
+    fn new() -> Self {
+        Self {
+            view: Matrix4::identity().into(),
+            projection: Matrix4::identity().into(),
+            view_proj: Matrix4::identity().into(),
+            position: [0.0, 0.0, 0.0],
+            _padding: 0.0,
+        }
+    }
+
+    fn update_view_proj(&mut self, camera: &Camera) {
+        let view = camera.build_view_matrix();
+        let proj = camera.build_projection_matrix();
+        self.view = view.into();
+        self.projection = proj.into();
+        self.view_proj = (proj * view).into();
+        self.position = [camera.position.x, camera.position.y, camera.position.z];
+    }
+}
 
 fn main() {
     env_logger::init();
@@ -109,6 +141,41 @@ async fn test_chunk_rendering() {
         600,
     );
     
+    // Create camera uniform buffer
+    let mut camera_uniform = CameraUniform::new();
+    camera_uniform.update_view_proj(&camera);
+    
+    let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("Camera Buffer"),
+        contents: bytemuck::cast_slice(&[camera_uniform]),
+        usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+    });
+
+    // Create bind group layout
+    let camera_bind_group_layout =
+        device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            }],
+            label: Some("camera_bind_group_layout"),
+        });
+
+    let camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+        layout: &camera_bind_group_layout,
+        entries: &[wgpu::BindGroupEntry {
+            binding: 0,
+            resource: camera_buffer.as_entire_binding(),
+        }],
+        label: Some("camera_bind_group"),
+    });
+    
     // Test rendering
     let texture_desc = wgpu::TextureDescriptor {
         size: wgpu::Extent3d {
@@ -148,7 +215,7 @@ async fn test_chunk_rendering() {
             occlusion_query_set: None,
         });
         
-        let chunks_rendered = renderer.render(&mut render_pass, &camera);
+        let chunks_rendered = renderer.render(&mut render_pass, &camera, &camera_bind_group);
         log::info!("Chunks rendered: {}", chunks_rendered);
     }
     

@@ -162,39 +162,76 @@ impl WorldGenerator for FlatWorldGenerator {
 // Implement WorldInterface for World
 impl WorldInterface for World {
     fn get_block(&self, pos: VoxelPos) -> BlockId {
-        self.get_block(pos)
+        // Delegate to chunk_manager
+        self.chunk_manager.get_block(pos)
     }
     
     fn set_block(&mut self, pos: VoxelPos, block: BlockId) {
-        self.set_block(pos, block);
+        // Delegate to chunk_manager
+        self.chunk_manager.set_block(pos, block);
     }
     
     fn update_loaded_chunks(&mut self, player_pos: Point3<f32>) {
-        self.update_loaded_chunks(player_pos);
+        // Delegate to chunk_manager
+        self.chunk_manager.update_loaded_chunks(player_pos);
     }
     
     fn chunk_size(&self) -> u32 {
-        self.chunk_size()
+        // Return the stored chunk_size field
+        self.chunk_size
     }
     
     fn is_block_in_bounds(&self, pos: VoxelPos) -> bool {
-        self.is_block_in_bounds(pos)
+        // In an infinite world, all positions are valid
+        true
     }
     
     fn get_sky_light(&self, pos: VoxelPos) -> u8 {
-        self.get_sky_light(pos)
+        // Call the struct's method implementation
+        let chunk_pos = pos.to_chunk_pos(self.chunk_size);
+        let local_pos = pos.to_local_pos(self.chunk_size);
+        
+        if let Some(chunk) = self.chunk_manager.get_chunk(chunk_pos) {
+            chunk.get_light_level(local_pos.x as u32, local_pos.y as u32, local_pos.z as u32).sky
+        } else {
+            0
+        }
     }
     
     fn set_sky_light(&mut self, pos: VoxelPos, level: u8) {
-        self.set_sky_light(pos, level);
+        // Call the struct's method implementation
+        let chunk_pos = pos.to_chunk_pos(self.chunk_size);
+        let local_pos = pos.to_local_pos(self.chunk_size);
+        
+        if let Some(chunk) = self.chunk_manager.get_chunk_mut(chunk_pos) {
+            let mut light = chunk.get_light_level(local_pos.x as u32, local_pos.y as u32, local_pos.z as u32);
+            light.sky = level;
+            chunk.set_light_level(local_pos.x as u32, local_pos.y as u32, local_pos.z as u32, light);
+        }
     }
     
     fn get_block_light(&self, pos: VoxelPos) -> u8 {
-        self.get_block_light(pos)
+        // Call the struct's method implementation
+        let chunk_pos = pos.to_chunk_pos(self.chunk_size);
+        let local_pos = pos.to_local_pos(self.chunk_size);
+        
+        if let Some(chunk) = self.chunk_manager.get_chunk(chunk_pos) {
+            chunk.get_light_level(local_pos.x as u32, local_pos.y as u32, local_pos.z as u32).block
+        } else {
+            0
+        }
     }
     
     fn set_block_light(&mut self, pos: VoxelPos, level: u8) {
-        self.set_block_light(pos, level);
+        // Call the struct's method implementation
+        let chunk_pos = pos.to_chunk_pos(self.chunk_size);
+        let local_pos = pos.to_local_pos(self.chunk_size);
+        
+        if let Some(chunk) = self.chunk_manager.get_chunk_mut(chunk_pos) {
+            let mut light = chunk.get_light_level(local_pos.x as u32, local_pos.y as u32, local_pos.z as u32);
+            light.block = level;
+            chunk.set_light_level(local_pos.x as u32, local_pos.y as u32, local_pos.z as u32, light);
+        }
     }
     
     fn is_chunk_loaded(&self, pos: ChunkPos) -> bool {
@@ -202,14 +239,18 @@ impl WorldInterface for World {
     }
     
     fn take_dirty_chunks(&mut self) -> HashSet<ChunkPos> {
-        self.take_dirty_chunks()
+        // Delegate to chunk_manager
+        self.chunk_manager.take_dirty_chunks()
     }
     
     fn get_surface_height(&self, world_x: f64, world_z: f64) -> i32 {
-        self.get_surface_height(world_x, world_z)
+        // Delegate to chunk_manager
+        self.chunk_manager.get_surface_height(world_x, world_z)
     }
     
     fn is_block_transparent(&self, pos: VoxelPos) -> bool {
-        self.is_block_transparent(pos)
+        // For now, only air is transparent
+        let block = self.chunk_manager.get_block(pos);
+        block == BlockId::AIR
     }
 }

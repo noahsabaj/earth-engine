@@ -1009,7 +1009,7 @@ impl GpuState {
             render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
             
             // Check if we have chunks loaded
-            let chunk_count = self.chunk_renderer.render(&mut render_pass, &self.camera);
+            let chunk_count = self.chunk_renderer.render(&mut render_pass, &self.camera, &self.camera_bind_group);
             if chunk_count > 0 && !self.first_chunks_loaded {
                 self.first_chunks_loaded = true;
                 log::info!("[GpuState::render] First chunks rendered after {} frames", self.frames_rendered);
