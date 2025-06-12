@@ -12,10 +12,15 @@ pub struct CameraData {
     
     /// Camera world position
     pub position: [f32; 3],
+    
+    /// Padding for alignment
     pub _padding0: f32,
     
-    /// Frustum planes (6 planes, each as vec4)
+    /// Frustum planes for GPU culling (6 planes)
     pub frustum_planes: [[f32; 4]; 6],
+    
+    /// Additional padding to reach 208 bytes total
+    pub _padding1: [f32; 8],
 }
 
 impl CameraData {
@@ -31,6 +36,7 @@ impl CameraData {
             position,
             _padding0: 0.0,
             frustum_planes,
+            _padding1: [0.0; 8],
         }
     }
 }

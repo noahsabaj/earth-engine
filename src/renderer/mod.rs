@@ -32,7 +32,7 @@ use anyhow::Result;
 use winit::event_loop::EventLoop;
 
 pub use chunk_renderer::ChunkRenderer;
-pub use gpu_state::GpuState;
+pub use gpu_state::{GpuState, CameraUniform};
 pub use mesh::ChunkMesh;
 pub use mesher::ChunkMesher;
 pub use selection_renderer::SelectionRenderer;

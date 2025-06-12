@@ -129,7 +129,7 @@ impl crate::Block for TestTorchBlock {
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-struct CameraUniform {
+pub struct CameraUniform {
     view: [[f32; 4]; 4],
     projection: [[f32; 4]; 4],
     view_proj: [[f32; 4]; 4],
@@ -606,6 +606,7 @@ impl GpuState {
         
         // Do one initial update to start chunk loading
         log::info!("[GpuState::new] Performing initial world update to queue chunk generation...");
+        log::info!("[GpuState::new] Camera position for initial update: {:?}", camera.position);
         world.update(camera.position);
         log::info!("[GpuState::new] World initialization complete (chunk loading started)");
         
@@ -796,8 +797,7 @@ impl GpuState {
         // Clean up GPU buffers for unloaded chunks
         self.chunk_renderer.cleanup_unloaded_chunks(&self.world);
         
-        // World update handles chunk loading/unloading automatically
-        self.world.update(self.camera.position);
+        // Note: World update is handled in the main render loop, not here
     }
     
     fn process_input(&mut self, input: &InputState, delta_time: f32, active_block: BlockId) -> (Option<(VoxelPos, BlockId)>, Option<VoxelPos>) {
@@ -1013,12 +1013,22 @@ impl GpuState {
             if chunk_count > 0 && !self.first_chunks_loaded {
                 self.first_chunks_loaded = true;
                 log::info!("[GpuState::render] First chunks rendered after {} frames", self.frames_rendered);
-            } else if chunk_count == 0 && self.frames_rendered % 60 == 0 {
-                // Log every second if no chunks are rendering
-                log::warn!("[GpuState::render] No chunks rendered after {} frames (meshes: {}, queued: {})", 
-                         self.frames_rendered, 
-                         self.chunk_renderer.mesh_count(),
-                         self.chunk_renderer.queued_builds());
+            } else if chunk_count == 0 {
+                // Log more frequently in the first few seconds
+                if self.frames_rendered <= 180 && self.frames_rendered % 20 == 0 {
+                    log::warn!("[GpuState::render] No chunks rendered after {} frames (meshes: {}, queued: {}, world chunks: {})", 
+                             self.frames_rendered, 
+                             self.chunk_renderer.mesh_count(),
+                             self.chunk_renderer.queued_builds(),
+                             self.world.chunk_manager().loaded_chunk_count());
+                } else if self.frames_rendered % 60 == 0 {
+                    // Log every second after initial period
+                    log::warn!("[GpuState::render] No chunks rendered after {} frames (meshes: {}, queued: {}, world chunks: {})", 
+                             self.frames_rendered, 
+                             self.chunk_renderer.mesh_count(),
+                             self.chunk_renderer.queued_builds(),
+                             self.world.chunk_manager().loaded_chunk_count());
+                }
             }
             
             // Draw selection highlight with breaking progress
@@ -1263,6 +1273,12 @@ pub async fn run_app<G: Game + 'static>(
                         
                         // Update loaded chunks based on player position
                         // Always update world to ensure chunks are loaded and unloaded properly
+                        if gpu_state.frames_rendered <= 10 || gpu_state.frames_rendered % 60 == 0 {
+                            log::info!("[render loop] World update #{} at camera position: {:?} (loaded chunks: {})", 
+                                     gpu_state.frames_rendered, 
+                                     gpu_state.camera.position,
+                                     gpu_state.world.chunk_manager().loaded_chunk_count());
+                        }
                         gpu_state.world.update(gpu_state.camera.position);
                         
                         // Update day/night cycle
@@ -1302,6 +1318,14 @@ pub async fn run_app<G: Game + 'static>(
                         
                         // Update async chunk renderer
                         gpu_state.update_chunk_renderer(&input_state);
+                        
+                        // Log chunk renderer state for first few frames
+                        if gpu_state.frames_rendered <= 10 && gpu_state.frames_rendered % 2 == 0 {
+                            log::info!("[render loop] Frame {}: chunk renderer has {} meshes, {} queued builds", 
+                                     gpu_state.frames_rendered,
+                                     gpu_state.chunk_renderer.mesh_count(),
+                                     gpu_state.chunk_renderer.queued_builds());
+                        }
 
                         // Update game with context
                         let mut ctx = GameContext {

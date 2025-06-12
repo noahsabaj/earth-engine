@@ -211,54 +211,72 @@ impl GpuDiagnostics {
         let device_limits = device.limits();
         let max_hardware_dimension = device_limits.max_texture_dimension_2d;
         
-        log::debug!("[GPU Test] Hardware max texture dimension: {}", max_hardware_dimension);
+        log::info!("[GPU Test] Hardware max texture dimension: {}", max_hardware_dimension);
         
-        // Try creating progressively larger textures, but stop at hardware limit
-        let dimensions = [512, 1024, 2048, 4096, 8192, 16384];
+        // Define texture dimensions to test - filter out those exceeding hardware limits
+        let all_dimensions = [512, 1024, 2048, 4096, 8192, 16384];
+        let dimensions_to_test: Vec<u32> = all_dimensions
+            .iter()
+            .copied()
+            .filter(|&dim| dim <= max_hardware_dimension)
+            .collect();
+        
+        if dimensions_to_test.is_empty() {
+            log::error!("[GPU Test] Hardware texture limit ({}) is too low for any test dimensions", max_hardware_dimension);
+            return Ok(0);
+        }
+        
+        log::info!("[GPU Test] Will test texture dimensions: {:?} (hardware max: {})", 
+                  dimensions_to_test, max_hardware_dimension);
         
         let mut max_dim = 0u32;
-        for &dim in &dimensions {
-            // Skip dimensions that exceed hardware limits
-            if dim > max_hardware_dimension {
-                log::debug!("[GPU Test] Skipping {}x{} texture - exceeds hardware limit of {}", 
-                          dim, dim, max_hardware_dimension);
-                break;
-            }
+        for &dim in &dimensions_to_test {
+            log::debug!("[GPU Test] Testing {}x{} texture creation", dim, dim);
             
-            // Try to create the texture, catching any errors
-            log::debug!("[GPU Test] Attempting to create {}x{} texture", dim, dim);
+            // Create texture descriptor
+            let texture_desc = wgpu::TextureDescriptor {
+                label: Some("Test Texture"),
+                size: wgpu::Extent3d {
+                    width: dim,
+                    height: dim,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: wgpu::TextureFormat::Rgba8UnormSrgb,
+                usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+                view_formats: &[],
+            };
+            
+            // Try to create the texture without panic catching - wgpu should handle errors gracefully
             match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                device.create_texture(&wgpu::TextureDescriptor {
-                    label: Some("Test Texture"),
-                    size: wgpu::Extent3d {
-                        width: dim,
-                        height: dim,
-                        depth_or_array_layers: 1,
-                    },
-                    mip_level_count: 1,
-                    sample_count: 1,
-                    dimension: wgpu::TextureDimension::D2,
-                    format: wgpu::TextureFormat::Rgba8UnormSrgb,
-                    usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
-                    view_formats: &[],
-                })
+                device.create_texture(&texture_desc)
             })) {
                 Ok(texture) => {
                     max_dim = dim;
                     drop(texture); // Immediately release
-                    log::debug!("[GPU Test] Successfully created {}x{} texture", dim, dim);
+                    log::info!("[GPU Test] ✓ Successfully created {}x{} texture", dim, dim);
                 }
-                Err(_) => {
-                    log::debug!("[GPU Test] Failed to create {}x{} texture - unexpected error", dim, dim);
+                Err(e) => {
+                    // Log the actual error if we can extract it
+                    log::warn!("[GPU Test] ✗ Failed to create {}x{} texture - stopping further tests", dim, dim);
+                    if let Some(s) = e.downcast_ref::<String>() {
+                        log::warn!("[GPU Test]   Error details: {}", s);
+                    } else if let Some(s) = e.downcast_ref::<&str>() {
+                        log::warn!("[GPU Test]   Error details: {}", s);
+                    }
                     break; // Stop trying larger sizes
                 }
             }
         }
         
+        // Log final results
         if max_dim == 0 {
-            log::warn!("[GPU Test] Could not create any test textures!");
+            log::warn!("[GPU Test] Could not create any test textures! Hardware may be very limited.");
         } else {
-            log::info!("[GPU Test] Maximum tested texture dimension: {}x{}", max_dim, max_dim);
+            log::info!("[GPU Test] Maximum successfully tested texture dimension: {}x{} (hardware supports up to {}x{})", 
+                     max_dim, max_dim, max_hardware_dimension, max_hardware_dimension);
         }
         
         Ok(max_dim)

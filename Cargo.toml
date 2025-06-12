@@ -169,6 +169,10 @@ name = "parallel_lighting_test"
 path = "src/bin/parallel_lighting_test.rs"
 
 [[bin]]
+name = "test_gpu_diagnostics"
+path = "src/bin/test_gpu_diagnostics.rs"
+
+[[bin]]
 name = "profile_baseline"
 path = "src/bin/profile_baseline.rs"
 
@@ -221,5 +225,9 @@ name = "victory_lap_benchmark"
 path = "src/bin/victory_lap_benchmark.rs"
 
 [[bin]]
-name = "test_gpu_diagnostics"
-path = "src/bin/test_gpu_diagnostics.rs"
+name = "check_camera_size"
+path = "src/bin/check_camera_size.rs"
+
+[[bin]]
+name = "check_uniform_sizes"
+path = "src/bin/check_uniform_sizes.rs"

@@ -104,6 +104,14 @@ impl ParallelChunkManager {
             (player_pos.z / self.chunk_size as f32).floor() as i32,
         );
         
+        // Log the first few updates
+        static UPDATE_COUNT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+        let count = UPDATE_COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        if count < 5 {
+            log::info!("[ParallelChunkManager::update_loaded_chunks] Update #{} - player chunk: {:?}, loaded: {}", 
+                     count + 1, player_chunk, self.chunks.len());
+        }
+        
         // First, unload distant chunks
         self.unload_distant_chunks(player_chunk);
         
@@ -142,17 +150,26 @@ impl ParallelChunkManager {
         // Sort by priority (closer chunks first)
         generation_requests.sort_by_key(|req| req.priority);
         
+        if count < 5 && !generation_requests.is_empty() {
+            log::info!("[ParallelChunkManager::update_loaded_chunks] {} chunks need generation", generation_requests.len());
+        }
+        
         // Only queue a limited number of requests to avoid overwhelming the system
         let max_new_requests = self.batch_size * 2; // Allow queuing up to 2x batch size
+        let mut queued_count = 0;
         for request in generation_requests.into_iter().take(max_new_requests) {
             // Use try_send to avoid blocking if channel is full
             match self.generation_sender.try_send(request) {
-                Ok(_) => {},
+                Ok(_) => { queued_count += 1; },
                 Err(e) => {
                     log::debug!("[ParallelChunkManager] Generation queue full, skipping chunk: {:?}", e);
                     break;
                 }
             }
+        }
+        
+        if count < 5 && queued_count > 0 {
+            log::info!("[ParallelChunkManager::update_loaded_chunks] Queued {} chunks for generation", queued_count);
         }
         
         // Process completed chunks with a limit to avoid frame stalls
@@ -179,6 +196,11 @@ impl ParallelChunkManager {
                 Err(_) => break, // No more chunks ready
             }
         }
+        
+        if count < 5 && processed > 0 {
+            log::info!("[ParallelChunkManager::update_loaded_chunks] Processed {} completed chunks, total loaded: {}", 
+                     processed, self.chunks.len());
+        }
     }
     
     /// Process chunk generation queue in parallel with batching
@@ -196,6 +218,14 @@ impl ParallelChunkManager {
         
         if pending_requests.is_empty() {
             return;
+        }
+        
+        // Log the first few generation batches
+        static GEN_COUNT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+        let count = GEN_COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        if count < 5 {
+            log::info!("[ParallelChunkManager::process_generation_queue] Processing {} chunks (batch #{})", 
+                     pending_requests.len(), count + 1);
         }
         
         // Sort by priority again in case new requests came in

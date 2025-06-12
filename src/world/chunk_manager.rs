@@ -90,6 +90,14 @@ impl ChunkManager {
             (player_pos.z / self.chunk_size as f32).floor() as i32,
         );
         
+        // Log the first few updates for debugging
+        static UPDATE_COUNT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+        let count = UPDATE_COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        if count < 5 {
+            log::info!("[ChunkManager::update_loaded_chunks] Update #{} - player chunk: {:?}, loaded: {}, in queue: {}", 
+                     count + 1, player_chunk, self.loaded_chunks.len(), self.load_queue.len());
+        }
+        
         // First, unload chunks that are too far
         self.unload_distant_chunks(player_chunk);
         
@@ -142,6 +150,11 @@ impl ChunkManager {
         self.load_queue.clear();
         let mut new_requests = Vec::new();
         
+        // Log the first few calls
+        static QUEUE_COUNT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+        let count = QUEUE_COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let log_this = count < 5;
+        
         for dx in -self.view_distance..=self.view_distance {
             for dy in -self.view_distance..=self.view_distance {
                 for dz in -self.view_distance..=self.view_distance {
@@ -168,6 +181,10 @@ impl ChunkManager {
         
         // Sort by priority (closest chunks first)
         new_requests.sort_by_key(|req| req.priority);
+        
+        if log_this {
+            log::info!("[ChunkManager::queue_chunks_for_loading] Queued {} chunks for loading", new_requests.len());
+        }
         
         // Add to queue
         self.load_queue.extend(new_requests);

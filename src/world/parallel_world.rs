@@ -117,6 +117,13 @@ impl ParallelWorld {
     pub fn update(&self, player_pos: Point3<f32>) {
         let start_time = Instant::now();
         
+        // Log the first few updates for debugging
+        static UPDATE_COUNT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+        let count = UPDATE_COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        if count < 5 {
+            log::info!("[ParallelWorld::update] Update #{} at player pos: {:?}", count + 1, player_pos);
+        }
+        
         // Update chunk loading state
         self.chunk_manager.update_loaded_chunks(player_pos);
         
