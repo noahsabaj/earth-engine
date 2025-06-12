@@ -144,6 +144,10 @@ path = "examples/crafting_system.rs"
 name = "multiplayer"
 path = "examples/multiplayer.rs"
 
+[[example]]
+name = "dop_particles"
+path = "examples/dop_particles.rs"
+
 [[bin]]
 name = "parallel_benchmark"
 path = "src/bin/parallel_benchmark.rs"

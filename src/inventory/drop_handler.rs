@@ -1,5 +1,4 @@
-use crate::ecs::{EcsWorld, Entity};
-use crate::ecs::systems::item_physics::create_item_entity;
+use crate::ecs::{EcsWorldData, EntityId, spawn_dropped_item};
 use crate::inventory::PlayerInventory;
 use glam::Vec3;
 use rand::Rng;
@@ -16,10 +15,10 @@ impl ItemDropHandler {
     /// Drop a single item from the selected hotbar slot
     pub fn drop_selected_item(
         inventory: &mut PlayerInventory,
-        world: &mut EcsWorld,
+        world: &mut EcsWorldData,
         player_position: Vec3,
         player_forward: Vec3,
-    ) -> Option<Entity> {
+    ) -> Option<EntityId> {
         // Remove one item from selected slot
         if let Some(item_stack) = inventory.remove_selected(1) {
             // Calculate drop position (slightly in front of player)
@@ -35,11 +34,11 @@ impl ItemDropHandler {
             let drop_velocity = player_forward * DROP_FORWARD_VELOCITY + random_offset;
             
             // Create item entity
-            let entity = create_item_entity(
+            let entity = spawn_dropped_item(
                 world,
-                drop_position,
-                drop_velocity,
-                item_stack.item_id,
+                [drop_position.x, drop_position.y, drop_position.z],
+                [drop_velocity.x, drop_velocity.y, drop_velocity.z],
+                item_stack.item_id.0, // Assuming ItemId wraps u32
                 item_stack.count,
             );
             
@@ -52,10 +51,10 @@ impl ItemDropHandler {
     /// Drop the entire selected stack
     pub fn drop_selected_stack(
         inventory: &mut PlayerInventory,
-        world: &mut EcsWorld,
+        world: &mut EcsWorldData,
         player_position: Vec3,
         player_forward: Vec3,
-    ) -> Option<Entity> {
+    ) -> Option<EntityId> {
         // Get the full stack count
         let stack_count = inventory.get_selected_item().map(|item| item.count)?;
         
@@ -74,11 +73,11 @@ impl ItemDropHandler {
             let drop_velocity = player_forward * DROP_FORWARD_VELOCITY + random_offset;
             
             // Create item entity
-            let entity = create_item_entity(
+            let entity = spawn_dropped_item(
                 world,
-                drop_position,
-                drop_velocity,
-                item_stack.item_id,
+                [drop_position.x, drop_position.y, drop_position.z],
+                [drop_velocity.x, drop_velocity.y, drop_velocity.z],
+                item_stack.item_id.0, // Assuming ItemId wraps u32
                 item_stack.count,
             );
             
@@ -91,12 +90,12 @@ impl ItemDropHandler {
     /// Drop items from a specific inventory slot
     pub fn drop_from_slot(
         inventory: &mut PlayerInventory,
-        world: &mut EcsWorld,
+        world: &mut EcsWorldData,
         slot_index: usize,
         count: u32,
         player_position: Vec3,
         player_forward: Vec3,
-    ) -> Option<Entity> {
+    ) -> Option<EntityId> {
         // Get the slot
         let slot = inventory.get_slot_mut(slot_index)?;
         let item = slot.get_item_mut()?;
@@ -118,11 +117,11 @@ impl ItemDropHandler {
         let drop_velocity = player_forward * DROP_FORWARD_VELOCITY + random_offset;
         
         // Create item entity
-        let entity = create_item_entity(
+        let entity = spawn_dropped_item(
             world,
-            drop_position,
-            drop_velocity,
-            dropped.item_id,
+            [drop_position.x, drop_position.y, drop_position.z],
+            [drop_velocity.x, drop_velocity.y, drop_velocity.z],
+            dropped.item_id.0, // Assuming ItemId wraps u32
             dropped.count,
         );
         

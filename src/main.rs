@@ -28,28 +28,9 @@ impl Game for EarthGame {
     }
     
     fn update(&mut self, ctx: &mut GameContext, _delta_time: f32) {
-        // Handle block breaking with left click
-        if ctx.input.is_mouse_button_pressed(winit::event::MouseButton::Left) {
-            if let Some(hit) = ctx.cast_camera_ray(10.0) {
-                ctx.break_block(hit.position);
-                log::info!("Broke block at {:?}", hit.position);
-            }
-        }
-        
-        // Handle block placing with right click
-        if ctx.input.is_mouse_button_pressed(winit::event::MouseButton::Right) {
-            if let Some(hit) = ctx.cast_camera_ray(10.0) {
-                // Place block on the face we hit
-                let offset = hit.face.offset();
-                let place_pos = VoxelPos::new(
-                    hit.position.x + offset.x,
-                    hit.position.y + offset.y,
-                    hit.position.z + offset.z,
-                );
-                ctx.place_block(place_pos, self.player_block);
-                log::info!("Placed block at {:?}", place_pos);
-            }
-        }
+        // Block breaking is now handled by the engine's GpuState with progressive breaking
+        // Block placing is also handled by the engine
+        // The game just needs to handle block type selection
         
         // Switch blocks with number keys
         if ctx.input.is_key_pressed(KeyCode::Digit1) {

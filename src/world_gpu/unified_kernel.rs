@@ -51,7 +51,8 @@ pub mod SystemFlags {
     pub const PARTICLES: u32 = 1 << 4;
     pub const INSTANCES: u32 = 1 << 5;
     pub const MODIFICATIONS: u32 = 1 << 6;
-    pub const ALL: u32 = 0x7F;
+    pub const WEATHER: u32 = 1 << 7;
+    pub const ALL: u32 = 0xFF;
 }
 
 /// Work graph node for GPU-side scheduling

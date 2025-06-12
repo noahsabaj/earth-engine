@@ -4,6 +4,7 @@
 pub mod physics_tables;
 pub mod collision_data;
 pub mod spatial_hash;
+pub mod preallocated_spatial_hash;
 pub mod parallel_solver;
 pub mod integration;
 pub mod error;

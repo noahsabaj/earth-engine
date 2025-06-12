@@ -1,9 +1,9 @@
 # Current Status
 
-**Version**: 0.35.1  
-**Sprint**: 35.1 Emergency Honesty & Stability ✅ ACTUALLY COMPLETE (Verified)
-**Last Updated**: 2025-06-11
-**Current Focus**: Sprint 35.1 100% verified complete - ready for Sprint 35.2
+**Version**: 0.35.2  
+**Sprint**: 35.2 DOP Reality Check - IN PROGRESS
+**Last Updated**: 2025-06-12
+**Current Focus**: Converting OOP modules to Data-Oriented Programming
 
 ## Emergency Sprint 35.1 Progress
 
@@ -77,11 +77,31 @@ After false claims, a full verification was performed:
 - GPU-first thermal dynamics for realistic physics
 - Engine must be game-agnostic during current phase
 
+## Sprint 35.2 Progress (DOP Reality Check)
+
+### Completed Today (June 12)
+- ✅ Particle system converted to data-oriented design
+- ✅ Created SOA layout with separate arrays for cache efficiency
+- ✅ Removed ParticleSystem and ParticleEmitter classes
+- ✅ Converted all methods to free functions
+- ✅ Pre-allocated particle pools (no runtime allocations)
+- ✅ Created GPU-ready data format
+- ✅ Added GPU compute shader example
+- ✅ Created migration guide documentation
+
+### New Files Created
+- `src/particles/particle_data.rs` - SOA data structures
+- `src/particles/update.rs` - Pure update functions  
+- `src/particles/system.rs` - Thin DOP wrapper
+- `src/particles/gpu_update.wgsl` - GPU compute example
+- `docs/particles_migration.md` - Migration guide
+- `examples/dop_particles.rs` - Usage example
+
 ## Honest Metrics
 
 - **Unwraps**: 0 in production code (down from 373) ✅
 - **Completion**: 100% of Sprint 35.1 goals achieved ✅
 - **Unsafe blocks**: 12 files all documented ✅
 - **Bounds checking**: Implemented across all critical paths ✅
-- **OOP files**: 228 (unchanged - target for Sprint 35.2)
+- **OOP files**: 227 (down from 228 - particle system converted)
 - **Test coverage**: 8.4% (unchanged - target for Sprint 35.3)

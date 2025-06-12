@@ -1,7 +1,7 @@
 use crate::input::KeyCode;
 use crate::ui::inventory_ui::{InventoryUI, InventoryUIState};
 use crate::inventory::{PlayerInventory, ItemDropHandler};
-use crate::ecs::{EcsWorld, Entity};
+use crate::ecs::{EcsWorldData, EntityId};
 use glam::Vec3;
 use std::collections::HashSet;
 
@@ -48,7 +48,7 @@ impl InventoryInputHandler {
         &mut self,
         inventory_ui: &mut InventoryUI,
         inventory: &mut PlayerInventory,
-        world: &mut EcsWorld,
+        world: &mut EcsWorldData,
         player_position: Vec3,
         player_forward: Vec3,
     ) {

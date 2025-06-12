@@ -1,11 +1,12 @@
-pub mod weather_system;
-pub mod weather_types;
-pub mod precipitation;
-pub mod fog;
-pub mod wind;
+/// Weather module - data structures only
+/// All weather logic runs on GPU via world_gpu::weather_gpu
 
-pub use weather_system::{WeatherSystem, WeatherUpdate, BiomeType};
-pub use weather_types::{WeatherType, WeatherIntensity, WeatherConditions};
-pub use precipitation::{PrecipitationType, PrecipitationParticle, PrecipitationSystem};
-pub use fog::{FogSettings, FogDensity};
-pub use wind::{WindDirection, WindStrength, WindSystem};
+pub mod weather_types;
+pub mod weather_data;
+
+// Re-export commonly used types
+pub use weather_types::{WeatherType, WeatherIntensity, WeatherConditions, ParticleType};
+pub use weather_data::{WeatherUpdate, BiomeType, WeatherRegion, ThunderEvent};
+
+// Legacy compatibility exports (these will be removed in future)
+pub use weather_types::WeatherConditions as LegacyWeatherConditions;

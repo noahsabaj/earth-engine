@@ -4,10 +4,7 @@ use earth_engine::world::{
     ParallelWorld, ParallelChunkManager, ParallelWorldConfig,
     BlockRegistry, DefaultWorldGenerator,
 };
-use earth_engine::renderer::{
-    AsyncMeshBuilder,
-    AsyncChunkRenderer,
-};
+// Removed old renderer imports - need to update to use GPU-driven pipeline
 use earth_engine::lighting::parallel_propagator::{ParallelLightPropagator, BlockProvider};
 use earth_engine::lighting::LightType;
 use earth_engine::lighting::concurrent_provider::ParallelBlockProvider;
@@ -33,8 +30,8 @@ fn main() {
     // Profile chunk generation
     profile_chunk_generation(&cache_profiler, &memory_profiler, &perf_metrics, world_size);
     
-    // Profile mesh building
-    profile_mesh_building(&cache_profiler, &memory_profiler, &perf_metrics, world_size);
+    // TODO: Profile mesh building needs to be updated for GPU-driven approach
+    // profile_mesh_building(&cache_profiler, &memory_profiler, &perf_metrics, world_size);
     
     // Profile lighting
     profile_lighting(&cache_profiler, &memory_profiler, &perf_metrics);
@@ -122,6 +119,7 @@ fn profile_chunk_generation(
     println!("  Generated {} chunks in {:.2}s", generated_count, elapsed.as_secs_f64());
 }
 
+/*
 fn profile_mesh_building(
     cache_profiler: &CacheProfiler,
     memory_profiler: &MemoryProfiler,
@@ -193,6 +191,7 @@ fn profile_mesh_building(
     let elapsed = start.elapsed();
     println!("  Built {} meshes in {:.2}s", mesh_count, elapsed.as_secs_f64());
 }
+*/
 
 fn profile_lighting(
     cache_profiler: &CacheProfiler,

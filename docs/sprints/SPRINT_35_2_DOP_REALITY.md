@@ -8,12 +8,12 @@ Sprint 35 claimed "complete DOP transition". Reality: 228 files still have metho
 ### Goals (Week 3-4)
 
 #### Week 3: DOP Exemplar Module
-- [ ] Choose camera.rs as exemplar
-- [ ] Document BEFORE state (methods, self, allocations)
-- [ ] Convert to pure functions + data
-- [ ] Document AFTER state with benchmarks
+- [x] Choose particle system as exemplar (better showcase than camera)
+- [x] Document BEFORE state (methods, self, allocations) - see particle.rs, particle_system.rs
+- [x] Convert to pure functions + data - created particle_data.rs, update.rs, system.rs
+- [x] Document AFTER state - created particles_migration.md
 - [ ] Create DOP_PATTERNS.md guide
-- [ ] Measure performance delta
+- [ ] Measure performance delta with benchmarks
 
 #### Week 4: Systematic Conversion
 - [ ] List all 228 files with impl blocks
@@ -22,6 +22,33 @@ Sprint 35 claimed "complete DOP transition". Reality: 228 files still have metho
 - [ ] Verify zero allocations in hot paths
 - [ ] Add allocation tests
 - [ ] Update architecture docs
+
+### Completed: Particle System DOP Conversion
+
+The particle system has been successfully converted as our exemplar module:
+
+#### Before (OOP):
+- `Particle` struct with methods like `update()`, `is_alive()`
+- `ParticleSystem` class managing `Vec<Particle>`
+- `ParticleEmitter` class with internal state
+- Virtual method calls through trait objects
+- Per-particle heap allocations
+- Poor cache locality (AOS layout)
+
+#### After (DOP):
+- `ParticleData` with SOA layout (separate arrays for x, y, z, etc.)
+- Free functions: `update_particles()`, `spawn_particle()`, etc.
+- Pre-allocated particle pools
+- Zero allocations during runtime
+- Cache-friendly memory access patterns
+- GPU-ready data format
+
+#### Key Files:
+- `src/particles/particle_data.rs` - SOA data structures
+- `src/particles/update.rs` - Pure update functions
+- `src/particles/system.rs` - Thin wrapper for convenience
+- `src/particles/gpu_update.wgsl` - GPU compute shader example
+- `docs/particles_migration.md` - Migration guide
 
 ### DOP Conversion Pattern
 

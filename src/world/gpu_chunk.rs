@@ -29,7 +29,7 @@ impl GpuChunk {
         let blocks = chunk.blocks();
         let block_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("GPU Chunk Block Buffer"),
-            contents: bytemuck::cast_slice(blocks),
+            contents: bytemuck::cast_slice(&blocks),
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
         });
         
@@ -70,7 +70,7 @@ impl GpuChunk {
     pub fn update(&mut self, queue: &wgpu::Queue, chunk: &Chunk) {
         // Update block data
         let blocks = chunk.blocks();
-        queue.write_buffer(&self.block_buffer, 0, bytemuck::cast_slice(blocks));
+        queue.write_buffer(&self.block_buffer, 0, bytemuck::cast_slice(&blocks));
         
         // TODO: Update light data when available
         

@@ -1,6 +1,6 @@
 use crate::world::{VoxelPos, BlockId, World};
 use crate::item::ItemRegistry;
-use crate::ecs::{EcsWorld, systems::item_physics::create_item_entity};
+use crate::ecs::{EcsWorldData, spawn_dropped_item};
 use crate::crafting::tool::{Tool, get_block_properties, BlockProperties};
 use glam::Vec3;
 use rand::Rng;
@@ -12,7 +12,7 @@ impl BlockDropHandler {
     /// Handle a block being broken
     pub fn handle_block_break(
         world: &World,
-        ecs_world: &mut EcsWorld,
+        ecs_world: &mut EcsWorldData,
         item_registry: &ItemRegistry,
         pos: VoxelPos,
         block_id: BlockId,
@@ -49,11 +49,11 @@ impl BlockDropHandler {
             );
             
             // Create the item entity
-            create_item_entity(
+            spawn_dropped_item(
                 ecs_world,
-                world_pos,
-                velocity,
-                item_id,
+                [world_pos.x, world_pos.y, world_pos.z],
+                [velocity.x, velocity.y, velocity.z],
+                item_id.0, // Assuming ItemId wraps u32
                 drop.count,
             );
         }

@@ -14,7 +14,7 @@ use crate::network::{
 };
 use crate::error::EngineError;
 use crate::world::{BlockId, VoxelPos, ChunkPos, ParallelWorld, ParallelWorldConfig, DefaultWorldGenerator};
-use crate::ecs::EcsWorld;
+use crate::ecs::EcsWorldData;
 use glam::{Vec3, Quat};
 
 /// Client state
@@ -47,7 +47,7 @@ pub struct Client {
     
     // Game state
     world: Arc<ParallelWorld>,
-    ecs_world: Arc<Mutex<EcsWorld>>,
+    ecs_world: Arc<Mutex<EcsWorldData>>,
     remote_players: Arc<Mutex<HashMap<u32, RemotePlayer>>>,
     
     // Local player state
@@ -95,7 +95,7 @@ impl Client {
                 };
                 Arc::new(ParallelWorld::new(generator, config))
             },
-            ecs_world: Arc::new(Mutex::new(EcsWorld::new())),
+            ecs_world: Arc::new(Mutex::new(EcsWorldData::new())),
             remote_players: Arc::new(Mutex::new(HashMap::new())),
             position: Arc::new(Mutex::new(Vec3::ZERO)),
             rotation: Arc::new(Mutex::new(Quat::IDENTITY)),

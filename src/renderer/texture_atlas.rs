@@ -7,6 +7,7 @@
 use wgpu::{Device, Queue, Texture, TextureView, Sampler};
 use image::{DynamicImage, RgbaImage};
 use std::collections::HashMap;
+use super::preallocated_texture_atlas::{PreallocatedTextureAtlas, MAX_MATERIALS};
 use cgmath::Vector2;
 
 /// UV coordinates within the atlas

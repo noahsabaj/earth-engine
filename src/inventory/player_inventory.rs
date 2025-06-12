@@ -1,4 +1,5 @@
-use super::{InventorySlot, SlotType, ItemStack};
+use super::slot::{InventorySlot, SlotType};
+use super::item::ItemStack;
 use crate::item::ItemId;
 
 /// Size of the hotbar

@@ -55,7 +55,7 @@ impl World {
         self.chunk_manager.set_block(pos, block);
     }
     
-    pub fn chunks(&self) -> &HashMap<ChunkPos, Chunk> {
+    pub fn chunks(&self) -> impl Iterator<Item = (ChunkPos, &Chunk)> {
         self.chunk_manager.get_loaded_chunks()
     }
     

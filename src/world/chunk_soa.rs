@@ -1,4 +1,5 @@
-use crate::world::{BlockId, ChunkPos, VoxelPos};
+use crate::world::BlockId;
+use crate::world::position::{ChunkPos, VoxelPos};
 use crate::lighting::LightLevel;
 use crate::morton::morton_encode_chunk;
 use std::alloc::{alloc_zeroed, dealloc, Layout};
@@ -14,6 +15,7 @@ const CACHE_LINE_SIZE: usize = 64;
 /// - SIMD-friendly data layout
 /// - Reduced memory bandwidth for partial updates
 /// - Cache-aligned arrays for optimal performance
+#[derive(Clone)]
 pub struct ChunkSoA {
     position: ChunkPos,
     size: u32,
@@ -93,6 +95,21 @@ impl<T: Copy + Default> AlignedArray<T> {
         // - We have exclusive mutable access
         // - The lifetime is tied to &mut self
         std::slice::from_raw_parts_mut(self.ptr, self.len)
+    }
+}
+
+impl<T: Copy + Default> Clone for AlignedArray<T> {
+    fn clone(&self) -> Self {
+        let new_array = Self::new(self.len);
+        
+        // SAFETY: Both arrays have the same length and valid memory
+        // - Both pointers are valid for self.len elements
+        // - T is Copy, so we can safely copy the data
+        unsafe {
+            std::ptr::copy_nonoverlapping(self.ptr, new_array.ptr, self.len);
+        }
+        
+        new_array
     }
 }
 
@@ -301,6 +318,58 @@ impl ChunkSoA {
     pub fn is_light_dirty(&self) -> bool { self.light_dirty }
     pub fn mark_clean(&mut self) { self.dirty = false; }
     pub fn mark_light_clean(&mut self) { self.light_dirty = false; }
+    pub fn mark_dirty(&mut self) { self.dirty = true; }
+    pub fn clear_dirty(&mut self) { self.dirty = false; }
+    
+    /// Get block using VoxelPos (assumes local coordinates)
+    pub fn get_block_at(&self, pos: VoxelPos) -> BlockId {
+        self.get_block(pos.x as u32, pos.y as u32, pos.z as u32)
+    }
+    
+    /// Set block using VoxelPos (assumes local coordinates)
+    pub fn set_block_at(&mut self, pos: VoxelPos, block: BlockId) {
+        self.set_block(pos.x as u32, pos.y as u32, pos.z as u32, block);
+    }
+    
+    /// Get sky light level
+    pub fn get_sky_light(&self, x: u32, y: u32, z: u32) -> u8 {
+        self.get_light(x, y, z).sky
+    }
+    
+    /// Set sky light level
+    pub fn set_sky_light(&mut self, x: u32, y: u32, z: u32, level: u8) {
+        let mut light = self.get_light(x, y, z);
+        light.sky = level;
+        self.set_light(x, y, z, light);
+    }
+    
+    /// Get block light level
+    pub fn get_block_light(&self, x: u32, y: u32, z: u32) -> u8 {
+        self.get_light(x, y, z).block
+    }
+    
+    /// Set block light level
+    pub fn set_block_light(&mut self, x: u32, y: u32, z: u32, level: u8) {
+        let mut light = self.get_light(x, y, z);
+        light.block = level;
+        self.set_light(x, y, z, light);
+    }
+    
+    /// Get all blocks for iteration (returns a Vec for compatibility)
+    pub fn blocks(&self) -> Vec<BlockId> {
+        let mut blocks = Vec::with_capacity(self.voxel_count);
+        
+        // Extract blocks in linear order (not Morton order) for compatibility
+        for z in 0..self.size {
+            for y in 0..self.size {
+                for x in 0..self.size {
+                    blocks.push(self.get_block(x, y, z));
+                }
+            }
+        }
+        
+        blocks
+    }
 }
 
 /// Memory usage statistics

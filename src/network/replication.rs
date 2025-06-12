@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use crate::ecs::{Entity, EcsWorld};
+use crate::ecs::{EntityId, EcsWorldData, get_transform, get_physics};
 use crate::network::{Packet, ServerPacket, EntityType, EntityMetadata};
 use glam::{Vec3, Quat};
 
@@ -11,7 +11,7 @@ pub struct NetworkEntityId(pub u32);
 #[derive(Debug, Clone)]
 pub struct NetworkEntity {
     pub network_id: NetworkEntityId,
-    pub entity: Entity,
+    pub entity: EntityId,
     pub entity_type: EntityType,
     pub owner_id: Option<u32>, // Player ID that owns this entity
     pub replicate_to_all: bool,
@@ -23,7 +23,7 @@ pub struct NetworkEntity {
 }
 
 impl NetworkEntity {
-    pub fn new(network_id: NetworkEntityId, entity: Entity, entity_type: EntityType) -> Self {
+    pub fn new(network_id: NetworkEntityId, entity: EntityId, entity_type: EntityType) -> Self {
         Self {
             network_id,
             entity,
@@ -66,7 +66,7 @@ pub struct ReplicationManager {
     /// All network entities
     entities: HashMap<NetworkEntityId, NetworkEntity>,
     /// Mapping from ECS entity to network entity
-    entity_to_network: HashMap<Entity, NetworkEntityId>,
+    entity_to_network: HashMap<EntityId, NetworkEntityId>,
     /// Next network entity ID
     next_network_id: u32,
     /// Entities that need spawn packets sent
@@ -87,7 +87,7 @@ impl ReplicationManager {
     }
     
     /// Register an entity for replication
-    pub fn register_entity(&mut self, entity: Entity, entity_type: EntityType) -> NetworkEntityId {
+    pub fn register_entity(&mut self, entity: EntityId, entity_type: EntityType) -> NetworkEntityId {
         let network_id = NetworkEntityId(self.next_network_id);
         self.next_network_id += 1;
         
@@ -100,7 +100,7 @@ impl ReplicationManager {
     }
     
     /// Unregister an entity
-    pub fn unregister_entity(&mut self, entity: Entity) {
+    pub fn unregister_entity(&mut self, entity: EntityId) {
         if let Some(network_id) = self.entity_to_network.remove(&entity) {
             self.entities.remove(&network_id);
             self.despawn_queue.push(network_id);
@@ -108,13 +108,13 @@ impl ReplicationManager {
     }
     
     /// Get network entity by ECS entity
-    pub fn get_network_entity(&self, entity: Entity) -> Option<&NetworkEntity> {
+    pub fn get_network_entity(&self, entity: EntityId) -> Option<&NetworkEntity> {
         self.entity_to_network.get(&entity)
             .and_then(|id| self.entities.get(id))
     }
     
     /// Get mutable network entity by ECS entity
-    pub fn get_network_entity_mut(&mut self, entity: Entity) -> Option<&mut NetworkEntity> {
+    pub fn get_network_entity_mut(&mut self, entity: EntityId) -> Option<&mut NetworkEntity> {
         if let Some(id) = self.entity_to_network.get(&entity).copied() {
             self.entities.get_mut(&id)
         } else {
@@ -123,19 +123,19 @@ impl ReplicationManager {
     }
     
     /// Process replication for all entities
-    pub fn process_replication(&mut self, ecs_world: &EcsWorld) -> Vec<Packet> {
+    pub fn process_replication(&mut self, ecs_world: &EcsWorldData) -> Vec<Packet> {
         let mut packets = Vec::new();
         
         // Process spawn queue
         while let Some(network_id) = self.spawn_queue.pop() {
             if let Some(network_entity) = self.entities.get(&network_id) {
                 // Get entity position and rotation from ECS
-                let (position, rotation, velocity) = if let Some(transform) = ecs_world.get_component::<crate::ecs::components::Transform>(network_entity.entity) {
-                    let velocity = ecs_world.get_component::<crate::ecs::components::Physics>(network_entity.entity)
-                        .map(|p| Vec3::new(p.velocity.x, p.velocity.y, p.velocity.z))
+                let (position, rotation, velocity) = if let Some(transform) = get_transform(ecs_world, network_entity.entity) {
+                    let velocity = get_physics(ecs_world, network_entity.entity)
+                        .map(|p| Vec3::new(p.velocity[0], p.velocity[1], p.velocity[2]))
                         .unwrap_or(Vec3::ZERO);
-                    let pos = Vec3::new(transform.position.x, transform.position.y, transform.position.z);
-                    let rot = Quat::from_euler(glam::EulerRot::YXZ, transform.rotation.y, transform.rotation.x, transform.rotation.z);
+                    let pos = Vec3::new(transform.position[0], transform.position[1], transform.position[2]);
+                    let rot = Quat::from_euler(glam::EulerRot::YXZ, transform.rotation[1], transform.rotation[0], transform.rotation[2]);
                     (pos, rot, velocity)
                 } else {
                     (Vec3::ZERO, Quat::IDENTITY, Vec3::ZERO)
@@ -166,13 +166,13 @@ impl ReplicationManager {
         // Process position updates
         for network_entity in self.entities.values_mut() {
             // Get current transform
-            if let Some(transform) = ecs_world.get_component::<crate::ecs::components::Transform>(network_entity.entity) {
-                let velocity = ecs_world.get_component::<crate::ecs::components::Physics>(network_entity.entity)
-                    .map(|p| Vec3::new(p.velocity.x, p.velocity.y, p.velocity.z))
+            if let Some(transform) = get_transform(ecs_world, network_entity.entity) {
+                let velocity = get_physics(ecs_world, network_entity.entity)
+                    .map(|p| Vec3::new(p.velocity[0], p.velocity[1], p.velocity[2]))
                     .unwrap_or(Vec3::ZERO);
                 
-                let pos = Vec3::new(transform.position.x, transform.position.y, transform.position.z);
-                let rot = Quat::from_euler(glam::EulerRot::YXZ, transform.rotation.y, transform.rotation.x, transform.rotation.z);
+                let pos = Vec3::new(transform.position[0], transform.position[1], transform.position[2]);
+                let rot = Quat::from_euler(glam::EulerRot::YXZ, transform.rotation[1], transform.rotation[0], transform.rotation[2]);
                 
                 // Check if update needed
                 if network_entity.needs_replication(pos, rot) {
@@ -222,7 +222,7 @@ impl ReplicationManager {
 /// Client-side replication receiver
 pub struct ReplicationReceiver {
     /// Network ID to ECS entity mapping
-    network_to_entity: HashMap<NetworkEntityId, Entity>,
+    network_to_entity: HashMap<NetworkEntityId, EntityId>,
 }
 
 impl ReplicationReceiver {
@@ -233,7 +233,7 @@ impl ReplicationReceiver {
     }
     
     /// Handle entity spawn packet
-    pub fn handle_entity_spawn(&mut self, ecs_world: &mut EcsWorld, 
+    pub fn handle_entity_spawn(&mut self, ecs_world: &mut EcsWorldData, 
                               network_id: u32, entity_type: EntityType,
                               position: Vec3, rotation: Quat, velocity: Vec3) {
         let network_id = NetworkEntityId(network_id);
@@ -242,41 +242,24 @@ impl ReplicationReceiver {
         let entity = ecs_world.create_entity();
         
         // Add transform component
-        ecs_world.add_component(entity, crate::ecs::components::Transform {
-            position: cgmath::Point3::new(position.x, position.y, position.z),
-            rotation: {
-                let euler = rotation.to_euler(glam::EulerRot::YXZ);
-                cgmath::Vector3::new(euler.1, euler.0, euler.2)
-            },
-            scale: cgmath::Vector3::new(1.0, 1.0, 1.0),
-        });
+        let euler = rotation.to_euler(glam::EulerRot::YXZ);
+        ecs_world.add_transform(entity, 
+            [position.x, position.y, position.z],
+            [euler.1, euler.0, euler.2],
+            [1.0, 1.0, 1.0]);
         
         // Add physics component if has velocity
         if velocity != Vec3::ZERO {
-            ecs_world.add_component(entity, crate::ecs::components::Physics {
-                velocity: cgmath::Vector3::new(velocity.x, velocity.y, velocity.z),
-                acceleration: cgmath::Vector3::new(0.0, 0.0, 0.0),
-                mass: 1.0,
-                gravity_scale: 1.0,
-                drag: 0.1,
-                angular_velocity: cgmath::Vector3::new(0.0, 0.0, 0.0),
-                bounding_box: crate::physics::AABB {
-                    min: cgmath::Point3::new(-0.5, -0.5, -0.5),
-                    max: cgmath::Point3::new(0.5, 0.5, 0.5),
-                },
-                grounded: false,
-            });
+            ecs_world.add_physics(entity, 1.0, [-0.5, -0.5, -0.5], [0.5, 0.5, 0.5]);
+            if let Some(physics) = ecs_world.components.get_physics_mut(entity) {
+                physics.velocity = [velocity.x, velocity.y, velocity.z];
+            }
         }
         
         // Add type-specific components
         match entity_type {
             EntityType::Item { item_id, count } => {
-                ecs_world.add_component(entity, crate::ecs::components::ItemComponent {
-                    item_id: crate::item::ItemId(item_id),
-                    stack_size: count,
-                    pickup_delay: 0.0,
-                    lifetime: 300.0,
-                });
+                ecs_world.add_item(entity, item_id, count);
             }
             _ => {}
         }
@@ -285,31 +268,31 @@ impl ReplicationReceiver {
     }
     
     /// Handle entity despawn packet
-    pub fn handle_entity_despawn(&mut self, ecs_world: &mut EcsWorld, network_id: u32) {
+    pub fn handle_entity_despawn(&mut self, ecs_world: &mut EcsWorldData, network_id: u32) {
         let network_id = NetworkEntityId(network_id);
         
         if let Some(entity) = self.network_to_entity.remove(&network_id) {
-            ecs_world.remove_entity(entity);
+            ecs_world.destroy_entity(entity);
         }
     }
     
     /// Handle entity update packet
-    pub fn handle_entity_update(&mut self, ecs_world: &mut EcsWorld,
+    pub fn handle_entity_update(&mut self, ecs_world: &mut EcsWorldData,
                                network_id: u32, position: Vec3, rotation: Quat, velocity: Vec3) {
         let network_id = NetworkEntityId(network_id);
         
         if let Some(&entity) = self.network_to_entity.get(&network_id) {
             // Update transform
-            if let Some(transform) = ecs_world.get_component_mut::<crate::ecs::components::Transform>(entity) {
-                transform.position = cgmath::Point3::new(position.x, position.y, position.z);
+            if let Some(transform) = ecs_world.components.get_transform_mut(entity) {
+                transform.position = [position.x, position.y, position.z];
                 // Convert quaternion to euler angles
                 let euler = rotation.to_euler(glam::EulerRot::YXZ);
-                transform.rotation = cgmath::Vector3::new(euler.1, euler.0, euler.2);
+                transform.rotation = [euler.1, euler.0, euler.2];
             }
             
             // Update physics
-            if let Some(physics) = ecs_world.get_component_mut::<crate::ecs::components::Physics>(entity) {
-                physics.velocity = cgmath::Vector3::new(velocity.x, velocity.y, velocity.z);
+            if let Some(physics) = ecs_world.components.get_physics_mut(entity) {
+                physics.velocity = [velocity.x, velocity.y, velocity.z];
             }
         }
     }

@@ -1,8 +1,9 @@
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashSet, VecDeque};
 use std::time::Instant;
 use cgmath::Point3;
 use crate::{Chunk, ChunkPos, VoxelPos, BlockId};
 use crate::lighting::SkylightCalculator;
+use crate::utils::chunk_spatial_hash::{ChunkSpatialHash, ChunkDistanceHash};
 use super::generation::WorldGenerator;
 use super::frame_budget::ChunkLoadThrottler;
 
@@ -23,14 +24,14 @@ pub struct ChunkLoadingStats {
 }
 
 pub struct ChunkManager {
-    loaded_chunks: HashMap<ChunkPos, Chunk>,
+    loaded_chunks: ChunkDistanceHash<Chunk>,
     view_distance: i32,
     chunk_size: u32,
     generator: Box<dyn WorldGenerator>,
     // Track which chunks need meshing
     dirty_chunks: HashSet<ChunkPos>,
-    // Cache for recently unloaded chunks
-    chunk_cache: HashMap<ChunkPos, Chunk>,
+    // Cache for recently unloaded chunks - use regular spatial hash for cache
+    chunk_cache: ChunkSpatialHash<Chunk>,
     cache_size: usize,
     // Chunk loading throttling
     load_queue: VecDeque<ChunkLoadRequest>,
@@ -44,12 +45,12 @@ pub struct ChunkManager {
 impl ChunkManager {
     pub fn new(view_distance: i32, chunk_size: u32, generator: Box<dyn WorldGenerator>) -> Self {
         Self {
-            loaded_chunks: HashMap::new(),
+            loaded_chunks: ChunkDistanceHash::new(view_distance),
             view_distance,
             chunk_size,
             generator,
             dirty_chunks: HashSet::new(),
-            chunk_cache: HashMap::new(),
+            chunk_cache: ChunkSpatialHash::new(),
             cache_size: 64, // Cache up to 64 chunks
             load_queue: VecDeque::new(),
             max_chunks_per_frame: 5, // Load at most 5 chunks per frame
@@ -98,6 +99,9 @@ impl ChunkManager {
                      count + 1, player_chunk, self.loaded_chunks.len(), self.load_queue.len());
         }
         
+        // Update the center position for distance-based storage
+        self.loaded_chunks.update_center(player_chunk);
+        
         // First, unload chunks that are too far
         self.unload_distant_chunks(player_chunk);
         
@@ -110,36 +114,24 @@ impl ChunkManager {
     
     /// Unload chunks that are outside the view distance
     fn unload_distant_chunks(&mut self, player_chunk: ChunkPos) {
-        let unload_distance_sq = (self.view_distance + 2) * (self.view_distance + 2); // Small buffer
-        let mut chunks_to_unload = Vec::new();
+        // ChunkDistanceHash already handles distance culling in update_center
+        // We just need to manage the cache for unloaded chunks
         
-        for &chunk_pos in self.loaded_chunks.keys() {
-            let distance_sq = chunk_pos.distance_squared_to(player_chunk);
-            if distance_sq > unload_distance_sq {
-                chunks_to_unload.push(chunk_pos);
-            }
-        }
-        
-        // Unload chunks and add to cache
-        for chunk_pos in chunks_to_unload {
-            if let Some(chunk) = self.loaded_chunks.remove(&chunk_pos) {
-                // Remove from generation tracking
-                self.chunks_in_generation.remove(&chunk_pos);
-                
-                // Add to cache
-                self.chunk_cache.insert(chunk_pos, chunk);
-                
-                // Trim cache if too large using LRU-like behavior
-                if self.chunk_cache.len() > self.cache_size {
-                    // Find the furthest cached chunk from player
-                    if let Some(furthest_pos) = self.chunk_cache
-                        .keys()
-                        .max_by_key(|pos| pos.distance_squared_to(player_chunk))
-                        .cloned()
-                    {
-                        self.chunk_cache.remove(&furthest_pos);
-                    }
+        // Trim cache if too large using LRU-like behavior
+        if self.chunk_cache.len() > self.cache_size {
+            let mut furthest_pos: Option<ChunkPos> = None;
+            let mut max_distance = 0;
+            
+            for (pos, _) in self.chunk_cache.iter() {
+                let distance = pos.distance_squared_to(player_chunk);
+                if distance > max_distance {
+                    max_distance = distance;
+                    furthest_pos = Some(pos);
                 }
+            }
+            
+            if let Some(pos) = furthest_pos {
+                self.chunk_cache.remove(pos);
             }
         }
     }
@@ -167,7 +159,7 @@ impl ChunkManager {
                         );
                         
                         // Only queue if not already loaded or being generated
-                        if !self.loaded_chunks.contains_key(&chunk_pos) 
+                        if self.loaded_chunks.get(chunk_pos).is_none()
                             && !self.chunks_in_generation.contains(&chunk_pos) {
                             new_requests.push(ChunkLoadRequest {
                                 position: chunk_pos,
@@ -200,7 +192,7 @@ impl ChunkManager {
                 let chunk_pos = request.position;
                 
                 // Skip if already loaded (can happen due to queue updates)
-                if self.loaded_chunks.contains_key(&chunk_pos) {
+                if self.loaded_chunks.get(chunk_pos).is_some() {
                     continue;
                 }
                 
@@ -210,7 +202,7 @@ impl ChunkManager {
                 let load_start = Instant::now();
                 
                 // Check cache first
-                let chunk = if let Some(cached_chunk) = self.chunk_cache.remove(&chunk_pos) {
+                let chunk = if let Some(cached_chunk) = self.chunk_cache.remove(chunk_pos) {
                     cached_chunk
                 } else {
                     // Generate new chunk
@@ -243,11 +235,11 @@ impl ChunkManager {
     }
     
     pub fn get_chunk(&self, pos: ChunkPos) -> Option<&Chunk> {
-        self.loaded_chunks.get(&pos)
+        self.loaded_chunks.get(pos)
     }
     
     pub fn get_chunk_mut(&mut self, pos: ChunkPos) -> Option<&mut Chunk> {
-        if let Some(chunk) = self.loaded_chunks.get_mut(&pos) {
+        if let Some(chunk) = self.loaded_chunks.get_mut(pos) {
             self.dirty_chunks.insert(pos);
             Some(chunk)
         } else {
@@ -259,7 +251,7 @@ impl ChunkManager {
         let chunk_pos = pos.to_chunk_pos(self.chunk_size);
         let local_pos = pos.to_local_pos(self.chunk_size);
         
-        if let Some(chunk) = self.loaded_chunks.get(&chunk_pos) {
+        if let Some(chunk) = self.loaded_chunks.get(chunk_pos) {
             chunk.get_block(local_pos.0, local_pos.1, local_pos.2)
         } else {
             BlockId::AIR
@@ -295,8 +287,8 @@ impl ChunkManager {
         }
     }
     
-    pub fn get_loaded_chunks(&self) -> &HashMap<ChunkPos, Chunk> {
-        &self.loaded_chunks
+    pub fn get_loaded_chunks(&self) -> impl Iterator<Item = (ChunkPos, &Chunk)> {
+        self.loaded_chunks.iter()
     }
     
     pub fn take_dirty_chunks(&mut self) -> HashSet<ChunkPos> {

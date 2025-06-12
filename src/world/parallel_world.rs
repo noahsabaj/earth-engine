@@ -386,11 +386,11 @@ pub struct WorldPerformanceMetrics {
 // Implement WorldInterface for ParallelWorld
 impl WorldInterface for ParallelWorld {
     fn get_block(&self, pos: VoxelPos) -> BlockId {
-        self.get_block(pos)
+        self.chunk_manager.get_block(pos)
     }
     
     fn set_block(&mut self, pos: VoxelPos, block: BlockId) {
-        self.set_block(pos, block);
+        self.chunk_manager.set_block(pos, block);
     }
     
     fn update_loaded_chunks(&mut self, player_pos: Point3<f32>) {

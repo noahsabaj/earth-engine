@@ -44,6 +44,7 @@ const FLUIDS: u32 = 8u;
 const PARTICLES: u32 = 16u;
 const INSTANCES: u32 = 32u;
 const MODIFICATIONS: u32 = 64u;
+const WEATHER: u32 = 128u;
 
 // Constants
 const CHUNK_SIZE: u32 = 32u;

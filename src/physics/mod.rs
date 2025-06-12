@@ -1,14 +1,13 @@
 pub mod aabb;
-pub mod body;
-pub mod world;
-pub mod optimized_world;
 pub mod data_physics;
+pub mod body;
 
 pub use aabb::AABB;
 pub use body::{PhysicsBody, RigidBody, PlayerBody, MovementState};
-pub use world::{PhysicsWorld, EntityId};
-pub use optimized_world::OptimizedPhysicsWorld;
-pub use data_physics::{PhysicsWorldData, PhysicsBodyData, PhysicsUpdate, CollisionBlockBuffer};
+pub use data_physics::{PhysicsWorldData, PhysicsBodyData, PhysicsUpdate, CollisionBlockBuffer, EntityId, flags};
+
+// Re-export PhysicsWorldData as PhysicsWorld for compatibility
+pub use data_physics::PhysicsWorldData as PhysicsWorld;
 
 use cgmath::Vector3;
 

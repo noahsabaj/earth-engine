@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 
 use earth_engine::{
     renderer::{OptimizedGreedyMesher, ObjectPool, with_meshing_buffers},
-    physics::OptimizedPhysicsWorld,
+    physics::PhysicsWorldData,
     lighting::OptimizedLightPropagator,
     world::{World, VoxelPos, BlockId, Chunk, ChunkPos},
     Camera,
@@ -163,7 +163,7 @@ fn benchmark_meshing() {
 fn benchmark_physics() {
     println!("\n=== Physics Benchmark ===");
     
-    let mut physics_world = OptimizedPhysicsWorld::new();
+    let mut physics_world = PhysicsWorldData::new();
     let mut world = World::new(32);
     
     // Add some blocks for collision
@@ -174,11 +174,14 @@ fn benchmark_physics() {
     }
     
     // Add a physics body
-    let body = Box::new(earth_engine::physics::RigidBody::new(
+    physics_world.add_entity(
         Point3::new(5.0, 10.0, 5.0),
-        earth_engine::physics::AABB::from_half_extents(Point3::new(0.0, 0.0, 0.0), cgmath::Vector3::new(0.4, 0.9, 0.4)),
-    ));
-    physics_world.add_body(body);
+        cgmath::Vector3::zero(),
+        cgmath::Vector3::new(0.8, 1.8, 0.8),
+        80.0,
+        0.8,
+        0.0,
+    );
     
     // Warmup
     for _ in 0..100 {

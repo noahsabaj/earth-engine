@@ -68,8 +68,7 @@ pub struct MeshingBuffers {
     pub mask: Vec<Vec<Option<BlockId>>>,
     /// Used flags for rectangle extraction
     pub used: Vec<Vec<bool>>,
-    /// Temporary quad storage
-    pub quads: Vec<crate::renderer::greedy_mesher::GreedyQuad>,
+    // Removed quad storage - using GPU-driven approach
     /// Vertex buffer for mesh building
     pub vertices: Vec<crate::renderer::Vertex>,
     /// Index buffer for mesh building
@@ -81,7 +80,6 @@ impl MeshingBuffers {
         Self {
             mask: vec![vec![None; chunk_size]; chunk_size],
             used: vec![vec![false; chunk_size]; chunk_size],
-            quads: Vec::with_capacity(chunk_size * chunk_size * 6), // Worst case: all faces visible
             vertices: Vec::with_capacity(chunk_size * chunk_size * 24), // 4 verts per quad * 6 faces
             indices: Vec::with_capacity(chunk_size * chunk_size * 36), // 6 indices per quad * 6 faces
         }
@@ -95,7 +93,6 @@ impl MeshingBuffers {
         for row in &mut self.used {
             row.fill(false);
         }
-        self.quads.clear();
         self.vertices.clear();
         self.indices.clear();
     }

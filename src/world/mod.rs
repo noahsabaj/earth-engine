@@ -1,7 +1,7 @@
 mod block;
 mod block_drops;
 mod block_entity;
-mod chunk;
+mod position;
 mod ray;
 mod registry;
 mod world;
@@ -21,7 +21,7 @@ mod frame_budget;
 pub use block::{Block, BlockId, RenderData, PhysicsProperties};
 pub use block_drops::{BlockDropHandler, MiningProgress};
 pub use block_entity::{BlockEntity, BlockEntityData, FurnaceBlockEntity, ChestBlockEntity};
-pub use chunk::{Chunk, ChunkPos, VoxelPos};
+pub use position::{ChunkPos, VoxelPos};
 pub use ray::{Ray, RaycastHit, BlockFace, cast_ray};
 pub use registry::BlockRegistry;
 pub use world::World;
@@ -37,3 +37,6 @@ pub use morton_chunk::MortonChunk;
 pub use chunk_soa::{ChunkSoA, ChunkMemoryStats};
 pub use data_chunk_manager::{ChunkManagerData, ChunkMetadata, ChunkBatchOps};
 pub use frame_budget::{FrameBudget, ChunkLoadThrottler};
+
+// Re-export ChunkSoA as Chunk for compatibility
+pub use chunk_soa::ChunkSoA as Chunk;

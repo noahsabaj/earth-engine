@@ -14,7 +14,7 @@ use crate::network::{
 };
 use crate::error::EngineError;
 use crate::world::{BlockId, VoxelPos, ChunkPos, ParallelWorld, ParallelWorldConfig, DefaultWorldGenerator};
-use crate::ecs::EcsWorld;
+use crate::ecs::EcsWorldData;
 use glam::{Vec3, Quat};
 
 /// Server configuration
@@ -68,7 +68,7 @@ pub struct Server {
     connection_manager: Arc<Mutex<ConnectionManager>>,
     players: Arc<Mutex<HashMap<u32, ServerPlayer>>>,
     world: Arc<ParallelWorld>,
-    ecs_world: Arc<Mutex<EcsWorld>>,
+    ecs_world: Arc<Mutex<EcsWorldData>>,
     running: Arc<Mutex<bool>>,
     start_time: Instant,
     
@@ -107,7 +107,7 @@ impl Server {
                 };
                 Arc::new(ParallelWorld::new(generator, config))
             },
-            ecs_world: Arc::new(Mutex::new(EcsWorld::new())),
+            ecs_world: Arc::new(Mutex::new(EcsWorldData::new())),
             running: Arc::new(Mutex::new(false)),
             start_time: Instant::now(),
             packet_tx,

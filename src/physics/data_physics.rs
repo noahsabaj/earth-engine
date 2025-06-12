@@ -7,6 +7,7 @@ use super::{AABB, FIXED_TIMESTEP, GRAVITY, TERMINAL_VELOCITY};
 use crate::{World, VoxelPos, BlockId};
 use cgmath::{Point3, Vector3, Zero, InnerSpace};
 use bytemuck::{Pod, Zeroable};
+use std::any::Any;
 
 /// Maximum entities in physics system
 pub const MAX_PHYSICS_ENTITIES: usize = 16384;
@@ -379,7 +380,74 @@ pub mod operations {
     }
 }
 
+// Convenience methods for easier migration
+impl PhysicsWorldData {
+    /// Add entity to physics world
+    pub fn add_entity(
+        &mut self,
+        position: Point3<f32>,
+        velocity: Vector3<f32>,
+        aabb_size: Vector3<f32>,
+        mass: f32,
+        friction: f32,
+        restitution: f32,
+    ) -> EntityId {
+        let id = operations::add_entity(self, position, velocity, aabb_size).expect("Failed to add entity");
+        
+        // Set additional properties
+        if let Some(&idx) = self.id_to_index.get(&id) {
+            if let Some(body) = self.bodies.get_mut(idx) {
+                body.mass = mass;
+                body.friction = friction;
+                body.restitution = restitution;
+            }
+        }
+        
+        id
+    }
+    
+    /// Update physics world
+    pub fn update(&mut self, world: &impl crate::world::WorldInterface, delta_time: f32) {
+        // Downcast to concrete World type for now
+        // In a real implementation, we'd make operations work with WorldInterface
+        if let Some(world) = (world as &dyn std::any::Any).downcast_ref::<crate::world::World>() {
+            operations::update(self, world, delta_time);
+        }
+    }
+    
+    /// Get body data by entity ID
+    pub fn get_body(&self, id: EntityId) -> Option<&PhysicsBodyData> {
+        self.id_to_index.get(&id).and_then(|&idx| self.bodies.get(idx))
+    }
+    
+    /// Get mutable body data by entity ID
+    pub fn get_body_mut(&mut self, id: EntityId) -> Option<&mut PhysicsBodyData> {
+        self.id_to_index.get(&id).and_then(|&idx| self.bodies.get_mut(idx))
+    }
+    
+    /// Set entity velocity
+    pub fn set_velocity(&mut self, id: EntityId, velocity: Vector3<f32>) {
+        if let Some(body) = self.get_body_mut(id) {
+            body.velocity = [velocity.x, velocity.y, velocity.z];
+        }
+    }
+    
+    /// Get entity position
+    pub fn get_position(&self, id: EntityId) -> Option<Point3<f32>> {
+        self.get_body(id).map(|body| {
+            Point3::new(body.position[0], body.position[1], body.position[2])
+        })
+    }
+    
+    /// Set entity position
+    pub fn set_position(&mut self, id: EntityId, position: Point3<f32>) {
+        if let Some(body) = self.get_body_mut(id) {
+            body.position = [position.x, position.y, position.z];
+        }
+    }
+}
+
 // Usage:
 // let mut physics = PhysicsWorldData::new();
-// let id = operations::add_entity(&mut physics, Point3::new(0.0, 10.0, 0.0), Vector3::zero(), Vector3::new(1.0, 2.0, 1.0));
-// operations::update(&mut physics, &world, delta_time);
+// let id = physics.add_entity(Point3::new(0.0, 10.0, 0.0), Vector3::zero(), Vector3::new(1.0, 2.0, 1.0), 80.0, 0.8, 0.0);
+// physics.update(&world, delta_time);

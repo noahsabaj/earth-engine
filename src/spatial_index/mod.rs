@@ -8,6 +8,7 @@
 /// - Load balancing for crowded areas
 
 mod hierarchical_grid;
+mod preallocated_hierarchical_grid;
 mod spatial_query;
 mod entity_store;
 mod density_analyzer;

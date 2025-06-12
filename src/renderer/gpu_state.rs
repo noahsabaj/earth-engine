@@ -1,7 +1,7 @@
 use crate::{Camera, EngineConfig, Game, GameContext, BlockRegistry, BlockId, VoxelPos};
 use crate::input::InputState;
-use crate::physics::{PhysicsWorld, PlayerBody, MovementState, PhysicsBody};
-use crate::renderer::{SelectionRenderer, SimpleAsyncRenderer, GpuDiagnostics, GpuInitProgress};
+use crate::physics::{PhysicsWorldData, EntityId, flags};
+use crate::renderer::{SelectionRenderer, GpuDiagnostics, GpuInitProgress, gpu_driven::GpuDrivenRenderer};
 use crate::world::{Ray, RaycastHit, ParallelWorld, ParallelWorldConfig};
 use crate::lighting::{DayNightCycle, LightPropagator};
 use anyhow::Result;
@@ -175,15 +175,15 @@ pub struct GpuState {
     // World and rendering
     world: ParallelWorld,
     block_registry: Arc<BlockRegistry>,
-    chunk_renderer: SimpleAsyncRenderer,
+    chunk_renderer: GpuDrivenRenderer,
     selection_renderer: SelectionRenderer,
     selected_block: Option<RaycastHit>,
     // Block breaking progress
     breaking_block: Option<VoxelPos>,
     breaking_progress: f32,
     // Physics
-    physics_world: PhysicsWorld,
-    player_entity: crate::physics::world::EntityId,
+    physics_world: PhysicsWorldData,
+    player_entity: EntityId,
     // Lighting
     day_night_cycle: DayNightCycle,
     light_propagator: LightPropagator,
@@ -610,14 +610,15 @@ impl GpuState {
         world.update(camera.position);
         log::info!("[GpuState::new] World initialization complete (chunk loading started)");
         
-        // Create chunk renderer with async mesh building
-        log::info!("[GpuState::new] Creating async chunk renderer...");
-        let chunk_renderer = SimpleAsyncRenderer::new(
-            Arc::clone(&block_registry),
-            chunk_size,
-            None, // Use default thread count
+        // Create GPU-driven renderer
+        log::info!("[GpuState::new] Creating GPU-driven renderer...");
+        let chunk_renderer = GpuDrivenRenderer::new(
+            Arc::clone(&device),
+            Arc::clone(&queue),
+            config.format,
+            &camera_bind_group_layout,
         );
-        log::info!("[GpuState::new] Chunk renderer created");
+        log::info!("[GpuState::new] GPU-driven renderer created");
         
         // Create selection renderer
         log::info!("[GpuState::new] Creating selection renderer...");
@@ -626,9 +627,15 @@ impl GpuState {
         
         // Create physics world and player entity
         log::info!("[GpuState::new] Creating physics world...");
-        let mut physics_world = PhysicsWorld::new();
-        let player_body = PlayerBody::new(camera.position);
-        let player_entity = physics_world.add_body(Box::new(player_body));
+        let mut physics_world = PhysicsWorldData::new();
+        let player_entity = physics_world.add_entity(
+            camera.position,
+            Vector3::zero(),
+            Vector3::new(0.8, 1.8, 0.8), // Player size
+            80.0, // Mass in kg
+            0.8,  // Friction
+            0.0,  // Restitution
+        );
         log::info!("[GpuState::new] Physics world created with player entity");
         
         // Create lighting systems
@@ -788,88 +795,90 @@ impl GpuState {
     }
     
     fn update_chunk_renderer(&mut self, input: &InputState) {
-        // Queue dirty chunks for async mesh building
-        self.chunk_renderer.queue_dirty_chunks(&self.world, &self.camera);
+        // Begin new frame for GPU-driven renderer
+        self.chunk_renderer.begin_frame(&self.camera);
         
-        // Update the async renderer (process queue and upload meshes)
-        self.chunk_renderer.update(&self.device);
+        // TODO: Convert chunks to RenderObjects and submit them
+        // For now, we'll skip chunk submission until we have proper chunk->RenderObject conversion
         
-        // Clean up GPU buffers for unloaded chunks
-        self.chunk_renderer.cleanup_unloaded_chunks(&self.world);
+        // Build GPU commands
+        self.chunk_renderer.build_commands();
         
-        // Note: World update is handled in the main render loop, not here
+        // Note: Actual rendering happens in the render() method
     }
     
     fn process_input(&mut self, input: &InputState, delta_time: f32, active_block: BlockId) -> (Option<(VoxelPos, BlockId)>, Option<VoxelPos>) {
         // Get player body for movement
         if let Some(body) = self.physics_world.get_body_mut(self.player_entity) {
-            if let Some(player_body) = body.as_any_mut().downcast_mut::<PlayerBody>() {
-                // Calculate movement direction based on camera yaw
-                let yaw_rad = cgmath::Rad::from(self.camera.yaw).0;
-                let forward = Vector3::new(yaw_rad.cos(), 0.0, yaw_rad.sin());
-                let right = Vector3::new(-yaw_rad.sin(), 0.0, yaw_rad.cos());
-                
-                let mut move_dir = Vector3::new(0.0, 0.0, 0.0);
-                
-                // Movement input
+            // Calculate movement direction based on camera yaw
+            let yaw_rad = cgmath::Rad::from(self.camera.yaw).0;
+            let forward = Vector3::new(yaw_rad.cos(), 0.0, yaw_rad.sin());
+            let right = Vector3::new(yaw_rad.sin(), 0.0, -yaw_rad.cos());
+            
+            let mut move_dir = Vector3::new(0.0, 0.0, 0.0);
+            
+            // Movement input
+            if input.is_key_pressed(KeyCode::KeyW) {
+                move_dir += forward;
+            }
+            if input.is_key_pressed(KeyCode::KeyS) {
+                move_dir -= forward;
+            }
+            if input.is_key_pressed(KeyCode::KeyA) {
+                move_dir -= right;
+            }
+            if input.is_key_pressed(KeyCode::KeyD) {
+                move_dir += right;
+            }
+            
+            // Normalize diagonal movement
+            if move_dir.magnitude() > 0.0 {
+                move_dir = move_dir.normalize();
+            }
+            
+            // Check player state flags
+            let is_grounded = (body.flags & flags::GROUNDED) != 0;
+            let is_in_water = (body.flags & flags::IN_WATER) != 0;
+            let is_on_ladder = (body.flags & flags::ON_LADDER) != 0;
+            
+            // Determine movement speed based on state
+            let mut move_speed = 4.3; // Normal walking speed
+            if !is_in_water && !is_on_ladder {
+                if input.is_key_pressed(KeyCode::ShiftLeft) && is_grounded {
+                    move_speed = 5.6; // Sprint speed
+                } else if input.is_key_pressed(KeyCode::ControlLeft) {
+                    move_speed = 1.3; // Crouch speed
+                }
+            } else if is_in_water {
+                move_speed = 2.0; // Swimming speed
+            }
+            
+            // Apply horizontal movement
+            let horizontal_vel = move_dir * move_speed;
+            body.velocity[0] = horizontal_vel.x;
+            body.velocity[2] = horizontal_vel.z;
+            
+            // Handle vertical movement
+            if is_on_ladder {
+                // Ladder climbing
                 if input.is_key_pressed(KeyCode::KeyW) {
-                    move_dir += forward;
+                    body.velocity[1] = 3.0; // Climb up
+                } else if input.is_key_pressed(KeyCode::KeyS) {
+                    body.velocity[1] = -3.0; // Climb down
+                } else {
+                    body.velocity[1] = 0.0; // Stay in place on ladder
                 }
-                if input.is_key_pressed(KeyCode::KeyS) {
-                    move_dir -= forward;
+            } else if input.is_key_pressed(KeyCode::Space) {
+                if is_in_water {
+                    // Swim up
+                    body.velocity[1] = 4.0;
+                } else if is_grounded {
+                    // Jump
+                    body.velocity[1] = 8.5; // Jump velocity
                 }
-                if input.is_key_pressed(KeyCode::KeyA) {
-                    move_dir -= right;
-                }
-                if input.is_key_pressed(KeyCode::KeyD) {
-                    move_dir += right;
-                }
-                
-                // Normalize diagonal movement
-                if move_dir.magnitude() > 0.0 {
-                    move_dir = move_dir.normalize();
-                }
-                
-                // Handle movement state changes
-                if !player_body.is_in_water && !player_body.is_on_ladder {
-                    if input.is_key_pressed(KeyCode::ShiftLeft) && player_body.rigid_body.grounded {
-                        // Sprint
-                        if player_body.movement_state != MovementState::Sprinting {
-                            player_body.set_movement_state(MovementState::Sprinting);
-                        }
-                    } else if input.is_key_pressed(KeyCode::ControlLeft) {
-                        // Crouch
-                        if player_body.movement_state != MovementState::Crouching {
-                            player_body.set_movement_state(MovementState::Crouching);
-                        }
-                    } else if player_body.movement_state != MovementState::Normal {
-                        player_body.set_movement_state(MovementState::Normal);
-                    }
-                }
-                
-                // Apply movement to physics body
-                player_body.move_horizontal(move_dir);
-                
-                // Handle vertical movement on ladders
-                if player_body.is_on_ladder {
-                    if input.is_key_pressed(KeyCode::KeyW) {
-                        player_body.move_vertical_on_ladder(true);
-                    } else if input.is_key_pressed(KeyCode::KeyS) {
-                        player_body.move_vertical_on_ladder(false);
-                    }
-                }
-                
-                // Jump or swim up
-                if input.is_key_pressed(KeyCode::Space) {
-                    player_body.jump();
-                }
-                
+            } else if is_in_water && input.is_key_pressed(KeyCode::ControlLeft) {
                 // Swim down
-                if player_body.is_in_water && input.is_key_pressed(KeyCode::ControlLeft) {
-                    let mut vel = player_body.get_velocity();
-                    vel.y = -player_body.swim_speed;
-                    player_body.set_velocity(vel);
-                }
+                body.velocity[1] = -2.0;
             }
         }
         
@@ -976,6 +985,9 @@ impl GpuState {
             log::info!("[GpuState::render] First frame rendered in {:.2}ms", elapsed.as_millis());
         }
 
+        // Execute GPU culling pass before main render pass
+        // Note: This is a simplified approach - in production, you'd want proper pass management
+        
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Render Pass"),
@@ -1004,29 +1016,28 @@ impl GpuState {
                 timestamp_writes: None,
             });
 
-            // Draw chunks with async rendering
-            render_pass.set_pipeline(&self.render_pipeline);
-            render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
+            // Execute GPU-driven rendering
+            // TODO: This needs refactoring - GpuDrivenRenderer expects to manage its own render pass
+            // For now, we'll comment this out until we properly integrate the GPU-driven pipeline
+            // self.chunk_renderer.render(&mut encoder, &mut render_pass, &self.camera_bind_group);
             
-            // Check if we have chunks loaded
-            let chunk_count = self.chunk_renderer.render(&mut render_pass, &self.camera, &self.camera_bind_group);
-            if chunk_count > 0 && !self.first_chunks_loaded {
+            // Get stats for logging
+            let stats = self.chunk_renderer.stats();
+            if stats.objects_drawn > 0 && !self.first_chunks_loaded {
                 self.first_chunks_loaded = true;
                 log::info!("[GpuState::render] First chunks rendered after {} frames", self.frames_rendered);
-            } else if chunk_count == 0 {
+            } else if stats.objects_drawn == 0 {
                 // Log more frequently in the first few seconds
                 if self.frames_rendered <= 180 && self.frames_rendered % 20 == 0 {
-                    log::warn!("[GpuState::render] No chunks rendered after {} frames (meshes: {}, queued: {}, world chunks: {})", 
+                    log::warn!("[GpuState::render] No chunks rendered after {} frames (objects submitted: {}, world chunks: {})", 
                              self.frames_rendered, 
-                             self.chunk_renderer.mesh_count(),
-                             self.chunk_renderer.queued_builds(),
+                             stats.objects_submitted,
                              self.world.chunk_manager().loaded_chunk_count());
                 } else if self.frames_rendered % 60 == 0 {
                     // Log every second after initial period
-                    log::warn!("[GpuState::render] No chunks rendered after {} frames (meshes: {}, queued: {}, world chunks: {})", 
+                    log::warn!("[GpuState::render] No chunks rendered after {} frames (objects submitted: {}, world chunks: {})", 
                              self.frames_rendered, 
-                             self.chunk_renderer.mesh_count(),
-                             self.chunk_renderer.queued_builds(),
+                             stats.objects_submitted,
                              self.world.chunk_manager().loaded_chunk_count());
                 }
             }
@@ -1263,28 +1274,20 @@ pub async fn run_app<G: Game + 'static>(
                         // Update physics
                         gpu_state.physics_world.update(&gpu_state.world, delta_time);
                         
-                        // Sync camera position with player physics body and check fall damage
-                        if let Some(body) = gpu_state.physics_world.get_body_mut(gpu_state.player_entity) {
-                            if let Some(player_body) = body.as_any_mut().downcast_mut::<PlayerBody>() {
-                                let player_pos = player_body.get_position();
-                                
-                                // Check for fall damage when landing
-                                if player_body.rigid_body.grounded && player_body.fall_start_y.is_some() {
-                                    let damage = player_body.calculate_fall_damage();
-                                    if damage > 0.0 {
-                                        println!("Fall damage: {} HP", damage as i32);
-                                        // In a real game, apply damage to player health here
-                                    }
-                                    player_body.fall_start_y = None;
-                                }
-                                
-                                // Camera at eye level (0.72m offset from body center)
-                                gpu_state.camera.position = Point3::new(
-                                    player_pos.x,
-                                    player_pos.y + 0.72,
-                                    player_pos.z
-                                );
-                            }
+                        // Sync camera position with player physics body
+                        if let Some(body) = gpu_state.physics_world.get_body(gpu_state.player_entity) {
+                            let player_pos = Point3::new(
+                                body.position[0],
+                                body.position[1],
+                                body.position[2],
+                            );
+                            
+                            // Camera at eye level (0.72m offset from body center)
+                            gpu_state.camera.position = Point3::new(
+                                player_pos.x,
+                                player_pos.y + 0.72,
+                                player_pos.z
+                            );
                         }
                         
                         // Update loaded chunks based on player position
@@ -1337,10 +1340,11 @@ pub async fn run_app<G: Game + 'static>(
                         
                         // Log chunk renderer state for first few frames
                         if gpu_state.frames_rendered <= 10 && gpu_state.frames_rendered % 2 == 0 {
-                            log::info!("[render loop] Frame {}: chunk renderer has {} meshes, {} queued builds", 
+                            let stats = gpu_state.chunk_renderer.stats();
+                            log::info!("[render loop] Frame {}: chunk renderer has {} objects submitted, {} drawn", 
                                      gpu_state.frames_rendered,
-                                     gpu_state.chunk_renderer.mesh_count(),
-                                     gpu_state.chunk_renderer.queued_builds());
+                                     stats.objects_submitted,
+                                     stats.objects_drawn);
                         }
 
                         // Update game with context

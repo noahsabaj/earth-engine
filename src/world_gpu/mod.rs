@@ -23,6 +23,8 @@ pub mod sparse_octree;
 pub mod bvh;
 pub mod hierarchical_physics;
 pub mod unified_benchmark;
+pub mod weather_gpu;
+pub mod weather_migration;
 // pub mod streaming_world; // Temporarily disabled for Sprint 27
 
 #[cfg(test)]
@@ -43,4 +45,5 @@ pub use bvh::{VoxelBvh, BvhNode, BvhStats};
 pub use hierarchical_physics::{HierarchicalPhysics, PhysicsQuery, QueryResult, QueryType};
 pub use unified_benchmark::{UnifiedKernelBenchmark, UnifiedBenchmarkResults};
 pub use benchmarks::{GpuWorldBenchmarks, PerformanceComparison, PerformanceImprovements};
+pub use weather_gpu::{WeatherGpu, WeatherGpuDescriptor, WeatherData, WeatherTransition, PrecipitationParticle, WeatherConfig};
 // pub use streaming_world::{StreamingWorldBuffer, WorldStats, create_planet_world}; // Temporarily disabled

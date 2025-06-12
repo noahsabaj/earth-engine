@@ -34,6 +34,7 @@ pub mod instance;
 pub mod process;
 pub mod attributes;
 pub mod memory;
+pub mod utils;
 pub mod world_state;
 
 // Web-specific module
@@ -47,7 +48,7 @@ pub use error::{EngineError, EngineResult, OptionExt, ErrorContext};
 pub use camera::Camera;
 pub use game::{Game, GameContext};
 pub use input::KeyCode;
-pub use physics::{PhysicsWorld, PhysicsBody, RigidBody, AABB};
+pub use physics::{PhysicsWorldData, PhysicsBodyData, AABB};
 pub use renderer::Renderer;
 pub use world::{Block, BlockId, BlockRegistry, Chunk, ChunkPos, VoxelPos, RenderData, PhysicsProperties, World, Ray, RaycastHit, BlockFace, cast_ray};
 

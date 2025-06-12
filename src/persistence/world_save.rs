@@ -98,7 +98,7 @@ impl WorldSave {
         // Save all loaded chunks
         for (pos, chunk) in world.chunks() {
             self.save_chunk(chunk)
-                .map_err(|e| WorldSaveError::ChunkSave(*pos, e))?;
+                .map_err(|e| WorldSaveError::ChunkSave(pos, e))?;
         }
         
         // Flush cache
@@ -257,7 +257,7 @@ impl WorldSave {
         // Save each chunk
         for (pos, chunk) in &cache {
             self.save_chunk(chunk)
-                .map_err(|e| WorldSaveError::ChunkSave(*pos, e))?;
+                .map_err(|e| WorldSaveError::ChunkSave(pos, e))?;
         }
         
         // Cache is now empty (from mem::take)
