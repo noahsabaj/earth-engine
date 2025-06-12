@@ -2,7 +2,7 @@ use crate::{Camera, EngineConfig, Game, GameContext, BlockRegistry, BlockId, Vox
 use crate::input::InputState;
 use crate::physics::{PhysicsWorldData, EntityId, flags};
 use crate::renderer::{SelectionRenderer, GpuDiagnostics, GpuInitProgress, gpu_driven::GpuDrivenRenderer};
-use crate::world::{Ray, RaycastHit, ParallelWorld, ParallelWorldConfig, WorldInterface, WorldGenerator};
+use crate::world::{Ray, RaycastHit, ParallelWorld, ParallelWorldConfig, WorldInterface, WorldGenerator, SpawnFinder};
 use crate::lighting::{DayNightCycle, LightPropagator};
 use anyhow::Result;
 use cgmath::{Matrix4, SquareMatrix, Point3, Vector3, InnerSpace, Zero};
@@ -601,15 +601,14 @@ impl GpuState {
             sand_id,
         ));
         
-        // Find safe spawn position using the world generator
-        let spawn_x = 0.0;
-        let spawn_z = 0.0;
-        let safe_spawn_y = generator.find_safe_spawn_height(spawn_x as f64, spawn_z as f64);
-        log::info!("[GpuState::new] Found safe spawn height: {} at position ({}, {})", safe_spawn_y, spawn_x, spawn_z);
+        // Start with a temporary camera position (will be updated after spawn search)
+        let temp_spawn_x = 0.0;
+        let temp_spawn_z = 0.0;
+        let temp_spawn_y = 80.0; // Temporary height above typical terrain
         
-        // Create camera at safe spawn position
-        let camera = Camera::new_with_position(config.width, config.height, spawn_x, safe_spawn_y, spawn_z);
-        log::info!("[GpuState::new] Camera created at safe spawn position: {:?}", camera.position);
+        // Create camera at temporary position
+        let mut camera = Camera::new_with_position(config.width, config.height, temp_spawn_x, temp_spawn_y, temp_spawn_z);
+        log::info!("[GpuState::new] Camera created at temporary position: {:?}", camera.position);
         
         // Update camera uniform with actual camera position
         camera_uniform.update_view_proj(&camera);
@@ -642,9 +641,34 @@ impl GpuState {
         log::info!("[GpuState::new] Creating parallel world...");
         let mut world = ParallelWorld::new(generator, parallel_config);
         
-        // Skip all pregeneration to ensure fast startup
-        // Chunks will be generated asynchronously during the first frames
-        log::info!("[GpuState::new] Skipping spawn area pregeneration for non-blocking startup");
+        // Find safe spawn position by checking actual blocks
+        log::info!("[GpuState::new] Finding safe spawn position...");
+        let spawn_result = SpawnFinder::find_safe_spawn(&world, temp_spawn_x, temp_spawn_z, 10);
+        
+        let safe_spawn_pos = match spawn_result {
+            Ok(pos) => {
+                log::info!("[GpuState::new] Found safe spawn position at {:?}", pos);
+                SpawnFinder::debug_blocks_at_position(&world, pos);
+                pos
+            }
+            Err(e) => {
+                log::error!("[GpuState::new] Failed to find safe spawn: {}", e);
+                log::warn!("[GpuState::new] Using fallback spawn position");
+                Point3::new(temp_spawn_x, temp_spawn_y, temp_spawn_z)
+            }
+        };
+        
+        // Update camera to safe spawn position
+        camera.position = safe_spawn_pos;
+        log::info!("[GpuState::new] Camera moved to safe spawn position: {:?}", camera.position);
+        
+        // Update camera uniform with new position
+        camera_uniform.update_view_proj(&camera);
+        queue.write_buffer(
+            &camera_buffer,
+            0,
+            bytemuck::cast_slice(&[camera_uniform]),
+        );
         
         // Do one initial update to start chunk loading
         log::info!("[GpuState::new] Performing initial world update to queue chunk generation...");
@@ -1397,6 +1421,30 @@ impl GpuState {
         if stats.objects_drawn > 0 && !self.first_chunks_loaded {
             self.first_chunks_loaded = true;
             log::info!("[GpuState::render] First chunks rendered after {} frames", self.frames_rendered);
+            
+            // Verify spawn position now that chunks are loaded
+            let adjusted_pos = SpawnFinder::verify_spawn_position(&self.world, self.camera.position);
+            if adjusted_pos != self.camera.position {
+                log::info!("[GpuState::render] Adjusting spawn position from {:?} to {:?}", 
+                         self.camera.position, adjusted_pos);
+                self.camera.position = adjusted_pos;
+                
+                // TODO: Update physics entity position too
+                // The physics system uses a data-oriented design and doesn't have a direct
+                // method to update position. This would need to be added to the physics system.
+                log::warn!("[GpuState::render] Physics entity position not updated - needs implementation");
+                
+                // Update camera uniform
+                self.camera_uniform.update_view_proj(&self.camera);
+                self.queue.write_buffer(
+                    &self.camera_buffer,
+                    0,
+                    bytemuck::cast_slice(&[self.camera_uniform]),
+                );
+            }
+            
+            // Debug what blocks are around spawn
+            SpawnFinder::debug_blocks_at_position(&self.world, self.camera.position);
         } else if stats.objects_drawn == 0 {
             // Log more frequently in the first few seconds
             if self.frames_rendered <= 180 && self.frames_rendered % 20 == 0 {

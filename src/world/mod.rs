@@ -17,6 +17,7 @@ mod morton_chunk;
 mod chunk_soa;
 pub mod data_chunk_manager;
 mod frame_budget;
+mod spawn_finder;
 
 pub use block::{Block, BlockId, RenderData, PhysicsProperties};
 pub use block_drops::{BlockDropHandler, MiningProgress};
@@ -37,6 +38,7 @@ pub use morton_chunk::MortonChunk;
 pub use chunk_soa::{ChunkSoA, ChunkMemoryStats};
 pub use data_chunk_manager::{ChunkManagerData, ChunkMetadata, ChunkBatchOps};
 pub use frame_budget::{FrameBudget, ChunkLoadThrottler};
+pub use spawn_finder::SpawnFinder;
 
 // Re-export ChunkSoA as Chunk for compatibility
 pub use chunk_soa::ChunkSoA as Chunk;
