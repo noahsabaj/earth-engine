@@ -4,6 +4,9 @@ pub mod terrain;
 pub mod caves;
 pub mod ores;
 
+#[cfg(test)]
+mod tests;
+
 pub use terrain::TerrainGenerator;
 pub use caves::CaveGenerator;
 pub use ores::OreGenerator;
@@ -11,6 +14,15 @@ pub use ores::OreGenerator;
 pub trait WorldGenerator: Send + Sync {
     fn generate_chunk(&self, chunk_pos: ChunkPos, chunk_size: u32) -> Chunk;
     fn get_surface_height(&self, world_x: f64, world_z: f64) -> i32;
+    
+    /// Find a safe spawn height at the given position
+    fn find_safe_spawn_height(&self, world_x: f64, world_z: f64) -> f32 {
+        let surface_height = self.get_surface_height(world_x, world_z);
+        // Add 3 blocks of clearance above the terrain
+        let safe_height = surface_height as f32 + 3.0;
+        // Clamp to reasonable values
+        safe_height.clamp(20.0, 250.0)
+    }
 }
 
 pub struct DefaultWorldGenerator {

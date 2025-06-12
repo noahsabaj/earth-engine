@@ -2,7 +2,7 @@ use crate::{Camera, EngineConfig, Game, GameContext, BlockRegistry, BlockId, Vox
 use crate::input::InputState;
 use crate::physics::{PhysicsWorldData, EntityId, flags};
 use crate::renderer::{SelectionRenderer, GpuDiagnostics, GpuInitProgress, gpu_driven::GpuDrivenRenderer};
-use crate::world::{Ray, RaycastHit, ParallelWorld, ParallelWorldConfig, WorldInterface};
+use crate::world::{Ray, RaycastHit, ParallelWorld, ParallelWorldConfig, WorldInterface, WorldGenerator};
 use crate::lighting::{DayNightCycle, LightPropagator};
 use anyhow::Result;
 use cgmath::{Matrix4, SquareMatrix, Point3, Vector3, InnerSpace, Zero};
@@ -475,13 +475,14 @@ impl GpuState {
 
         // Create depth texture
         let depth_texture = create_depth_texture(&device, &config);
-
-        // Create camera
-        let camera = Camera::new(config.width, config.height);
+        
+        // Create temporary camera for initial buffer creation
+        // We'll update the position after we create the terrain generator
+        let temp_camera = Camera::new(config.width, config.height);
         
         // Create camera uniform buffer
         let mut camera_uniform = CameraUniform::new();
-        camera_uniform.update_view_proj(&camera);
+        camera_uniform.update_view_proj(&temp_camera);
         
         // Create buffer with full camera uniform size (used by voxel.wgsl)
         let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -600,6 +601,24 @@ impl GpuState {
             sand_id,
         ));
         
+        // Find safe spawn position using the world generator
+        let spawn_x = 0.0;
+        let spawn_z = 0.0;
+        let safe_spawn_y = generator.find_safe_spawn_height(spawn_x as f64, spawn_z as f64);
+        log::info!("[GpuState::new] Found safe spawn height: {} at position ({}, {})", safe_spawn_y, spawn_x, spawn_z);
+        
+        // Create camera at safe spawn position
+        let camera = Camera::new_with_position(config.width, config.height, spawn_x, safe_spawn_y, spawn_z);
+        log::info!("[GpuState::new] Camera created at safe spawn position: {:?}", camera.position);
+        
+        // Update camera uniform with actual camera position
+        camera_uniform.update_view_proj(&camera);
+        queue.write_buffer(
+            &camera_buffer,
+            0,
+            bytemuck::cast_slice(&[camera_uniform]),
+        );
+        
         // Configure parallel world for better performance
         let cpu_count = num_cpus::get();
         log::info!("[GpuState::new] System has {} CPUs", cpu_count);
@@ -659,7 +678,7 @@ impl GpuState {
             0.8,  // Friction
             0.0,  // Restitution
         );
-        log::info!("[GpuState::new] Physics world created with player entity");
+        log::info!("[GpuState::new] Physics world created with player entity at safe spawn position");
         
         // Create lighting systems
         log::info!("[GpuState::new] Creating lighting systems...");

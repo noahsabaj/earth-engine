@@ -8,7 +8,7 @@ pub mod data_camera;
 // Re-export data-oriented camera as the primary interface
 pub use data_camera::{
     CameraData, CameraUniform, CameraTransformBatch,
-    init_camera, update_aspect_ratio, build_view_matrix, 
+    init_camera, init_camera_with_spawn, update_aspect_ratio, build_view_matrix, 
     build_projection_matrix, build_camera_uniform,
     apply_transform_batch,
 };
@@ -32,6 +32,18 @@ impl Camera {
     pub fn new(width: u32, height: u32) -> Self {
         Self {
             position: Point3::new(0.0, 80.0, 0.0), // Start above typical terrain height (y=64)
+            yaw: Deg(-90.0),
+            pitch: Deg(0.0),
+            aspect: width as f32 / height as f32,
+            fovy: Deg(45.0),
+            znear: 0.1,
+            zfar: 1000.0,
+        }
+    }
+    
+    pub fn new_with_position(width: u32, height: u32, x: f32, y: f32, z: f32) -> Self {
+        Self {
+            position: Point3::new(x, y, z),
             yaw: Deg(-90.0),
             pitch: Deg(0.0),
             aspect: width as f32 / height as f32,

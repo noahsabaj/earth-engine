@@ -47,6 +47,20 @@ pub fn init_camera(width: u32, height: u32) -> CameraData {
     }
 }
 
+/// Initialize camera data with a safe spawn position
+pub fn init_camera_with_spawn(width: u32, height: u32, spawn_x: f32, spawn_y: f32, spawn_z: f32) -> CameraData {
+    CameraData {
+        position: [spawn_x, spawn_y, spawn_z],
+        yaw_radians: -std::f32::consts::FRAC_PI_2, // -90 degrees
+        pitch_radians: 0.0,
+        aspect_ratio: width as f32 / height as f32,
+        fovy_radians: std::f32::consts::FRAC_PI_4, // 45 degrees
+        znear: 0.1,
+        zfar: 1000.0,
+        _padding: [0.0; 3],
+    }
+}
+
 /// Update camera aspect ratio for window resize
 pub fn update_aspect_ratio(camera: &CameraData, width: u32, height: u32) -> CameraData {
     let mut updated = *camera;
