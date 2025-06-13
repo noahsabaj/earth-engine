@@ -1,6 +1,28 @@
 # Earth Engine Examples
 
-This directory contains runnable examples demonstrating how to use various features of the Earth Engine.
+This directory contains runnable examples demonstrating how to use Earth Engine as a library.
+
+## Main Examples
+
+### `engine_testbed.rs` - Comprehensive Development Platform
+The primary testbed for Earth Engine development featuring:
+- Full game implementation with complete gameplay features
+- Comprehensive debug UI with real-time metrics
+- Performance monitoring and profiling tools
+- Engine configuration controls
+- Visual debugging capabilities
+- Memory and GPU diagnostics
+
+**Usage**: `cargo run --example engine_testbed`
+
+### `minimal_engine.rs` - Simple Library Usage
+Demonstrates the simplest possible usage of Earth Engine as a library:
+- Basic engine initialization
+- Simple game implementation
+- Clean API usage patterns
+- Perfect for learning and prototyping
+
+**Usage**: `cargo run --example minimal_engine`
 
 ## Purpose
 
@@ -9,6 +31,7 @@ Examples serve multiple purposes:
 - **Testing**: Informal testing of features in isolation
 - **Learning**: Help new contributors understand the codebase
 - **Validation**: Ensure APIs remain usable and ergonomic
+- **Development**: Engine testbed provides comprehensive testing platform
 
 ## Running Examples
 

@@ -197,86 +197,16 @@ path = "examples/debugging/trace_spawn_detail.rs"
 name = "trace_terrain_at_origin"
 path = "examples/debugging/trace_terrain_at_origin.rs"
 
-[[bin]]
-name = "parallel_benchmark"
-path = "src/bin/parallel_benchmark.rs"
+# Engine Examples
+[[example]]
+name = "engine_testbed"
+path = "examples/engine_testbed.rs"
 
-[[bin]]
-name = "parallel_test"
-path = "src/bin/parallel_test.rs"
+[[example]]
+name = "minimal_engine"
+path = "examples/minimal_engine.rs"
 
-[[bin]]
-name = "async_render_test"
-path = "src/bin/async_render_test.rs"
-
-[[bin]]
-name = "parallel_lighting_benchmark"
-path = "src/bin/parallel_lighting_benchmark.rs"
-
-[[bin]]
-name = "parallel_lighting_test"
-path = "src/bin/parallel_lighting_test.rs"
-
-[[bin]]
-name = "test_gpu_diagnostics"
-path = "src/bin/test_gpu_diagnostics.rs"
-
-[[bin]]
-name = "profile_baseline"
-path = "src/bin/profile_baseline.rs"
-
-[[bin]]
-name = "analyze_hot_paths"
-path = "src/bin/analyze_hot_paths.rs"
-
-[[bin]]
-name = "soa_benchmark"
-path = "src/bin/soa_benchmark.rs"
-
-[[bin]]
-name = "gpu_driven_test"
-path = "src/bin/gpu_driven_test.rs"
-
-[[bin]]
-name = "streaming_test"
-path = "src/bin/streaming_test.rs"
-
-[[bin]]
-name = "web_benchmark"
-path = "src/bin/web_benchmark.rs"
-
-[[bin]]
-name = "morton_benchmark"
-path = "src/bin/morton_benchmark.rs"
-
-[[bin]]
-name = "shared_memory_test"
-path = "src/bin/shared_memory_test.rs"
-
-[[bin]]
-name = "morton_test"
-path = "src/bin/morton_test.rs"
-
-[[bin]]
-name = "gpu_culling_test"
-path = "src/bin/gpu_culling_test.rs"
-
-[[bin]]
-name = "test_instance"
-path = "src/bin/test_instance.rs"
-
-[[bin]]
-name = "test_process"
-path = "src/bin/test_process.rs"
-
-[[bin]]
-name = "victory_lap_benchmark"
-path = "src/bin/victory_lap_benchmark.rs"
-
-[[bin]]
-name = "check_camera_size"
-path = "src/bin/check_camera_size.rs"
-
-[[bin]]
-name = "check_uniform_sizes"
-path = "src/bin/check_uniform_sizes.rs"
+# Earth Engine is now a pure library
+# All binaries have been moved to examples or removed
+# Use `cargo run --example engine_testbed` for comprehensive testing
+# Use `cargo run --example minimal_engine` for simple usage examples

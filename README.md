@@ -76,23 +76,101 @@ Building the first voxel engine that truly uses modern hardware. Not competing w
 
 See [docs/EARTH_ENGINE_VISION_2025.md](docs/EARTH_ENGINE_VISION_2025.md) for the revolutionary game design.
 
-## 🛠️ Development
+## 🛠️ Using Earth Engine
 
-### Setup
+Earth Engine is designed as a **pure library**, not a standalone application. This promotes:
+- **Reusability**: Use the engine in your own projects without modification
+- **Professional Structure**: Clean API with comprehensive examples
+- **Better Testing**: Library code is easier to test and validate
+- **Developer Experience**: Multiple testbeds for different development needs
+
+### As a Library User
+```toml
+# Add to your Cargo.toml
+[dependencies]
+earth-engine = { path = "../earth-engine" }  # or from crates.io when published
+```
+
+```rust
+// Basic usage in your project
+use earth_engine::{Engine, EngineConfig, Game, GameContext};
+use earth_engine::world::{BlockId, BlockRegistry};
+
+struct MyGame;
+impl Game for MyGame {
+    fn register_blocks(&mut self, _registry: &mut BlockRegistry) {}
+    fn update(&mut self, _ctx: &mut GameContext, _delta_time: f32) {}
+    fn get_active_block(&self) -> BlockId { BlockId(1) }
+}
+
+fn main() {
+    let config = EngineConfig::default();
+    let engine = Engine::new(config);
+    engine.run(MyGame).expect("Engine failed");
+}
+```
+
+### For Engine Development
+
 ```bash
 # Clone the repository
 git clone https://github.com/yourusername/earth-engine.git
 cd earth-engine
 
-# Build the engine
+# Build the library
 cargo build --release
+
+# Run comprehensive testbed with debug UI and performance metrics
+cargo run --example engine_testbed
+
+# Run simple example for learning the API
+cargo run --example minimal_engine
+
+# Run specialized examples
+cargo run --example chunk_loading_demo
+cargo run --example async_mesh_integration
 
 # Run tests
 cargo test
-
-# Run GPU detection test
-cargo run --bin gpu_test
 ```
+
+### Examples and Testbeds
+
+#### 🔧 **Engine Testbed** (`cargo run --example engine_testbed`)
+**The primary development platform for Earth Engine**
+- **Comprehensive Debug UI**: F1-F12 hotkeys for all debug functions
+- **Real-time Metrics**: FPS, frame times, memory usage, GPU diagnostics
+- **Visual Debugging**: Chunk boundaries, wireframe mode, profiling overlay
+- **Performance Analysis**: Frame time graphs, allocation tracking
+- **Engine Configuration**: Live tuning of engine parameters
+- **Perfect for**: Engine development, performance analysis, feature testing
+
+**Debug Controls:**
+- `F1` - Toggle debug UI
+- `F2` - Toggle performance metrics
+- `F3` - Toggle chunk boundaries  
+- `F4` - Toggle wireframe mode
+- `F5` - Toggle profiling
+- `F9` - Reload chunks
+- `F12` - Take screenshot
+
+#### 🎯 **Minimal Engine** (`cargo run --example minimal_engine`)
+**Clean, simple library usage demonstration**
+- **Basic API Usage**: Shows minimal code needed to use Earth Engine
+- **Learning Tool**: Perfect for understanding engine initialization
+- **Starting Point**: Clean template for new projects
+- **No Complexity**: Focus on core engine concepts only
+
+#### 📂 **Category Examples**
+| Category | Example | Purpose |
+|----------|---------|---------|
+| **Rendering** | `async_mesh_integration` | Advanced rendering techniques |
+| **World Gen** | `chunk_loading_demo` | Procedural world generation |
+| **Gameplay** | `data_inventory_example` | Game mechanics implementation |
+| **Particles** | `dop_particles` | Particle system usage |
+| **Debugging** | `debug_screenshot_issue` | Troubleshooting tools |
+
+**View all examples**: `ls examples/` or see [examples/README.md](examples/README.md)
 
 ### Development Workflow
 1. Develop in WSL/Linux environment
