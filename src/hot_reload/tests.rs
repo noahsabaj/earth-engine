@@ -72,7 +72,7 @@ mod tests {
             ConfigValue::Integer(2),
         ]);
         assert!(array_val.as_array().is_some());
-        assert_eq!(array_val.as_array().unwrap().len(), 2);
+        assert_eq!(array_val.as_array().expect("array_val should be an array in test").len(), 2);
     }
     
     #[test]
@@ -144,7 +144,7 @@ mod tests {
         preserver.register_state(Box::new(player_state));
         
         // Create snapshot
-        let snapshots = preserver.create_snapshot().unwrap();
+        let snapshots = preserver.create_snapshot().expect("Failed to create snapshot in test");
         assert_eq!(snapshots.len(), 1);
         assert_eq!(snapshots[0].id, "player");
         
@@ -154,17 +154,17 @@ mod tests {
     
     #[test]
     fn test_config_builder() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Failed to create temp directory in test");
         let config_path = temp_dir.path().join("test.json");
         
         // Write test config
-        fs::write(&config_path, r#"{"key": "value"}"#).unwrap();
+        fs::write(&config_path, r#"{"key": "value"}"#).expect("Failed to write test config file");
         
         let reloader = ConfigBuilder::new()
             .add_config("test", &config_path)
             .add_default("default_key", ConfigValue::String("default".to_string()))
             .build()
-            .unwrap();
+            .expect("Failed to build config reloader in test");
         
         // Test getting values
         assert_eq!(

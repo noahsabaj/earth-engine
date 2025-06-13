@@ -231,15 +231,15 @@ mod tests {
     
     #[tokio::test]
     async fn test_file_watcher() {
-        let temp_dir = TempDir::new().unwrap();
-        let mut watcher = FileWatcher::new(50).unwrap();
+        let temp_dir = TempDir::new().expect("Failed to create temp directory for file watcher test");
+        let mut watcher = FileWatcher::new(50).expect("Failed to create file watcher in test");
         
         // Watch temp directory
-        watcher.watch_dir(temp_dir.path()).unwrap();
+        watcher.watch_dir(temp_dir.path()).expect("Failed to watch temp directory in test");
         
         // Create a file
         let test_file = temp_dir.path().join("test.txt");
-        fs::write(&test_file, "hello").unwrap();
+        fs::write(&test_file, "hello").expect("Failed to write test file in watcher test");
         
         // Wait for event
         tokio::time::sleep(Duration::from_millis(100)).await;
