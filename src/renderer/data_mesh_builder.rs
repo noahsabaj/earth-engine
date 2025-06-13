@@ -223,7 +223,13 @@ pub mod operations {
                 // Convert light from u8 (0-15) to float (0.0-1.0)
                 let light_float = (light as f32) / 15.0;
                 // Convert ao from u8 (0-255) to float (0.0-1.0)
-                let ao_float = (ao.get(i).copied().unwrap_or(255) as f32) / 255.0;
+                let ao_float = match ao.get(i) {
+                    Some(&value) => (value as f32) / 255.0,
+                    None => {
+                        log::warn!("AO value index {} out of bounds, using full AO", i);
+                        1.0
+                    }
+                };
                 
                 *vertex = Vertex {
                     position: positions[i],

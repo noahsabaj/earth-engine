@@ -192,12 +192,20 @@ impl GeomorphLod {
         
         // Simple collapse: merge vertices that are close
         for ((v0, v1), _) in edges.iter().take(vertices.len() / 10) {
-            let pos0 = vertices.get(*v0 as usize)
-                .map(|v| Vector3::from(v.position))
-                .unwrap_or(Vector3::zero());
-            let pos1 = vertices.get(*v1 as usize)
-                .map(|v| Vector3::from(v.position))
-                .unwrap_or(Vector3::zero());
+            let pos0 = match vertices.get(*v0 as usize) {
+                Some(v) => Vector3::from(v.position),
+                None => {
+                    log::warn!("Vertex {} out of bounds during edge collapse", v0);
+                    Vector3::zero()
+                }
+            };
+            let pos1 = match vertices.get(*v1 as usize) {
+                Some(v) => Vector3::from(v.position),
+                None => {
+                    log::warn!("Vertex {} out of bounds during edge collapse", v1);
+                    Vector3::zero()
+                }
+            };
             let collapse_point = (pos0 + pos1) * 0.5;
             
             collapses.push(EdgeCollapse {
@@ -243,7 +251,7 @@ impl GeomorphLod {
                         let vertex = match vertices.get_mut(morph.high_lod_index as usize) {
                             Some(v) => v,
                             None => {
-                                eprintln!("Morph high_lod_index {} out of bounds", morph.high_lod_index);
+                                log::warn!("Morph high_lod_index {} out of bounds", morph.high_lod_index);
                                 continue;
                             }
                         };

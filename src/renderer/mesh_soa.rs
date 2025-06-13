@@ -37,8 +37,20 @@ impl MeshSoA {
         
         // Add vertices
         for i in 0..4 {
-            let ao_value = ao.get(i).copied().unwrap_or(1.0);
-            let position = positions.get(i).copied().unwrap_or([0.0, 0.0, 0.0]);
+            let ao_value = match ao.get(i) {
+                Some(&value) => value,
+                None => {
+                    log::warn!("AO value index {} out of bounds, using default", i);
+                    1.0
+                }
+            };
+            let position = match positions.get(i) {
+                Some(&pos) => pos,
+                None => {
+                    log::warn!("Position index {} out of bounds, using origin", i);
+                    [0.0, 0.0, 0.0]
+                }
+            };
             self.vertices.push(position, color, normal, light, ao_value);
         }
         

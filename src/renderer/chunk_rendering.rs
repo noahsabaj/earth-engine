@@ -340,6 +340,12 @@ pub fn filter_visible_chunks(
     output.sort_by(|a, b| {
         let priority_a = chunk_render_priority(*a, view_pos, view_dir, chunk_size);
         let priority_b = chunk_render_priority(*b, view_pos, view_dir, chunk_size);
-        priority_b.partial_cmp(&priority_a).unwrap_or(std::cmp::Ordering::Equal)
+        match priority_b.partial_cmp(&priority_a) {
+            Some(ordering) => ordering,
+            None => {
+                log::warn!("Invalid priority values during chunk sorting");
+                std::cmp::Ordering::Equal
+            }
+        }
     });
 }

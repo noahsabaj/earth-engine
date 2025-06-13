@@ -236,15 +236,21 @@ impl ProgressiveStreamer {
         
         // Check deltas for higher LODs
         if lod != MeshLod::Lod4 {
-            let vertex_complete = state.packets_received
-                .get(&(lod, PacketType::VertexDelta))
-                .map(|r| r.iter().all(|&v| v))
-                .unwrap_or(false);
+            let vertex_complete = match state.packets_received.get(&(lod, PacketType::VertexDelta)) {
+                Some(received) => received.iter().all(|&v| v),
+                None => {
+                    log::debug!("No vertex delta packets received yet for LOD {:?}", lod);
+                    false
+                }
+            };
                 
-            let index_complete = state.packets_received
-                .get(&(lod, PacketType::IndexDelta))
-                .map(|r| r.iter().all(|&v| v))
-                .unwrap_or(false);
+            let index_complete = match state.packets_received.get(&(lod, PacketType::IndexDelta)) {
+                Some(received) => received.iter().all(|&v| v),
+                None => {
+                    log::debug!("No index delta packets received yet for LOD {:?}", lod);
+                    false
+                }
+            };
                 
             return vertex_complete && index_complete;
         }
@@ -337,8 +343,20 @@ impl ProgressiveEncoder {
         }
         
         // Encode deltas for each LOD
-        let mut prev_vertices = lod_meshes.get(&MeshLod::Lod4).map(|(v, _)| v.clone()).unwrap_or_default();
-        let mut prev_indices = lod_meshes.get(&MeshLod::Lod4).map(|(_, i)| i.clone()).unwrap_or_default();
+        let mut prev_vertices = match lod_meshes.get(&MeshLod::Lod4) {
+            Some((v, _)) => v.clone(),
+            None => {
+                log::warn!("No LOD4 mesh found for encoding");
+                Vec::new()
+            }
+        };
+        let mut prev_indices = match lod_meshes.get(&MeshLod::Lod4) {
+            Some((_, i)) => i.clone(),
+            None => {
+                log::warn!("No LOD4 indices found for encoding");
+                Vec::new()
+            }
+        };
         
         for lod in [MeshLod::Lod3, MeshLod::Lod2, MeshLod::Lod1, MeshLod::Lod0] {
             if let Some((vertices, indices)) = lod_meshes.get(&lod) {

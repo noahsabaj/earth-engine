@@ -73,7 +73,13 @@ impl PartialOrd for CollapseCandidate {
 
 impl Ord for CollapseCandidate {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.partial_cmp(other).unwrap_or(Ordering::Equal)
+        match self.partial_cmp(other) {
+            Some(ordering) => ordering,
+            None => {
+                log::warn!("Invalid error values during collapse candidate comparison");
+                Ordering::Equal
+            }
+        }
     }
 }
 
@@ -126,15 +132,27 @@ impl MeshSimplifier {
                 }
                 
                 // Compute face plane
-                let v0 = positions.get(face[0] as usize)
-                    .copied()
-                    .unwrap_or(Vector3::zero());
-                let v1 = positions.get(face[1] as usize)
-                    .copied()
-                    .unwrap_or(Vector3::zero());
-                let v2 = positions.get(face[2] as usize)
-                    .copied()
-                    .unwrap_or(Vector3::zero());
+                let v0 = match positions.get(face[0] as usize) {
+                    Some(&pos) => pos,
+                    None => {
+                        log::warn!("Vertex {} out of bounds during face plane computation", face[0]);
+                        Vector3::zero()
+                    }
+                };
+                let v1 = match positions.get(face[1] as usize) {
+                    Some(&pos) => pos,
+                    None => {
+                        log::warn!("Vertex {} out of bounds during face plane computation", face[1]);
+                        Vector3::zero()
+                    }
+                };
+                let v2 = match positions.get(face[2] as usize) {
+                    Some(&pos) => pos,
+                    None => {
+                        log::warn!("Vertex {} out of bounds during face plane computation", face[2]);
+                        Vector3::zero()
+                    }
+                };
                 
                 let normal = (v1 - v0).cross(v2 - v0).normalize();
                 let d = -normal.dot(v0);
@@ -400,15 +418,27 @@ fn recompute_normals(vertices: &mut [Vertex], indices: &[u32]) {
     // Accumulate face normals
     for chunk in indices.chunks(3) {
         if chunk.len() == 3 {
-            let v0 = vertices.get(chunk[0] as usize)
-                .map(|v| Vector3::from(v.position))
-                .unwrap_or(Vector3::zero());
-            let v1 = vertices.get(chunk[1] as usize)
-                .map(|v| Vector3::from(v.position))
-                .unwrap_or(Vector3::zero());
-            let v2 = vertices.get(chunk[2] as usize)
-                .map(|v| Vector3::from(v.position))
-                .unwrap_or(Vector3::zero());
+            let v0 = match vertices.get(chunk[0] as usize) {
+                Some(v) => Vector3::from(v.position),
+                None => {
+                    log::warn!("Vertex {} out of bounds during normal computation", chunk[0]);
+                    Vector3::zero()
+                }
+            };
+            let v1 = match vertices.get(chunk[1] as usize) {
+                Some(v) => Vector3::from(v.position),
+                None => {
+                    log::warn!("Vertex {} out of bounds during normal computation", chunk[1]);
+                    Vector3::zero()
+                }
+            };
+            let v2 = match vertices.get(chunk[2] as usize) {
+                Some(v) => Vector3::from(v.position),
+                None => {
+                    log::warn!("Vertex {} out of bounds during normal computation", chunk[2]);
+                    Vector3::zero()
+                }
+            };
             
             let normal = (v1 - v0).cross(v2 - v0);
             

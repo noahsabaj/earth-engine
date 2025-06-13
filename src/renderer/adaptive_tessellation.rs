@@ -359,9 +359,13 @@ impl AdaptiveTessellator {
         // Create vertex remapping
         let mut vertex_remap: Vec<u32> = (0..vertices.len() as u32).collect();
         vertex_remap.sort_by_key(|&idx| {
-            let pos = vertices.get(idx as usize)
-                .map(|v| Vector3::from(v.position))
-                .unwrap_or(Vector3::zero());
+            let pos = match vertices.get(idx as usize) {
+                Some(v) => Vector3::from(v.position),
+                None => {
+                    log::warn!("Vertex index {} out of bounds during optimization", idx);
+                    Vector3::zero()
+                }
+            };
             // Sort by Morton code for spatial locality
             let x = (pos.x * 1000.0) as u32;
             let z = (pos.z * 1000.0) as u32;
@@ -387,9 +391,13 @@ impl AdaptiveTessellator {
         
         // Update indices
         for idx in indices.iter_mut() {
-            *idx = inverse_remap.get(*idx as usize)
-                .copied()
-                .unwrap_or(*idx);
+            *idx = match inverse_remap.get(*idx as usize) {
+                Some(&new_idx) => new_idx,
+                None => {
+                    log::warn!("Index {} not found in remap, keeping original", *idx);
+                    *idx
+                }
+            };
         }
     }
 }

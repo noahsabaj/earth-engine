@@ -53,7 +53,15 @@ impl LodConfig {
     pub fn add_level(&mut self, level: LodLevel) {
         self.levels.push(level);
         // Keep sorted by min distance
-        self.levels.sort_by(|a, b| a.min_distance.partial_cmp(&b.min_distance).unwrap_or(std::cmp::Ordering::Equal));
+        self.levels.sort_by(|a, b| {
+            match a.min_distance.partial_cmp(&b.min_distance) {
+                Some(ordering) => ordering,
+                None => {
+                    log::warn!("Invalid distance values during LOD sorting: {} vs {}", a.min_distance, b.min_distance);
+                    std::cmp::Ordering::Equal
+                }
+            }
+        });
     }
     
     /// Select LOD based on distance

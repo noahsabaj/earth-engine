@@ -35,7 +35,10 @@ impl<T> ObjectPool<T> {
     }
     
     pub fn acquire(&self) -> PooledObject<T> {
-        let item = self.pool.write().pop().unwrap_or_else(|| (self.factory)());
+        let item = match self.pool.write().pop() {
+            Some(item) => item,
+            None => (self.factory)(),
+        };
         PooledObject {
             item: Some(item),
             pool: Arc::clone(&self.pool),
@@ -135,9 +138,12 @@ where
             *buffers_ref = Some(MeshingBuffers::new(chunk_size));
         }
         // This is safe because we just ensured the buffer exists
-        let buffers = buffers_ref.as_mut().unwrap_or_else(|| {
-            panic!("Failed to initialize MeshingBuffers - this should not happen");
-        });
+        let buffers = match buffers_ref.as_mut() {
+            Some(buffers) => buffers,
+            None => {
+                panic!("Failed to initialize MeshingBuffers - this should not happen");
+            }
+        };
         buffers.clear();
         f(buffers)
     })
@@ -160,7 +166,10 @@ impl StringPool {
     }
     
     pub fn acquire(&self) -> PooledString {
-        let mut string = self.pool.write().pop().unwrap_or_else(|| String::with_capacity(128));
+        let mut string = match self.pool.write().pop() {
+            Some(string) => string,
+            None => String::with_capacity(128),
+        };
         string.clear();
         PooledString {
             string: Some(string),
