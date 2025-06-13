@@ -427,7 +427,7 @@ mod tests {
         assert!(remaining.is_none());
         
         // Check item was added to first slot
-        let slot_item = get_slot_item(&inventory.slots[0]).unwrap();
+        let slot_item = get_slot_item(&inventory.slots[0]).expect("First slot should contain item after adding");
         assert_eq!(slot_item.item_id, 1);
         assert_eq!(slot_item.count, 10);
     }
@@ -447,7 +447,7 @@ mod tests {
         assert!(remaining.is_none());
         
         // Check first slot is full
-        let slot_item = get_slot_item(&inventory.slots[0]).unwrap();
+        let slot_item = get_slot_item(&inventory.slots[0]).expect("First slot should contain item after stacking");
         assert_eq!(slot_item.count, 64);
     }
 }

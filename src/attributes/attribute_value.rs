@@ -371,7 +371,7 @@ mod tests {
         let a = AttributeValue::Vector3([0.0, 0.0, 0.0]);
         let b = AttributeValue::Vector3([10.0, 10.0, 10.0]);
         
-        let result = a.lerp(&b, 0.5).unwrap();
+        let result = a.lerp(&b, 0.5).expect("Lerp should succeed for compatible Vector3 values");
         match result {
             AttributeValue::Vector3(v) => {
                 assert_eq!(v, [5.0, 5.0, 5.0]);

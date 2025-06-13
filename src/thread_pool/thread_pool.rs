@@ -345,7 +345,8 @@ mod tests {
     #[test]
     fn test_thread_pool_manager_initialization() {
         let config = ThreadPoolConfig::default();
-        let manager = ThreadPoolManager::new(config).unwrap();
+        let manager = ThreadPoolManager::new(config)
+            .expect("Failed to create ThreadPoolManager for test");
         
         // Test pool creation
         let world_pool = manager.get_pool(PoolCategory::WorldGeneration);
@@ -358,7 +359,7 @@ mod tests {
     #[test]
     fn test_task_execution() {
         let config = ThreadPoolConfig::default();
-        let manager = Arc::new(ThreadPoolManager::new(config).unwrap());
+        let manager = Arc::new(ThreadPoolManager::new(config).expect("Failed to create ThreadPoolManager for task execution test"));
         
         let result = manager.execute(PoolCategory::Compute, || {
             1 + 1

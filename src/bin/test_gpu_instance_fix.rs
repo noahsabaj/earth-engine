@@ -69,7 +69,7 @@ fn main() {
             power_preference: wgpu::PowerPreference::HighPerformance,
             force_fallback_adapter: false,
             compatible_surface: None,
-        }).await.unwrap();
+        }).await.expect("Failed to request adapter");
         
         let (device, queue) = adapter.request_device(
             &wgpu::DeviceDescriptor {
@@ -78,7 +78,7 @@ fn main() {
                 required_limits: wgpu::Limits::default(),
             },
             None,
-        ).await.unwrap();
+        ).await.expect("Failed to request device");
         
         let device = Arc::new(device);
         let queue = Arc::new(queue);

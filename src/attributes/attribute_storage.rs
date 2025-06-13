@@ -375,8 +375,8 @@ mod tests {
         let instance = InstanceId::new();
         
         // Set attributes
-        storage.set(instance, "health".to_string(), AttributeValue::Float(100.0)).unwrap();
-        storage.set(instance, "name".to_string(), AttributeValue::String("Player".to_string())).unwrap();
+        storage.set(instance, "health".to_string(), AttributeValue::Float(100.0)).expect("Setting health should succeed");
+        storage.set(instance, "name".to_string(), AttributeValue::String("Player".to_string())).expect("Setting name should succeed");
         
         // Get attributes
         assert_eq!(
@@ -395,8 +395,8 @@ mod tests {
         let id1 = InstanceId::new();
         let id2 = InstanceId::new();
         
-        storage.set(id1, "level".to_string(), AttributeValue::Integer(10)).unwrap();
-        storage.set(id2, "level".to_string(), AttributeValue::Integer(15)).unwrap();
+        storage.set(id1, "level".to_string(), AttributeValue::Integer(10)).expect("Setting level for id1 should succeed");
+        storage.set(id2, "level".to_string(), AttributeValue::Integer(15)).expect("Setting level for id2 should succeed");
         
         let instances = storage.get_instances_with(&"level".to_string());
         assert_eq!(instances.len(), 2);
@@ -407,8 +407,8 @@ mod tests {
         let mut storage = AttributeStorage::new();
         let instance = InstanceId::new();
         
-        storage.set(instance, "health".to_string(), AttributeValue::Float(100.0)).unwrap();
-        storage.set(instance, "mana".to_string(), AttributeValue::Float(50.0)).unwrap();
+        storage.set(instance, "health".to_string(), AttributeValue::Float(100.0)).expect("Setting health should succeed");
+        storage.set(instance, "mana".to_string(), AttributeValue::Float(50.0)).expect("Setting mana should succeed");
         
         let dirty = storage.get_dirty(instance);
         assert_eq!(dirty.len(), 2);

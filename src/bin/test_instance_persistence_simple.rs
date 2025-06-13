@@ -6,11 +6,11 @@ fn main() {
     
     // Check if the fix was applied correctly
     let file_path = "src/renderer/gpu_driven/gpu_driven_renderer.rs";
-    let content = fs::read_to_string(file_path).unwrap();
+    let content = fs::read_to_string(file_path).expect("Failed to read gpu_driven_renderer.rs");
     
     // Check that clear_all is NOT called in begin_frame
-    let begin_frame_start = content.find("pub fn begin_frame").unwrap();
-    let begin_frame_end = content[begin_frame_start..].find("pub fn").unwrap() + begin_frame_start;
+    let begin_frame_start = content.find("pub fn begin_frame").expect("Could not find begin_frame function");
+    let begin_frame_end = content[begin_frame_start..].find("pub fn").expect("Could not find end of begin_frame function") + begin_frame_start;
     let begin_frame_content = &content[begin_frame_start..begin_frame_end];
     
     if begin_frame_content.contains("clear_all()") {
@@ -31,7 +31,7 @@ fn main() {
     
     // Check that clear_instances is called before submitting objects
     let update_chunk_path = "src/renderer/gpu_state.rs";
-    let update_content = fs::read_to_string(update_chunk_path).unwrap();
+    let update_content = fs::read_to_string(update_chunk_path).expect("Failed to read gpu_state.rs");
     
     if update_content.contains("self.chunk_renderer.clear_instances()") {
         println!("✅ PASS: clear_instances() is called before submitting objects");
