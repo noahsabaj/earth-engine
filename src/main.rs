@@ -53,7 +53,7 @@ fn main() {
     println!("[MAIN] Starting Earth Engine...");
     
     // Initialize logging first so we can see what's happening
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("debug"))
+    env_logger::Builder::from_env(env_logger::Env::default().   default_filter_or("debug"))
         .format_timestamp_millis()
         .init();
     
