@@ -1442,10 +1442,9 @@ impl GpuState {
                          self.camera.position, adjusted_pos);
                 self.camera.position = adjusted_pos;
                 
-                // TODO: Update physics entity position too
-                // The physics system uses a data-oriented design and doesn't have a direct
-                // method to update position. This would need to be added to the physics system.
-                log::warn!("[GpuState::render] Physics entity position not updated - needs implementation");
+                // Update physics entity position
+                self.physics_world.set_position(self.player_entity, adjusted_pos);
+                log::info!("[GpuState::render] Updated physics entity position");
                 
                 // Update camera uniform
                 self.camera_uniform.update_view_proj(&self.camera);
@@ -1476,6 +1475,9 @@ impl GpuState {
             }
         }
 
+        // Extract objects_drawn before screenshot logic to avoid borrow issues
+        let objects_drawn = stats.objects_drawn;
+        
         // Check if we need to capture a screenshot
         let should_capture = self.should_capture_screenshot(delta_time);
 
@@ -1483,7 +1485,10 @@ impl GpuState {
         self.queue.submit(std::iter::once(encoder.finish()));
 
         // Handle screenshot capture after commands are submitted but before present
-        if should_capture {
+        if should_capture && objects_drawn > 0 {
+            // Force GPU synchronization to ensure render is complete
+            self.device.poll(wgpu::Maintain::Wait);
+            
             // Create a new encoder for the screenshot operation
             let mut screenshot_encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("Screenshot Capture Encoder"),
@@ -1493,6 +1498,8 @@ impl GpuState {
             
             // Submit screenshot commands
             self.queue.submit(std::iter::once(screenshot_encoder.finish()));
+        } else if should_capture {
+            log::warn!("[GpuState::render] Skipping screenshot - no objects drawn");
         }
 
         output.present();

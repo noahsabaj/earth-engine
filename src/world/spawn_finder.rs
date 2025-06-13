@@ -41,8 +41,8 @@ impl SpawnFinder {
         let (spawn_x, spawn_z) = best_pos.unwrap_or((start_x, start_z));
         let surface_y = world.get_surface_height(spawn_x as f64, spawn_z as f64) as f32;
         
-        // Add safety margin above the surface
-        let safe_y = surface_y + 3.0;
+        // Add safety margin above the surface (1 block to stand on ground)
+        let safe_y = surface_y + 1.0;
         let spawn_pos = Point3::new(spawn_x, safe_y.clamp(20.0, 250.0), spawn_z);
         
         log::info!("[SpawnFinder] Selected spawn position at {:?} (surface height: {})", spawn_pos, surface_y);
