@@ -23,6 +23,7 @@ mod lod_transition;
 mod progressive_streaming;
 pub mod chunk_mesh_adapter;
 pub mod chunk_rendering;
+pub mod screenshot;
 
 use crate::{EngineConfig, Game};
 use anyhow::Result;

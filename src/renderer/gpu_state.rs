@@ -1,12 +1,14 @@
 use crate::{Camera, EngineConfig, Game, GameContext, BlockRegistry, BlockId, VoxelPos};
 use crate::input::InputState;
 use crate::physics::{PhysicsWorldData, EntityId, flags};
-use crate::renderer::{SelectionRenderer, GpuDiagnostics, GpuInitProgress, gpu_driven::GpuDrivenRenderer};
+use crate::renderer::{SelectionRenderer, GpuDiagnostics, GpuInitProgress, gpu_driven::GpuDrivenRenderer, screenshot};
 use crate::world::{Ray, RaycastHit, ParallelWorld, ParallelWorldConfig, WorldInterface, WorldGenerator, SpawnFinder};
 use crate::lighting::{DayNightCycle, LightPropagator};
 use anyhow::Result;
 use cgmath::{Matrix4, SquareMatrix, Point3, Vector3, InnerSpace, Zero};
+use chrono;
 use std::sync::Arc;
+use std::path::{Path, PathBuf};
 use wgpu::util::DeviceExt;
 use winit::{
     dpi::LogicalSize,
@@ -210,6 +212,12 @@ pub struct GpuState {
     frames_without_objects: u32,
     total_objects_submitted: u64,
     last_submission_time: std::time::Instant,
+    // Debug screenshot capture state
+    debug_capture_enabled: bool,
+    capture_timer: f32,
+    capture_interval: f32,
+    screenshot_counter: u32,
+    last_capture_time: Option<std::time::Instant>,
 }
 
 impl GpuState {
@@ -752,6 +760,11 @@ impl GpuState {
             frames_without_objects: 0,
             total_objects_submitted: 0,
             last_submission_time: std::time::Instant::now(),
+            debug_capture_enabled: false,
+            capture_timer: 0.0,
+            capture_interval: 0.25,
+            screenshot_counter: 0,
+            last_capture_time: None,
         })
     }
 
@@ -1336,7 +1349,7 @@ impl GpuState {
         (broke_block, placed_block)
     }
 
-    fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
+    fn render(&mut self, delta_time: f32) -> Result<(), wgpu::SurfaceError> {
         let output = self.surface.get_current_texture()?;
         let view = output
             .texture
@@ -1463,10 +1476,146 @@ impl GpuState {
             }
         }
 
+        // Handle screenshot capture before submitting commands
+        if self.should_capture_screenshot(delta_time) {
+            self.capture_screenshot(&mut encoder, &output.texture);
+        }
+
         self.queue.submit(std::iter::once(encoder.finish()));
         output.present();
 
         Ok(())
+    }
+
+    /// Check if we should capture a screenshot based on timer or single capture request
+    fn should_capture_screenshot(&mut self, delta_time: f32) -> bool {
+        // Check for single screenshot request (F6)
+        if self.screenshot_counter > 0 {
+            // Avoid capturing multiple times from a single F6 press
+            if let Some(last_time) = self.last_capture_time {
+                if last_time.elapsed().as_secs_f32() < 0.5 {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        // Check for automatic capture (F5 mode)
+        if self.debug_capture_enabled {
+            self.capture_timer += delta_time;
+            if self.capture_timer >= self.capture_interval {
+                self.capture_timer = 0.0;
+                return true;
+            }
+        }
+
+        false
+    }
+
+    /// Capture a screenshot from the current render output
+    fn capture_screenshot(&mut self, encoder: &mut wgpu::CommandEncoder, texture: &wgpu::Texture) {
+        // Generate filename with timestamp
+        let filename = self.generate_screenshot_filename();
+        
+        // Create debug/photos directory if it doesn't exist
+        let screenshot_dir = Path::new("debug/photos");
+        if !screenshot_dir.exists() {
+            if let Err(e) = std::fs::create_dir_all(screenshot_dir) {
+                log::error!("[GpuState::capture_screenshot] Failed to create screenshot directory: {}", e);
+                return;
+            }
+        }
+
+        let filepath = screenshot_dir.join(&filename);
+        
+        // Get texture dimensions
+        let size = texture.size();
+        let format = self.config.format;
+        
+        // Create staging buffer for GPU->CPU transfer
+        let buffer = screenshot::create_staging_buffer(&self.device, size.width, size.height, 4);
+        
+        // Copy texture to buffer
+        screenshot::copy_texture_to_buffer(encoder, texture, &buffer, size.width, size.height, format);
+        
+        // Store screenshot request for deferred processing
+        // We can't use async here directly, so we'll process it synchronously
+        // but in a way that minimizes render loop impact
+        let device = Arc::clone(&self.device);
+        let queue = Arc::clone(&self.queue);
+        
+        // Submit a marker command to ensure texture is ready
+        queue.submit(None);
+        
+        // Process screenshot synchronously but efficiently
+        std::thread::spawn(move || {
+            // Use pollster to run the async operation
+            match pollster::block_on(Self::process_screenshot_async(
+                device,
+                queue,
+                buffer,
+                size.width,
+                size.height,
+                format,
+                filepath.clone()
+            )) {
+                Ok(_) => log::info!("[GpuState::capture_screenshot] Screenshot saved successfully to {:?}", filepath),
+                Err(e) => log::error!("[GpuState::capture_screenshot] Failed to save screenshot: {}", e),
+            }
+        });
+        
+        // Update capture state
+        self.last_capture_time = Some(std::time::Instant::now());
+        if self.screenshot_counter > 0 {
+            self.screenshot_counter -= 1;
+        }
+        
+        log::info!("[GpuState::capture_screenshot] Screenshot capture initiated: {}", filename);
+    }
+
+    /// Process screenshot asynchronously to avoid blocking the render loop
+    async fn process_screenshot_async(
+        device: Arc<wgpu::Device>,
+        queue: Arc<wgpu::Queue>,
+        buffer: wgpu::Buffer,
+        width: u32,
+        height: u32,
+        format: wgpu::TextureFormat,
+        filepath: PathBuf,
+    ) -> Result<()> {
+        // Map buffer for reading
+        let buffer_slice = buffer.slice(..);
+        let (tx, rx) = flume::bounded(1);
+        
+        buffer_slice.map_async(wgpu::MapMode::Read, move |result| {
+            tx.send(result).unwrap();
+        });
+        
+        device.poll(wgpu::Maintain::Wait);
+        rx.recv_async().await.unwrap()?;
+        
+        // Read buffer data
+        let data = buffer_slice.get_mapped_range();
+        let image = screenshot::buffer_to_image(&data, width, height, format)?;
+        
+        // Important: drop the mapped range before unmapping
+        drop(data);
+        buffer.unmap();
+        
+        // Save to file
+        screenshot::save_screenshot(&image, filepath)?;
+        
+        Ok(())
+    }
+
+    /// Generate a unique filename for screenshots
+    fn generate_screenshot_filename(&self) -> String {
+        let now = chrono::Local::now();
+        let timestamp = now.format("%Y%m%d_%H%M%S");
+        // Use a simple incrementing counter for unique filenames
+        static SCREENSHOT_COUNTER: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+        let counter = SCREENSHOT_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        format!("screenshot_{}_{:03}.png", timestamp, counter)
     }
 }
 
@@ -1634,6 +1783,24 @@ pub async fn run_app<G: Game + 'static>(
                                 gpu_state.window.set_cursor_grab(CursorGrabMode::None).ok();
                                 gpu_state.window.set_cursor_visible(true);
                             }
+                        }
+                        
+                        // F5: Toggle debug capture
+                        if event.physical_key == winit::keyboard::PhysicalKey::Code(KeyCode::F5) 
+                            && event.state == winit::event::ElementState::Pressed {
+                            gpu_state.debug_capture_enabled = !gpu_state.debug_capture_enabled;
+                            gpu_state.capture_timer = 0.0; // Reset timer
+                            log::info!(
+                                "[GpuState] Debug screenshot capture {}",
+                                if gpu_state.debug_capture_enabled { "enabled" } else { "disabled" }
+                            );
+                        }
+                        
+                        // F6: Single screenshot
+                        if event.physical_key == winit::keyboard::PhysicalKey::Code(KeyCode::F6) 
+                            && event.state == winit::event::ElementState::Pressed {
+                            gpu_state.screenshot_counter += 1;
+                            log::info!("[GpuState] Single screenshot requested (counter: {})", gpu_state.screenshot_counter);
                         }
                         
                         if let winit::keyboard::PhysicalKey::Code(keycode) = event.physical_key {
@@ -1816,7 +1983,7 @@ pub async fn run_app<G: Game + 'static>(
                         }
 
                         // Render
-                        match gpu_state.render() {
+                        match gpu_state.render(delta_time) {
                             Ok(_) => {}
                             Err(wgpu::SurfaceError::Lost) => gpu_state.resize(gpu_state.size),
                             Err(wgpu::SurfaceError::OutOfMemory) => elwt.exit(),
