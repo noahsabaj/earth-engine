@@ -264,6 +264,44 @@ fn generate_chunk(data: &mut ChunkData, gen_params: &GenParams) {
 - Test malformed data (proper errors, not panics)
 - Benchmark everything - we need 1000x performance
 
+## 🚨 CRITICAL: CLAIMS VS REALITY PREVENTION 🚨
+**Earth Engine Specific**: This project has experienced severe "claims vs reality" gaps where agents report success without verification.
+
+### Four Root Causes of False Claims (Identified in Sprint 36):
+1. **Overconfidence Bias** - Assuming unwrap() elimination worked without checking rg counts
+2. **Lack of Verification** - Not running `cargo check`, `cargo test` to prove claims
+3. **Text Generation vs Reality** - Generating "mission accomplished" text without evidence
+4. **Speed over Accuracy** - Rushing to claim sprint completion rather than verify
+
+### Earth Engine Verification Requirements:
+**MANDATORY FOR ALL WORK:**
+- `cargo check --lib` MUST pass before claiming compilation success
+- `cargo test --lib` MUST be attempted before claiming functionality
+- `rg "\.unwrap\(\)" src --type rust -c` MUST be run to verify unwrap elimination
+- `cargo run --example engine_testbed` MUST be tested for user experience
+- All metrics must be measured, never estimated
+
+### Sprint Completion Requirements:
+- **NO sprint can be marked complete without QA verification**
+- **Agent reports of "success" mean nothing without command evidence**
+- **Every deliverable requires independent verification with actual commands**
+- **"Attempted" vs "Accomplished" language until verified**
+
+### Earth Engine Specific Checks:
+- **Player Movement**: Verify WASD keys work with actual testing
+- **Spawn System**: Verify safe spawn with actual gameplay
+- **Save/Load**: Verify no corruption with actual save/load cycles
+- **Performance**: Verify claims with actual benchmarks
+- **DOP Conversion**: Verify allocation counts with profiling
+
+### Language for Earth Engine:
+- ❌ "Zero unwraps achieved" → ✅ "Targeted unwraps, running rg count..."
+- ❌ "Sprint 36 complete" → ✅ "Sprint 36 changes made, running QA..."
+- ❌ "Player movement fixed" → ✅ "Modified movement code, testing WASD..."
+- ❌ "Engine ready for production" → ✅ "Engine compiles, testing functionality..."
+
+**Earth Engine Principle**: Show, don't tell. Prove, don't claim.
+
 ## VISION REMINDERS
 This engine enables the ultimate MMO - Earth:
 - **"Real life but fun"** - Complex societies emerge from simple physics
