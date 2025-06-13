@@ -8,6 +8,7 @@ use crate::persistence::{
     PersistenceResult, PersistenceError,
     ChunkSerializer, ChunkFormat,
     WorldMetadata,
+    atomic_write,
 };
 
 /// World save structure
@@ -123,7 +124,7 @@ impl WorldSave {
     pub fn save_metadata(&self, metadata: &WorldMetadata) -> PersistenceResult<()> {
         let metadata_path = self.save_dir.join("world.meta");
         let data = bincode::serialize(metadata)?;
-        fs::write(metadata_path, data)?;
+        atomic_write(metadata_path, &data)?;
         Ok(())
     }
     
@@ -142,7 +143,7 @@ impl WorldSave {
         
         // Serialize and save
         let data = serializer.serialize(chunk)?;
-        fs::write(&chunk_path, data)?;
+        atomic_write(&chunk_path, &data)?;
         
         // Cache management would go here
         // For now, we don't cache on save since Chunk doesn't implement Clone

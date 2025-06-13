@@ -18,6 +18,7 @@ pub use compression::{CompressionType, CompressionLevel, Compressor};
 pub use metadata::{WorldMetadata, SaveVersion};
 pub use migration::{MigrationManager, Migration};
 pub use backup::{BackupManager, BackupPolicy};
+pub use error::{atomic_write, PersistenceErrorContext, LockResultExt};
 
 /// Result type for persistence operations
 pub type PersistenceResult<T> = Result<T, PersistenceError>;

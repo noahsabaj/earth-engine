@@ -6,6 +6,7 @@ use chrono::Local;
 use crate::persistence::{
     PersistenceResult, PersistenceError,
     WorldMetadata, Compressor, CompressionType, CompressionLevel,
+    atomic_write,
 };
 
 /// Backup policy configuration
@@ -215,7 +216,7 @@ impl BackupManager {
         // Compress the tar file
         let tar_data = fs::read(&temp_tar)?;
         let compressed = compressor.compress(&tar_data)?;
-        fs::write(dest, compressed)?;
+        atomic_write(dest, &compressed)?;
         
         // Clean up temp tar
         fs::remove_file(temp_tar)?;
