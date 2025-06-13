@@ -37,9 +37,7 @@ pub mod memory;
 pub mod utils;
 pub mod world_state;
 
-// Web-specific module
-#[cfg(target_arch = "wasm32")]
-pub mod web;
+// Web module removed - no longer supporting browser builds
 
 use anyhow::Result;
 use winit::event_loop::{EventLoop, EventLoopBuilder};

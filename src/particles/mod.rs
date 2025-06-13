@@ -9,6 +9,7 @@ pub mod physics;
 pub mod particle_data;
 pub mod update;
 pub mod system;
+pub mod gpu_particle_system;
 
 // Re-export legacy types (for compatibility during transition)
 pub use particle::{Particle, ParticleType, ParticleProperties};
@@ -21,3 +22,4 @@ pub use physics::{ParticlePhysics, ParticleCollision};
 pub use particle_data::{ParticleData, EmitterData, ParticlePool, ParticleGPUData, MAX_PARTICLES};
 pub use system::{DOPParticleSystem, ParticleStats};
 pub use update::{update_particles, update_emitters, spawn_particle};
+pub use gpu_particle_system::GpuParticleSystem;

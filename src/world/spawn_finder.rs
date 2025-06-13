@@ -16,42 +16,41 @@ impl SpawnFinder {
     ) -> Result<Point3<f32>, String> {
         log::info!("[SpawnFinder] Starting spawn search at ({}, ??, {})", start_x, start_z);
         
-        // Since chunk loading seems to be async and not working reliably for spawn,
-        // we'll use the noise-based approach with extra safety margin
-        let mut best_pos = None;
+        // Search for the ABSOLUTE HIGHEST point in a large area
+        // This ensures we spawn above ALL terrain including mountain peaks
         let mut highest_ground = -1000.0;
+        let mut spawn_x = start_x;
+        let mut spawn_z = start_z;
         
-        // Search in a small area for the highest ground
-        for dx in -search_radius..=search_radius {
-            for dz in -search_radius..=search_radius {
+        // Expand search radius for better coverage
+        let actual_radius = search_radius.max(20); // At least 20 blocks
+        
+        // Search in the area for the absolute highest ground
+        for dx in -actual_radius..=actual_radius {
+            for dz in -actual_radius..=actual_radius {
                 let check_x = start_x + dx as f32;
                 let check_z = start_z + dz as f32;
                 
                 let surface_height = world.get_surface_height(check_x as f64, check_z as f64) as f32;
                 
-                // Prefer higher ground that's not underwater
-                if surface_height > highest_ground && surface_height >= 64.0 {
+                // Track the absolute highest point
+                if surface_height > highest_ground {
                     highest_ground = surface_height;
-                    best_pos = Some((check_x, check_z));
                 }
             }
         }
         
-        // Use the best position found, or fallback to start position
-        let (spawn_x, spawn_z) = best_pos.unwrap_or((start_x, start_z));
-        let surface_y = world.get_surface_height(spawn_x as f64, spawn_z as f64) as f32;
-        
-        // Add safety margin above the surface
-        // IMPORTANT: get_surface_height returns the Y of the TOP surface block
-        // We need to spawn ABOVE this, not at this height
-        // Physics body center should be well above the surface
-        let safe_y = surface_y + 15.0; // Increased from 10 to ensure we're above ridges
+        // Now spawn WELL ABOVE the highest point found
+        // Add 25 blocks above the highest terrain to ensure we're clear of any mountains
+        let safe_y = highest_ground + 25.0;
         let spawn_pos = Point3::new(spawn_x, safe_y.clamp(20.0, 250.0), spawn_z);
         
-        log::warn!("[SpawnFinder] Surface at y={}, spawning body center at y={} (feet at y={})", 
-                  surface_y, safe_y, safe_y - 0.9);
+        log::warn!("[SpawnFinder] Highest terrain in {}x{} area: y={}", 
+                  actual_radius*2, actual_radius*2, highest_ground);
+        log::warn!("[SpawnFinder] Spawning body center at y={} (feet at y={}, {} blocks above highest terrain)", 
+                  safe_y, safe_y - 0.9, safe_y - highest_ground);
         
-        log::info!("[SpawnFinder] Selected spawn position at {:?} (surface height: {})", spawn_pos, surface_y);
+        log::info!("[SpawnFinder] Selected spawn position at {:?}", spawn_pos);
         
         // Try to pregenerate the spawn area (non-blocking, best effort)
         let _ = world.pregenerate_spawn_area(spawn_pos, 2);
