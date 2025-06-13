@@ -291,7 +291,9 @@ mod tests {
             let id = ProcessId::new();
             let owner = InstanceId::new();
             data.add(id, ProcessType::default(), owner, 1000);
-            data.status.last_mut().unwrap().clone_from(&ProcessStatus::Active);
+            if let Some(status) = data.status.last_mut() {
+                status.clone_from(&ProcessStatus::Active);
+            }
             state_machines.push(StateMachine::new());
         }
         
@@ -325,7 +327,9 @@ mod tests {
                 let id = ProcessId::new();
                 let owner = InstanceId::new();
                 data.add(id, ProcessType::default(), owner, 1000);
-                data.status.last_mut().unwrap().clone_from(&ProcessStatus::Active);
+                if let Some(status) = data.status.last_mut() {
+                    status.clone_from(&ProcessStatus::Active);
+                }
             }
             
             let data_arc = Arc::new(Mutex::new(data));

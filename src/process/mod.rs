@@ -220,7 +220,7 @@ mod tests {
             TimeUnit::Seconds(5.0),
         );
         
-        let info = manager.get_process(process_id).unwrap();
+        let info = manager.get_process(process_id).expect("Process should exist in test");
         assert_eq!(info.owner, owner);
         assert_eq!(info.time_remaining, 100); // 5 seconds * 20 ticks
     }
