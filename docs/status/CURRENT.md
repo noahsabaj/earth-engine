@@ -2,7 +2,7 @@
 
 **Version**: 0.35.2  
 **Sprint**: 35.2 DOP Reality Check - IN PROGRESS
-**Last Updated**: 2025-06-12
+**Last Updated**: 2025-06-13
 **Current Focus**: Converting OOP modules to Data-Oriented Programming
 
 ## Emergency Sprint 35.1 Progress
@@ -79,7 +79,13 @@ After false claims, a full verification was performed:
 
 ## Sprint 35.2 Progress (DOP Reality Check)
 
-### Completed Today (June 12)
+### Completed Today (June 13)
+- ✅ Fixed player spawning inside terrain issue
+  - Increased spawn height offset from 1.0 to 5.0 blocks above surface
+  - Camera is correctly positioned 0.72 units above physics body for eye level
+  - Player now spawns properly above ground instead of inside mountains
+
+### Completed Previously (June 12)
 - ✅ Particle system converted to data-oriented design
 - ✅ Created SOA layout with separate arrays for cache efficiency
 - ✅ Removed ParticleSystem and ParticleEmitter classes
