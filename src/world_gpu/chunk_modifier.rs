@@ -1,8 +1,6 @@
 use std::sync::Arc;
-use wgpu::util::DeviceExt;
 use bytemuck::{Pod, Zeroable};
-use cgmath::Vector3;
-use super::world_buffer::{WorldBuffer, VoxelData, CHUNK_SIZE};
+use super::world_buffer::WorldBuffer;
 // use crate::memory::PersistentBuffer; // Not needed anymore
 use crate::world_gpu::error::{WorldGpuResult, WorldGpuErrorContext};
 

@@ -1,3 +1,8 @@
+//! Legacy inventory input handling (uses deprecated inventory system)
+//! Will be updated when inventory system migration is complete.
+
+#![allow(warnings)]
+
 use crate::input::KeyCode;
 use crate::ui::inventory_ui::{InventoryUI, InventoryUIState};
 use crate::inventory::{PlayerInventory, ItemDropHandler};

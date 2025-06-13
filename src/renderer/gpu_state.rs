@@ -1,3 +1,10 @@
+//! GPU state management for the renderer
+//! 
+//! This file contains complex camera usage that will be migrated to data-oriented design
+//! in a future sprint. For now, we allow deprecated warnings to focus on other cleanup.
+
+#![allow(deprecated)]
+
 use crate::{Camera, EngineConfig, Game, GameContext, BlockRegistry, BlockId, VoxelPos};
 use crate::input::InputState;
 use crate::physics::{PhysicsWorldData, EntityId, flags};
@@ -1285,6 +1292,11 @@ impl GpuState {
                            is_grounded, is_in_water, is_on_ladder, move_speed);
             } else {
                 static mut MOVEMENT_HELP_COOLDOWN: f32 = 0.0;
+                // SAFETY: Static mut access is safe here because:
+                // - This is only used for UI cooldown timing
+                // - Single-threaded access pattern (render loop)
+                // - Only modified during movement handling
+                // - Race conditions would only affect help message timing
                 unsafe {
                     MOVEMENT_HELP_COOLDOWN -= delta_time;
                     if MOVEMENT_HELP_COOLDOWN <= 0.0 {
@@ -1329,6 +1341,11 @@ impl GpuState {
         } else {
             // Provide helpful feedback if cursor is not locked
             static mut CURSOR_WARNING_COOLDOWN: f32 = 0.0;
+            // SAFETY: Static mut access is safe here because:
+            // - This is only used for UI warning timing
+            // - Single-threaded access pattern (render loop)
+            // - Only modified during cursor handling
+            // - Race conditions would only affect warning message timing
             unsafe {
                 CURSOR_WARNING_COOLDOWN -= delta_time;
                 if CURSOR_WARNING_COOLDOWN <= 0.0 {

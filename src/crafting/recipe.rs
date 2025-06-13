@@ -1,4 +1,7 @@
-use crate::{inventory::ItemStack, item::ItemId};
+use crate::{
+    inventory::{ItemStackData, create_item_stack}, 
+    item::ItemId
+};
 use std::collections::HashMap;
 
 /// Type of crafting recipe
@@ -18,7 +21,7 @@ pub struct ShapedRecipe {
     /// Mapping from pattern characters to item IDs
     pub key: HashMap<char, ItemId>,
     /// Result of the recipe
-    pub result: ItemStack,
+    pub result: ItemStackData,
 }
 
 /// A shapeless crafting recipe
@@ -27,7 +30,7 @@ pub struct ShapelessRecipe {
     /// Required ingredients
     pub ingredients: Vec<ItemId>,
     /// Result of the recipe
-    pub result: ItemStack,
+    pub result: ItemStackData,
 }
 
 /// A smelting recipe for furnaces
@@ -36,7 +39,7 @@ pub struct SmeltingRecipe {
     /// Input item
     pub input: ItemId,
     /// Output item
-    pub output: ItemStack,
+    pub output: ItemStackData,
     /// Smelting time in seconds
     pub smelt_time: f32,
     /// Experience gained
@@ -300,7 +303,7 @@ impl RecipeRegistry {
         self.register(Recipe::shapeless(
             "planks_from_wood".to_string(),
             vec![ItemId::WOOD_BLOCK],
-            ItemStack::new(ItemId::PLANKS_BLOCK, 4),
+            create_item_stack(ItemId::PLANKS_BLOCK, 4),
         ));
         
         // Sticks from planks
@@ -308,7 +311,7 @@ impl RecipeRegistry {
             "sticks".to_string(),
             vec!["P", "P"],
             [('P', ItemId::PLANKS_BLOCK)].into_iter().collect(),
-            ItemStack::new(ItemId::STICK, 4),
+            create_item_stack(ItemId::STICK, 4),
         ));
         
         // Wooden pickaxe
@@ -316,7 +319,7 @@ impl RecipeRegistry {
             "wooden_pickaxe".to_string(),
             vec!["PPP", " S ", " S "],
             [('P', ItemId::PLANKS_BLOCK), ('S', ItemId::STICK)].into_iter().collect(),
-            ItemStack::new(ItemId::WOODEN_PICKAXE, 1),
+            create_item_stack(ItemId::WOODEN_PICKAXE, 1),
         ));
         
         // Stone pickaxe
@@ -324,7 +327,7 @@ impl RecipeRegistry {
             "stone_pickaxe".to_string(),
             vec!["SSS", " T ", " T "],
             [('S', ItemId::COBBLESTONE_BLOCK), ('T', ItemId::STICK)].into_iter().collect(),
-            ItemStack::new(ItemId::STONE_PICKAXE, 1),
+            create_item_stack(ItemId::STONE_PICKAXE, 1),
         ));
         
         // Iron pickaxe
@@ -332,7 +335,7 @@ impl RecipeRegistry {
             "iron_pickaxe".to_string(),
             vec!["III", " S ", " S "],
             [('I', ItemId::IRON_INGOT), ('S', ItemId::STICK)].into_iter().collect(),
-            ItemStack::new(ItemId::IRON_PICKAXE, 1),
+            create_item_stack(ItemId::IRON_PICKAXE, 1),
         ));
         
         // Wooden axe
@@ -340,14 +343,14 @@ impl RecipeRegistry {
             "wooden_axe".to_string(),
             vec!["PP ", "PS ", " S "],
             [('P', ItemId::PLANKS_BLOCK), ('S', ItemId::STICK)].into_iter().collect(),
-            ItemStack::new(ItemId::WOODEN_AXE, 1),
+            create_item_stack(ItemId::WOODEN_AXE, 1),
         ));
         
         // Stone from cobblestone (smelting)
         self.register(Recipe::smelting(
             "stone_from_cobblestone".to_string(),
             ItemId::COBBLESTONE_BLOCK,
-            ItemStack::new(ItemId::STONE_BLOCK, 1),
+            create_item_stack(ItemId::STONE_BLOCK, 1),
             10.0, // 10 seconds
             0.1, // 0.1 experience
         ));
@@ -356,7 +359,7 @@ impl RecipeRegistry {
         self.register(Recipe::smelting(
             "iron_from_ore".to_string(),
             ItemId::IRON_ORE_BLOCK,
-            ItemStack::new(ItemId::IRON_INGOT, 1),
+            create_item_stack(ItemId::IRON_INGOT, 1),
             10.0,
             0.7,
         ));
@@ -366,7 +369,7 @@ impl RecipeRegistry {
             "torch".to_string(),
             vec!["C", "S"],
             [('C', ItemId::COAL), ('S', ItemId::STICK)].into_iter().collect(),
-            ItemStack::new(ItemId::TORCH_BLOCK, 4),
+            create_item_stack(ItemId::TORCH_BLOCK, 4),
         ));
         
         // Crafting table
@@ -374,7 +377,7 @@ impl RecipeRegistry {
             "crafting_table".to_string(),
             vec!["PP", "PP"],
             [('P', ItemId::PLANKS_BLOCK)].into_iter().collect(),
-            ItemStack::new(ItemId::CRAFTING_TABLE_BLOCK, 1),
+            create_item_stack(ItemId::CRAFTING_TABLE_BLOCK, 1),
         ));
         
         // Furnace
@@ -382,7 +385,7 @@ impl RecipeRegistry {
             "furnace".to_string(),
             vec!["CCC", "C C", "CCC"],
             [('C', ItemId::COBBLESTONE_BLOCK)].into_iter().collect(),
-            ItemStack::new(ItemId::FURNACE_BLOCK, 1),
+            create_item_stack(ItemId::FURNACE_BLOCK, 1),
         ));
         
         // Chest
@@ -390,7 +393,7 @@ impl RecipeRegistry {
             "chest".to_string(),
             vec!["PPP", "P P", "PPP"],
             [('P', ItemId::PLANKS_BLOCK)].into_iter().collect(),
-            ItemStack::new(ItemId::CHEST_BLOCK, 1),
+            create_item_stack(ItemId::CHEST_BLOCK, 1),
         ));
     }
 }

@@ -411,6 +411,11 @@ impl GpuDrivenRenderer {
         
         // Log performance metrics periodically
         static mut FRAME_COUNT: u32 = 0;
+        // SAFETY: Static mut access is safe here because:
+        // - This is only used for performance logging
+        // - Single-threaded access pattern (render loop)
+        // - Only incremented during frame rendering
+        // - Race conditions would only affect log timing
         unsafe {
             FRAME_COUNT += 1;
             if FRAME_COUNT % 300 == 0 {

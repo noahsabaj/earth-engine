@@ -1,5 +1,5 @@
 use crate::world::VoxelPos;
-use crate::inventory::ItemStack;
+use crate::inventory::{ItemStackData, create_item_stack};
 use crate::crafting::RecipeRegistry;
 use crate::item::ItemId;
 use std::collections::HashMap;
@@ -32,11 +32,11 @@ pub struct BlockEntityData {
 pub struct FurnaceBlockEntity {
     position: VoxelPos,
     /// Input slot (what's being smelted)
-    input_slot: Option<ItemStack>,
+    input_slot: Option<ItemStackData>,
     /// Fuel slot
-    fuel_slot: Option<ItemStack>,
+    fuel_slot: Option<ItemStackData>,
     /// Output slot
-    output_slot: Option<ItemStack>,
+    output_slot: Option<ItemStackData>,
     /// Current smelting progress (0.0 - 1.0)
     smelt_progress: f32,
     /// Current fuel remaining (in seconds)
@@ -59,22 +59,22 @@ impl FurnaceBlockEntity {
     }
     
     /// Get the input slot
-    pub fn get_input(&self) -> Option<&ItemStack> {
+    pub fn get_input(&self) -> Option<&ItemStackData> {
         self.input_slot.as_ref()
     }
     
     /// Get the fuel slot
-    pub fn get_fuel(&self) -> Option<&ItemStack> {
+    pub fn get_fuel(&self) -> Option<&ItemStackData> {
         self.fuel_slot.as_ref()
     }
     
     /// Get the output slot
-    pub fn get_output(&self) -> Option<&ItemStack> {
+    pub fn get_output(&self) -> Option<&ItemStackData> {
         self.output_slot.as_ref()
     }
     
     /// Set input item
-    pub fn set_input(&mut self, item: Option<ItemStack>) {
+    pub fn set_input(&mut self, item: Option<ItemStackData>) {
         if item.is_none() {
             self.smelt_progress = 0.0; // Reset progress if input removed
         }
@@ -82,12 +82,12 @@ impl FurnaceBlockEntity {
     }
     
     /// Set fuel item
-    pub fn set_fuel(&mut self, item: Option<ItemStack>) {
+    pub fn set_fuel(&mut self, item: Option<ItemStackData>) {
         self.fuel_slot = item;
     }
     
     /// Take from output slot
-    pub fn take_output(&mut self) -> Option<ItemStack> {
+    pub fn take_output(&mut self) -> Option<ItemStackData> {
         self.output_slot.take()
     }
     
@@ -116,7 +116,7 @@ impl FurnaceBlockEntity {
         if self.input_slot.is_some() && self.fuel_remaining <= 0.0 {
             // Try to consume fuel
             if let Some(fuel) = &mut self.fuel_slot {
-                let fuel_time = get_fuel_burn_time(fuel.item_id);
+                let fuel_time = get_fuel_burn_time(ItemId(fuel.item_id));
                 if fuel_time > 0.0 {
                     // Consume one fuel
                     fuel.count -= 1;
@@ -149,7 +149,7 @@ impl BlockEntity for FurnaceBlockEntity {
                     self.smelt_progress = 0.0;
                     
                     // Create output (for now, just copy input)
-                    let output = ItemStack::new(input.item_id, 1);
+                    let output = create_item_stack(ItemId(input.item_id), 1);
                     
                     // Add to output slot
                     if let Some(existing) = &mut self.output_slot {
@@ -186,17 +186,17 @@ impl BlockEntity for FurnaceBlockEntity {
         
         // Serialize slots
         if let Some(input) = &self.input_slot {
-            data.insert("input_id".to_string(), serde_json::json!(input.item_id.0));
+            data.insert("input_id".to_string(), serde_json::json!(input.item_id));
             data.insert("input_count".to_string(), serde_json::json!(input.count));
         }
         
         if let Some(fuel) = &self.fuel_slot {
-            data.insert("fuel_id".to_string(), serde_json::json!(fuel.item_id.0));
+            data.insert("fuel_id".to_string(), serde_json::json!(fuel.item_id));
             data.insert("fuel_count".to_string(), serde_json::json!(fuel.count));
         }
         
         if let Some(output) = &self.output_slot {
-            data.insert("output_id".to_string(), serde_json::json!(output.item_id.0));
+            data.insert("output_id".to_string(), serde_json::json!(output.item_id));
             data.insert("output_count".to_string(), serde_json::json!(output.count));
         }
         
@@ -219,21 +219,21 @@ impl BlockEntity for FurnaceBlockEntity {
             data.data.get("input_id").and_then(|v| v.as_u64()),
             data.data.get("input_count").and_then(|v| v.as_u64()),
         ) {
-            furnace.input_slot = Some(ItemStack::new(ItemId(id as u32), count as u32));
+            furnace.input_slot = Some(create_item_stack(ItemId(id as u32), count as u32));
         }
         
         if let (Some(id), Some(count)) = (
             data.data.get("fuel_id").and_then(|v| v.as_u64()),
             data.data.get("fuel_count").and_then(|v| v.as_u64()),
         ) {
-            furnace.fuel_slot = Some(ItemStack::new(ItemId(id as u32), count as u32));
+            furnace.fuel_slot = Some(create_item_stack(ItemId(id as u32), count as u32));
         }
         
         if let (Some(id), Some(count)) = (
             data.data.get("output_id").and_then(|v| v.as_u64()),
             data.data.get("output_count").and_then(|v| v.as_u64()),
         ) {
-            furnace.output_slot = Some(ItemStack::new(ItemId(id as u32), count as u32));
+            furnace.output_slot = Some(create_item_stack(ItemId(id as u32), count as u32));
         }
         
         if let Some(progress) = data.data.get("smelt_progress").and_then(|v| v.as_f64()) {
@@ -268,7 +268,7 @@ fn get_fuel_burn_time(item_id: ItemId) -> f32 {
 pub struct ChestBlockEntity {
     position: VoxelPos,
     /// Chest inventory (27 slots)
-    slots: Vec<Option<ItemStack>>,
+    slots: Vec<Option<ItemStackData>>,
 }
 
 impl ChestBlockEntity {
@@ -280,12 +280,12 @@ impl ChestBlockEntity {
     }
     
     /// Get a slot
-    pub fn get_slot(&self, index: usize) -> Option<&ItemStack> {
+    pub fn get_slot(&self, index: usize) -> Option<&ItemStackData> {
         self.slots.get(index).and_then(|s| s.as_ref())
     }
     
     /// Set a slot
-    pub fn set_slot(&mut self, index: usize, item: Option<ItemStack>) {
+    pub fn set_slot(&mut self, index: usize, item: Option<ItemStackData>) {
         if index < self.slots.len() {
             self.slots[index] = item;
         }
@@ -297,7 +297,7 @@ impl ChestBlockEntity {
     }
     
     /// Try to add an item to the chest
-    pub fn add_item(&mut self, mut item: ItemStack) -> Option<ItemStack> {
+    pub fn add_item(&mut self, mut item: ItemStackData) -> Option<ItemStackData> {
         // First try to merge with existing stacks
         for slot in &mut self.slots {
             if let Some(existing) = slot {
@@ -318,7 +318,7 @@ impl ChestBlockEntity {
         while item.count > 0 {
             if let Some(empty_index) = self.find_empty_slot() {
                 let to_place = item.count.min(64);
-                self.slots[empty_index] = Some(ItemStack::new(item.item_id, to_place));
+                self.slots[empty_index] = Some(create_item_stack(ItemId(item.item_id), to_place));
                 item.count -= to_place;
             } else {
                 break; // No more space
@@ -347,7 +347,7 @@ impl BlockEntity for ChestBlockEntity {
         
         for (i, slot) in self.slots.iter().enumerate() {
             if let Some(item) = slot {
-                data.insert(format!("slot_{}_id", i), serde_json::json!(item.item_id.0));
+                data.insert(format!("slot_{}_id", i), serde_json::json!(item.item_id));
                 data.insert(format!("slot_{}_count", i), serde_json::json!(item.count));
             }
         }
@@ -367,7 +367,7 @@ impl BlockEntity for ChestBlockEntity {
                 data.data.get(&format!("slot_{}_id", i)).and_then(|v| v.as_u64()),
                 data.data.get(&format!("slot_{}_count", i)).and_then(|v| v.as_u64()),
             ) {
-                chest.slots[i] = Some(ItemStack::new(ItemId(id as u32), count as u32));
+                chest.slots[i] = Some(create_item_stack(ItemId(id as u32), count as u32));
             }
         }
         

@@ -3,7 +3,7 @@
 //! This module provides a custom panic handler that logs panic information
 //! before the process terminates, helping with debugging and stability monitoring.
 
-use std::panic::{self, PanicInfo};
+use std::panic::{self, PanicHookInfo};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::fs::OpenOptions;
 use std::io::Write;
@@ -25,7 +25,7 @@ pub struct PanicTelemetry {
 }
 
 impl PanicTelemetry {
-    fn from_panic_info(info: &PanicInfo) -> Self {
+    fn from_panic_info(info: &PanicHookInfo) -> Self {
         let location = if let Some(location) = info.location() {
             format!("{}:{}:{}", location.file(), location.line(), location.column())
         } else {

@@ -1,3 +1,8 @@
+//! Legacy inventory UI (uses deprecated inventory system)
+//! Will be updated when inventory system migration is complete.
+
+#![allow(warnings)]
+
 use crate::inventory::{PlayerInventory, HOTBAR_SIZE, INVENTORY_SIZE};
 use crate::renderer::ui::{UIRenderer, UIElement, UIRect, UIColor};
 use glam::Vec2;

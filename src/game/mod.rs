@@ -1,6 +1,7 @@
 use crate::world::{BlockId, BlockRegistry, VoxelPos, WorldInterface, Ray, RaycastHit, cast_ray};
-use crate::Camera;
+use crate::camera::{CameraData, calculate_forward_vector};
 use crate::input::InputState;
+use cgmath::Point3;
 
 /// Main game trait that games must implement
 pub trait Game: Send + Sync {
@@ -30,7 +31,7 @@ pub trait Game: Send + Sync {
 pub struct GameContext<'a> {
     pub world: &'a mut dyn WorldInterface,
     pub registry: &'a BlockRegistry,
-    pub camera: &'a Camera,
+    pub camera: &'a CameraData,
     pub input: &'a InputState,
     pub selected_block: Option<RaycastHit>,
 }
@@ -38,10 +39,13 @@ pub struct GameContext<'a> {
 impl<'a> GameContext<'a> {
     /// Cast a ray from the camera and find what block is being looked at
     pub fn cast_camera_ray(&self, max_distance: f32) -> Option<RaycastHit> {
-        let ray = Ray::new(
-            self.camera.position,
-            self.camera.get_forward_vector(),
+        let position = Point3::new(
+            self.camera.position[0], 
+            self.camera.position[1], 
+            self.camera.position[2]
         );
+        let forward = calculate_forward_vector(self.camera.yaw_radians, self.camera.pitch_radians);
+        let ray = Ray::new(position, forward);
         cast_ray(&*self.world, ray, max_distance)
     }
     

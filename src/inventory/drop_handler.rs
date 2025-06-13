@@ -1,3 +1,8 @@
+//! Legacy inventory drop handler (uses deprecated inventory system)
+//! Will be updated when inventory system migration is complete.
+
+#![allow(warnings)]
+
 use crate::ecs::{EcsWorldData, EntityId, spawn_dropped_item};
 use crate::inventory::PlayerInventory;
 use glam::Vec3;

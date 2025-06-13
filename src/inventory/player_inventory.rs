@@ -1,3 +1,8 @@
+//! Legacy OOP-style player inventory (deprecated)
+//! Use the data_inventory module instead for new code.
+
+#![allow(warnings)]
+
 use super::slot::{InventorySlot, SlotType};
 use super::item::ItemStack;
 use crate::item::ItemId;

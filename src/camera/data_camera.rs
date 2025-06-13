@@ -3,7 +3,7 @@
 /// Sprint 35: Pure data structures with free functions.
 /// No methods, no mutations through self, just data and transformations.
 
-use cgmath::{perspective, Deg, InnerSpace, Matrix4, Point3, Rad, Vector3};
+use cgmath::{perspective, InnerSpace, Matrix4, Point3, Vector3};
 use bytemuck::{Pod, Zeroable};
 
 /// Camera data as a plain old data structure

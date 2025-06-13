@@ -1,5 +1,5 @@
 use crate::crafting::{RecipeRegistry, CraftingGrid};
-use crate::inventory::ItemStack;
+use crate::inventory::{ItemStackData, create_item_stack};
 use crate::item::ItemRegistry;
 use crate::renderer::ui::{UIRenderer, UIRect, UIColor};
 use glam::Vec2;
@@ -7,7 +7,7 @@ use glam::Vec2;
 /// Result of a crafting operation
 #[derive(Debug, Clone)]
 pub struct CraftingResult {
-    pub output: ItemStack,
+    pub output: ItemStackData,
     pub consumes: Vec<(usize, u32)>, // (grid_index, count_to_consume)
 }
 
@@ -99,7 +99,7 @@ impl CraftingTableUI {
     }
     
     /// Place an item in the crafting grid
-    pub fn place_item(&mut self, grid_index: usize, item: ItemStack) -> Option<ItemStack> {
+    pub fn place_item(&mut self, grid_index: usize, item: ItemStackData) -> Option<ItemStackData> {
         if grid_index < self.grid.slots.len() {
             let old = self.grid.slots[grid_index].take();
             self.grid.slots[grid_index] = Some(item);
@@ -110,7 +110,7 @@ impl CraftingTableUI {
     }
     
     /// Take an item from the crafting grid
-    pub fn take_item(&mut self, grid_index: usize) -> Option<ItemStack> {
+    pub fn take_item(&mut self, grid_index: usize) -> Option<ItemStackData> {
         if grid_index < self.grid.slots.len() {
             self.grid.slots[grid_index].take()
         } else {
@@ -119,7 +119,7 @@ impl CraftingTableUI {
     }
     
     /// Craft the current result
-    pub fn craft(&mut self) -> Option<ItemStack> {
+    pub fn craft(&mut self) -> Option<ItemStackData> {
         if let Some(result) = &self.current_result {
             // Consume items from grid
             for &(index, count) in &result.consumes {
@@ -282,12 +282,12 @@ impl CraftingTableUI {
     }
     
     /// Render an item in a slot
-    fn render_item(&self, ui_renderer: &mut UIRenderer, x: f32, y: f32, item: &ItemStack, item_registry: &ItemRegistry) {
+    fn render_item(&self, ui_renderer: &mut UIRenderer, x: f32, y: f32, item: &ItemStackData, item_registry: &ItemRegistry) {
         // Get item name
-        let name = if let Some(item_type) = item_registry.get_item(item.item_id) {
+        let name = if let Some(item_type) = item_registry.get_item(ItemId(item.item_id)) {
             item_type.get_name()
         } else {
-            format!("Item {}", item.item_id.0)
+            format!("Item {}", item.item_id)
         };
         
         // Render item name (truncated)

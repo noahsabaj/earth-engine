@@ -1,3 +1,10 @@
+//! GPU-driven culling pipeline
+//! 
+//! This file uses deprecated Camera but will be migrated to data-oriented design
+//! in a future sprint.
+
+#![allow(deprecated)]
+
 use std::sync::Arc;
 use wgpu::util::DeviceExt;
 use bytemuck::{Pod, Zeroable};

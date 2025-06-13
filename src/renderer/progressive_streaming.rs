@@ -253,10 +253,10 @@ impl ProgressiveStreamer {
     }
     
     /// Finalize LOD and send update
-    fn finalize_lod(&self, chunk_id: u64, state: &mut ProgressiveMeshState, lod: MeshLod) {
+    fn finalize_lod(&self, _chunk_id: u64, state: &mut ProgressiveMeshState, _lod: MeshLod) {
         // Build complete mesh for LOD
-        let mut vertices = state.base_vertices.clone();
-        let mut indices = state.base_indices.clone();
+        let mut _vertices = state.base_vertices.clone();
+        let mut _indices = state.base_indices.clone();
         
         // Apply deltas up to current LOD
         for check_lod in [MeshLod::Lod3, MeshLod::Lod2, MeshLod::Lod1, MeshLod::Lod0] {
@@ -285,24 +285,24 @@ impl ProgressiveStreamer {
     }
     
     /// Decode geometry from packet data
-    fn decode_geometry(&self, data: &[u8]) -> (Vec<Vertex>, Vec<u32>) {
+    fn decode_geometry(&self, _data: &[u8]) -> (Vec<Vertex>, Vec<u32>) {
         // Simplified decoding - in practice would use compression
         // For now, assume direct serialization
         (vec![], vec![])
     }
     
     /// Decode vertices from packet data
-    fn decode_vertices(&self, data: &[u8]) -> Vec<Vertex> {
+    fn decode_vertices(&self, _data: &[u8]) -> Vec<Vertex> {
         vec![]
     }
     
     /// Decode indices from packet data
-    fn decode_indices(&self, data: &[u8]) -> Vec<u32> {
+    fn decode_indices(&self, _data: &[u8]) -> Vec<u32> {
         vec![]
     }
     
     /// Decode attribute updates
-    fn decode_attributes(&self, data: &[u8]) -> Vec<(usize, VertexAttributes)> {
+    fn decode_attributes(&self, _data: &[u8]) -> Vec<(usize, VertexAttributes)> {
         vec![]
     }
 }
@@ -359,7 +359,7 @@ impl ProgressiveEncoder {
     }
     
     /// Encode base geometry into packets
-    fn encode_base_geometry(&self, chunk_id: u64, vertices: &[Vertex], indices: &[u32]) -> Vec<MeshPacket> {
+    fn encode_base_geometry(&self, _chunk_id: u64, _vertices: &[Vertex], _indices: &[u32]) -> Vec<MeshPacket> {
         // Split into packets based on size
         vec![] // Simplified
     }
@@ -385,12 +385,12 @@ impl ProgressiveEncoder {
     }
     
     /// Encode vertex delta into packets
-    fn encode_vertex_delta(&self, chunk_id: u64, lod: MeshLod, vertices: &[Vertex]) -> Vec<MeshPacket> {
+    fn encode_vertex_delta(&self, _chunk_id: u64, _lod: MeshLod, _vertices: &[Vertex]) -> Vec<MeshPacket> {
         vec![] // Simplified
     }
     
     /// Encode index delta into packets
-    fn encode_index_delta(&self, chunk_id: u64, lod: MeshLod, indices: &[u32]) -> Vec<MeshPacket> {
+    fn encode_index_delta(&self, _chunk_id: u64, _lod: MeshLod, _indices: &[u32]) -> Vec<MeshPacket> {
         vec![] // Simplified
     }
 }

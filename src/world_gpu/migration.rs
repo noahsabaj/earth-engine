@@ -1,9 +1,8 @@
 use std::sync::Arc;
-use wgpu::util::DeviceExt;
 use bytemuck::{Pod, Zeroable};
-use crate::world::{Chunk, ChunkPos, BlockId, VoxelPos};
-use crate::morton::{morton_encode, morton_encode_chunk};
-use crate::memory::{MemoryManager, BandwidthProfiler, TransferType};
+use crate::world::{Chunk, ChunkPos, BlockId};
+use crate::morton::morton_encode;
+use crate::memory::{BandwidthProfiler, TransferType};
 use super::world_buffer::{WorldBuffer, VoxelData, CHUNK_SIZE};
 use super::gpu_lighting::GpuLighting;
 

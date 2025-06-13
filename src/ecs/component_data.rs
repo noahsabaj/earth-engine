@@ -1,7 +1,4 @@
 use super::entity_data::{EntityId, MAX_ENTITIES};
-use cgmath::{Vector3, Point3};
-use crate::{BlockId, AABB};
-use crate::item::ItemId;
 
 /// Component type IDs as constants
 pub const COMPONENT_TRANSFORM: u8 = 0;

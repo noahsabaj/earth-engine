@@ -3,7 +3,10 @@ use std::fs;
 use serde::{Serialize, Deserialize};
 use glam::{Vec3, Quat};
 
-use crate::inventory::{PlayerInventory, ItemStack};
+use crate::inventory::{
+    PlayerInventoryData, ItemStackData, create_item_stack, 
+    create_empty_slot, create_slot_with_item, SlotType
+};
 use crate::persistence::{PersistenceResult, PersistenceError};
 
 /// Player data that needs to be persisted
@@ -56,13 +59,13 @@ pub struct PlayerSaveData {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InventoryData {
     /// Main inventory slots
-    pub main_slots: Vec<Option<ItemStack>>,
+    pub main_slots: Vec<Option<ItemStackData>>,
     /// Hotbar slots (indices into main inventory)
     pub hotbar_indices: [usize; 9],
     /// Armor slots
-    pub armor_slots: [Option<ItemStack>; 4],
+    pub armor_slots: [Option<ItemStackData>; 4],
     /// Offhand slot
-    pub offhand_slot: Option<ItemStack>,
+    pub offhand_slot: Option<ItemStackData>,
     /// Currently selected hotbar slot
     pub selected_slot: usize,
 }
@@ -137,7 +140,7 @@ impl PlayerSaveData {
     /// Create save data from player components
     pub fn from_player(
         player_data: PlayerData,
-        inventory: &PlayerInventory,
+        inventory: &PlayerInventoryData,
     ) -> Self {
         Self {
             player_data,
@@ -241,31 +244,57 @@ impl PlayerSaveData {
 
 impl InventoryData {
     /// Create from player inventory
-    pub fn from_inventory(inventory: &PlayerInventory) -> Self {
+    pub fn from_inventory(inventory: &PlayerInventoryData) -> Self {
+        // Convert inventory slot data to serializable format
+        let mut main_slots = Vec::with_capacity(36);
+        for slot in &inventory.slots {
+            if slot.has_item != 0 {
+                main_slots.push(Some(slot.item));
+            } else {
+                main_slots.push(None);
+            }
+        }
+        
         Self {
-            main_slots: inventory.get_all_items(),
-            hotbar_indices: inventory.get_hotbar_indices(),
-            armor_slots: [None, None, None, None], // TODO: Get from inventory
+            main_slots,
+            hotbar_indices: [0, 1, 2, 3, 4, 5, 6, 7, 8], // Fixed hotbar order
+            armor_slots: [None, None, None, None], // TODO: Add armor support
             offhand_slot: None,
-            selected_slot: inventory.get_selected_slot(),
+            selected_slot: inventory.selected_hotbar_slot as usize,
         }
     }
     
     /// Apply to player inventory
-    pub fn apply_to_inventory(&self, inventory: &mut PlayerInventory) {
-        // Clear inventory
-        inventory.clear();
+    pub fn apply_to_inventory(&self, inventory: &mut PlayerInventoryData) {
+        // Clear all slots
+        for slot in &mut inventory.slots {
+            *slot = create_empty_slot(
+                if slot.slot_type == 1 { 
+                    SlotType::Hotbar 
+                } else { 
+                    SlotType::Normal 
+                }
+            );
+        }
         
-        // Restore items
-        for (i, item) in self.main_slots.iter().enumerate() {
-            if let Some(item_stack) = item {
-                inventory.set_slot(i, Some(item_stack.clone()));
+        // Restore items to slots
+        for (i, item_option) in self.main_slots.iter().enumerate() {
+            if i < inventory.slots.len() {
+                if let Some(item_stack) = item_option {
+                    inventory.slots[i] = create_slot_with_item(
+                        if i < 9 { 
+                            SlotType::Hotbar 
+                        } else { 
+                            SlotType::Normal 
+                        },
+                        *item_stack
+                    );
+                }
             }
         }
         
-        // Restore hotbar
-        inventory.set_hotbar_indices(self.hotbar_indices);
-        inventory.set_selected_slot(self.selected_slot);
+        // Restore selected slot
+        inventory.selected_hotbar_slot = self.selected_slot as u32;
     }
 }
 
@@ -344,6 +373,7 @@ impl PlayerDataManager {
 mod tests {
     use super::*;
     use tempfile::TempDir;
+    use crate::inventory::init_inventory;
     
     #[test]
     fn test_player_save_load() {
@@ -354,7 +384,7 @@ mod tests {
             "TestPlayer".to_string(),
         );
         
-        let inventory = PlayerInventory::new();
+        let inventory = init_inventory();
         let save_data = PlayerSaveData::from_player(player_data, &inventory);
         
         // Save
@@ -377,7 +407,7 @@ mod tests {
                 format!("uuid-{}", i),
                 format!("Player{}", i),
             );
-            let save_data = PlayerSaveData::from_player(player_data, &PlayerInventory::new());
+            let save_data = PlayerSaveData::from_player(player_data, &init_inventory());
             save_data.save(temp_dir.path()).unwrap();
         }
         

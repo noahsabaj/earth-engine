@@ -1,3 +1,8 @@
+//! Legacy OOP-style inventory slot (deprecated)
+//! Use the data_inventory module instead for new code.
+
+#![allow(warnings)]
+
 use super::ItemStack;
 
 /// Type of inventory slot

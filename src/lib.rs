@@ -43,7 +43,7 @@ use anyhow::Result;
 use winit::event_loop::{EventLoop, EventLoopBuilder};
 
 pub use error::{EngineError, EngineResult, OptionExt, ErrorContext};
-pub use camera::Camera;
+pub use camera::{CameraData, CameraUniform};
 pub use game::{Game, GameContext};
 pub use input::KeyCode;
 pub use physics::{PhysicsWorldData, PhysicsBodyData, AABB};
