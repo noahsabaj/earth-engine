@@ -382,10 +382,12 @@ mod tests {
         let packet = SyncPacket::Snapshot(snapshot);
         
         // Serialize
-        let bytes = NetworkSerializer::serialize(&packet).unwrap();
+        let bytes = NetworkSerializer::serialize(&packet)
+            .expect("Packet serialization should succeed in test");
         
         // Deserialize
-        let restored = NetworkSerializer::deserialize(&bytes).unwrap();
+        let restored = NetworkSerializer::deserialize(&bytes)
+            .expect("Packet deserialization should succeed in test");
         
         match restored {
             SyncPacket::Snapshot(s) => {

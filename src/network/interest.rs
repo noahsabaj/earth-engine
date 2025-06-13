@@ -423,12 +423,14 @@ mod tests {
         manager.update_all_interests();
         
         // Check interests
-        let p1_entities = manager.get_interested_entities(1).unwrap();
+        let p1_entities = manager.get_interested_entities(1)
+            .expect("Player 1 should exist in interest manager");
         assert!(p1_entities.contains(&10)); // Nearby
         assert!(p1_entities.contains(&11)); // Within range
         assert!(!p1_entities.contains(&12)); // Too far
         
-        let p3_entities = manager.get_interested_entities(3).unwrap();
+        let p3_entities = manager.get_interested_entities(3)
+            .expect("Player 3 should exist in interest manager");
         assert!(!p3_entities.contains(&10)); // Too far
         assert!(!p3_entities.contains(&11)); // Too far
         assert!(p3_entities.contains(&12)); // Nearby
