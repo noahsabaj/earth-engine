@@ -33,6 +33,7 @@ This is **Earth Engine** - a frontier SOTA voxel game engine. We are building in
 Think "Minecraft Civilization videos" but that's just ONE way to play. The engine enables:
 - Rust-like survival and raiding
 - Garry's Mod sandbox creativity  
+- DayZ & Arma Combat and Realism
 - EVE Online emergent politics
 - SimCity player-made cities
 - All in one persistent world
