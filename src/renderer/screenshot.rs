@@ -28,7 +28,7 @@ pub fn copy_texture_to_buffer(
     width: u32,
     height: u32,
     format: TextureFormat,
-) {
+) -> Result<()> {
     let bytes_per_pixel = match format {
         TextureFormat::Rgba8UnormSrgb | TextureFormat::Rgba8Unorm => 4,
         TextureFormat::Bgra8UnormSrgb | TextureFormat::Bgra8Unorm => 4,
@@ -56,6 +56,8 @@ pub fn copy_texture_to_buffer(
             depth_or_array_layers: 1,
         },
     );
+    
+    Ok(())
 }
 
 /// Convert buffer data to RGBA image
@@ -134,7 +136,7 @@ pub async fn capture_screenshot(
         label: Some("Screenshot Encoder"),
     });
     
-    copy_texture_to_buffer(&mut encoder, texture, &staging_buffer, width, height, format);
+    copy_texture_to_buffer(&mut encoder, texture, &staging_buffer, width, height, format)?;
     
     queue.submit(Some(encoder.finish()));
     
@@ -188,7 +190,7 @@ pub async fn capture_screenshot_data(
         label: Some("Screenshot Data Encoder"),
     });
     
-    copy_texture_to_buffer(&mut encoder, texture, &staging_buffer, width, height, format);
+    copy_texture_to_buffer(&mut encoder, texture, &staging_buffer, width, height, format)?;
     
     queue.submit(Some(encoder.finish()));
     

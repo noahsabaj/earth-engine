@@ -1536,7 +1536,10 @@ impl GpuState {
         let buffer = screenshot::create_staging_buffer(&self.device, size.width, size.height, 4);
         
         // Copy texture to buffer
-        screenshot::copy_texture_to_buffer(encoder, texture, &buffer, size.width, size.height, format);
+        if let Err(e) = screenshot::copy_texture_to_buffer(encoder, texture, &buffer, size.width, size.height, format) {
+            log::error!("[GpuState::capture_screenshot] Failed to copy texture: {}", e);
+            return;
+        }
         
         // Store screenshot request for deferred processing
         // We can't use async here directly, so we'll process it synchronously
