@@ -318,9 +318,9 @@ mod tests {
         let id = InstanceId::new();
         
         // Test different value types
-        store.set(id, "name", MetadataValue::String("Test Item".to_string())).unwrap();
-        store.set(id, "durability", MetadataValue::I32(100)).unwrap();
-        store.set(id, "position", MetadataValue::Position([1.0, 2.0, 3.0])).unwrap();
+        store.set(id, "name", MetadataValue::String("Test Item".to_string())).expect("Failed to set name metadata");
+        store.set(id, "durability", MetadataValue::I32(100)).expect("Failed to set durability metadata");
+        store.set(id, "position", MetadataValue::Position([1.0, 2.0, 3.0])).expect("Failed to set position metadata");
         
         assert_eq!(
             store.get(&id, "name"),
@@ -343,9 +343,9 @@ mod tests {
         let id2 = InstanceId::new();
         let id3 = InstanceId::new();
         
-        store.set(id1, "type", MetadataValue::String("sword".to_string())).unwrap();
-        store.set(id2, "type", MetadataValue::String("sword".to_string())).unwrap();
-        store.set(id3, "type", MetadataValue::String("shield".to_string())).unwrap();
+        store.set(id1, "type", MetadataValue::String("sword".to_string())).expect("Failed to set type for id1");
+        store.set(id2, "type", MetadataValue::String("sword".to_string())).expect("Failed to set type for id2");
+        store.set(id3, "type", MetadataValue::String("shield".to_string())).expect("Failed to set type for id3");
         
         let swords = store.find_by_metadata("type", &MetadataValue::String("sword".to_string()));
         assert_eq!(swords.len(), 2);

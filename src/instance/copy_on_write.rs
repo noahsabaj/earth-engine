@@ -291,7 +291,7 @@ mod tests {
         assert_eq!(handle.get("damage"), Some(MetadataValue::I32(15)));
         
         // Base is unchanged
-        assert!(handle.base.as_ref().unwrap().get("damage") == Some(&MetadataValue::I32(10)));
+        assert!(handle.base.as_ref().expect("No base metadata found").get("damage") == Some(&MetadataValue::I32(10)));
     }
     
     #[test]
@@ -310,8 +310,8 @@ mod tests {
         let id1 = InstanceId::new();
         let id2 = InstanceId::new();
         
-        cow.create_from_template(id1, "sword").unwrap();
-        cow.create_from_template(id2, "sword").unwrap();
+        cow.create_from_template(id1, "sword").expect("Failed to create instance from sword template");
+        cow.create_from_template(id2, "sword").expect("Failed to create second instance from sword template");
         
         // Both share template
         assert_eq!(
@@ -324,7 +324,7 @@ mod tests {
         );
         
         // Modify one
-        cow.set(id1, "damage", MetadataValue::I32(15)).unwrap();
+        cow.set(id1, "damage", MetadataValue::I32(15)).expect("Failed to set damage metadata");
         
         // Only one changed
         assert_eq!(cow.get(&id1, "damage"), Some(MetadataValue::I32(15)));

@@ -128,7 +128,7 @@ mod tests {
         let id = InstanceId::new();
         let creator = InstanceId::new();
         
-        let index = data.add(id, InstanceType::Item, creator).unwrap();
+        let index = data.add(id, InstanceType::Item, creator).expect("Failed to add instance to data");
         
         assert_eq!(data.ids[index], id);
         assert_eq!(data.types[index], InstanceType::Item);

@@ -219,7 +219,7 @@ mod tests {
     fn test_ring_buffer() {
         let mut buffer = HistoryRingBuffer::new(3);
         let actor = InstanceId::new();
-        let builder = HistoryBuilder::new(actor).unwrap();
+        let builder = HistoryBuilder::new(actor).expect("Failed to create history builder");
         
         // Fill buffer
         buffer.push(builder.created(1));
@@ -244,7 +244,7 @@ mod tests {
         let mut log = HistoryLog::new(10);
         let instance = InstanceId::new();
         let actor = InstanceId::new();
-        let builder = HistoryBuilder::new(actor).unwrap();
+        let builder = HistoryBuilder::new(actor).expect("Failed to create history builder");
         
         // Record some events
         log.record(instance, builder.created(1));

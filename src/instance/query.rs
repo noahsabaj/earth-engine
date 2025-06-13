@@ -368,10 +368,10 @@ mod tests {
         let id1 = InstanceId::new();
         let id2 = InstanceId::new();
         
-        data.add(id1, InstanceType::Item, creator).unwrap();
-        data.add(id2, InstanceType::Block, creator).unwrap();
+        data.add(id1, InstanceType::Item, creator).expect("Failed to add item instance");
+        data.add(id2, InstanceType::Block, creator).expect("Failed to add block instance");
         
-        metadata.set(id1, "name", MetadataValue::String("Sword".to_string())).unwrap();
+        metadata.set(id1, "name", MetadataValue::String("Sword".to_string())).expect("Failed to set metadata");
         
         // Execute query
         let executor = QueryExecutor::new(&data, &metadata);

@@ -196,7 +196,7 @@ mod tests {
     fn test_instance_id_string() {
         let id = InstanceId { high: 0x1234567890ABCDEF, low: 0xFEDCBA0987654321 };
         let s = id.to_string();
-        let restored = InstanceId::from_string(&s).unwrap();
+        let restored = InstanceId::from_string(&s).expect("Failed to parse instance ID from string");
         
         assert_eq!(id, restored);
         assert_eq!(s, "1234567890abcdeffedcba0987654321");
@@ -205,8 +205,8 @@ mod tests {
     #[test]
     fn test_id_generator() {
         let gen = InstanceIdGenerator::new(42);
-        let id1 = gen.generate().unwrap();
-        let id2 = gen.generate().unwrap();
+        let id1 = gen.generate().expect("Failed to generate first ID");
+        let id2 = gen.generate().expect("Failed to generate second ID");
         
         assert_ne!(id1, id2);
         // Check node ID is embedded
