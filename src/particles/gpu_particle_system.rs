@@ -415,6 +415,7 @@ impl GpuParticleSystem {
                         color: particle.color,
                         rotation: particle.rotation,
                         texture_index: particle.texture_frame,
+                        _padding: [0.0, 0.0],
                     });
                 }
             }
