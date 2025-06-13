@@ -1,173 +1,323 @@
+/// Data-Oriented Time of Day Functions
+/// 
+/// Pure functions for time calculations. No methods, no self, just data transformations.
+/// Follows DOP principles from Sprint 37.
+
 use cgmath::{Vector3, InnerSpace};
 
-/// Time of day represented as hours (0-24)
+/// Time of day data (DOP - no methods)
+/// Pure data structure for time state
 #[derive(Debug, Clone, Copy)]
-pub struct TimeOfDay {
+pub struct TimeOfDayData {
     /// Current time in hours (0.0 - 24.0)
     pub hours: f32,
 }
 
-impl TimeOfDay {
-    pub fn new(hours: f32) -> Self {
-        Self {
-            hours: hours % 24.0,
-        }
-    }
-    
-    /// Create noon time
-    pub fn noon() -> Self {
-        Self { hours: 12.0 }
-    }
-    
-    /// Create midnight time
-    pub fn midnight() -> Self {
-        Self { hours: 0.0 }
-    }
-    
-    /// Get the sun angle in radians (0 at sunrise, PI at sunset)
-    pub fn sun_angle(&self) -> f32 {
-        // Sun rises at 6:00 and sets at 18:00
-        let day_progress = (self.hours - 6.0) / 12.0;
-        day_progress.clamp(0.0, 1.0) * std::f32::consts::PI
-    }
-    
-    /// Get the moon angle in radians
-    pub fn moon_angle(&self) -> f32 {
-        // Moon rises at 18:00 and sets at 6:00
-        let night_progress = if self.hours >= 18.0 {
-            (self.hours - 18.0) / 12.0
-        } else {
-            (self.hours + 6.0) / 12.0
-        };
-        night_progress.clamp(0.0, 1.0) * std::f32::consts::PI
-    }
-    
-    /// Get sun direction vector
-    pub fn sun_direction(&self) -> Vector3<f32> {
-        let angle = self.sun_angle();
-        Vector3::new(
-            angle.cos(),
-            angle.sin(),
-            0.0,
-        ).normalize()
-    }
-    
-    /// Get moon direction vector  
-    pub fn moon_direction(&self) -> Vector3<f32> {
-        let angle = self.moon_angle();
-        Vector3::new(
-            angle.cos(),
-            angle.sin(),
-            0.0,
-        ).normalize()
-    }
-    
-    /// Get ambient light level (0.0 - 1.0)
-    pub fn ambient_light(&self) -> f32 {
-        // Maximum during day, minimum at night
-        if self.hours >= 6.0 && self.hours <= 18.0 {
-            // Daytime
-            let day_progress = (self.hours - 6.0) / 12.0;
-            let light = 1.0 - (2.0 * (day_progress - 0.5)).abs() * 0.2;
-            light.max(0.8)
-        } else {
-            // Nighttime - much darker
-            0.1
-        }
-    }
-    
-    /// Get sky color based on time
-    pub fn sky_color(&self) -> [f32; 3] {
-        if self.hours >= 6.0 && self.hours <= 18.0 {
-            // Daytime
-            if self.hours < 7.0 || self.hours > 17.0 {
-                // Sunrise/sunset
-                [0.9, 0.5, 0.3]
-            } else {
-                // Day sky
-                [0.5, 0.8, 1.0]
-            }
-        } else {
-            // Night sky
-            [0.05, 0.05, 0.2]
-        }
-    }
-    
-    /// Get sun color based on time
-    pub fn sun_color(&self) -> [f32; 3] {
-        if self.hours < 7.0 || self.hours > 17.0 {
-            // Sunrise/sunset - orange
-            [1.0, 0.7, 0.4]
-        } else {
-            // Midday - white/yellow
-            [1.0, 0.95, 0.8]
-        }
-    }
-    
-    /// Advance time by delta seconds
-    pub fn advance(&mut self, delta_seconds: f32, day_length_seconds: f32) {
-        // Convert delta to hours based on day length
-        let hours_per_second = 24.0 / day_length_seconds;
-        self.hours += delta_seconds * hours_per_second;
-        
-        // Wrap around at 24 hours
-        while self.hours >= 24.0 {
-            self.hours -= 24.0;
-        }
-    }
-    
-    /// Is it daytime?
-    pub fn is_day(&self) -> bool {
-        self.hours >= 6.0 && self.hours < 18.0
-    }
-    
-    /// Is it nighttime?
-    pub fn is_night(&self) -> bool {
-        !self.is_day()
+/// Create new time of day data
+/// Pure function - returns data structure, no behavior
+pub fn create_time_of_day(hours: f32) -> TimeOfDayData {
+    TimeOfDayData {
+        hours: hours % 24.0,
     }
 }
 
-/// Manages the day/night cycle
-pub struct DayNightCycle {
+/// Create noon time
+/// Pure function - constant time data
+pub fn noon_time() -> TimeOfDayData {
+    TimeOfDayData { hours: 12.0 }
+}
+
+/// Create midnight time
+/// Pure function - constant time data
+pub fn midnight_time() -> TimeOfDayData {
+    TimeOfDayData { hours: 0.0 }
+}
+
+/// Get the sun angle in radians (0 at sunrise, PI at sunset)
+/// Pure function - calculates sun position based on time data
+pub fn calculate_sun_angle(time: &TimeOfDayData) -> f32 {
+    // Sun rises at 6:00 and sets at 18:00
+    let day_progress = (time.hours - 6.0) / 12.0;
+    day_progress.clamp(0.0, 1.0) * std::f32::consts::PI
+}
+
+/// Get the moon angle in radians
+/// Pure function - calculates moon position based on time data
+pub fn calculate_moon_angle(time: &TimeOfDayData) -> f32 {
+    // Moon rises at 18:00 and sets at 6:00
+    let night_progress = if time.hours >= 18.0 {
+        (time.hours - 18.0) / 12.0
+    } else {
+        (time.hours + 6.0) / 12.0
+    };
+    night_progress.clamp(0.0, 1.0) * std::f32::consts::PI
+}
+
+/// Get sun direction vector
+/// Pure function - transforms time data to 3D sun direction
+pub fn calculate_sun_direction(time: &TimeOfDayData) -> Vector3<f32> {
+    let angle = calculate_sun_angle(time);
+    Vector3::new(
+        angle.cos(),
+        angle.sin(),
+        0.0,
+    ).normalize()
+}
+
+/// Get moon direction vector  
+/// Pure function - transforms time data to 3D moon direction
+pub fn calculate_moon_direction(time: &TimeOfDayData) -> Vector3<f32> {
+    let angle = calculate_moon_angle(time);
+    Vector3::new(
+        angle.cos(),
+        angle.sin(),
+        0.0,
+    ).normalize()
+}
+
+/// Get ambient light level (0.0 - 1.0)
+/// Pure function - calculates ambient lighting based on time data
+pub fn calculate_ambient_light(time: &TimeOfDayData) -> f32 {
+    // Maximum during day, minimum at night
+    if time.hours >= 6.0 && time.hours <= 18.0 {
+        // Daytime
+        let day_progress = (time.hours - 6.0) / 12.0;
+        let light = 1.0 - (2.0 * (day_progress - 0.5)).abs() * 0.2;
+        light.max(0.8)
+    } else {
+        // Nighttime - much darker
+        0.1
+    }
+}
+
+/// Get sky color based on time
+/// Pure function - calculates sky color from time data
+pub fn calculate_sky_color(time: &TimeOfDayData) -> [f32; 3] {
+    if time.hours >= 6.0 && time.hours <= 18.0 {
+        // Daytime
+        if time.hours < 7.0 || time.hours > 17.0 {
+            // Sunrise/sunset
+            [0.9, 0.5, 0.3]
+        } else {
+            // Day sky
+            [0.5, 0.8, 1.0]
+        }
+    } else {
+        // Night sky
+        [0.05, 0.05, 0.2]
+    }
+}
+
+/// Get sun color based on time
+/// Pure function - calculates sun color from time data
+pub fn calculate_sun_color(time: &TimeOfDayData) -> [f32; 3] {
+    if time.hours < 7.0 || time.hours > 17.0 {
+        // Sunrise/sunset - orange
+        [1.0, 0.7, 0.4]
+    } else {
+        // Midday - white/yellow
+        [1.0, 0.95, 0.8]
+    }
+}
+
+/// Advance time by delta seconds
+/// Function - transforms time data by advancing it
+pub fn advance_time(time: &mut TimeOfDayData, delta_seconds: f32, day_length_seconds: f32) {
+    // Convert delta to hours based on day length
+    let hours_per_second = 24.0 / day_length_seconds;
+    time.hours += delta_seconds * hours_per_second;
+    
+    // Wrap around at 24 hours
+    while time.hours >= 24.0 {
+        time.hours -= 24.0;
+    }
+}
+
+/// Is it daytime?
+/// Pure function - determines day/night from time data
+pub fn is_day_time(time: &TimeOfDayData) -> bool {
+    time.hours >= 6.0 && time.hours < 18.0
+}
+
+/// Is it nighttime?
+/// Pure function - determines day/night from time data
+pub fn is_night_time(time: &TimeOfDayData) -> bool {
+    !is_day_time(time)
+}
+
+/// Day/night cycle data (DOP - no methods)
+/// Pure data structure for managing time progression
+pub struct DayNightCycleData {
     /// Current time of day
-    pub time: TimeOfDay,
+    pub time: TimeOfDayData,
     /// Length of a full day in seconds
     pub day_length_seconds: f32,
     /// Speed multiplier for time progression
     pub time_scale: f32,
 }
 
+/// Create new day/night cycle data
+/// Pure function - returns data structure, no behavior
+pub fn create_day_night_cycle(starting_time: TimeOfDayData, day_length_seconds: f32) -> DayNightCycleData {
+    DayNightCycleData {
+        time: starting_time,
+        day_length_seconds,
+        time_scale: 1.0,
+    }
+}
+
+/// Create with default settings (20 minute days, starting at noon)
+/// Pure function - returns default cycle configuration
+pub fn create_default_day_night_cycle() -> DayNightCycleData {
+    create_day_night_cycle(noon_time(), 20.0 * 60.0)
+}
+
+/// Update the time of day
+/// Function - transforms cycle data by advancing time
+pub fn update_day_night_cycle(cycle: &mut DayNightCycleData, delta_time: f32) {
+    advance_time(&mut cycle.time, delta_time * cycle.time_scale, cycle.day_length_seconds);
+}
+
+/// Get the current global light level (0-15)
+/// Pure function - calculates light level from cycle data
+pub fn calculate_global_light_level(cycle: &DayNightCycleData) -> u8 {
+    if is_day_time(&cycle.time) {
+        15
+    } else {
+        // Night has reduced skylight
+        4
+    }
+}
+
+/// Set time scale (for debugging or gameplay features)
+/// Function - transforms cycle time scale
+pub fn set_time_scale(cycle: &mut DayNightCycleData, scale: f32) {
+    cycle.time_scale = scale.max(0.0);
+}
+
+// ===== COMPATIBILITY LAYER =====
+// Temporary aliases for code that hasn't been converted yet
+
+/// Compatibility alias - will be removed in future sprints
+#[deprecated(note = "Use TimeOfDayData and pure functions instead")]
+pub type TimeOfDay = TimeOfDayData;
+
+/// Compatibility alias - will be removed in future sprints
+#[deprecated(note = "Use DayNightCycleData and pure functions instead")]
+pub type DayNightCycle = DayNightCycleData;
+
+/// Compatibility implementation for gradual migration
+#[allow(deprecated)]
+impl TimeOfDay {
+    /// Compatibility constructor
+    #[deprecated(note = "Use create_time_of_day instead")]
+    pub fn new(hours: f32) -> Self {
+        create_time_of_day(hours)
+    }
+    
+    /// Compatibility constructor
+    #[deprecated(note = "Use noon_time instead")]
+    pub fn noon() -> Self {
+        noon_time()
+    }
+    
+    /// Compatibility constructor
+    #[deprecated(note = "Use midnight_time instead")]
+    pub fn midnight() -> Self {
+        midnight_time()
+    }
+    
+    /// Compatibility method
+    #[deprecated(note = "Use calculate_sun_angle instead")]
+    pub fn sun_angle(&self) -> f32 {
+        calculate_sun_angle(self)
+    }
+    
+    /// Compatibility method
+    #[deprecated(note = "Use calculate_moon_angle instead")]
+    pub fn moon_angle(&self) -> f32 {
+        calculate_moon_angle(self)
+    }
+    
+    /// Compatibility method
+    #[deprecated(note = "Use calculate_sun_direction instead")]
+    pub fn sun_direction(&self) -> Vector3<f32> {
+        calculate_sun_direction(self)
+    }
+    
+    /// Compatibility method
+    #[deprecated(note = "Use calculate_moon_direction instead")]
+    pub fn moon_direction(&self) -> Vector3<f32> {
+        calculate_moon_direction(self)
+    }
+    
+    /// Compatibility method
+    #[deprecated(note = "Use calculate_ambient_light instead")]
+    pub fn ambient_light(&self) -> f32 {
+        calculate_ambient_light(self)
+    }
+    
+    /// Compatibility method
+    #[deprecated(note = "Use calculate_sky_color instead")]
+    pub fn sky_color(&self) -> [f32; 3] {
+        calculate_sky_color(self)
+    }
+    
+    /// Compatibility method
+    #[deprecated(note = "Use calculate_sun_color instead")]
+    pub fn sun_color(&self) -> [f32; 3] {
+        calculate_sun_color(self)
+    }
+    
+    /// Compatibility method
+    #[deprecated(note = "Use advance_time instead")]
+    pub fn advance(&mut self, delta_seconds: f32, day_length_seconds: f32) {
+        advance_time(self, delta_seconds, day_length_seconds);
+    }
+    
+    /// Compatibility method
+    #[deprecated(note = "Use is_day_time instead")]
+    pub fn is_day(&self) -> bool {
+        is_day_time(self)
+    }
+    
+    /// Compatibility method
+    #[deprecated(note = "Use is_night_time instead")]
+    pub fn is_night(&self) -> bool {
+        is_night_time(self)
+    }
+}
+
+/// Compatibility implementation for gradual migration
+#[allow(deprecated)]
 impl DayNightCycle {
+    /// Compatibility constructor
+    #[deprecated(note = "Use create_day_night_cycle instead")]
     pub fn new(starting_time: TimeOfDay, day_length_seconds: f32) -> Self {
-        Self {
-            time: starting_time,
-            day_length_seconds,
-            time_scale: 1.0,
-        }
+        create_day_night_cycle(starting_time, day_length_seconds)
     }
     
-    /// Create with default settings (20 minute days, starting at noon)
+    /// Compatibility constructor
+    #[deprecated(note = "Use create_default_day_night_cycle instead")]
     pub fn default() -> Self {
-        Self::new(TimeOfDay::noon(), 20.0 * 60.0)
+        create_default_day_night_cycle()
     }
     
-    /// Update the time of day
+    /// Compatibility method
+    #[deprecated(note = "Use update_day_night_cycle instead")]
     pub fn update(&mut self, delta_time: f32) {
-        self.time.advance(delta_time * self.time_scale, self.day_length_seconds);
+        update_day_night_cycle(self, delta_time);
     }
     
-    /// Get the current global light level (0-15)
+    /// Compatibility method
+    #[deprecated(note = "Use calculate_global_light_level instead")]
     pub fn global_light_level(&self) -> u8 {
-        if self.time.is_day() {
-            15
-        } else {
-            // Night has reduced skylight
-            4
-        }
+        calculate_global_light_level(self)
     }
     
-    /// Set time scale (for debugging or gameplay features)
+    /// Compatibility method
+    #[deprecated(note = "Use set_time_scale instead")]
     pub fn set_time_scale(&mut self, scale: f32) {
-        self.time_scale = scale.max(0.0);
+        set_time_scale(self, scale);
     }
 }

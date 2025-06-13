@@ -97,21 +97,22 @@ pub struct LightingStats {
     pub cross_chunk_updates: usize,
 }
 
-/// Parallel light propagation system
-pub struct ParallelLightPropagator {
+/// Parallel light propagation data (DOP - no methods)
+/// Pure data structure for light propagation state
+pub struct ParallelLightPropagatorData {
     /// Light update queue
-    update_sender: Sender<LightUpdate>,
-    update_receiver: Receiver<LightUpdate>,
+    pub update_sender: Sender<LightUpdate>,
+    pub update_receiver: Receiver<LightUpdate>,
     /// Chunk light data cache
-    chunk_lights: Arc<DashMap<ChunkPos, Arc<ChunkLightData>>>,
+    pub chunk_lights: Arc<DashMap<ChunkPos, Arc<ChunkLightData>>>,
     /// Block data provider (thread-safe)
-    block_provider: Arc<dyn BlockProvider>,
+    pub block_provider: Arc<dyn BlockProvider>,
     /// Chunk size
-    chunk_size: u32,
+    pub chunk_size: u32,
     /// Statistics
-    stats: Arc<RwLock<LightingStats>>,
+    pub stats: Arc<RwLock<LightingStats>>,
     /// Active light propagation jobs
-    active_jobs: Arc<DashMap<ChunkPos, Arc<Mutex<ChunkLightJob>>>>,
+    pub active_jobs: Arc<DashMap<ChunkPos, Arc<Mutex<ChunkLightJob>>>>,
 }
 
 /// Thread-safe block data provider trait
@@ -128,62 +129,67 @@ struct ChunkLightJob {
     boundary_updates: Vec<LightUpdate>, // Updates that affect neighboring chunks
 }
 
-impl ParallelLightPropagator {
-    pub fn new(
-        block_provider: Arc<dyn BlockProvider>,
-        chunk_size: u32,
-        thread_count: Option<usize>,
-    ) -> Self {
-        let (update_send, update_recv) = unbounded();
-        
-        Self {
-            update_sender: update_send,
-            update_receiver: update_recv,
-            chunk_lights: Arc::new(DashMap::new()),
-            block_provider,
-            chunk_size,
-            stats: Arc::new(RwLock::new(LightingStats::default())),
-            active_jobs: Arc::new(DashMap::new()),
-        }
-    }
+/// Create new parallel light propagator data
+/// Pure function - returns data structure, no behavior
+pub fn create_parallel_light_propagator_data(
+    block_provider: Arc<dyn BlockProvider>,
+    chunk_size: u32,
+    thread_count: Option<usize>,
+) -> ParallelLightPropagatorData {
+    let (update_send, update_recv) = unbounded();
     
-    /// Queue a light update
-    pub fn queue_update(&self, update: LightUpdate) {
-        let _ = self.update_sender.send(update);
+    ParallelLightPropagatorData {
+        update_sender: update_send,
+        update_receiver: update_recv,
+        chunk_lights: Arc::new(DashMap::new()),
+        block_provider,
+        chunk_size,
+        stats: Arc::new(RwLock::new(LightingStats::default())),
+        active_jobs: Arc::new(DashMap::new()),
     }
+}
+
+/// Queue a light update
+/// Pure function - transforms update queue
+pub fn queue_light_update(data: &ParallelLightPropagatorData, update: LightUpdate) {
+    let _ = data.update_sender.send(update);
+}
+
+/// Add a light source
+/// Pure function - transforms light data via queue
+pub fn add_light_parallel(data: &ParallelLightPropagatorData, pos: VoxelPos, light_type: LightType, level: u8) {
+    queue_light_update(data, LightUpdate {
+        pos,
+        light_type,
+        level,
+        is_removal: false,
+    });
+}
+
+/// Remove a light source
+/// Function - transforms light data via queue
+pub fn remove_light_parallel(data: &ParallelLightPropagatorData, pos: VoxelPos, light_type: LightType) {
+    // Get current light level for removal
+    let chunk_pos = world_to_chunk_pos_static(pos, data.chunk_size);
+    let chunk_light = get_or_create_chunk_light(data, chunk_pos);
+    let local_pos = world_to_local_pos_static(pos, data.chunk_size);
+    let current = chunk_light.get_light(local_pos);
+    let level = match light_type {
+        LightType::Sky => current.sky,
+        LightType::Block => current.block,
+    };
     
-    /// Add a light source
-    pub fn add_light(&self, pos: VoxelPos, light_type: LightType, level: u8) {
-        self.queue_update(LightUpdate {
-            pos,
-            light_type,
-            level,
-            is_removal: false,
-        });
-    }
-    
-    /// Remove a light source
-    pub fn remove_light(&self, pos: VoxelPos, light_type: LightType) {
-        // Get current light level for removal
-        let chunk_pos = self.world_to_chunk_pos(pos);
-        let chunk_light = self.get_or_create_chunk_light(chunk_pos);
-        let local_pos = self.world_to_local_pos(pos);
-        let current = chunk_light.get_light(local_pos);
-        let level = match light_type {
-            LightType::Sky => current.sky,
-            LightType::Block => current.block,
-        };
-        
-        self.queue_update(LightUpdate {
-            pos,
-            light_type,
-            level,
-            is_removal: true,
-        });
-    }
-    
-    /// Process light updates in parallel
-    pub fn process_updates(&self, max_updates: usize) {
+    queue_light_update(data, LightUpdate {
+        pos,
+        light_type,
+        level,
+        is_removal: true,
+    });
+}
+
+/// Process light updates in parallel
+/// Function - transforms light data by processing queued updates
+pub fn process_light_updates_parallel(data: &ParallelLightPropagatorData, max_updates: usize) {
         let start_time = Instant::now();
         let mut updates_by_chunk: std::collections::HashMap<ChunkPos, Vec<LightUpdate>> = 
             std::collections::HashMap::new();
@@ -191,9 +197,9 @@ impl ParallelLightPropagator {
         // Collect updates and group by chunk
         let mut count = 0;
         while count < max_updates {
-            match self.update_receiver.try_recv() {
+            match data.update_receiver.try_recv() {
                 Ok(update) => {
-                    let chunk_pos = self.world_to_chunk_pos(update.pos);
+                    let chunk_pos = world_to_chunk_pos_static(update.pos, data.chunk_size);
                     updates_by_chunk.entry(chunk_pos)
                         .or_insert_with(Vec::new)
                         .push(update);
@@ -211,11 +217,11 @@ impl ParallelLightPropagator {
         let total_updates = count;
         
         // Process each chunk's updates in parallel
-        let chunk_lights = Arc::clone(&self.chunk_lights);
-        let block_provider = Arc::clone(&self.block_provider);
-        let active_jobs = Arc::clone(&self.active_jobs);
-        let chunk_size = self.chunk_size;
-        let stats = Arc::clone(&self.stats);
+        let chunk_lights = Arc::clone(&data.chunk_lights);
+        let block_provider = Arc::clone(&data.block_provider);
+        let active_jobs = Arc::clone(&data.active_jobs);
+        let chunk_size = data.chunk_size;
+        let stats = Arc::clone(&data.stats);
         
         ThreadPoolManager::global().execute(PoolCategory::Lighting, || {
             
@@ -248,7 +254,7 @@ impl ParallelLightPropagator {
                     }
                     
                     // Process the job
-                    Self::process_chunk_job(
+                    process_chunk_job(
                         &mut job,
                         chunk_pos,
                         &chunk_lights,
@@ -265,7 +271,7 @@ impl ParallelLightPropagator {
         for entry in active_jobs.iter() {
             let mut job = entry.value().lock();
             for update in job.boundary_updates.drain(..) {
-                self.queue_update(update);
+                queue_light_update(data, update);
                 cross_chunk_updates += 1;
             }
         }
@@ -283,9 +289,10 @@ impl ParallelLightPropagator {
             stats.updates_per_second = stats.updates_processed as f32 / total_secs;
         }
     }
-    
-    /// Process a single chunk's light job
-    fn process_chunk_job(
+
+/// Process a single chunk's light job
+/// Pure function - transforms job data based on light propagation rules
+fn process_chunk_job(
         job: &mut ChunkLightJob,
         chunk_pos: ChunkPos,
         chunk_lights: &DashMap<ChunkPos, Arc<ChunkLightData>>,
@@ -303,7 +310,7 @@ impl ParallelLightPropagator {
         
         // Process removals first
         while let Some((pos, light_type, old_level)) = job.removal_queue.pop_front() {
-            Self::remove_light_recursive(
+            remove_light_recursive(
                 job,
                 pos,
                 light_type,
@@ -317,7 +324,7 @@ impl ParallelLightPropagator {
         
         // Process additions
         while let Some((pos, light_type, level)) = job.light_queue.pop_front() {
-            Self::propagate_light_recursive(
+            propagate_light_recursive(
                 job,
                 pos,
                 light_type,
@@ -329,9 +336,10 @@ impl ParallelLightPropagator {
             );
         }
     }
-    
-    /// Propagate light recursively within chunk
-    fn propagate_light_recursive(
+
+/// Propagate light recursively within chunk
+/// Pure function - transforms light data by recursive propagation
+fn propagate_light_recursive(
         job: &mut ChunkLightJob,
         pos: VoxelPos,
         light_type: LightType,
@@ -347,8 +355,8 @@ impl ParallelLightPropagator {
         }
         
         // Convert to chunk-local coordinates
-        let local_pos = Self::world_to_local_pos_static(pos, chunk_size);
-        let current_chunk_pos = Self::world_to_chunk_pos_static(pos, chunk_size);
+        let local_pos = world_to_local_pos_static(pos, chunk_size);
+        let current_chunk_pos = world_to_chunk_pos_static(pos, chunk_size);
         
         // Handle cross-chunk propagation
         if current_chunk_pos != job.chunk_pos {
@@ -399,9 +407,10 @@ impl ParallelLightPropagator {
             }
         }
     }
-    
-    /// Remove light recursively within chunk
-    fn remove_light_recursive(
+
+/// Remove light recursively within chunk
+/// Pure function - transforms light data by recursive removal
+fn remove_light_recursive(
         job: &mut ChunkLightJob,
         pos: VoxelPos,
         light_type: LightType,
@@ -411,8 +420,8 @@ impl ParallelLightPropagator {
         block_provider: &Arc<dyn BlockProvider>,
         chunk_size: u32,
     ) {
-        let local_pos = Self::world_to_local_pos_static(pos, chunk_size);
-        let current_chunk_pos = Self::world_to_chunk_pos_static(pos, chunk_size);
+        let local_pos = world_to_local_pos_static(pos, chunk_size);
+        let current_chunk_pos = world_to_chunk_pos_static(pos, chunk_size);
         
         // Handle cross-chunk removal
         if current_chunk_pos != job.chunk_pos {
@@ -451,8 +460,8 @@ impl ParallelLightPropagator {
         ];
         
         for neighbor in neighbors {
-            let neighbor_chunk_pos = Self::world_to_chunk_pos_static(neighbor, chunk_size);
-            let neighbor_local = Self::world_to_local_pos_static(neighbor, chunk_size);
+            let neighbor_chunk_pos = world_to_chunk_pos_static(neighbor, chunk_size);
+            let neighbor_local = world_to_local_pos_static(neighbor, chunk_size);
             
             // Get neighbor light level
             let neighbor_level = if neighbor_chunk_pos == job.chunk_pos {
@@ -480,12 +489,13 @@ impl ParallelLightPropagator {
             }
         }
     }
-    
-    /// Calculate initial skylight for a chunk in parallel
-    pub fn calculate_chunk_skylight(&self, chunk_pos: ChunkPos) {
-        let chunk_light = self.get_or_create_chunk_light(chunk_pos);
-        let chunk_size = self.chunk_size;
-        let block_provider = Arc::clone(&self.block_provider);
+
+/// Calculate initial skylight for a chunk in parallel
+/// Function - transforms chunk light data by calculating skylight
+pub fn calculate_chunk_skylight_parallel(data: &ParallelLightPropagatorData, chunk_pos: ChunkPos) {
+    let chunk_light = get_or_create_chunk_light(data, chunk_pos);
+    let chunk_size = data.chunk_size;
+    let block_provider = Arc::clone(&data.block_provider);
         
         // Process columns in parallel
         (0..chunk_size).into_par_iter().for_each(|x| {
@@ -513,87 +523,189 @@ impl ParallelLightPropagator {
             }
         });
     }
-    
-    /// Get or create chunk light data
-    fn get_or_create_chunk_light(&self, chunk_pos: ChunkPos) -> Arc<ChunkLightData> {
-        self.chunk_lights
-            .entry(chunk_pos)
-            .or_insert_with(|| Arc::new(ChunkLightData::new(chunk_pos, self.chunk_size)))
-            .clone()
-    }
-    
-    /// Convert world position to chunk position
-    fn world_to_chunk_pos(&self, pos: VoxelPos) -> ChunkPos {
-        Self::world_to_chunk_pos_static(pos, self.chunk_size)
-    }
-    
-    fn world_to_chunk_pos_static(pos: VoxelPos, chunk_size: u32) -> ChunkPos {
-        ChunkPos::new(
-            pos.x.div_euclid(chunk_size as i32),
-            pos.y.div_euclid(chunk_size as i32),
-            pos.z.div_euclid(chunk_size as i32),
-        )
-    }
-    
-    /// Convert world position to local chunk position
-    fn world_to_local_pos(&self, pos: VoxelPos) -> VoxelPos {
-        Self::world_to_local_pos_static(pos, self.chunk_size)
-    }
-    
-    fn world_to_local_pos_static(pos: VoxelPos, chunk_size: u32) -> VoxelPos {
-        VoxelPos::new(
-            pos.x.rem_euclid(chunk_size as i32),
-            pos.y.rem_euclid(chunk_size as i32),
-            pos.z.rem_euclid(chunk_size as i32),
-        )
-    }
-    
-    /// Get lighting statistics
-    pub fn get_stats(&self) -> LightingStats {
-        self.stats.read().clone()
-    }
-    
-    /// Reset statistics
-    pub fn reset_stats(&self) {
-        *self.stats.write() = LightingStats::default();
-    }
-    
-    /// Get chunk light data for a specific chunk
-    pub fn get_chunk_light(&self, chunk_pos: ChunkPos) -> Option<Arc<ChunkLightData>> {
-        self.chunk_lights.get(&chunk_pos).map(|entry| Arc::clone(&entry))
-    }
-    
-    /// Clear all chunk light data
-    pub fn clear(&self) {
-        self.chunk_lights.clear();
-        self.active_jobs.clear();
-    }
+
+/// Get or create chunk light data
+/// Function - transforms chunk light cache
+fn get_or_create_chunk_light(data: &ParallelLightPropagatorData, chunk_pos: ChunkPos) -> Arc<ChunkLightData> {
+    data.chunk_lights
+        .entry(chunk_pos)
+        .or_insert_with(|| Arc::new(ChunkLightData::new(chunk_pos, data.chunk_size)))
+        .clone()
+}
+
+/// Convert world position to chunk position
+/// Pure function - coordinate transformation
+fn world_to_chunk_pos_static(pos: VoxelPos, chunk_size: u32) -> ChunkPos {
+    ChunkPos::new(
+        pos.x.div_euclid(chunk_size as i32),
+        pos.y.div_euclid(chunk_size as i32),
+        pos.z.div_euclid(chunk_size as i32),
+    )
+}
+
+/// Convert world position to local chunk position
+/// Pure function - coordinate transformation
+fn world_to_local_pos_static(pos: VoxelPos, chunk_size: u32) -> VoxelPos {
+    VoxelPos::new(
+        pos.x.rem_euclid(chunk_size as i32),
+        pos.y.rem_euclid(chunk_size as i32),
+        pos.z.rem_euclid(chunk_size as i32),
+    )
+}
+
+/// Get lighting statistics
+/// Pure function - reads statistics data
+pub fn get_lighting_stats(data: &ParallelLightPropagatorData) -> LightingStats {
+    data.stats.read().clone()
+}
+
+/// Reset statistics
+/// Function - transforms statistics data
+pub fn reset_lighting_stats(data: &ParallelLightPropagatorData) {
+    *data.stats.write() = LightingStats::default();
+}
+
+/// Get chunk light data for a specific chunk
+/// Pure function - reads chunk light data
+pub fn get_chunk_light_data(data: &ParallelLightPropagatorData, chunk_pos: ChunkPos) -> Option<Arc<ChunkLightData>> {
+    data.chunk_lights.get(&chunk_pos).map(|entry| Arc::clone(&entry))
+}
+
+/// Clear all chunk light data
+/// Function - transforms chunk light cache
+pub fn clear_all_chunk_lights(data: &ParallelLightPropagatorData) {
+    data.chunk_lights.clear();
+    data.active_jobs.clear();
 }
 
 use rayon::prelude::*;
 
-/// Batch light calculator for maximum throughput
-pub struct BatchLightCalculator {
-    propagator: Arc<ParallelLightPropagator>,
+/// Batch light calculator data (DOP - no methods)
+/// Pure data structure for batch operations
+pub struct BatchLightCalculatorData {
+    pub propagator: Arc<ParallelLightPropagatorData>,
 }
 
+/// Create batch light calculator data
+/// Pure function - returns data structure
+pub fn create_batch_light_calculator_data(propagator: Arc<ParallelLightPropagatorData>) -> BatchLightCalculatorData {
+    BatchLightCalculatorData { propagator }
+}
+
+/// Calculate skylight for multiple chunks in parallel
+/// Function - transforms light data for multiple chunks
+pub fn calculate_skylight_batch(data: &BatchLightCalculatorData, chunk_positions: Vec<ChunkPos>) {
+    chunk_positions.par_iter().for_each(|&chunk_pos| {
+        calculate_chunk_skylight_parallel(&data.propagator, chunk_pos);
+    });
+}
+
+/// Process a batch of light updates
+/// Function - transforms light data for multiple updates
+pub fn process_light_batch(data: &BatchLightCalculatorData, updates: Vec<LightUpdate>) {
+    for update in updates {
+        queue_light_update(&data.propagator, update);
+    }
+    process_light_updates_parallel(&data.propagator, usize::MAX);
+}
+
+// ===== COMPATIBILITY LAYER =====
+// Temporary aliases for code that hasn't been converted yet
+
+/// Compatibility alias - will be removed in future sprints
+#[deprecated(note = "Use ParallelLightPropagatorData and pure functions instead")]
+pub type ParallelLightPropagator = ParallelLightPropagatorData;
+
+/// Compatibility alias - will be removed in future sprints
+#[deprecated(note = "Use BatchLightCalculatorData and pure functions instead")]
+pub type BatchLightCalculator = BatchLightCalculatorData;
+
+/// Compatibility implementation for gradual migration
+#[allow(deprecated)]
+impl ParallelLightPropagator {
+    /// Compatibility constructor
+    #[deprecated(note = "Use create_parallel_light_propagator_data instead")]
+    pub fn new(
+        block_provider: Arc<dyn BlockProvider>,
+        chunk_size: u32,
+        thread_count: Option<usize>,
+    ) -> Self {
+        create_parallel_light_propagator_data(block_provider, chunk_size, thread_count)
+    }
+    
+    /// Compatibility method
+    #[deprecated(note = "Use queue_light_update instead")]
+    pub fn queue_update(&self, update: LightUpdate) {
+        queue_light_update(self, update);
+    }
+    
+    /// Compatibility method
+    #[deprecated(note = "Use add_light_parallel instead")]
+    pub fn add_light(&self, pos: VoxelPos, light_type: LightType, level: u8) {
+        add_light_parallel(self, pos, light_type, level);
+    }
+    
+    /// Compatibility method
+    #[deprecated(note = "Use remove_light_parallel instead")]
+    pub fn remove_light(&self, pos: VoxelPos, light_type: LightType) {
+        remove_light_parallel(self, pos, light_type);
+    }
+    
+    /// Compatibility method
+    #[deprecated(note = "Use process_light_updates_parallel instead")]
+    pub fn process_updates(&self, max_updates: usize) {
+        process_light_updates_parallel(self, max_updates);
+    }
+    
+    /// Compatibility method
+    #[deprecated(note = "Use calculate_chunk_skylight_parallel instead")]
+    pub fn calculate_chunk_skylight(&self, chunk_pos: ChunkPos) {
+        calculate_chunk_skylight_parallel(self, chunk_pos);
+    }
+    
+    /// Compatibility method
+    #[deprecated(note = "Use get_lighting_stats instead")]
+    pub fn get_stats(&self) -> LightingStats {
+        get_lighting_stats(self)
+    }
+    
+    /// Compatibility method
+    #[deprecated(note = "Use reset_lighting_stats instead")]
+    pub fn reset_stats(&self) {
+        reset_lighting_stats(self);
+    }
+    
+    /// Compatibility method
+    #[deprecated(note = "Use get_chunk_light_data instead")]
+    pub fn get_chunk_light(&self, chunk_pos: ChunkPos) -> Option<Arc<ChunkLightData>> {
+        get_chunk_light_data(self, chunk_pos)
+    }
+    
+    /// Compatibility method
+    #[deprecated(note = "Use clear_all_chunk_lights instead")]
+    pub fn clear(&self) {
+        clear_all_chunk_lights(self);
+    }
+}
+
+/// Compatibility implementation for gradual migration
+#[allow(deprecated)]
 impl BatchLightCalculator {
+    /// Compatibility constructor
+    #[deprecated(note = "Use create_batch_light_calculator_data instead")]
     pub fn new(propagator: Arc<ParallelLightPropagator>) -> Self {
-        Self { propagator }
+        create_batch_light_calculator_data(propagator)
     }
     
-    /// Calculate skylight for multiple chunks in parallel
+    /// Compatibility method
+    #[deprecated(note = "Use calculate_skylight_batch instead")]
     pub fn calculate_skylight_batch(&self, chunk_positions: Vec<ChunkPos>) {
-        chunk_positions.par_iter().for_each(|&chunk_pos| {
-            self.propagator.calculate_chunk_skylight(chunk_pos);
-        });
+        calculate_skylight_batch(self, chunk_positions);
     }
     
-    /// Process a batch of light updates
+    /// Compatibility method
+    #[deprecated(note = "Use process_light_batch instead")]
     pub fn process_batch(&self, updates: Vec<LightUpdate>) {
-        for update in updates {
-            self.propagator.queue_update(update);
-        }
-        self.propagator.process_updates(usize::MAX);
+        process_light_batch(self, updates);
     }
 }
