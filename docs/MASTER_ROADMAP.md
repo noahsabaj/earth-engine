@@ -825,38 +825,155 @@ After completing the emergency sprints, the original Sprint 36+ timeline will be
 
 The focus will shift from claiming features to delivering working systems.
 
-### Sprint 36: Advanced Future Tech
-**Status**: Pending
-**Objective**: Push the limits with cutting-edge GPU features
+## 🔥 ROADMAP RESTRUCTURE (Post-Reality Check)
 
-#### Planned Deliverables:
-- [ ] Ray tracing integration for voxels (DDA traversal)
-- [ ] Mesh shaders for procedural geometry
-- [ ] Work graphs for dynamic GPU scheduling
-- [ ] Variable rate shading optimization
-- [ ] Nanite-style virtualized geometry
-- [ ] RT shadows and ambient occlusion
+**CRITICAL DECISION**: After honest assessment, many "completed" sprints need consolidation work before adding new features. Following CLAUDE.md principles: **"NO BANDAIDS"**, **"Build for decades"**, **"Kaizen over revolution"**.
 
-#### Technical Details:
-- Voxels are PERFECT for ray tracing (grid IS the acceleration structure)
-- DDA traversal could be faster than rasterization
-- Leverage latest GPU features
-- By 2025-2026, RT hardware will be common
+### Phase 1: Foundation Consolidation (12 weeks)
 
-### Sprint 37: Polish & Integration
-**Status**: Pending
-**Objective**: System integration and polish (not 1.0 yet)
+### Sprint 36: Zero-Panic Foundation 🔧
+**Status**: Planning
+**Duration**: 4 weeks
+**Objective**: Engine runs 1+ hours without crashing
 
-#### Planned Deliverables:
-- [ ] Performance optimization pass
-- [ ] System integration testing
-- [ ] Documentation updates
-- [ ] Example projects
-- [ ] Benchmark suite
-- [ ] API refinement
-- [ ] Bug fixes and stability
+#### Critical Deliverables:
+- [ ] Replace ALL 131 remaining unwrap() calls with proper error handling
+- [ ] Add bounds checking to prevent buffer overflows
+- [ ] Document 17 unsafe blocks with safety requirements  
+- [ ] Fix 181 compilation errors, reduce 875 warnings to <50
+- [ ] Achieve zero-panic runtime for basic functionality
+- [ ] Player movement system that actually works
+- [ ] Spawn finder that finds safe positions reliably
 
-### Sprint 38: HybridGPUGrid - GPU-to-GPU Networking
+#### Success Metrics:
+- 0 unwrap() calls in production code paths
+- 1-hour stress test without panics
+- Clean cargo check (0 errors, <50 warnings)
+- Player can move smoothly without crashes
+
+### Sprint 37: DOP Reality Check 🔧
+**Status**: Planning  
+**Duration**: 4 weeks
+**Objective**: Actually complete the DOP transition (not cosmetic changes)
+
+#### Critical Deliverables:
+- [ ] Convert 50+ highest-impact OOP files to genuine DOP
+- [ ] Remove impl blocks from hot-path performance code
+- [ ] Implement struct-of-arrays for core systems
+- [ ] Achieve <10 allocations per frame (currently 268)
+- [ ] Demonstrate measurable cache efficiency improvements
+- [ ] Create DOP guidelines and enforcement
+
+#### Success Metrics:
+- Core rendering: 100% DOP (no methods in hot loops)
+- Physics system: 100% DOP with SOA layout
+- Memory allocations: 268 → <10 per frame
+- Cache efficiency improvement with profiling proof
+
+### Sprint 38: System Integration 🔧
+**Status**: Planning
+**Duration**: 4 weeks  
+**Objective**: Make core systems work together reliably
+
+#### Critical Deliverables:
+- [ ] Integrate working player movement with physics
+- [ ] Connect stable networking with save/load
+- [ ] Fix spawn system integration with chunk generation
+- [ ] Add 30+ integration tests for system interactions
+- [ ] Performance regression testing framework
+- [ ] Working save/load without corruption
+
+#### Success Metrics:
+- 20+ working features (vs current ~8)
+- 30+ integration tests passing
+- No system breaks others when updated
+- Save/load works reliably over 100+ cycles
+
+### Phase 2: Quality & Performance (8 weeks)
+
+### Sprint 39: Engineering Discipline
+**Status**: Planning
+**Duration**: 4 weeks
+**Objective**: Achieve B-grade engineering quality
+
+#### Deliverables:
+- [ ] 60%+ test coverage (vs current 8.4%)
+- [ ] CI/CD pipeline blocking regressions
+- [ ] Documentation matching reality
+- [ ] Code review process
+- [ ] Quality metrics dashboard
+
+### Sprint 40: Performance Reality  
+**Status**: Planning
+**Duration**: 4 weeks
+**Objective**: Honest performance optimization
+
+#### Deliverables:
+- [ ] Profile actual vs claimed performance 
+- [ ] Reproducible benchmark suite
+- [ ] Focus on proven 2-5x improvements (not 100x claims)
+- [ ] GPU optimizations that actually use GPU
+- [ ] Honest performance documentation
+
+### Phase 3: Feature Expansion (Only After Foundation Is Solid)
+
+**NOTE**: Advanced features like ray tracing, mesh shaders, GPU-to-GPU networking will be reconsidered ONLY after:
+- Zero-panic runtime achieved
+- Core systems working reliably  
+- DOP transition actually complete
+- 60%+ test coverage maintained
+- Engineering discipline established
+
+The original Sprint 36+ features remain in backlog but are **deferred until foundation is proven stable**.
+
+## 📊 Updated Progress Assessment
+
+### Current Reality (Post-Restructure):
+- **Foundation Quality**: D+ (needs major work)
+- **Working Core Features**: ~8 (player movement broken, spawn broken, save/load risky)
+- **DOP Transition**: ~25% (228 OOP files remain)  
+- **Panic Safety**: 65% (131 unwrap() calls remain)
+- **Test Coverage**: 8.4% (needs 60%+ for stability)
+
+### After Foundation Consolidation (Sprints 36-40):
+- **Foundation Quality**: B+ (solid, extensible base)
+- **Working Core Features**: 20+ (all basics work reliably)
+- **DOP Transition**: 80%+ (core systems genuinely DOP)
+- **Panic Safety**: 100% (zero unwrap() in production)
+- **Test Coverage**: 60%+ (regression protection)
+
+### Version 1.0 Timeline:
+- **Current to Foundation**: 5 months (Sprints 36-40)
+- **Foundation to 1.0**: 12+ months (feature development on stable base)
+- **Total**: ~18 months for genuine 1.0 release
+
+## 🔄 RESTRUCTURE RATIONALE
+
+This roadmap restructure follows CLAUDE.md principles and addresses critical gaps:
+
+### Why This Change Is Necessary:
+1. **"NO BANDAIDS"** - Current approach builds advanced features on broken basics
+2. **"Build for decades"** - Foundation must be stable before adding complexity  
+3. **"Kaizen over revolution"** - Incremental progress beats revolutionary claims
+4. **"Extensibility without breaking"** - Can't extend what crashes or corrupts data
+
+### What Previous "Completed" Sprints Actually Need:
+- **Sprint 3 (Player Mechanics)**: Player movement currently broken
+- **Sprint 6 (Lighting)**: GPU lighting claimed but still CPU-bound  
+- **Sprint 11 (Save System)**: Save/load causes corruption
+- **Sprint 17-35**: Many DOP/GPU claims unverified
+
+### Engineering Discipline Established:
+- Every deliverable requires proof/benchmarks
+- No "completed" claims without working examples
+- Focus on 2-5x improvements over 100x claims
+- Test coverage required for stability claims
+
+## 🚨 DEFERRED ADVANCED FEATURES
+
+The following ambitious features are moved to **Phase 4** (post-1.0) until foundation proves stable:
+
+### Sprint 41+: HybridGPUGrid - GPU-to-GPU Networking
 **Status**: Pending
 **Objective**: Revolutionary networking where CPU only passes pointers, GPU prepares all data
 
