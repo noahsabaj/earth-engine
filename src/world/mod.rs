@@ -23,6 +23,7 @@ mod spawn_finder;
 pub use block::{Block, BlockId, RenderData, PhysicsProperties};
 pub use block_drops::{BlockDropHandler, MiningProgress};
 pub use block_entity::{BlockEntity, BlockEntityData, FurnaceBlockEntity, ChestBlockEntity};
+pub use zero_alloc_block_entity::{BlockEntityKeys, serialize_furnace_zero_alloc, serialize_chest_zero_alloc, KEYS, SLOT_KEYS};
 pub use position::{ChunkPos, VoxelPos};
 pub use ray::{Ray, RaycastHit, BlockFace, cast_ray};
 pub use registry::BlockRegistry;
