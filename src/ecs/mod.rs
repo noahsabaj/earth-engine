@@ -4,6 +4,9 @@ pub mod component_data;
 pub mod world_data;
 pub mod systems_data;
 
+// New SOA implementation
+pub mod soa_world;
+
 // Compatibility module
 pub mod components;
 
@@ -21,6 +24,23 @@ pub use component_data::{
     COMPONENT_RENDERABLE,
 };
 pub use world_data::EcsWorldData;
+
+// Re-export SOA types
+pub use soa_world::{
+    SoAWorld,
+    TransformSoA,
+    PhysicsSoA,
+    RenderableSoA,
+    ComponentType,
+    add_transform_component,
+    add_physics_component,
+    add_renderable_component,
+    remove_transform_component,
+    remove_physics_component,
+    remove_renderable_component,
+    update_physics_system as soa_update_physics_system,
+    update_culling_system,
+};
 
 // Compatibility aliases
 pub use world_data::EcsWorldData as EcsWorld;

@@ -1,51 +1,56 @@
-/// Mesh Simplification System
+/// Data-Oriented Mesh Simplification System
 /// 
+/// Sprint 37: Converted from OOP to pure functions operating on data structures.
 /// Reduces mesh complexity for distant chunks using quadric error metrics.
 /// Preserves visual quality while dramatically reducing triangle count.
-/// Part of Sprint 29: Mesh Optimization & Advanced LOD
 
 use cgmath::{Vector3, Matrix4, Zero};
 use crate::renderer::Vertex;
 use std::collections::{BinaryHeap, HashMap, HashSet};
 use std::cmp::Ordering;
 
-/// Quadric error matrix for vertex
+/// Quadric error matrix for vertex - pure data
 #[derive(Debug, Clone, Copy)]
-struct Quadric {
-    matrix: Matrix4<f32>,
+pub struct Quadric {
+    pub matrix: Matrix4<f32>,
 }
 
-impl Quadric {
-    fn new() -> Self {
-        Self {
-            matrix: Matrix4::zero(),
-        }
+/// Pure functions for Quadric operations
+/// No methods - just data transformations following DOP principles
+
+/// Create empty quadric
+pub fn create_quadric() -> Quadric {
+    Quadric {
+        matrix: Matrix4::zero(),
     }
-    
-    /// Create quadric from plane equation
-    fn from_plane(a: f32, b: f32, c: f32, d: f32) -> Self {
-        let matrix = Matrix4::new(
-            a * a, a * b, a * c, a * d,
-            a * b, b * b, b * c, b * d,
-            a * c, b * c, c * c, c * d,
-            a * d, b * d, c * d, d * d,
-        );
-        Self { matrix }
+}
+
+/// Create quadric from plane equation
+/// Pure function - transforms plane coefficients into quadric matrix
+pub fn quadric_from_plane(a: f32, b: f32, c: f32, d: f32) -> Quadric {
+    let matrix = Matrix4::new(
+        a * a, a * b, a * c, a * d,
+        a * b, b * b, b * c, b * d,
+        a * c, b * c, c * c, c * d,
+        a * d, b * d, c * d, d * d,
+    );
+    Quadric { matrix }
+}
+
+/// Add two quadrics
+/// Pure function - combines quadric data
+pub fn add_quadrics(q1: &Quadric, q2: &Quadric) -> Quadric {
+    Quadric {
+        matrix: q1.matrix + q2.matrix,
     }
-    
-    /// Add two quadrics
-    fn add(&self, other: &Quadric) -> Quadric {
-        Quadric {
-            matrix: self.matrix + other.matrix,
-        }
-    }
-    
-    /// Compute error for vertex position
-    fn compute_error(&self, pos: Vector3<f32>) -> f32 {
-        let v = cgmath::Vector4::new(pos.x, pos.y, pos.z, 1.0);
-        let result = self.matrix * v;
-        v.dot(result).abs()
-    }
+}
+
+/// Compute error for vertex position
+/// Pure function - calculates quadric error at given position
+pub fn compute_quadric_error(quadric: &Quadric, pos: Vector3<f32>) -> f32 {
+    let v = cgmath::Vector4::new(pos.x, pos.y, pos.z, 1.0);
+    let result = quadric.matrix * v;
+    v.dot(result).abs()
 }
 
 /// Edge collapse candidate
@@ -83,99 +88,100 @@ impl Ord for CollapseCandidate {
     }
 }
 
-/// Mesh simplifier using quadric error metrics
-pub struct MeshSimplifier {
+/// Mesh simplification data structure (no methods)
+/// Pure data - manipulated by free functions only
+pub struct MeshSimplifierData {
     /// Vertex quadrics
-    vertex_quadrics: Vec<Quadric>,
+    pub vertex_quadrics: Vec<Quadric>,
     
     /// Face list for topology
-    faces: Vec<[u32; 3]>,
+    pub faces: Vec<[u32; 3]>,
     
     /// Vertex positions
-    positions: Vec<Vector3<f32>>,
+    pub positions: Vec<Vector3<f32>>,
     
     /// Valid edges
-    edges: HashSet<(u32, u32)>,
+    pub edges: HashSet<(u32, u32)>,
     
     /// Vertex to faces mapping
-    vertex_faces: HashMap<u32, Vec<usize>>,
+    pub vertex_faces: HashMap<u32, Vec<usize>>,
 }
 
-impl MeshSimplifier {
-    /// Create new mesh simplifier from vertices and indices
-    pub fn new(vertices: &[Vertex], indices: &[u32]) -> Self {
-        let mut positions = Vec::with_capacity(vertices.len());
-        let mut vertex_quadrics = vec![Quadric::new(); vertices.len()];
-        let mut faces = Vec::new();
-        let mut edges = HashSet::new();
-        let mut vertex_faces: HashMap<u32, Vec<usize>> = HashMap::new();
-        
-        // Extract positions
-        for vertex in vertices {
-            positions.push(Vector3::from(vertex.position));
-        }
-        
-        // Build face list and compute initial quadrics
-        for (face_idx, chunk) in indices.chunks(3).enumerate() {
-            if chunk.len() == 3 {
-                let face = [chunk[0], chunk[1], chunk[2]];
-                faces.push(face);
-                
-                // Add edges
-                edges.insert(order_edge(face[0], face[1]));
-                edges.insert(order_edge(face[1], face[2]));
-                edges.insert(order_edge(face[2], face[0]));
-                
-                // Track vertex-face relationships
-                for &v in &face {
-                    vertex_faces.entry(v).or_insert_with(Vec::new).push(face_idx);
+/// Create mesh simplifier data from vertices and indices
+/// Pure function - transforms vertex/index data into simplifier data structure
+pub fn create_mesh_simplifier_data(vertices: &[Vertex], indices: &[u32]) -> MeshSimplifierData {
+    let mut positions = Vec::with_capacity(vertices.len());
+    let mut vertex_quadrics = vec![create_quadric(); vertices.len()];
+    let mut faces = Vec::new();
+    let mut edges = HashSet::new();
+    let mut vertex_faces: HashMap<u32, Vec<usize>> = HashMap::new();
+    
+    // Extract positions
+    for vertex in vertices {
+        positions.push(Vector3::from(vertex.position));
+    }
+    
+    // Build face list and compute initial quadrics
+    for (face_idx, chunk) in indices.chunks(3).enumerate() {
+        if chunk.len() == 3 {
+            let face = [chunk[0], chunk[1], chunk[2]];
+            faces.push(face);
+            
+            // Add edges
+            edges.insert(order_edge(face[0], face[1]));
+            edges.insert(order_edge(face[1], face[2]));
+            edges.insert(order_edge(face[2], face[0]));
+            
+            // Track vertex-face relationships
+            for &v in &face {
+                vertex_faces.entry(v).or_insert_with(Vec::new).push(face_idx);
+            }
+            
+            // Compute face plane
+            let v0 = match positions.get(face[0] as usize) {
+                Some(&pos) => pos,
+                None => {
+                    log::warn!("Vertex {} out of bounds during face plane computation", face[0]);
+                    Vector3::zero()
                 }
-                
-                // Compute face plane
-                let v0 = match positions.get(face[0] as usize) {
-                    Some(&pos) => pos,
-                    None => {
-                        log::warn!("Vertex {} out of bounds during face plane computation", face[0]);
-                        Vector3::zero()
-                    }
-                };
-                let v1 = match positions.get(face[1] as usize) {
-                    Some(&pos) => pos,
-                    None => {
-                        log::warn!("Vertex {} out of bounds during face plane computation", face[1]);
-                        Vector3::zero()
-                    }
-                };
-                let v2 = match positions.get(face[2] as usize) {
-                    Some(&pos) => pos,
-                    None => {
-                        log::warn!("Vertex {} out of bounds during face plane computation", face[2]);
-                        Vector3::zero()
-                    }
-                };
-                
-                let normal = (v1 - v0).cross(v2 - v0).normalize();
-                let d = -normal.dot(v0);
-                
-                let face_quadric = Quadric::from_plane(normal.x, normal.y, normal.z, d);
-                
-                // Add to vertex quadrics
-                for &v in &face {
-                    if let Some(quadric) = vertex_quadrics.get_mut(v as usize) {
-                        *quadric = quadric.add(&face_quadric);
-                    }
+            };
+            let v1 = match positions.get(face[1] as usize) {
+                Some(&pos) => pos,
+                None => {
+                    log::warn!("Vertex {} out of bounds during face plane computation", face[1]);
+                    Vector3::zero()
+                }
+            };
+            let v2 = match positions.get(face[2] as usize) {
+                Some(&pos) => pos,
+                None => {
+                    log::warn!("Vertex {} out of bounds during face plane computation", face[2]);
+                    Vector3::zero()
+                }
+            };
+            
+            let normal = (v1 - v0).cross(v2 - v0).normalize();
+            let d = -normal.dot(v0);
+            
+            let face_quadric = quadric_from_plane(normal.x, normal.y, normal.z, d);
+            
+            // Add to vertex quadrics
+            for &v in &face {
+                if let Some(quadric) = vertex_quadrics.get_mut(v as usize) {
+                    *quadric = add_quadrics(quadric, &face_quadric);
                 }
             }
         }
-        
-        Self {
-            vertex_quadrics,
-            faces,
-            positions,
-            edges,
-            vertex_faces,
-        }
     }
+    
+    MeshSimplifierData {
+        vertex_quadrics,
+        faces,
+        positions,
+        edges,
+        vertex_faces,
+    }
+}
     
     /// Simplify mesh to target triangle count
     pub fn simplify(&mut self, target_triangles: usize) -> SimplifiedMesh {

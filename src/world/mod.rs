@@ -27,7 +27,7 @@ pub use ray::{Ray, RaycastHit, BlockFace, cast_ray};
 pub use registry::BlockRegistry;
 pub use world::World;
 pub use world_interface::WorldInterface;
-pub use chunk_manager::{ChunkManager, ChunkLoadingStats};
+pub use chunk_manager::{ChunkManagerData, ChunkManagerConfig, ChunkLoadingStats, create_chunk_manager_data};
 pub use concurrent_chunk_manager::ConcurrentChunkManager;
 pub use concurrent_world::ConcurrentWorld;
 pub use parallel_chunk_manager::{ParallelChunkManager, GenerationStats};
@@ -36,7 +36,7 @@ pub use generation::{WorldGenerator, DefaultWorldGenerator};
 pub use gpu_chunk::{GpuChunk, GpuChunkManager, GpuChunkStats};
 pub use morton_chunk::MortonChunk;
 pub use chunk_soa::{ChunkSoA, ChunkMemoryStats};
-pub use data_chunk_manager::{ChunkManagerData, ChunkMetadata, ChunkBatchOps};
+pub use data_chunk_manager::{ChunkManagerData as DataChunkManagerData, ChunkMetadata, ChunkBatchOps};
 pub use frame_budget::{FrameBudget, ChunkLoadThrottler};
 pub use spawn_finder::SpawnFinder;
 

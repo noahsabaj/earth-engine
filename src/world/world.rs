@@ -1,9 +1,10 @@
-use crate::world::{BlockId, Chunk, ChunkPos, VoxelPos, ChunkManager, WorldGenerator, WorldInterface};
+use crate::world::{BlockId, Chunk, ChunkPos, VoxelPos, WorldGenerator, WorldInterface};
+use crate::world::chunk_manager::{ChunkManagerData, ChunkManagerConfig, create_chunk_manager_data, update_loaded_chunks, get_chunk, get_chunk_mut, get_block, set_block, get_loaded_chunks, take_dirty_chunks, get_surface_height};
 use std::collections::HashSet;
 use cgmath::Point3;
 
 pub struct World {
-    chunk_manager: ChunkManager,
+    chunk_manager: ChunkManagerData,
     chunk_size: u32,
 }
 
@@ -11,7 +12,13 @@ impl World {
     pub fn new(chunk_size: u32) -> Self {
         // Create a simple flat world generator for backwards compatibility
         let generator = Box::new(FlatWorldGenerator::new());
-        let chunk_manager = ChunkManager::new(8, chunk_size, generator);
+        let config = ChunkManagerConfig {
+            view_distance: 8,
+            chunk_size,
+            cache_size: 64,
+            max_chunks_per_frame: 5,
+        };
+        let chunk_manager = create_chunk_manager_data(config, generator);
         
         Self {
             chunk_manager,
@@ -20,7 +27,13 @@ impl World {
     }
     
     pub fn new_with_generator(chunk_size: u32, view_distance: i32, generator: Box<dyn WorldGenerator>) -> Self {
-        let chunk_manager = ChunkManager::new(view_distance, chunk_size, generator);
+        let config = ChunkManagerConfig {
+            view_distance,
+            chunk_size,
+            cache_size: 64,
+            max_chunks_per_frame: 5,
+        };
+        let chunk_manager = create_chunk_manager_data(config, generator);
         
         Self {
             chunk_manager,
@@ -29,34 +42,34 @@ impl World {
     }
     
     pub fn update_loaded_chunks(&mut self, player_pos: Point3<f32>) {
-        self.chunk_manager.update_loaded_chunks(player_pos);
+        update_loaded_chunks(&mut self.chunk_manager, player_pos);
     }
     
     pub fn get_chunk(&self, pos: ChunkPos) -> Option<&Chunk> {
-        self.chunk_manager.get_chunk(pos)
+        get_chunk(&self.chunk_manager, pos)
     }
     
     pub fn get_chunk_mut(&mut self, pos: ChunkPos) -> Option<&mut Chunk> {
-        self.chunk_manager.get_chunk_mut(pos)
+        get_chunk_mut(&mut self.chunk_manager, pos)
     }
     
     pub fn set_chunk(&mut self, pos: ChunkPos, chunk: Chunk) {
         // For backwards compatibility - directly insert into loaded chunks
-        if let Some(existing) = self.chunk_manager.get_chunk_mut(pos) {
+        if let Some(existing) = get_chunk_mut(&mut self.chunk_manager, pos) {
             *existing = chunk;
         }
     }
     
     pub fn get_block(&self, pos: VoxelPos) -> BlockId {
-        self.chunk_manager.get_block(pos)
+        get_block(&self.chunk_manager, pos)
     }
     
     pub fn set_block(&mut self, pos: VoxelPos, block: BlockId) {
-        self.chunk_manager.set_block(pos, block);
+        set_block(&mut self.chunk_manager, pos, block);
     }
     
     pub fn chunks(&self) -> impl Iterator<Item = (ChunkPos, &Chunk)> {
-        self.chunk_manager.get_loaded_chunks()
+        get_loaded_chunks(&self.chunk_manager)
     }
     
     pub fn chunk_size(&self) -> u32 {
@@ -69,7 +82,7 @@ impl World {
     }
     
     pub fn take_dirty_chunks(&mut self) -> std::collections::HashSet<ChunkPos> {
-        self.chunk_manager.take_dirty_chunks()
+        take_dirty_chunks(&mut self.chunk_manager)
     }
     
     // Lighting methods
@@ -77,7 +90,7 @@ impl World {
         let chunk_pos = pos.to_chunk_pos(self.chunk_size);
         let local_pos = pos.to_local_pos(self.chunk_size);
         
-        if let Some(chunk) = self.chunk_manager.get_chunk(chunk_pos) {
+        if let Some(chunk) = get_chunk(&self.chunk_manager, chunk_pos) {
             chunk.get_sky_light(local_pos.0, local_pos.1, local_pos.2)
         } else {
             0
@@ -88,7 +101,7 @@ impl World {
         let chunk_pos = pos.to_chunk_pos(self.chunk_size);
         let local_pos = pos.to_local_pos(self.chunk_size);
         
-        if let Some(chunk) = self.chunk_manager.get_chunk_mut(chunk_pos) {
+        if let Some(chunk) = get_chunk_mut(&mut self.chunk_manager, chunk_pos) {
             chunk.set_sky_light(local_pos.0, local_pos.1, local_pos.2, level);
         }
     }
@@ -97,7 +110,7 @@ impl World {
         let chunk_pos = pos.to_chunk_pos(self.chunk_size);
         let local_pos = pos.to_local_pos(self.chunk_size);
         
-        if let Some(chunk) = self.chunk_manager.get_chunk(chunk_pos) {
+        if let Some(chunk) = get_chunk(&self.chunk_manager, chunk_pos) {
             chunk.get_block_light(local_pos.0, local_pos.1, local_pos.2)
         } else {
             0
@@ -108,7 +121,7 @@ impl World {
         let chunk_pos = pos.to_chunk_pos(self.chunk_size);
         let local_pos = pos.to_local_pos(self.chunk_size);
         
-        if let Some(chunk) = self.chunk_manager.get_chunk_mut(chunk_pos) {
+        if let Some(chunk) = get_chunk_mut(&mut self.chunk_manager, chunk_pos) {
             chunk.set_block_light(local_pos.0, local_pos.1, local_pos.2, level);
         }
     }
@@ -120,7 +133,7 @@ impl World {
     }
     
     pub fn get_surface_height(&self, world_x: f64, world_z: f64) -> i32 {
-        self.chunk_manager.get_surface_height(world_x, world_z)
+        get_surface_height(&self.chunk_manager, world_x, world_z)
     }
 }
 
@@ -163,17 +176,17 @@ impl WorldGenerator for FlatWorldGenerator {
 impl WorldInterface for World {
     fn get_block(&self, pos: VoxelPos) -> BlockId {
         // Delegate to chunk_manager
-        self.chunk_manager.get_block(pos)
+        get_block(&self.chunk_manager, pos)
     }
     
     fn set_block(&mut self, pos: VoxelPos, block: BlockId) {
         // Delegate to chunk_manager
-        self.chunk_manager.set_block(pos, block);
+        set_block(&mut self.chunk_manager, pos, block);
     }
     
     fn update_loaded_chunks(&mut self, player_pos: Point3<f32>) {
         // Delegate to chunk_manager
-        self.chunk_manager.update_loaded_chunks(player_pos);
+        update_loaded_chunks(&mut self.chunk_manager, player_pos);
     }
     
     fn chunk_size(&self) -> u32 {
@@ -191,7 +204,7 @@ impl WorldInterface for World {
         let chunk_pos = pos.to_chunk_pos(self.chunk_size);
         let local_pos = pos.to_local_pos(self.chunk_size);
         
-        if let Some(chunk) = self.chunk_manager.get_chunk(chunk_pos) {
+        if let Some(chunk) = get_chunk(&self.chunk_manager, chunk_pos) {
             chunk.get_light(local_pos.0, local_pos.1, local_pos.2).sky
         } else {
             0
@@ -203,7 +216,7 @@ impl WorldInterface for World {
         let chunk_pos = pos.to_chunk_pos(self.chunk_size);
         let local_pos = pos.to_local_pos(self.chunk_size);
         
-        if let Some(chunk) = self.chunk_manager.get_chunk_mut(chunk_pos) {
+        if let Some(chunk) = get_chunk_mut(&mut self.chunk_manager, chunk_pos) {
             let mut light = chunk.get_light(local_pos.0, local_pos.1, local_pos.2);
             light.sky = level;
             chunk.set_light(local_pos.0, local_pos.1, local_pos.2, light);
@@ -215,7 +228,7 @@ impl WorldInterface for World {
         let chunk_pos = pos.to_chunk_pos(self.chunk_size);
         let local_pos = pos.to_local_pos(self.chunk_size);
         
-        if let Some(chunk) = self.chunk_manager.get_chunk(chunk_pos) {
+        if let Some(chunk) = get_chunk(&self.chunk_manager, chunk_pos) {
             chunk.get_light(local_pos.0, local_pos.1, local_pos.2).block
         } else {
             0
@@ -227,7 +240,7 @@ impl WorldInterface for World {
         let chunk_pos = pos.to_chunk_pos(self.chunk_size);
         let local_pos = pos.to_local_pos(self.chunk_size);
         
-        if let Some(chunk) = self.chunk_manager.get_chunk_mut(chunk_pos) {
+        if let Some(chunk) = get_chunk_mut(&mut self.chunk_manager, chunk_pos) {
             let mut light = chunk.get_light(local_pos.0, local_pos.1, local_pos.2);
             light.block = level;
             chunk.set_light(local_pos.0, local_pos.1, local_pos.2, light);
@@ -235,22 +248,22 @@ impl WorldInterface for World {
     }
     
     fn is_chunk_loaded(&self, pos: ChunkPos) -> bool {
-        self.chunk_manager.get_chunk(pos).is_some()
+        get_chunk(&self.chunk_manager, pos).is_some()
     }
     
     fn take_dirty_chunks(&mut self) -> HashSet<ChunkPos> {
         // Delegate to chunk_manager
-        self.chunk_manager.take_dirty_chunks()
+        take_dirty_chunks(&mut self.chunk_manager)
     }
     
     fn get_surface_height(&self, world_x: f64, world_z: f64) -> i32 {
         // Delegate to chunk_manager
-        self.chunk_manager.get_surface_height(world_x, world_z)
+        get_surface_height(&self.chunk_manager, world_x, world_z)
     }
     
     fn is_block_transparent(&self, pos: VoxelPos) -> bool {
         // For now, only air is transparent
-        let block = self.chunk_manager.get_block(pos);
+        let block = get_block(&self.chunk_manager, pos);
         block == BlockId::AIR
     }
 }
