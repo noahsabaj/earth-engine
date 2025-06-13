@@ -222,7 +222,9 @@ impl FrameSync {
         let frame_barrier = &self.frame_barriers[self.current_frame];
         if let Ok(sync_points) = frame_barrier.pending_sync_points() {
             if let Some(oldest_sync) = sync_points.first() {
-                frame_barrier.wait_for_sync_point(*oldest_sync);
+                if let Err(e) = frame_barrier.wait_for_sync_point(*oldest_sync) {
+                    log::warn!("[FrameSynchronizer] Failed to wait for sync point: {:?}", e);
+                }
             }
         }
         

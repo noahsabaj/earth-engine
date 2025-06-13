@@ -151,7 +151,13 @@ impl Game for ParallelGame {
         // Pregenerate spawn area
         println!("Pregenerating spawn area...");
         let spawn_pos = Point3::new(0.0, 100.0, 0.0);
-        world.pregenerate_spawn_area(spawn_pos, 2);
+        match world.pregenerate_spawn_area(spawn_pos, 2) {
+            Ok(_handle) => println!("Spawn area pregeneration started successfully"),
+            Err(e) => {
+                eprintln!("Failed to start spawn area pregeneration: {}", e);
+                return;
+            }
+        }
         
         *self.world.write() = Some(world);
     }
@@ -159,7 +165,7 @@ impl Game for ParallelGame {
     fn update(&mut self, ctx: &mut GameContext, _delta_time: f32) {
         // Update parallel world
         if let Some(world) = self.world.read().as_ref() {
-            world.update(ctx.camera.position);
+            world.update(ctx.camera.position.into());
             
             // Display performance metrics
             if self.show_metrics {

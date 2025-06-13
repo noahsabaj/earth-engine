@@ -10,7 +10,7 @@ use wgpu::util::DeviceExt;
 use bytemuck::{Pod, Zeroable};
 use cgmath::{Matrix4};
 pub use super::indirect_commands::{DrawMetadata};
-use crate::camera::{Camera, CameraData as CameraCameraData, build_camera_uniform};
+use crate::camera::data_camera::{CameraData as CameraCameraData, build_camera_uniform};
 
 /// Camera data for culling shader
 #[repr(C)]
@@ -33,18 +33,13 @@ pub struct CameraData {
 }
 
 impl CameraData {
-    pub fn from_camera(camera: &Camera) -> Self {
-        let view_proj = camera.build_projection_matrix() * camera.build_view_matrix();
-        let position = [camera.position.x, camera.position.y, camera.position.z];
-        
-        // Extract frustum planes from view-projection matrix
-        let frustum_planes = extract_frustum_planes(&view_proj);
-        
+    /// Create from data-oriented camera uniform
+    pub fn from_camera_uniform(uniform: &crate::camera::data_camera::CameraUniform) -> Self {
         Self {
-            view_proj: view_proj.into(),
-            position,
+            view_proj: uniform.view_projection_matrix,
+            position: uniform.position,
             _padding0: 0.0,
-            frustum_planes,
+            frustum_planes: [[0.0; 4]; 6], // TODO: Calculate actual frustum planes
             _padding1: [0.0; 8],
         }
     }

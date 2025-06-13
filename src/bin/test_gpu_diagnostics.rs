@@ -1,4 +1,4 @@
-use earth_engine::renderer::{GpuDiagnostics, OperationTestResult};
+use earth_engine::renderer::GpuDiagnostics;
 use env_logger;
 use log;
 

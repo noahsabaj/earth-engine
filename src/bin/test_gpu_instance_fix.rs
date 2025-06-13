@@ -3,7 +3,7 @@ use earth_engine::{
     renderer::{
         gpu_driven::gpu_driven_renderer::{GpuDrivenRenderer, RenderObject},
     },
-    Camera,
+    camera::data_camera::{CameraData, init_camera},
 };
 use cgmath::Vector3;
 use std::sync::Arc;
@@ -109,7 +109,7 @@ fn main() {
         );
         
         // Create test camera
-        let camera = Camera::new(
+        let camera = init_camera(
             800,
             600,
         );

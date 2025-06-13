@@ -2,7 +2,7 @@ use earth_engine::{
     Game, GameContext, BlockRegistry, BlockId, VoxelPos,
     Block, RenderData, PhysicsProperties,
     world::{ParallelWorld, ParallelWorldConfig, DefaultWorldGenerator},
-    Camera, input::InputState,
+    camera::data_camera::{CameraData, init_camera}, input::InputState,
 };
 use std::sync::Arc;
 use cgmath::Point3;
@@ -102,9 +102,9 @@ impl Game for TestGame {
         
         // Test reading block at camera position
         let camera_block_pos = VoxelPos::new(
-            ctx.camera.position.x.floor() as i32,
-            ctx.camera.position.y.floor() as i32,
-            ctx.camera.position.z.floor() as i32,
+            ctx.camera.position[0].floor() as i32,
+            ctx.camera.position[1].floor() as i32,
+            ctx.camera.position[2].floor() as i32,
         );
         let block = ctx.world.get_block(camera_block_pos);
         if block != BlockId::AIR {
@@ -140,7 +140,7 @@ fn main() {
     let mut world = ParallelWorld::new(generator, config);
     
     // Create camera
-    let camera = Camera::new(800, 600);
+    let camera = init_camera(800, 600);
     
     // Create input state
     let input = InputState::new();

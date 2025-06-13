@@ -510,7 +510,9 @@ impl ConfigBuilder {
         
         // Set defaults
         for (key, value) in self.defaults {
-            reloader.set_default(&key, value);
+            if let Err(e) = reloader.set_default(&key, value) {
+                log::warn!("[ConfigReload] Failed to set default for '{}': {:?}", key, e);
+            }
         }
         
         // Load configs

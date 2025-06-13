@@ -132,7 +132,9 @@ impl WorldMigrator {
         // Record bandwidth if profiler provided
         if let Some(profiler) = profiler {
             let duration_us = start_time.elapsed().as_micros() as u64;
-            profiler.record_typed_transfer(data_size, duration_us, TransferType::Upload);
+            if let Err(e) = profiler.record_typed_transfer(data_size, duration_us, TransferType::Upload) {
+                log::warn!("[WorldGpuMigration] Failed to record bandwidth: {:?}", e);
+            }
         }
     }
     

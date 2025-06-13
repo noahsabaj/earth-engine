@@ -34,7 +34,7 @@ use winit::event_loop::EventLoop;
 pub use gpu_state::{GpuState, CameraUniform};
 pub use mesh::ChunkMesh;
 pub use selection_renderer::SelectionRenderer;
-pub use vertex::Vertex;
+pub use vertex::{Vertex, create_vertex, create_vertex_with_lighting};
 pub use vertex_soa::{VertexBufferSoA, VertexBufferStats};
 pub use mesh_soa::{MeshSoA, MeshStats};
 pub use soa_mesh_builder::{MeshBuilderSoA, GreedyMeshBuilderSoA, MeshBuilderStats};

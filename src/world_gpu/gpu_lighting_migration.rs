@@ -128,11 +128,13 @@ impl GpuLightPropagator {
         if let Some(profiler) = &self.profiler {
             let bytes_transferred = chunk_positions.len() as u64 * 32 * 32 * 32 * 4; // Approximate
             let duration_us = duration.as_micros() as u64;
-            profiler.lock().record_typed_transfer(
+            if let Err(e) = profiler.lock().record_typed_transfer(
                 bytes_transferred,
                 duration_us,
                 crate::memory::TransferType::Copy,
-            );
+            ) {
+                log::warn!("[GpuLightingMigration] Failed to record bandwidth: {:?}", e);
+            }
         }
         
         Ok(())

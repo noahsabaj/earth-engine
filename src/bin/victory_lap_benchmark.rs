@@ -7,6 +7,7 @@
 use earth_engine::*;
 use std::time::{Instant, Duration};
 use cgmath::Point3;
+use bytemuck::Zeroable;
 
 const BENCHMARK_DURATION_SECS: u64 = 30;
 
@@ -48,14 +49,14 @@ fn main() {
     };
     
     // Additional config values we'll use directly
-    let max_entities = 10000;
-    let view_distance = 32;
+    let max_entities = 10000u32;
+    let view_distance = 32u32;
     
     println!("🚀 Initializing Data-Oriented Engine...");
     let start = Instant::now();
     
     // Run benchmarks
-    let results = pollster::block_on(run_benchmarks(config));
+    let results = pollster::block_on(run_benchmarks(config, max_entities, view_distance));
     
     let total_time = start.elapsed();
     
@@ -63,7 +64,7 @@ fn main() {
     print_victory_lap_results(&results, total_time);
 }
 
-async fn run_benchmarks(config: EngineConfig) -> BenchmarkResults {
+async fn run_benchmarks(config: EngineConfig, max_entities: u32, view_distance: u32) -> BenchmarkResults {
     // Initialize GPU and memory manager
     let instance = wgpu::Instance::default();
     let adapter = instance
@@ -97,22 +98,20 @@ async fn run_benchmarks(config: EngineConfig) -> BenchmarkResults {
     );
     
     // Initialize world state
-    let world_config = world_state::WorldConfig {
-        world_size: 1024,
-        chunk_size: config.chunk_size,
-        max_entities,
-        max_chunks: 4096,
-        view_distance,
-        physics_substeps: 4,
-        network_tick_rate: 60,
-        _padding: 0,
-    };
+    let mut world_config = world_state::WorldConfig::zeroed();
+    world_config.world_size = 1024;
+    world_config.chunk_size = config.chunk_size;
+    world_config.max_entities = max_entities;
+    world_config.max_chunks = 4096;
+    world_config.view_distance = view_distance;
+    world_config.physics_substeps = 4;
+    world_config.network_tick_rate = 60;
     
     let mut world_state = world_state::operations::init_world_state(
         device.clone(),
         &world_config,
         &mut memory_manager,
-    );
+    ).expect("Failed to initialize world state");
     
     // Initialize unified kernel
     let world_buffer = world_gpu::WorldBuffer::new(
@@ -169,15 +168,13 @@ async fn run_benchmarks(config: EngineConfig) -> BenchmarkResults {
         );
         
         // Update world state
-        let frame_params = world_state::FrameParams {
-            frame_number: results.total_frames,
-            delta_time_ms: 16,
-            player_position: [player_pos.x, player_pos.y, player_pos.z],
-            player_rotation: [0.0, 0.0],
-            input_flags: 0,
-            random_seed: results.total_frames as u32,
-            _padding: [0; 2],
-        };
+        let mut frame_params = world_state::FrameParams::zeroed();
+        frame_params.frame_number = results.total_frames;
+        frame_params.delta_time_ms = 16;
+        frame_params.player_position = [player_pos.x, player_pos.y, player_pos.z];
+        frame_params.player_rotation = [0.0, 0.0];
+        frame_params.input_flags = 0;
+        frame_params.random_seed = results.total_frames as u32;
         
         world_state::operations::update_frame(
             &mut world_state,
@@ -199,7 +196,7 @@ async fn run_benchmarks(config: EngineConfig) -> BenchmarkResults {
         
         results.total_frames += 1;
         results.chunks_generated += 50; // Simulated
-        results.entities_processed += config.max_entities as u64;
+        results.entities_processed += max_entities as u64;
         results.voxels_modified += 10000; // Simulated
         results.triangles_rendered += 5_000_000; // Simulated
         
@@ -225,7 +222,7 @@ async fn run_benchmarks(config: EngineConfig) -> BenchmarkResults {
     
     // Memory metrics from profiler
     if let Some(metrics) = memory_manager.performance_metrics() {
-        let comparisons = metrics.get_comparisons();
+        let _comparisons = metrics.get_comparisons();
         results.allocations_per_frame = 0.0; // Zero in steady state!
         results.memory_bandwidth_gb_s = 450.0; // GPU internal bandwidth
     }

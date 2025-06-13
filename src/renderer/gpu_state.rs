@@ -418,7 +418,6 @@ impl GpuState {
                         wgpu::Error::Validation { description, .. } => {
                             log::error!("[GPU] Validation error: {}", description);
                         }
-                        _ => {}
                     }
                 }));
                 

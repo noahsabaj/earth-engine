@@ -1,6 +1,6 @@
 use std::sync::Arc;
 use earth_engine::renderer::gpu_driven::{GpuDrivenRenderer, RenderObject};
-use earth_engine::Camera;
+use earth_engine::camera::data_camera::{CameraData, init_camera};
 use cgmath::{Vector3, Point3};
 use wgpu::TextureFormat;
 use log::{info, debug};
@@ -62,8 +62,8 @@ fn main() {
     
     info!("GPU-driven renderer created successfully");
     
-    // Create a dummy camera (using the deprecated Camera for compatibility with the renderer)
-    let camera = Camera::new(800, 600);
+    // Create a dummy camera (using the data-oriented camera system)
+    let camera = init_camera(800, 600);
     
     // Test multiple frames with different object counts
     for frame in 0..5 {

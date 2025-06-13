@@ -110,7 +110,13 @@ impl Game for ParallelLightingGame {
         // Pregenerate spawn area
         println!("Pregenerating spawn area...");
         let spawn_pos = Point3::new(0.0, 100.0, 0.0);
-        world.pregenerate_spawn_area(spawn_pos, 3);
+        match world.pregenerate_spawn_area(spawn_pos, 3) {
+            Ok(_handle) => println!("Spawn area pregeneration started successfully"),
+            Err(e) => {
+                eprintln!("Failed to start spawn area pregeneration: {}", e);
+                return;
+            }
+        }
         
         // Calculate initial skylight
         println!("Calculating initial skylight...");

@@ -133,12 +133,15 @@ impl DualRepresentation {
             _padding: 0,
         };
         
-        self.sdf_generator.generate(
+        if let Err(e) = self.sdf_generator.generate(
             encoder,
             &self.world_buffer,
             &sdf_chunk.sdf_buffer,
             &params,
-        );
+        ) {
+            log::error!("[DualStorage] SDF generation failed: {:?}", e);
+            return; // Skip this chunk if generation fails
+        }
         
         // Mark as no longer dirty but needs mesh generation
         if let Some(chunk) = self.sdf_chunks.get_mut(&chunk_pos) {

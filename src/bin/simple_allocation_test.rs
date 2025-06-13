@@ -49,7 +49,7 @@ fn test_basic_operations() {
     // Test vector allocations
     let _v1 = Vec::<i32>::new();
     let _v2 = vec![1, 2, 3];
-    let mut _v3 = Vec::with_capacity(10);
+    let mut _v3: Vec<i32> = Vec::with_capacity(10);
     
     // Test string allocations  
     let _s1 = String::new();

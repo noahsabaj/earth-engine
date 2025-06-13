@@ -72,7 +72,13 @@ fn main() {
     let parallel_world = ParallelWorld::new(generator, config);
     
     let start_time = Instant::now();
-    parallel_world.pregenerate_spawn_area(Point3::new(0.0, 100.0, 0.0), view_distance);
+    match parallel_world.pregenerate_spawn_area(Point3::new(0.0, 100.0, 0.0), view_distance) {
+        Ok(_handle) => {},
+        Err(e) => {
+            eprintln!("Failed to start spawn area pregeneration: {}", e);
+            return;
+        }
+    }
     let parallel_time = start_time.elapsed();
     
     let metrics = parallel_world.get_performance_metrics();
@@ -106,7 +112,13 @@ fn main() {
     let parallel_world_max = ParallelWorld::new(generator, config);
     
     let start_time = Instant::now();
-    parallel_world_max.pregenerate_spawn_area(Point3::new(0.0, 100.0, 0.0), view_distance);
+    match parallel_world_max.pregenerate_spawn_area(Point3::new(0.0, 100.0, 0.0), view_distance) {
+        Ok(_handle) => {},
+        Err(e) => {
+            eprintln!("Failed to start spawn area pregeneration (max threads): {}", e);
+            return;
+        }
+    }
     let parallel_max_time = start_time.elapsed();
     
     let metrics_max = parallel_world_max.get_performance_metrics();
@@ -151,7 +163,13 @@ fn main() {
     
     println!("  Generating {} chunks...", large_chunks);
     let start_time = Instant::now();
-    stress_world.pregenerate_spawn_area(Point3::new(0.0, 100.0, 0.0), 8);
+    match stress_world.pregenerate_spawn_area(Point3::new(0.0, 100.0, 0.0), 8) {
+        Ok(_handle) => {},
+        Err(e) => {
+            eprintln!("Failed to start spawn area pregeneration (stress test): {}", e);
+            return;
+        }
+    }
     let stress_time = start_time.elapsed();
     
     let stress_metrics = stress_world.get_performance_metrics();

@@ -203,7 +203,7 @@ fn bench_entity_update_oop(c: &mut Criterion) {
     let mut group = c.benchmark_group("entity_update_oop");
     
     for &count in ENTITY_COUNTS {
-        group.benchmark_with_input(
+        group.bench_with_input(
             BenchmarkId::from_parameter(count),
             &count,
             |b, &count| {
@@ -222,7 +222,7 @@ fn bench_entity_update_dop(c: &mut Criterion) {
     let mut group = c.benchmark_group("entity_update_dop");
     
     for &count in ENTITY_COUNTS {
-        group.benchmark_with_input(
+        group.bench_with_input(
             BenchmarkId::from_parameter(count),
             &count,
             |b, &count| {
@@ -241,7 +241,7 @@ fn bench_entity_update_dop_simd(c: &mut Criterion) {
     let mut group = c.benchmark_group("entity_update_dop_simd");
     
     for &count in ENTITY_COUNTS {
-        group.benchmark_with_input(
+        group.bench_with_input(
             BenchmarkId::from_parameter(count),
             &count,
             |b, &count| {
@@ -261,7 +261,7 @@ fn bench_area_damage_oop(c: &mut Criterion) {
     let mut group = c.benchmark_group("area_damage_oop");
     
     for &count in ENTITY_COUNTS {
-        group.benchmark_with_input(
+        group.bench_with_input(
             BenchmarkId::from_parameter(count),
             &count,
             |b, &count| {
@@ -284,7 +284,7 @@ fn bench_area_damage_dop(c: &mut Criterion) {
     let mut group = c.benchmark_group("area_damage_dop");
     
     for &count in ENTITY_COUNTS {
-        group.benchmark_with_input(
+        group.bench_with_input(
             BenchmarkId::from_parameter(count),
             &count,
             |b, &count| {

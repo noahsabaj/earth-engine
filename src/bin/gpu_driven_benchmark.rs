@@ -139,8 +139,8 @@ async fn run() {
     
     if culling_pipeline.is_available() {
         // Create test camera
-        let mut camera = earth_engine::Camera::new(1920, 1080);
-        camera.position = cgmath::Point3::new(0.0, 100.0, 0.0);
+        let mut camera = earth_engine::camera::data_camera::init_camera(1920, 1080);
+        camera.position = [0.0, 100.0, 0.0];
         
         for &count in &object_counts {
             culling_data.clear();

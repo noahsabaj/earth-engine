@@ -1,4 +1,4 @@
-use earth_engine::renderer::{Vertex, VertexBufferSoA, MeshSoA};
+use earth_engine::renderer::{Vertex, VertexBufferSoA, create_vertex_with_lighting};
 use earth_engine::profiling::{CacheProfiler, PerformanceMetrics};
 use std::time::Instant;
 
@@ -38,7 +38,7 @@ fn generate_test_vertices(count: usize) -> Vec<Vertex> {
         let y = ((i / 100) % 100) as f32;
         let z = (i / 10000) as f32;
         
-        vertices.push(Vertex::with_lighting(
+        vertices.push(create_vertex_with_lighting(
             [x, y, z],
             [0.5, 0.5, 0.5],
             [0.0, 1.0, 0.0],

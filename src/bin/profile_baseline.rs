@@ -346,12 +346,20 @@ fn save_baseline_metrics(
     
     writeln!(file, "\nHot Paths:")
         .expect("Failed to write hot paths header");
-    for hot_path in memory_profiler.hot_paths() {
-        writeln!(file, "  {} - {} calls, {:.2}ms avg", 
-            hot_path.function, 
-            hot_path.call_count,
-            hot_path.avg_time.as_secs_f64() * 1000.0
-        ).expect("Failed to write hot path entry");
+    match memory_profiler.hot_paths() {
+        Ok(hot_paths) => {
+            for hot_path in hot_paths {
+                writeln!(file, "  {} - {} calls, {:.2}ms avg", 
+                    hot_path.function, 
+                    hot_path.call_count,
+                    hot_path.avg_time.as_secs_f64() * 1000.0
+                ).expect("Failed to write hot path entry");
+            }
+        }
+        Err(e) => {
+            writeln!(file, "  Error retrieving hot paths: {}", e)
+                .expect("Failed to write hot paths error");
+        }
     }
     
     println!("\nBaseline metrics saved to baseline_metrics.txt");

@@ -123,7 +123,9 @@ impl MemoryManager {
     /// Record a transfer for profiling
     pub fn record_transfer(&mut self, bytes: u64, duration_us: u64) {
         if let Some(profiler) = &mut self.profiler {
-            profiler.record_transfer(bytes, duration_us);
+            if let Err(e) = profiler.record_transfer(bytes, duration_us) {
+                log::warn!("[MemoryManager] Failed to record transfer: {:?}", e);
+            }
         }
     }
     

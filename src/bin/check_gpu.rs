@@ -64,7 +64,7 @@ async fn check_gpu() -> anyhow::Result<()> {
     let surface = instance.create_surface(window.clone())?;
     
     log::info!("Enumerating adapters...");
-    let adapters: Vec<_> = instance.enumerate_adapters(wgpu::Backends::all()).collect();
+    let adapters = instance.enumerate_adapters(wgpu::Backends::all());
     
     if adapters.is_empty() {
         log::error!("No GPU adapters found!");
