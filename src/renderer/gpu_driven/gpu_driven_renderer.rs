@@ -187,6 +187,11 @@ impl GpuDrivenRenderer {
         self.culling_pipeline.update_camera(&self.queue, camera);
     }
     
+    /// Upload instance data to GPU after submission
+    pub fn upload_instances(&mut self, queue: &wgpu::Queue) {
+        self.instance_manager.upload_all(queue);
+    }
+    
     /// Submit objects for rendering
     pub fn submit_objects(&mut self, objects: &[RenderObject]) {
         let camera_pos = Vector3::new(0.0, 0.0, 0.0); // Get from camera

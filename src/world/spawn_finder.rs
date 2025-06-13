@@ -41,9 +41,10 @@ impl SpawnFinder {
         let (spawn_x, spawn_z) = best_pos.unwrap_or((start_x, start_z));
         let surface_y = world.get_surface_height(spawn_x as f64, spawn_z as f64) as f32;
         
-        // Add safety margin above the surface (5 blocks to ensure we're above ground)
+        // Add safety margin above the surface (10 blocks to ensure we're above ground)
         // The physics body center will be placed here, and camera is 0.72 above that
-        let safe_y = surface_y + 5.0;
+        // With body height of 1.8m, feet will be at surface_y + 10.0 - 0.9 = surface_y + 9.1
+        let safe_y = surface_y + 10.0;
         let spawn_pos = Point3::new(spawn_x, safe_y.clamp(20.0, 250.0), spawn_z);
         
         log::info!("[SpawnFinder] Selected spawn position at {:?} (surface height: {})", spawn_pos, surface_y);
@@ -128,8 +129,10 @@ impl SpawnFinder {
         }
         
         // Check current position is safe
-        let feet_block = world.get_block(VoxelPos::new(x.floor() as i32, current_pos.y.floor() as i32, z.floor() as i32));
-        let below_block = world.get_block(VoxelPos::new(x.floor() as i32, (current_pos.y - 1.0).floor() as i32, z.floor() as i32));
+        // Note: current_pos is the physics body center, feet are 0.9m below
+        let feet_y = current_pos.y - 0.9;
+        let feet_block = world.get_block(VoxelPos::new(x.floor() as i32, feet_y.floor() as i32, z.floor() as i32));
+        let below_block = world.get_block(VoxelPos::new(x.floor() as i32, (feet_y - 1.0).floor() as i32, z.floor() as i32));
         
         if feet_block != BlockId::AIR {
             log::warn!("[SpawnFinder] Player feet inside block! Moving up...");
@@ -153,9 +156,11 @@ impl SpawnFinder {
                   pos, chunk_pos, chunk_loaded);
         
         // Show player position relative to block
-        let player_feet_y = pos.y;
-        let player_head_y = pos.y + 1.8;
-        log::info!("[SpawnFinder] Player feet at y={:.2}, head at y={:.2}", player_feet_y, player_head_y);
+        // Note: pos is the physics body center position
+        let player_feet_y = pos.y - 0.9;  // Body is 1.8m tall, center to feet is 0.9m
+        let player_head_y = pos.y + 0.9;  // Center to head is 0.9m
+        log::info!("[SpawnFinder] Physics body center at y={:.2}, feet at y={:.2}, head at y={:.2}", 
+                  pos.y, player_feet_y, player_head_y);
         
         for dy in -3..=3 {
             let check_y = y + dy;

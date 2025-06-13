@@ -218,6 +218,8 @@ pub struct GpuState {
     capture_interval: f32,
     screenshot_counter: u32,
     last_capture_time: Option<std::time::Instant>,
+    // Frame rate limiting
+    last_frame_time: Option<std::time::Instant>,
 }
 
 impl GpuState {
@@ -765,6 +767,7 @@ impl GpuState {
             capture_interval: 0.25,
             screenshot_counter: 0,
             last_capture_time: None,
+            last_frame_time: None,
         })
     }
 
@@ -1076,6 +1079,9 @@ impl GpuState {
             self.chunk_renderer.submit_objects(&render_objects);
             self.total_objects_submitted += render_object_count as u64;
             self.last_submission_time = std::time::Instant::now();
+            
+            // CRITICAL: Upload instance data to GPU after submission
+            self.chunk_renderer.upload_instances(&self.queue);
             
             // Reset counter if we had objects
             if self.frames_without_objects > 0 {
@@ -1503,6 +1509,9 @@ impl GpuState {
         }
 
         output.present();
+        
+        // Update frame timing for frame rate limiting
+        self.last_frame_time = Some(std::time::Instant::now());
 
         Ok(())
     }
@@ -2021,7 +2030,18 @@ pub async fn run_app<G: Game + 'static>(
                     }
                 }
                 Event::AboutToWait => {
-                    gpu_state.window.request_redraw();
+                    // Only request redraw if enough time has passed (60 FPS target)
+                    let now = std::time::Instant::now();
+                    let target_frametime = std::time::Duration::from_secs_f64(1.0 / 60.0);
+                    
+                    if let Some(last_frame) = gpu_state.last_frame_time {
+                        let elapsed = now.duration_since(last_frame);
+                        if elapsed >= target_frametime {
+                            gpu_state.window.request_redraw();
+                        }
+                    } else {
+                        gpu_state.window.request_redraw();
+                    }
                 }
                 _ => {}
             }
