@@ -448,41 +448,41 @@ mod tests {
     
     #[test]
     fn test_backup_creation() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Failed to create temporary directory for test");
         let world_dir = temp_dir.path().join("world");
-        fs::create_dir_all(&world_dir).unwrap();
+        fs::create_dir_all(&world_dir).expect("Failed to create world directory");
         
         // Create some test data
-        fs::write(world_dir.join("test.txt"), "test data").unwrap();
+        fs::write(world_dir.join("test.txt"), "test data").expect("Failed to write test data");
         
         let mut manager = BackupManager::new(temp_dir.path(), BackupPolicy::default());
         
-        let backup = manager.create_backup(&world_dir, BackupReason::Manual).unwrap();
+        let backup = manager.create_backup(&world_dir, BackupReason::Manual).expect("Failed to create backup");
         assert!(backup.path.exists());
     }
     
     #[test]
     fn test_backup_restore() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Failed to create temporary directory for test");
         let world_dir = temp_dir.path().join("world");
-        fs::create_dir_all(&world_dir).unwrap();
-        fs::write(world_dir.join("test.txt"), "test data").unwrap();
+        fs::create_dir_all(&world_dir).expect("Failed to create world directory");
+        fs::write(world_dir.join("test.txt"), "test data").expect("Failed to write test data");
         
         let mut manager = BackupManager::new(temp_dir.path(), BackupPolicy::default());
         
         // Create backup
-        let backup = manager.create_backup(&world_dir, BackupReason::Manual).unwrap();
+        let backup = manager.create_backup(&world_dir, BackupReason::Manual).expect("Failed to create backup");
         
         // Delete original
-        fs::remove_dir_all(&world_dir).unwrap();
+        fs::remove_dir_all(&world_dir).expect("Failed to delete original world directory");
         
         // Restore
         let restore_dir = temp_dir.path().join("restored");
-        manager.restore_backup(&backup.path, &restore_dir).unwrap();
+        manager.restore_backup(&backup.path, &restore_dir).expect("Failed to restore backup");
         
         // Verify
         assert!(restore_dir.join("test.txt").exists());
-        let content = fs::read_to_string(restore_dir.join("test.txt")).unwrap();
+        let content = fs::read_to_string(restore_dir.join("test.txt")).expect("Failed to read restored test file");
         assert_eq!(content, "test data");
     }
 }

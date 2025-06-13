@@ -510,8 +510,8 @@ mod tests {
         chunk.set_block_at(VoxelPos::new(10, 20, 30), BlockId(42));
         
         let serializer = ChunkSerializer::new(ChunkFormat::Raw);
-        let data = serializer.serialize(&chunk).unwrap();
-        let deserialized = serializer.deserialize(&data).unwrap();
+        let data = serializer.serialize(&chunk).expect("Chunk serialization should succeed");
+        let deserialized = serializer.deserialize(&data).expect("Chunk deserialization should succeed");
         
         assert_eq!(chunk.get_block_at(VoxelPos::new(10, 20, 30)), 
                    deserialized.get_block_at(VoxelPos::new(10, 20, 30)));
@@ -522,8 +522,8 @@ mod tests {
         let chunk = Chunk::new(ChunkPos { x: 0, y: 0, z: 0 }, 32);
         
         let serializer = ChunkSerializer::new(ChunkFormat::RLE);
-        let data = serializer.serialize(&chunk).unwrap();
-        let deserialized = serializer.deserialize(&data).unwrap();
+        let data = serializer.serialize(&chunk).expect("RLE chunk serialization should succeed");
+        let deserialized = serializer.deserialize(&data).expect("RLE chunk deserialization should succeed");
         
         assert_eq!(chunk.position(), deserialized.position());
     }
@@ -558,7 +558,7 @@ mod tests {
         let result = serializer.deserialize(&corrupted_data);
         
         assert!(result.is_err());
-        match result.unwrap_err() {
+        match result.expect_err("Should have failed with corrupted data error") {
             PersistenceError::CorruptedData(msg) => {
                 assert!(msg.contains("Invalid chunk magic"));
             }
@@ -574,7 +574,7 @@ mod tests {
         let result = serializer.deserialize(&too_small_data);
         
         assert!(result.is_err());
-        match result.unwrap_err() {
+        match result.expect_err("Should have failed with corrupted data error") {
             PersistenceError::CorruptedData(msg) => {
                 assert!(msg.contains("Data too small"));
             }
@@ -586,14 +586,14 @@ mod tests {
     fn test_corruption_detection_invalid_version() {
         let chunk = Chunk::new(ChunkPos { x: 0, y: 0, z: 0 }, 32);
         let serializer = ChunkSerializer::new(ChunkFormat::Raw);
-        let mut data = serializer.serialize(&chunk).unwrap();
+        let mut data = serializer.serialize(&chunk).expect("Chunk serialization should succeed");
         
         // Corrupt the version field (it's after magic bytes at offset 4-7)
         data[4..8].copy_from_slice(&999u32.to_le_bytes());
         
         let result = serializer.deserialize(&data);
         assert!(result.is_err());
-        match result.unwrap_err() {
+        match result.expect_err("Should have failed with version mismatch error") {
             PersistenceError::VersionMismatch { expected, found } => {
                 assert_eq!(expected, CHUNK_FORMAT_VERSION);
                 assert_eq!(found, 999);
@@ -606,7 +606,7 @@ mod tests {
     fn test_corruption_detection_invalid_block_count() {
         let chunk = Chunk::new(ChunkPos { x: 0, y: 0, z: 0 }, 32);
         let serializer = ChunkSerializer::new(ChunkFormat::Raw);
-        let mut data = serializer.serialize(&chunk).unwrap();
+        let mut data = serializer.serialize(&chunk).expect("Chunk serialization should succeed");
         
         // Find and corrupt the block_count field in the header
         // Create a fake header with invalid block count
@@ -620,12 +620,12 @@ mod tests {
             checksum: 0,
         };
         
-        let header_bytes = bincode::serialize(&invalid_header).unwrap();
+        let header_bytes = bincode::serialize(&invalid_header).expect("Header serialization should succeed");
         data[0..header_bytes.len()].copy_from_slice(&header_bytes);
         
         let result = serializer.deserialize(&data);
         assert!(result.is_err());
-        match result.unwrap_err() {
+        match result.expect_err("Should have failed with corrupted data error") {
             PersistenceError::CorruptedData(msg) => {
                 assert!(msg.contains("Invalid block count"));
             }
@@ -637,7 +637,7 @@ mod tests {
     fn test_corruption_detection_checksum_mismatch() {
         let chunk = Chunk::new(ChunkPos { x: 0, y: 0, z: 0 }, 32);
         let serializer = ChunkSerializer::new(ChunkFormat::Raw);
-        let mut data = serializer.serialize(&chunk).unwrap();
+        let mut data = serializer.serialize(&chunk).expect("Chunk serialization should succeed");
         
         // Corrupt some data after the header to cause checksum mismatch
         if data.len() > 50 {
@@ -647,7 +647,7 @@ mod tests {
         
         let result = serializer.deserialize(&data);
         assert!(result.is_err());
-        match result.unwrap_err() {
+        match result.expect_err("Should have failed with corrupted data error") {
             PersistenceError::CorruptedData(msg) => {
                 assert!(msg.contains("Checksum mismatch"));
             }

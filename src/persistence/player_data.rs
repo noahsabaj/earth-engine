@@ -377,7 +377,7 @@ mod tests {
     
     #[test]
     fn test_player_save_load() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Failed to create temporary directory for test");
         
         let player_data = PlayerData::new(
             "test-uuid-123".to_string(),
@@ -388,10 +388,10 @@ mod tests {
         let save_data = PlayerSaveData::from_player(player_data, &inventory);
         
         // Save
-        save_data.save(temp_dir.path()).unwrap();
+        save_data.save(temp_dir.path()).expect("Failed to save player data");
         
         // Load
-        let loaded = PlayerSaveData::load(temp_dir.path(), "test-uuid-123").unwrap();
+        let loaded = PlayerSaveData::load(temp_dir.path(), "test-uuid-123").expect("Failed to load player data");
         
         assert_eq!(loaded.player_data.uuid, "test-uuid-123");
         assert_eq!(loaded.player_data.username, "TestPlayer");
@@ -399,7 +399,7 @@ mod tests {
     
     #[test]
     fn test_list_players() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Failed to create temporary directory for test");
         
         // Save multiple players
         for i in 0..3 {
@@ -408,11 +408,11 @@ mod tests {
                 format!("Player{}", i),
             );
             let save_data = PlayerSaveData::from_player(player_data, &init_inventory());
-            save_data.save(temp_dir.path()).unwrap();
+            save_data.save(temp_dir.path()).expect("Failed to save player data");
         }
         
         // List players
-        let players = PlayerSaveData::list_players(temp_dir.path()).unwrap();
+        let players = PlayerSaveData::list_players(temp_dir.path()).expect("Failed to list players");
         
         assert_eq!(players.len(), 3);
     }

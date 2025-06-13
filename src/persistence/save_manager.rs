@@ -423,30 +423,30 @@ mod tests {
     
     #[test]
     fn test_save_manager_creation() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Failed to create temporary directory for test");
         let config = SaveConfig {
             save_dir: temp_dir.path().to_path_buf(),
             ..Default::default()
         };
         
-        let manager = SaveManager::new(config).unwrap();
-        assert_eq!(manager.get_stats().unwrap().dirty_chunk_count, 0);
+        let manager = SaveManager::new(config).expect("Failed to create SaveManager");
+        assert_eq!(manager.get_stats().expect("Failed to get save stats").dirty_chunk_count, 0);
     }
     
     #[test]
     fn test_mark_chunk_dirty() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Failed to create temporary directory for test");
         let config = SaveConfig {
             save_dir: temp_dir.path().to_path_buf(),
             ..Default::default()
         };
         
-        let manager = SaveManager::new(config).unwrap();
+        let manager = SaveManager::new(config).expect("Failed to create SaveManager");
         
-        manager.mark_chunk_dirty(ChunkPos { x: 0, y: 0, z: 0 }).unwrap();
-        manager.mark_chunk_dirty(ChunkPos { x: 1, y: 0, z: 0 }).unwrap();
+        manager.mark_chunk_dirty(ChunkPos { x: 0, y: 0, z: 0 }).expect("Failed to mark chunk dirty");
+        manager.mark_chunk_dirty(ChunkPos { x: 1, y: 0, z: 0 }).expect("Failed to mark chunk dirty");
         
-        assert_eq!(manager.get_stats().unwrap().dirty_chunk_count, 2);
+        assert_eq!(manager.get_stats().expect("Failed to get save stats").dirty_chunk_count, 2);
     }
     
     #[test]

@@ -114,50 +114,50 @@ mod tests {
 
     #[test]
     fn test_atomic_write_success() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Failed to create temporary directory for test");
         let test_file = temp_dir.path().join("test.txt");
         let test_data = b"Hello, atomic world!";
 
         // Atomic write should succeed
-        atomic_write(&test_file, test_data).unwrap();
+        atomic_write(&test_file, test_data).expect("Atomic write should succeed");
 
         // File should exist and contain the correct data
         assert!(test_file.exists());
-        let read_data = fs::read(&test_file).unwrap();
+        let read_data = fs::read(&test_file).expect("Failed to read test file");
         assert_eq!(read_data, test_data);
     }
 
     #[test]
     fn test_atomic_write_creates_directories() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Failed to create temporary directory for test");
         let nested_file = temp_dir.path().join("nested").join("dir").join("test.txt");
         let test_data = b"Nested file content";
 
         // Should create parent directories automatically
-        atomic_write(&nested_file, test_data).unwrap();
+        atomic_write(&nested_file, test_data).expect("Atomic write should create directories and succeed");
 
         assert!(nested_file.exists());
-        let read_data = fs::read(&nested_file).unwrap();
+        let read_data = fs::read(&nested_file).expect("Failed to read nested file");
         assert_eq!(read_data, test_data);
     }
 
     #[test]
     fn test_atomic_write_no_partial_files() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Failed to create temporary directory for test");
         let test_file = temp_dir.path().join("test.txt");
         
         // First write
-        atomic_write(&test_file, b"first content").unwrap();
+        atomic_write(&test_file, b"first content").expect("First atomic write should succeed");
         
         // Second write - if this was non-atomic, we might see partial content
-        atomic_write(&test_file, b"second content that is much longer").unwrap();
+        atomic_write(&test_file, b"second content that is much longer").expect("Second atomic write should succeed");
         
         // Should only see the complete second write
-        let content = fs::read_to_string(&test_file).unwrap();
+        let content = fs::read_to_string(&test_file).expect("Failed to read test file as string");
         assert_eq!(content, "second content that is much longer");
         
         // No temporary files should be left behind
-        let temp_files: Vec<_> = fs::read_dir(temp_dir.path()).unwrap()
+        let temp_files: Vec<_> = fs::read_dir(temp_dir.path()).expect("Failed to read temp directory")
             .filter_map(|entry| entry.ok())
             .filter(|entry| {
                 entry.file_name().to_string_lossy().contains(".tmp")

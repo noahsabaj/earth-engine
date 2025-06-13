@@ -325,8 +325,8 @@ mod tests {
         for &compression_type in &types {
             let compressor = Compressor::new(compression_type, CompressionLevel::Default);
             
-            let compressed = compressor.compress(data).unwrap();
-            let decompressed = compressor.decompress(&compressed).unwrap();
+            let compressed = compressor.compress(data).expect("Compression should succeed");
+            let decompressed = compressor.decompress(&compressed).expect("Decompression should succeed");
             
             assert_eq!(data.to_vec(), decompressed);
             assert!(compressed.len() < data.len()); // Should compress
@@ -347,7 +347,7 @@ mod tests {
         
         for &level in &levels {
             let compressor = Compressor::new(CompressionType::Zstd, level);
-            let compressed = compressor.compress(&data).unwrap();
+            let compressed = compressor.compress(&data).expect("Compression should succeed");
             sizes.push(compressed.len());
         }
         
@@ -364,11 +364,11 @@ mod tests {
                      cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc";
         let compressor = Compressor::new(CompressionType::Gzip, CompressionLevel::Default);
         
-        let compressed = CompressedData::compress(data, &compressor).unwrap();
+        let compressed = CompressedData::compress(data, &compressor).expect("Compression should succeed");
         assert!(compressed.is_beneficial());
         assert!(compressed.compression_ratio() < 1.0);
         
-        let decompressed = compressed.decompress().unwrap();
+        let decompressed = compressed.decompress().expect("Decompression should succeed");
         assert_eq!(data.to_vec(), decompressed);
     }
 }

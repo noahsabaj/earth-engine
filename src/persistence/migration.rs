@@ -341,7 +341,7 @@ mod tests {
         let path = manager.find_migration_path(
             SaveVersion::new(1, 0, 0),
             SaveVersion::new(1, 2, 0)
-        ).unwrap();
+        ).expect("Migration path should exist");
         
         assert_eq!(path.len(), 2);
     }

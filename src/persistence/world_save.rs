@@ -328,8 +328,8 @@ mod tests {
     
     #[test]
     fn test_world_save_creation() {
-        let temp_dir = TempDir::new().unwrap();
-        let save = WorldSave::new(temp_dir.path()).unwrap();
+        let temp_dir = TempDir::new().expect("Failed to create temporary directory for test");
+        let save = WorldSave::new(temp_dir.path()).expect("Failed to create WorldSave");
         
         assert!(temp_dir.path().join("chunks").exists());
         assert!(temp_dir.path().join("players").exists());
@@ -338,20 +338,22 @@ mod tests {
     
     #[test]
     fn test_chunk_save_load() {
-        let temp_dir = TempDir::new().unwrap();
-        let mut save = WorldSave::new(temp_dir.path()).unwrap();
+        let temp_dir = TempDir::new().expect("Failed to create temporary directory for test");
+        let mut save = WorldSave::new(temp_dir.path()).expect("Failed to create WorldSave");
         
         let mut chunk = Chunk::new(ChunkPos { x: 10, y: 0, z: -5 }, 32);
         chunk.set_block_at(crate::world::VoxelPos::new(15, 20, 10), crate::world::BlockId(42));
         
         // Save chunk
-        save.save_chunk(&chunk).unwrap();
+        save.save_chunk(&chunk).expect("Failed to save chunk");
         
         // Clear cache to force disk load
         save.chunk_cache.clear();
         
         // Load chunk
-        let loaded = save.load_chunk(chunk.position()).unwrap().unwrap();
+        let loaded = save.load_chunk(chunk.position())
+            .expect("Failed to load chunk")
+            .expect("Chunk should exist after saving");
         
         assert_eq!(
             chunk.get_block_at(crate::world::VoxelPos::new(15, 20, 10)),
