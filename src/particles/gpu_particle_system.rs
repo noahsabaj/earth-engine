@@ -2,9 +2,10 @@ use std::sync::Arc;
 use std::time::Duration;
 use wgpu::util::DeviceExt;
 use glam::Vec3;
+use anyhow::{Result, anyhow};
 
 use crate::particles::{ParticleType, ParticleGPUData};
-use crate::particles::particle_data::{MAX_PARTICLES, prepare_render_data};
+use crate::particles::particle_data::MAX_PARTICLES;
 
 /// GPU-accelerated particle system
 /// Offloads all particle updates to GPU compute shaders
@@ -390,16 +391,21 @@ impl GpuParticleSystem {
     }
     
     /// Read back particle data for rendering
-    pub async fn read_render_data(&mut self) -> &[ParticleGPUData] {
+    pub async fn read_render_data(&mut self) -> Result<&[ParticleGPUData]> {
         // Map staging buffer and read data
         let buffer_slice = self.staging_buffer.slice(..);
         let (tx, rx) = futures::channel::oneshot::channel();
         buffer_slice.map_async(wgpu::MapMode::Read, move |result| {
-            tx.send(result).unwrap();
+            if let Err(_) = tx.send(result) {
+                // Channel receiver was dropped - this is expected in some shutdown scenarios
+            }
         });
         
         self.device.poll(wgpu::Maintain::Wait);
-        rx.await.unwrap().unwrap();
+        
+        let map_result = rx.await
+            .map_err(|_| anyhow!("Failed to receive GPU buffer mapping result - channel was closed"))?;
+        map_result.map_err(|e| anyhow!("Failed to map GPU buffer for particle data reading: {:?}", e))?;
         
         {
             let data = buffer_slice.get_mapped_range();
@@ -422,7 +428,7 @@ impl GpuParticleSystem {
         }
         
         self.staging_buffer.unmap();
-        &self.render_data
+        Ok(&self.render_data)
     }
     
     /// Get particle count

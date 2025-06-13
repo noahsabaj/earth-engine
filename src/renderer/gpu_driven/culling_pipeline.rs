@@ -10,7 +10,7 @@ use wgpu::util::DeviceExt;
 use bytemuck::{Pod, Zeroable};
 use cgmath::{Matrix4};
 use super::indirect_commands::DrawMetadata;
-use crate::camera::Camera;
+use crate::camera::{Camera, CameraData as CameraCameraData, build_camera_uniform};
 
 /// Camera data for culling shader
 #[repr(C)]
@@ -264,9 +264,16 @@ impl CullingPipeline {
     }
     
     /// Update camera data
-    pub fn update_camera(&self, queue: &wgpu::Queue, camera: &Camera) {
-        let camera_data = CameraData::from_camera(camera);
-        queue.write_buffer(&self.camera_buffer, 0, bytemuck::bytes_of(&camera_data));
+    pub fn update_camera(&self, queue: &wgpu::Queue, camera_data: &CameraCameraData) {
+        let camera_uniform = build_camera_uniform(camera_data);
+        let culling_camera_data = CameraData {
+            view_proj: camera_uniform.view_projection_matrix,
+            position: camera_uniform.position,
+            _padding0: 0.0,
+            frustum_planes: [[0.0; 4]; 6], // TODO: Calculate actual frustum planes
+            _padding1: [0.0; 8],
+        };
+        queue.write_buffer(&self.camera_buffer, 0, bytemuck::bytes_of(&culling_camera_data));
     }
     
     /// Create bind group for culling

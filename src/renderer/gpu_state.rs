@@ -10,7 +10,7 @@ use crate::camera::{Camera, camera_to_data};
 use crate::input::InputState;
 use crate::physics::{PhysicsWorldData, EntityId, flags};
 use crate::renderer::{SelectionRenderer, GpuDiagnostics, GpuInitProgress, gpu_driven::GpuDrivenRenderer, screenshot};
-use crate::world::{Ray, RaycastHit, ParallelWorld, ParallelWorldConfig, WorldInterface, WorldGenerator, SpawnFinder};
+use crate::world::{Ray, RaycastHit, ParallelWorld, ParallelWorldConfig, WorldInterface, SpawnFinder};
 use crate::lighting::{DayNightCycle, LightPropagator};
 use anyhow::Result;
 use cgmath::{Matrix4, SquareMatrix, Point3, Vector3, InnerSpace, Zero};
@@ -234,7 +234,7 @@ impl GpuState {
     async fn new(window: Arc<Window>) -> Result<Self> {
         log::info!("[GpuState::new] Starting GPU initialization");
         let init_start = std::time::Instant::now();
-        let progress = GpuInitProgress::new();
+        let _progress = GpuInitProgress::new();
         
         let size = window.inner_size();
         log::debug!("[GpuState::new] Window size: {}x{}", size.width, size.height);
@@ -654,10 +654,10 @@ impl GpuState {
                   parallel_config.chunks_per_frame);
         
         // Store chunk_size before moving parallel_config
-        let chunk_size = parallel_config.chunk_size;
+        let _chunk_size = parallel_config.chunk_size;
         
         log::info!("[GpuState::new] Creating parallel world...");
-        let mut world = ParallelWorld::new(generator, parallel_config);
+        let world = ParallelWorld::new(generator, parallel_config);
         
         // Find safe spawn position by checking actual blocks
         log::info!("[GpuState::new] Finding safe spawn position...");
@@ -919,7 +919,8 @@ impl GpuState {
     
     fn update_chunk_renderer(&mut self, _input: &InputState) {
         // Begin new frame for GPU-driven renderer
-        self.chunk_renderer.begin_frame(&self.camera);
+        let camera_data = camera_to_data(&self.camera);
+        self.chunk_renderer.begin_frame(&camera_data);
         
         // Get chunk size from config
         let chunk_size = self.world.config().chunk_size;
@@ -1689,7 +1690,7 @@ impl GpuState {
     /// Process screenshot asynchronously to avoid blocking the render loop
     async fn process_screenshot_async(
         device: Arc<wgpu::Device>,
-        queue: Arc<wgpu::Queue>,
+        _queue: Arc<wgpu::Queue>,
         buffer: wgpu::Buffer,
         width: u32,
         height: u32,
@@ -1701,11 +1702,16 @@ impl GpuState {
         let (tx, rx) = flume::bounded(1);
         
         buffer_slice.map_async(wgpu::MapMode::Read, move |result| {
-            tx.send(result).unwrap();
+            if let Err(_) = tx.send(result) {
+                // Channel receiver was dropped - this is expected in some shutdown scenarios
+            }
         });
         
         device.poll(wgpu::Maintain::Wait);
-        rx.recv_async().await.unwrap()?;
+        
+        let map_result = rx.recv_async().await
+            .map_err(|_| anyhow::anyhow!("Failed to receive GPU buffer mapping result - channel was closed"))?;
+        map_result?;
         
         // Read buffer data
         let data = buffer_slice.get_mapped_range();

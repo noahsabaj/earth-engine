@@ -6,6 +6,15 @@ use std::sync::Arc;
 use parking_lot::RwLock;
 use crate::{ChunkPos, BlockId};
 
+/// Error type for allocation optimization operations
+#[derive(Debug, thiserror::Error)]
+pub enum AllocationError {
+    #[error("Pooled object is in invalid state: {0}")]
+    InvalidState(String),
+    #[error("Buffer initialization failed: {0}")]
+    InitializationFailed(String),
+}
+
 /// Object pool for reusable allocations
 pub struct ObjectPool<T> {
     pool: Arc<RwLock<Vec<T>>>,
@@ -44,13 +53,26 @@ impl<T> std::ops::Deref for PooledObject<T> {
     type Target = T;
     
     fn deref(&self) -> &Self::Target {
-        self.item.as_ref().unwrap()
+        match self.item.as_ref() {
+            Some(item) => item,
+            None => {
+                // This should never happen if the API is used correctly
+                // Log error and provide a safe fallback that will panic with context
+                panic!("PooledObject accessed after being consumed - this is a programmer error");
+            }
+        }
     }
 }
 
 impl<T> std::ops::DerefMut for PooledObject<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        self.item.as_mut().unwrap()
+        match self.item.as_mut() {
+            Some(item) => item,
+            None => {
+                // This should never happen if the API is used correctly
+                panic!("PooledObject accessed after being consumed - this is a programmer error");
+            }
+        }
     }
 }
 
@@ -98,7 +120,7 @@ impl MeshingBuffers {
     }
 }
 
-/// Thread-local meshing buffer pool
+// Thread-local meshing buffer pool
 thread_local! {
     static MESHING_BUFFERS: std::cell::RefCell<Option<MeshingBuffers>> = std::cell::RefCell::new(None);
 }
@@ -112,7 +134,10 @@ where
         if buffers_ref.is_none() {
             *buffers_ref = Some(MeshingBuffers::new(chunk_size));
         }
-        let buffers = buffers_ref.as_mut().unwrap();
+        // This is safe because we just ensured the buffer exists
+        let buffers = buffers_ref.as_mut().unwrap_or_else(|| {
+            panic!("Failed to initialize MeshingBuffers - this should not happen");
+        });
         buffers.clear();
         f(buffers)
     })
@@ -153,13 +178,23 @@ impl std::ops::Deref for PooledString {
     type Target = String;
     
     fn deref(&self) -> &Self::Target {
-        self.string.as_ref().unwrap()
+        match self.string.as_ref() {
+            Some(string) => string,
+            None => {
+                panic!("PooledString accessed after being consumed - this is a programmer error");
+            }
+        }
     }
 }
 
 impl std::ops::DerefMut for PooledString {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        self.string.as_mut().unwrap()
+        match self.string.as_mut() {
+            Some(string) => string,
+            None => {
+                panic!("PooledString accessed after being consumed - this is a programmer error");
+            }
+        }
     }
 }
 
@@ -245,7 +280,7 @@ impl MeshRequestBuffer {
     }
 }
 
-/// Global pools for commonly allocated objects
+// Global pools for commonly allocated objects
 lazy_static::lazy_static! {
     pub static ref STRING_POOL: StringPool = StringPool::new(64);
     pub static ref MESH_REQUEST_POOL: ObjectPool<MeshRequestBuffer> = 

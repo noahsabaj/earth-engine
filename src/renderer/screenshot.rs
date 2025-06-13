@@ -145,11 +145,16 @@ pub async fn capture_screenshot(
     let (tx, rx) = futures::channel::oneshot::channel();
     
     buffer_slice.map_async(wgpu::MapMode::Read, move |result| {
-        tx.send(result).unwrap();
+        if let Err(_) = tx.send(result) {
+            // Channel receiver was dropped - this is expected in some shutdown scenarios
+        }
     });
     
     device.poll(wgpu::Maintain::Wait);
-    rx.await.unwrap()?;
+    
+    let map_result = rx.await
+        .map_err(|_| anyhow!("Failed to receive GPU buffer mapping result - channel was closed"))?;
+    map_result?;
     
     // Read buffer data
     let data = buffer_slice.get_mapped_range();
@@ -199,11 +204,16 @@ pub async fn capture_screenshot_data(
     let (tx, rx) = futures::channel::oneshot::channel();
     
     buffer_slice.map_async(wgpu::MapMode::Read, move |result| {
-        tx.send(result).unwrap();
+        if let Err(_) = tx.send(result) {
+            // Channel receiver was dropped - this is expected in some shutdown scenarios
+        }
     });
     
     device.poll(wgpu::Maintain::Wait);
-    rx.await.unwrap()?;
+    
+    let map_result = rx.await
+        .map_err(|_| anyhow!("Failed to receive GPU buffer mapping result - channel was closed"))?;
+    map_result?;
     
     // Read buffer data
     let data = buffer_slice.get_mapped_range();

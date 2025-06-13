@@ -1,7 +1,7 @@
+#![allow(unused_variables, dead_code)]
 use std::sync::Arc;
-use wgpu::util::DeviceExt;
 use cgmath::{Vector3};
-use crate::camera::Camera;
+use crate::camera::data_camera::CameraData;
 use super::{
     indirect_commands::{IndirectCommandManager, DrawMetadata},
     instance_buffer::{InstanceManager, InstanceData, InstanceBuffer},
@@ -174,7 +174,7 @@ impl GpuDrivenRenderer {
     }
     
     /// Begin a new frame
-    pub fn begin_frame(&mut self, camera: &Camera) {
+    pub fn begin_frame(&mut self, camera: &CameraData) {
         // Clear previous frame data
         self.culling_data.clear();
         self.stats = RenderStats::default();
