@@ -1,9 +1,17 @@
 /// Pre-allocated mesh cache using spatial hashing for chunk positions
 /// Replaces HashMap-based cache with zero-allocation lookups
+/// 
+/// ## Error Handling Pattern
+/// This module uses proper error propagation instead of unwrap() calls:
+/// - RwLock operations return Result<T, EngineError> using the ? operator
+/// - Array access is bounds-checked before indexing
+/// - Position validation uses ok_or_else() for proper error messages
+/// - All methods return Result types to enable error propagation up the call stack
 
 use crate::world::ChunkPos;
 use crate::utils::chunk_spatial_hash::{chunk_pos_to_index, MAX_CHUNK_COORD};
 use super::mesh_optimizer::{OptimizedMesh, MeshLod};
+use crate::error::EngineError;
 use std::sync::RwLock;
 
 /// Maximum LOD levels
@@ -72,51 +80,67 @@ impl PreallocatedMeshCache {
     }
     
     /// Get a mesh from cache
-    pub fn get(&self, chunk_pos: ChunkPos, lod: MeshLod) -> Option<OptimizedMesh> {
-        let chunk_index = chunk_pos_to_index(chunk_pos)?;
+    pub fn get(&self, chunk_pos: ChunkPos, lod: MeshLod) -> Result<Option<OptimizedMesh>, EngineError> {
+        let chunk_index = chunk_pos_to_index(chunk_pos).ok_or_else(|| EngineError::BufferAccess { 
+            index: 0, 
+            size: (MAX_CHUNK_COORD * 2) as usize 
+        })?;
         let lod_index = Self::lod_to_index(lod);
         
-        let mut entries = self.entries.write().unwrap();
-        let mut counter = self.access_counter.write().unwrap();
+        let mut entries = self.entries.write()?;
+        let mut counter = self.access_counter.write()?;
         
         if let Some(entry) = entries.get_mut(chunk_index)
-            .and_then(|lod_entries| lod_entries.get_mut(lod_index)) {
+            .and_then(|lod_entries| {
+                if lod_index < MAX_LOD_LEVELS {
+                    lod_entries.get_mut(lod_index)
+                } else {
+                    None
+                }
+            }) {
             if let Some(ref mesh) = entry.mesh {
                 *counter += 1;
                 entry.last_access = *counter;
-                return Some((*mesh).clone());
+                return Ok(Some((*mesh).clone()));
             }
         }
         
-        None
+        Ok(None)
     }
     
     /// Insert a mesh into cache
-    pub fn insert(&self, chunk_pos: ChunkPos, lod: MeshLod, mesh: OptimizedMesh) {
-        let Some(chunk_index) = chunk_pos_to_index(chunk_pos) else {
-            return; // Position out of bounds
-        };
+    pub fn insert(&self, chunk_pos: ChunkPos, lod: MeshLod, mesh: OptimizedMesh) -> Result<(), EngineError> {
+        let chunk_index = chunk_pos_to_index(chunk_pos).ok_or_else(|| EngineError::BufferAccess { 
+            index: 0, 
+            size: (MAX_CHUNK_COORD * 2) as usize 
+        })?;
         let lod_index = Self::lod_to_index(lod);
         
         let mesh_size = Self::estimate_mesh_size(&mesh);
         
         // Check if we need to evict entries
         {
-            let current_size = *self.current_size_bytes.read().unwrap();
+            let current_size = *self.current_size_bytes.read()?;
             if current_size + mesh_size > self.max_size_bytes {
-                self.evict_lru(mesh_size);
+                self.evict_lru(mesh_size)?;
             }
         }
         
         // Insert the mesh
-        let mut entries = self.entries.write().unwrap();
-        let mut current_size = self.current_size_bytes.write().unwrap();
-        let mut counter = self.access_counter.write().unwrap();
-        let mut active = self.active_entries.write().unwrap();
+        let mut entries = self.entries.write()?;
+        let mut current_size = self.current_size_bytes.write()?;
+        let mut counter = self.access_counter.write()?;
+        let mut active = self.active_entries.write()?;
         
         *counter += 1;
         
         if let Some(lod_entries) = entries.get_mut(chunk_index) {
+            if lod_index >= MAX_LOD_LEVELS {
+                return Err(EngineError::BufferAccess { 
+                    index: lod_index, 
+                    size: MAX_LOD_LEVELS 
+                });
+            }
             let entry = &mut lod_entries[lod_index];
             
             // Remove old entry size if replacing
@@ -133,38 +157,43 @@ impl PreallocatedMeshCache {
             entry.size_bytes = mesh_size;
             *current_size += mesh_size;
         }
+        
+        Ok(())
     }
     
     /// Clear all cache entries
-    pub fn clear(&self) {
-        let mut entries = self.entries.write().unwrap();
-        let mut current_size = self.current_size_bytes.write().unwrap();
-        let mut active = self.active_entries.write().unwrap();
+    pub fn clear(&self) -> Result<(), EngineError> {
+        let mut entries = self.entries.write()?;
+        let mut current_size = self.current_size_bytes.write()?;
+        let mut active = self.active_entries.write()?;
         
         for (chunk_idx, lod_idx) in active.iter() {
             if let Some(lod_entries) = entries.get_mut(*chunk_idx) {
-                lod_entries[*lod_idx] = LodCacheEntry {
-                    mesh: None,
-                    last_access: 0,
-                    size_bytes: 0,
-                };
+                if *lod_idx < MAX_LOD_LEVELS {
+                    lod_entries[*lod_idx] = LodCacheEntry {
+                        mesh: None,
+                        last_access: 0,
+                        size_bytes: 0,
+                    };
+                }
             }
         }
         
         *current_size = 0;
         active.clear();
+        Ok(())
     }
     
     /// Get cache statistics
-    pub fn stats(&self) -> CacheStats {
-        let current_size = *self.current_size_bytes.read().unwrap();
-        let active = self.active_entries.read().unwrap();
+    pub fn stats(&self) -> Result<CacheStats, EngineError> {
+        let current_size = *self.current_size_bytes.read()?;
+        let active = self.active_entries.read()?;
         
-        CacheStats {
+        Ok(CacheStats {
             entries: active.len(),
             size_mb: current_size as f32 / (1024.0 * 1024.0),
             capacity_mb: self.max_size_bytes as f32 / (1024.0 * 1024.0),
-        }
+        })
     }
     
     /// Estimate mesh size in bytes
@@ -176,10 +205,10 @@ impl PreallocatedMeshCache {
     }
     
     /// Evict least recently used entries to make room
-    fn evict_lru(&self, needed_bytes: usize) {
-        let mut entries = self.entries.write().unwrap();
-        let mut current_size = self.current_size_bytes.write().unwrap();
-        let mut active = self.active_entries.write().unwrap();
+    fn evict_lru(&self, needed_bytes: usize) -> Result<(), EngineError> {
+        let mut entries = self.entries.write()?;
+        let mut current_size = self.current_size_bytes.write()?;
+        let mut active = self.active_entries.write()?;
         
         // Sort active entries by last access time
         let mut sorted_active: Vec<_> = active.iter()
@@ -203,6 +232,9 @@ impl PreallocatedMeshCache {
             }
             
             if let Some(lod_entries) = entries.get_mut(chunk_idx) {
+                if lod_idx >= MAX_LOD_LEVELS {
+                    continue;
+                }
                 let entry = &mut lod_entries[lod_idx];
                 if entry.mesh.is_some() {
                     freed_bytes += entry.size_bytes;
@@ -220,6 +252,8 @@ impl PreallocatedMeshCache {
         for idx in indices_to_remove {
             active.swap_remove(idx);
         }
+        
+        Ok(())
     }
 }
 

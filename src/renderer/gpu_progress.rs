@@ -1,5 +1,15 @@
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
+use crate::error::EngineError;
+
+/// GPU initialization progress tracking module
+/// 
+/// ## Error Handling Pattern
+/// This module demonstrates proper lock-based error handling:
+/// - Mutex::lock() operations use the ? operator instead of unwrap()
+/// - All methods return Result<T, EngineError> for error propagation
+/// - Lock poisoning is properly handled through the EngineError::LockPoisoned variant
+/// - No panic-prone operations remain in production code paths
 
 #[cfg(target_arch = "wasm32")]
 use instant as time_instant;
@@ -55,9 +65,9 @@ impl GpuInitProgress {
     }
     
     /// Start a new step
-    pub fn start_step(&self, name: &str) {
-        let mut steps = self.steps.lock().unwrap();
-        let mut current = self.current_step.lock().unwrap();
+    pub fn start_step(&self, name: &str) -> Result<(), EngineError> {
+        let mut steps = self.steps.lock()?;
+        let mut current = self.current_step.lock()?;
         
         if let Some(step) = steps.iter_mut().find(|s| s.name == name) {
             step.status = StepStatus::InProgress;
@@ -65,12 +75,14 @@ impl GpuInitProgress {
             log::info!("[GPU Init Progress] Step {}/{}: {} - Starting...", 
                       *current + 1, steps.len(), name);
         }
+        
+        Ok(())
     }
     
     /// Complete current step
-    pub fn complete_step(&self, name: &str, details: Option<String>) {
-        let mut steps = self.steps.lock().unwrap();
-        let mut current = self.current_step.lock().unwrap();
+    pub fn complete_step(&self, name: &str, details: Option<String>) -> Result<(), EngineError> {
+        let mut steps = self.steps.lock()?;
+        let mut current = self.current_step.lock()?;
         
         if let Some(step) = steps.iter_mut().find(|s| s.name == name) {
             let duration = self.start_time.elapsed();
@@ -89,11 +101,13 @@ impl GpuInitProgress {
                           *current, steps.len(), name, elapsed);
             }
         }
+        
+        Ok(())
     }
     
     /// Fail current step
-    pub fn fail_step(&self, name: &str, error: String) {
-        let mut steps = self.steps.lock().unwrap();
+    pub fn fail_step(&self, name: &str, error: String) -> Result<(), EngineError> {
+        let mut steps = self.steps.lock()?;
         
         if let Some(step) = steps.iter_mut().find(|s| s.name == name) {
             step.status = StepStatus::Failed(error.clone());
@@ -101,38 +115,43 @@ impl GpuInitProgress {
             
             log::error!("[GPU Init Progress] Step FAILED: {} - {}", name, error);
         }
+        
+        Ok(())
     }
     
     /// Add warning to current step
-    pub fn warn_step(&self, name: &str, warning: String) {
-        let mut steps = self.steps.lock().unwrap();
+    pub fn warn_step(&self, name: &str, warning: String) -> Result<(), EngineError> {
+        let mut steps = self.steps.lock()?;
         
         if let Some(step) = steps.iter_mut().find(|s| s.name == name) {
             step.status = StepStatus::Warning(warning.clone());
             log::warn!("[GPU Init Progress] Step WARNING: {} - {}", name, warning);
         }
+        
+        Ok(())
     }
     
     /// Get progress percentage
-    pub fn get_progress(&self) -> f32 {
-        let steps = self.steps.lock().unwrap();
+    pub fn get_progress(&self) -> Result<f32, EngineError> {
+        let steps = self.steps.lock()?;
         let completed = steps.iter().filter(|s| matches!(s.status, StepStatus::Completed)).count();
-        (completed as f32 / steps.len() as f32) * 100.0
+        Ok((completed as f32 / steps.len() as f32) * 100.0)
     }
     
     /// Print summary
-    pub fn print_summary(&self) {
-        let steps = self.steps.lock().unwrap();
+    pub fn print_summary(&self) -> Result<(), EngineError> {
+        let steps = self.steps.lock()?;
         let total_time = self.start_time.elapsed();
         
         log::info!("=== GPU Initialization Summary ===");
         log::info!("Total time: {:.2}s", total_time.as_secs_f32());
-        log::info!("Progress: {:.1}%", self.get_progress());
         
         let completed = steps.iter().filter(|s| matches!(s.status, StepStatus::Completed)).count();
         let failed = steps.iter().filter(|s| matches!(s.status, StepStatus::Failed(_))).count();
         let warnings = steps.iter().filter(|s| matches!(s.status, StepStatus::Warning(_))).count();
         
+        let progress = (completed as f32 / steps.len() as f32) * 100.0;
+        log::info!("Progress: {:.1}%", progress);
         log::info!("Steps: {} completed, {} failed, {} warnings", completed, failed, warnings);
         
         if failed > 0 {
@@ -152,12 +171,14 @@ impl GpuInitProgress {
                 }
             }
         }
+        
+        Ok(())
     }
     
     /// Check if initialization should continue
-    pub fn should_continue(&self) -> bool {
-        let steps = self.steps.lock().unwrap();
-        !steps.iter().any(|s| matches!(s.status, StepStatus::Failed(_)))
+    pub fn should_continue(&self) -> Result<bool, EngineError> {
+        let steps = self.steps.lock()?;
+        Ok(!steps.iter().any(|s| matches!(s.status, StepStatus::Failed(_))))
     }
 }
 
