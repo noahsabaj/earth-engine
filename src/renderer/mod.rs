@@ -13,7 +13,7 @@ mod soa_mesh_builder;
 mod compute_pipeline;
 pub mod gpu_driven;
 pub mod gpu_culling;
-mod allocation_optimizations;
+pub mod allocation_optimizations;
 mod zero_alloc_pools;
 pub mod data_mesh_builder;
 pub mod error;

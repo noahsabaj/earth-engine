@@ -9,7 +9,7 @@ use std::sync::Arc;
 use wgpu::util::DeviceExt;
 use bytemuck::{Pod, Zeroable};
 use cgmath::{Matrix4};
-use super::indirect_commands::DrawMetadata;
+pub use super::indirect_commands::{DrawMetadata};
 use crate::camera::{Camera, CameraData as CameraCameraData, build_camera_uniform};
 
 /// Camera data for culling shader
