@@ -2,15 +2,14 @@
 /// Tests the complete Sprint 20 implementation
 
 use earth_engine::renderer::gpu_driven::{
-    GpuDrivenRenderer, RenderStats,
+    RenderStats,
     indirect_commands::{IndirectCommandManager, DrawMetadata},
     instance_buffer::{InstanceManager, InstanceData},
     culling_pipeline::CullingPipeline,
     lod_system::{LodSystem, LodConfig, LodLevel},
 };
-use earth_engine::Camera;
+use earth_engine::camera::data_camera::init_camera_with_spawn;
 use cgmath::{Vector3, Point3, Deg};
-use wgpu::util::DeviceExt;
 use std::sync::Arc;
 
 #[tokio::main]
@@ -45,10 +44,7 @@ async fn main() {
     let device = Arc::new(device);
     
     // Create test camera
-    let mut camera = Camera::new(1920, 1080);
-    camera.position = Point3::new(0.0, 10.0, 50.0);
-    camera.yaw = Deg(0.0);
-    camera.pitch = Deg(-17.0);
+    let mut camera = init_camera_with_spawn(1920, 1080, 0.0, 10.0, 50.0);
     
     // Note: Not creating full GpuDrivenRenderer as it requires render pipeline setup
     // Instead testing individual components that make up the GPU-driven system
@@ -110,7 +106,7 @@ async fn main() {
     println!("\n3. Testing GPU Culling");
     println!("-----------------------");
     
-    let culling_pipeline = CullingPipeline::new(&device);
+    let culling_pipeline = CullingPipeline::new(device.clone());
     culling_pipeline.update_camera(&queue, &camera);
     println!("Updated culling pipeline with camera data");
     
@@ -154,7 +150,7 @@ async fn main() {
     println!("\n4. Testing LOD System");
     println!("---------------------");
     
-    let camera_pos = Vector3::new(camera.position.x, camera.position.y, camera.position.z);
+    let camera_pos = Vector3::new(camera.position[0], camera.position[1], camera.position[2]);
     let mut lod_stats = [0u32; 4]; // Count LODs 0-3
     
     for (i, metadata) in draw_metadata.iter().enumerate() {
@@ -194,7 +190,9 @@ async fn main() {
         distance_culled: 0,
         objects_drawn: 0,
         draw_calls: 1,
-        frame_time_ms: 0.0,
+        frame_time_ms: 16.0,
+        instances_added: draw_metadata.len() as u32,
+        objects_rejected: 0,
     };
     
     println!("Initial stats: {:?}", stats);

@@ -32,7 +32,7 @@ fn main() {
 fn test_basic_process() {
     println!("1. Testing Basic Process Creation:");
     
-    let mut manager = ProcessManager::new();
+    let mut manager = ProcessManager::new().expect("Failed to create ProcessManager");
     let owner = InstanceId::new();
     
     // Start a simple crafting process
@@ -133,7 +133,7 @@ fn test_transform_stages() {
 fn test_parallel_processing() {
     println!("\n4. Testing Parallel Processing:");
     
-    let mut processor = parallel_processor::ParallelProcessor::new();
+    let mut processor = parallel_processor::ParallelProcessor::new().expect("Failed to create ParallelProcessor");
     let mut data = ProcessData::new();
     let mut state_machines = Vec::new();
     

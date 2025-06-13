@@ -9,7 +9,10 @@ use std::time::Instant;
 use earth_engine::{
     renderer::{ObjectPool, with_meshing_buffers, Vertex},
     physics::PhysicsWorldData,
-    lighting::OptimizedLightPropagator,
+    lighting::optimized_propagation::{
+        LightPropagatorData, LightPropagatorConfig, create_light_propagator_data,
+        add_light, propagate_light, clear_propagation_buffers, remove_light
+    },
     world::{World, VoxelPos, BlockId, Chunk, ChunkPos},
     BlockRegistry,
 };
@@ -234,7 +237,7 @@ fn benchmark_physics() {
 fn benchmark_lighting() {
     println!("\n=== Lighting Benchmark ===");
     
-    let mut propagator = OptimizedLightPropagator::new();
+    let mut propagator_data = create_light_propagator_data(LightPropagatorConfig::default());
     let mut world = World::new(32);
     
     // Add some blocks
@@ -250,9 +253,9 @@ fn benchmark_lighting() {
     
     // Warmup
     for _ in 0..10 {
-        propagator.add_light(VoxelPos::new(16, 12, 16), earth_engine::lighting::LightType::Block, 15);
-        propagator.propagate(&mut world);
-        propagator.clear();
+        add_light(&mut propagator_data, VoxelPos::new(16, 12, 16), earth_engine::lighting::LightType::Block, 15);
+        propagate_light(&mut propagator_data, &mut world);
+        clear_propagation_buffers(&mut propagator_data.buffers);
     }
     
     // Reset allocator
@@ -265,16 +268,16 @@ fn benchmark_lighting() {
         // Add a light source
         let x = (i % 30) as i32 + 1;
         let z = ((i / 30) % 30) as i32 + 1;
-        propagator.add_light(VoxelPos::new(x, 12, z), earth_engine::lighting::LightType::Block, 15);
+        add_light(&mut propagator_data, VoxelPos::new(x, 12, z), earth_engine::lighting::LightType::Block, 15);
         
         // Remove another light
         if i > 30 {
             let rx = ((i - 30) % 30) as i32 + 1;
             let rz = (((i - 30) / 30) % 30) as i32 + 1;
-            propagator.remove_light(VoxelPos::new(rx, 12, rz), earth_engine::lighting::LightType::Block, 15);
+            remove_light(&mut propagator_data, VoxelPos::new(rx, 12, rz), earth_engine::lighting::LightType::Block, 15);
         }
         
-        propagator.propagate(&mut world);
+        propagate_light(&mut propagator_data, &mut world);
     }
     
     let duration = start.elapsed();

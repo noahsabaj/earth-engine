@@ -7,7 +7,7 @@
 use earth_engine::renderer::gpu_culling::{
     GpuCullingSystem, GpuCamera, ChunkInstance, CullingStats, GpuCullingMetrics
 };
-use cgmath::{Matrix4, Vector3, Point3, Deg, perspective};
+use cgmath::{Matrix4, Vector3, Point3, Deg, perspective, EuclideanSpace};
 use std::time::Instant;
 use bytemuck::{Pod, Zeroable};
 use wgpu::util::DeviceExt;
@@ -132,11 +132,11 @@ fn main() {
             queue.submit(Some(encoder.finish()));
         }
         
-        gpu_state.device.poll(wgpu::Maintain::Wait);
+        device.poll(wgpu::Maintain::Wait);
         let elapsed = start.elapsed();
         
         // Read statistics
-        let stats = pollster::block_on(culling_system.read_stats(&gpu_state.device, &gpu_state.queue));
+        let stats = pollster::block_on(culling_system.read_stats(&device, &queue)).expect("Failed to read stats");
         
         // Print results
         println!("  Total chunks: {}", stats.total_chunks);
@@ -190,13 +190,12 @@ fn generate_test_chunks(count: usize, world_size: f32, chunk_size: f32) -> Vec<C
         let y = base_y + rng.gen_range(-spacing * 0.1..spacing * 0.1);
         let z = base_z + rng.gen_range(-spacing * 0.3..spacing * 0.3);
         
-        chunks.push(ChunkInstance {
-            world_position: [x, y, z],
-            chunk_size,
-            lod_level: 0,
-            flags: 0,
-            _padding: [0.0; 2],
-        });
+        let mut instance = ChunkInstance::zeroed();
+        instance.world_position = [x, y, z];
+        instance.chunk_size = chunk_size;
+        instance.lod_level = 0;
+        instance.flags = 0;
+        chunks.push(instance);
     }
     
     chunks

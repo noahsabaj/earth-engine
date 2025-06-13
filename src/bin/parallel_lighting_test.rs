@@ -129,7 +129,7 @@ impl Game for ParallelLightingGame {
     fn update(&mut self, ctx: &mut GameContext, _delta_time: f32) {
         // Update parallel world
         if let Some(world) = self.world.read().as_ref() {
-            world.update(ctx.camera.position);
+            world.update(ctx.camera.position.into());
             
             // Process light updates
             if let Some(propagator) = self.light_propagator.read().as_ref() {
