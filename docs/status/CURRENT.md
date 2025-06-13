@@ -81,9 +81,16 @@ After false claims, a full verification was performed:
 
 ### Completed Today (June 13)
 - ✅ Fixed player spawning inside terrain issue
-  - Increased spawn height offset from 1.0 to 5.0 blocks above surface
+  - Increased spawn height offset to 10 blocks above surface
+  - Fixed coordinate system mismatch in verify_spawn_position (feet vs body center)
   - Camera is correctly positioned 0.72 units above physics body for eye level
-  - Player now spawns properly above ground instead of inside mountains
+- ✅ Fixed 100% CPU usage ("jet engine" issue)
+  - Removed busy-wait loop in event handling
+  - Added frame rate limiting to 60 FPS
+  - Computer should run much cooler now
+- ✅ Fixed GPU renderer instance buffer disconnect
+  - Added missing upload_instances() call after submit_objects
+  - Chunks should now properly render instead of showing "0 drawn"
 
 ### Completed Previously (June 12)
 - ✅ Particle system converted to data-oriented design
