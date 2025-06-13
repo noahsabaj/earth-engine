@@ -41,11 +41,15 @@ impl SpawnFinder {
         let (spawn_x, spawn_z) = best_pos.unwrap_or((start_x, start_z));
         let surface_y = world.get_surface_height(spawn_x as f64, spawn_z as f64) as f32;
         
-        // Add safety margin above the surface (10 blocks to ensure we're above ground)
-        // The physics body center will be placed here, and camera is 0.72 above that
-        // With body height of 1.8m, feet will be at surface_y + 10.0 - 0.9 = surface_y + 9.1
-        let safe_y = surface_y + 10.0;
+        // Add safety margin above the surface
+        // IMPORTANT: get_surface_height returns the Y of the TOP surface block
+        // We need to spawn ABOVE this, not at this height
+        // Physics body center should be well above the surface
+        let safe_y = surface_y + 15.0; // Increased from 10 to ensure we're above ridges
         let spawn_pos = Point3::new(spawn_x, safe_y.clamp(20.0, 250.0), spawn_z);
+        
+        log::warn!("[SpawnFinder] Surface at y={}, spawning body center at y={} (feet at y={})", 
+                  surface_y, safe_y, safe_y - 0.9);
         
         log::info!("[SpawnFinder] Selected spawn position at {:?} (surface height: {})", spawn_pos, surface_y);
         
