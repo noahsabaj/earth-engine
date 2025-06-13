@@ -712,7 +712,14 @@ impl GpuState {
             0.8,  // Friction
             0.0,  // Restitution
         );
-        log::info!("[GpuState::new] Physics world created with player entity at safe spawn position");
+        log::info!("[GpuState::new] Physics world created with player entity ID: {} at safe spawn position: {:?}", player_entity, camera.position);
+        
+        // Verify the entity was added correctly
+        if let Some(body) = physics_world.get_body(player_entity) {
+            log::info!("[GpuState::new] Player body verified at position: [{:.2}, {:.2}, {:.2}]", body.position[0], body.position[1], body.position[2]);
+        } else {
+            log::error!("[GpuState::new] Failed to retrieve player body after creation!");
+        }
         
         // Create lighting systems
         log::info!("[GpuState::new] Creating lighting systems...");
@@ -1076,6 +1083,10 @@ impl GpuState {
                 self.world.chunk_manager().loaded_chunk_count()
             );
             
+            // Clear instances before submitting new objects
+            // This ensures we're rebuilding the scene with the current set of chunks
+            self.chunk_renderer.clear_instances();
+            
             self.chunk_renderer.submit_objects(&render_objects);
             self.total_objects_submitted += render_object_count as u64;
             self.last_submission_time = std::time::Instant::now();
@@ -1192,7 +1203,10 @@ impl GpuState {
     
     fn process_input(&mut self, input: &InputState, delta_time: f32, active_block: BlockId) -> (Option<(VoxelPos, BlockId)>, Option<VoxelPos>) {
         // Get player body for movement
+        log::debug!("[process_input] Player entity ID: {}", self.player_entity);
         if let Some(body) = self.physics_world.get_body_mut(self.player_entity) {
+            log::debug!("[process_input] Body position before: [{:.2}, {:.2}, {:.2}]", body.position[0], body.position[1], body.position[2]);
+            log::debug!("[process_input] Body velocity before: [{:.2}, {:.2}, {:.2}]", body.velocity[0], body.velocity[1], body.velocity[2]);
             // Calculate movement direction based on camera yaw
             let yaw_rad = cgmath::Rad::from(self.camera.yaw).0;
             let forward = Vector3::new(yaw_rad.cos(), 0.0, yaw_rad.sin());
@@ -1202,15 +1216,19 @@ impl GpuState {
             
             // Movement input
             if input.is_key_pressed(KeyCode::KeyW) {
+                log::debug!("[process_input] W key pressed!");
                 move_dir += forward;
             }
             if input.is_key_pressed(KeyCode::KeyS) {
+                log::debug!("[process_input] S key pressed!");
                 move_dir -= forward;
             }
             if input.is_key_pressed(KeyCode::KeyA) {
+                log::debug!("[process_input] A key pressed!");
                 move_dir -= right;
             }
             if input.is_key_pressed(KeyCode::KeyD) {
+                log::debug!("[process_input] D key pressed!");
                 move_dir += right;
             }
             
@@ -1241,6 +1259,9 @@ impl GpuState {
             body.velocity[0] = horizontal_vel.x;
             body.velocity[2] = horizontal_vel.z;
             
+            log::debug!("[process_input] Move direction: [{:.2}, {:.2}, {:.2}], speed: {:.2}", move_dir.x, move_dir.y, move_dir.z, move_speed);
+            log::debug!("[process_input] Body velocity after: [{:.2}, {:.2}, {:.2}]", body.velocity[0], body.velocity[1], body.velocity[2]);
+            
             // Handle vertical movement
             if is_on_ladder {
                 // Ladder climbing
@@ -1263,6 +1284,9 @@ impl GpuState {
                 // Swim down
                 body.velocity[1] = -2.0;
             }
+        } else {
+            log::error!("[process_input] Failed to get player body! Entity ID: {}", self.player_entity);
+            log::error!("[process_input] Physics world active count: {}", self.physics_world.active_count);
         }
         
         // Mouse look - only process if cursor is locked
@@ -1885,10 +1909,13 @@ pub async fn run_app<G: Game + 'static>(
                         }
                         
                         // Update physics
+                        log::trace!("[render loop] Updating physics with delta_time: {:.4}", delta_time);
                         gpu_state.physics_world.update(&gpu_state.world, delta_time);
                         
                         // Sync camera position with player physics body
+                        log::trace!("[render loop] Syncing camera with player entity {}", gpu_state.player_entity);
                         if let Some(body) = gpu_state.physics_world.get_body(gpu_state.player_entity) {
+                            log::debug!("[render loop] Physics body position: [{:.2}, {:.2}, {:.2}]", body.position[0], body.position[1], body.position[2]);
                             let player_pos = Point3::new(
                                 body.position[0],
                                 body.position[1],
@@ -1901,6 +1928,7 @@ pub async fn run_app<G: Game + 'static>(
                                 player_pos.y + 0.72,
                                 player_pos.z
                             );
+                            log::debug!("[render loop] Camera position updated to: [{:.2}, {:.2}, {:.2}]", gpu_state.camera.position.x, gpu_state.camera.position.y, gpu_state.camera.position.z);
                         }
                         
                         // Update loaded chunks based on player position

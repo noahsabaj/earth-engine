@@ -179,12 +179,19 @@ impl GpuDrivenRenderer {
         self.culling_data.clear();
         self.stats = RenderStats::default();
         
-        // CRITICAL FIX: Clear ALL instance buffers at the start of each frame
-        // This prevents accumulation of instances across frames
-        self.instance_manager.clear_all();
+        // NOTE: We do NOT clear instance buffers here anymore.
+        // Instance buffers should persist across frames and only be updated
+        // when objects change (chunks are added/removed/modified).
+        // This fixes the issue where instances were being cleared every frame.
         
         // Update camera for culling
         self.culling_pipeline.update_camera(&self.queue, camera);
+    }
+    
+    /// Clear all instances - should only be called when rebuilding the entire scene
+    pub fn clear_instances(&mut self) {
+        self.instance_manager.clear_all();
+        log::debug!("[GpuDrivenRenderer::clear_instances] Cleared all instance buffers for scene rebuild");
     }
     
     /// Upload instance data to GPU after submission
@@ -428,6 +435,11 @@ impl GpuDrivenRenderer {
     /// Check if GPU-driven rendering is available
     pub fn is_available(&self) -> bool {
         self.render_pipeline.is_some() && self.culling_pipeline.is_available()
+    }
+    
+    /// Get the current instance count (for testing/debugging)
+    pub fn get_instance_count(&self) -> u32 {
+        self.instance_manager.chunk_instances().count()
     }
 }
 
