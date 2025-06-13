@@ -1,10 +1,11 @@
+#![allow(unused_variables, dead_code)]
 /// Network-Friendly Instance Syncing
 /// 
 /// Efficient synchronization of instances across network.
 /// Uses delta compression and batching for minimal bandwidth.
 /// Supports both reliable and unreliable transport.
 
-use crate::instance::{InstanceId, InstanceType, MetadataValue, MetadataKey};
+use crate::instance::{InstanceId, InstanceType, MetadataValue};
 use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
 

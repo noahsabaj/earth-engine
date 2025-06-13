@@ -6,7 +6,6 @@
 
 use wgpu::{Device, Buffer, RenderPipeline};
 use wgpu::util::DeviceExt;
-use super::DrawCommand;
 
 pub struct IndirectRenderer {
     render_pipeline: RenderPipeline,

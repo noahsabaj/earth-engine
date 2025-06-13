@@ -13,8 +13,6 @@ use crate::error::EngineError;
 
 #[cfg(target_arch = "wasm32")]
 use instant as time_instant;
-#[cfg(not(target_arch = "wasm32"))]
-use std::time as time_instant;
 
 /// GPU initialization progress tracker
 pub struct GpuInitProgress {
@@ -67,7 +65,7 @@ impl GpuInitProgress {
     /// Start a new step
     pub fn start_step(&self, name: &str) -> Result<(), EngineError> {
         let mut steps = self.steps.lock()?;
-        let mut current = self.current_step.lock()?;
+        let current = self.current_step.lock()?;
         
         if let Some(step) = steps.iter_mut().find(|s| s.name == name) {
             step.status = StepStatus::InProgress;

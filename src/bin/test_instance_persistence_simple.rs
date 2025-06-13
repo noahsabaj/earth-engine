@@ -1,5 +1,4 @@
 // Simple test to verify the fix logic without GPU initialization
-use std::path::Path;
 use std::fs;
 
 fn main() {

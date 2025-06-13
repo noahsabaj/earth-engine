@@ -1,4 +1,4 @@
-use wgpu::{Device, ComputePipeline, BindGroup, BindGroupLayout};
+use wgpu::{Device, ComputePipeline, BindGroupLayout};
 use crate::world_gpu::WorldBuffer;
 use crate::sdf::{SdfBuffer, SdfConstants};
 use crate::sdf::error::{SdfResult, SdfErrorContext};

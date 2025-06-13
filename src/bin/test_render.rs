@@ -77,6 +77,10 @@ impl Game for TestGame {
     fn update(&mut self, _ctx: &mut GameContext, _delta_time: f32) {
         // Log camera position periodically
         static mut COUNTER: u32 = 0;
+        // SAFETY: Accessing static mut COUNTER is safe because:
+        // - This is a test binary running single-threaded
+        // - Game::update is called sequentially from the main thread
+        // - No concurrent access to the static variable occurs
         unsafe {
             COUNTER += 1;
             if COUNTER % 60 == 0 {

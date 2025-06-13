@@ -4,9 +4,8 @@
 /// No allocations in hot paths, uses buffer pools
 
 use crate::{
-    ChunkPos, BlockId, VoxelPos,
+    ChunkPos, BlockId,
     world::{ChunkSoA, BlockRegistry},
-    lighting::LightLevel,
     renderer::{
         data_mesh_builder::{MeshBuffer, MESH_BUFFER_POOL, operations},
         vertex::Vertex,

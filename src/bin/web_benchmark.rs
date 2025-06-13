@@ -1,4 +1,3 @@
-use std::time::Instant;
 
 /// Benchmark WebGPU buffer operations
 fn main() {

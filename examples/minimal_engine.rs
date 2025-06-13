@@ -45,9 +45,17 @@ impl Game for MinimalGame {
         }
         
         // Simple logging every few seconds
+        // SAFETY: Using zeroed() for Instant is safe because:
+        // - Instant is a wrapper around system time structures
+        // - The zeroed value represents the Unix epoch or a similar system baseline
+        // - We immediately overwrite it with a proper value before first use
         static mut LAST_LOG: std::time::Instant = unsafe { std::mem::zeroed() };
         static mut INITIALIZED: bool = false;
         
+        // SAFETY: Accessing static mut variables is safe in this single-threaded context because:
+        // - This is a minimal example running on the main thread only
+        // - No concurrent access occurs since Game::update is called sequentially
+        // - Static variables maintain their state between calls
         unsafe {
             if !INITIALIZED {
                 LAST_LOG = std::time::Instant::now();

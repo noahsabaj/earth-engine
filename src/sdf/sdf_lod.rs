@@ -1,5 +1,6 @@
+#![allow(unused_variables, dead_code)]
 use wgpu::{Device, Buffer, ComputePipeline, BindGroupLayout};
-use crate::sdf::{SdfBuffer, SdfChunk, SurfaceExtractor, ExtractionParams};
+use crate::sdf::{SdfChunk, SurfaceExtractor, ExtractionParams};
 use std::sync::Arc;
 use bytemuck::{Pod, Zeroable};
 use glam::Vec3;

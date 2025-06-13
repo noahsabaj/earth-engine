@@ -1,5 +1,5 @@
 use wgpu::{Device, ComputePipeline, BindGroup, BindGroupLayout, CommandEncoder, Buffer};
-use crate::fluid::{FluidBuffer, FluidConstants, BoundaryConditions};
+use crate::fluid::{FluidBuffer, FluidConstants};
 use std::sync::Arc;
 use bytemuck::{Pod, Zeroable};
 

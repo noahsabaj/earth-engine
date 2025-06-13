@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use wgpu::{Device, Queue, Texture, TextureView, TextureDescriptor, TextureFormat};
-use image::{DynamicImage, ImageFormat};
+use image::DynamicImage;
 use super::{WatchEvent, WatchEventType, HotReloadResult, HotReloadErrorContext, asset_reload_error};
 use crate::error::EngineError;
 

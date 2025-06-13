@@ -1,14 +1,14 @@
 use earth_engine::{
     lighting::{
-        ParallelLightPropagator, LightUpdate, TestBlockProvider,
-        LightType, LightingStats, BatchLightCalculator,
+        ParallelLightPropagator, TestBlockProvider,
+        LightType, BatchLightCalculator,
         MAX_LIGHT_LEVEL,
     },
     world::{ChunkPos, VoxelPos},
     BlockId,
 };
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 fn main() {
     println!("Earth Engine - Parallel Lighting Benchmark");

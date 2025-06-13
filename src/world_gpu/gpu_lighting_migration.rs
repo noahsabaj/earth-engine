@@ -5,10 +5,10 @@
 
 use std::sync::Arc;
 use std::collections::VecDeque;
-use wgpu::{Device, Queue, CommandEncoder};
+use wgpu::{Device, Queue};
 use crate::{
     world::{ChunkPos, VoxelPos, BlockId},
-    lighting::{LightLevel, LightType, LightUpdate, LightingStats, BlockProvider},
+    lighting::{LightUpdate, LightingStats, BlockProvider},
     world_gpu::{WorldBuffer, GpuLighting},
     memory::BandwidthProfiler,
 };

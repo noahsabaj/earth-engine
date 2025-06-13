@@ -3,7 +3,7 @@
 /// Sprint 35: Pure data structures for chunk management.
 /// No allocations in hot paths, no internal state mutations.
 
-use crate::{ChunkPos, VoxelPos, BlockId};
+use crate::ChunkPos;
 use bytemuck::{Pod, Zeroable};
 
 /// Maximum chunks that can be loaded at once

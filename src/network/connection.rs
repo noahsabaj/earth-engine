@@ -1,9 +1,9 @@
 use std::net::{SocketAddr, TcpStream, UdpSocket};
-use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::sync::Arc;
+use std::time::Instant;
 use std::io::{Read, Write, ErrorKind};
 use std::collections::VecDeque;
-use crate::network::{Packet, PacketType, Protocol, KEEPALIVE_INTERVAL, CONNECTION_TIMEOUT};
+use crate::network::{Packet, PacketType, CONNECTION_TIMEOUT};
 
 /// Connection state
 #[derive(Debug, Clone, Copy, PartialEq)]

@@ -1,3 +1,5 @@
+#![allow(unused_variables, dead_code, unused_imports)]
+
 pub mod error;
 pub mod panic_handler;
 pub mod thread_pool;

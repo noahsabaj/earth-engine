@@ -1,5 +1,4 @@
 use wgpu::{Adapter, Device, Instance, Surface};
-use anyhow::Result;
 use std::time::Duration;
 
 /// GPU recovery strategies for initialization failures

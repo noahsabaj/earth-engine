@@ -1,7 +1,8 @@
-use crate::sdf::{SdfBuffer, SdfValue};
+#![allow(unused_variables, dead_code)]
+use crate::sdf::SdfBuffer;
 use crate::world_gpu::WorldBuffer;
 use crate::physics::AABB;
-use glam::{Vec3, Mat4};
+use glam::Vec3;
 use cgmath::Point3;
 use std::sync::Arc;
 use wgpu::Device;

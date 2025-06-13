@@ -1,6 +1,6 @@
 use super::world_data::EcsWorldData;
 use super::entity_data::EntityId;
-use super::component_data::{COMPONENT_TRANSFORM, COMPONENT_PHYSICS, COMPONENT_ITEM};
+use super::component_data::{COMPONENT_TRANSFORM, COMPONENT_PHYSICS};
 
 /// Gravity constant for items
 const ITEM_GRAVITY: f32 = 20.0;

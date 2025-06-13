@@ -1,5 +1,4 @@
 use super::EntityId;
-use super::error::{PhysicsDataResult, PhysicsDataErrorContext, collision_data_error};
 use std::sync::atomic::{AtomicU32, Ordering};
 
 /// Maximum number of collision pairs per frame

@@ -1,9 +1,10 @@
+#![allow(unused_variables, dead_code)]
 /// Data-Oriented Chunk Rendering Functions
 /// 
 /// Pure functions for transforming chunk data into render-ready structures.
 /// No methods, no self, just data transformation following DOP principles.
 
-use crate::{ChunkPos, BlockId, VoxelPos};
+use crate::{ChunkPos, BlockId};
 use crate::renderer::data_mesh_builder::{MeshBuffer, operations};
 use crate::renderer::gpu_driven::gpu_driven_renderer::RenderObject;
 use cgmath::{Vector3, InnerSpace};

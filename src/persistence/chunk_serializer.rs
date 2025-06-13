@@ -611,7 +611,7 @@ mod tests {
         // Find and corrupt the block_count field in the header
         // Create a fake header with invalid block count
         let invalid_header = ChunkHeader {
-            magic: *CHUNK_MAGIC,
+            magic: [CHUNK_MAGIC[0], CHUNK_MAGIC[1], CHUNK_MAGIC[2], CHUNK_MAGIC[3]],
             version: CHUNK_FORMAT_VERSION,
             format: 0,
             chunk_pos: ChunkPos { x: 0, y: 0, z: 0 },
@@ -641,7 +641,8 @@ mod tests {
         
         // Corrupt some data after the header to cause checksum mismatch
         if data.len() > 50 {
-            data[data.len() - 1] = data[data.len() - 1].wrapping_add(1);
+            let idx = data.len() - 1;
+            data[idx] = data[idx].wrapping_add(1);
         }
         
         let result = serializer.deserialize(&data);

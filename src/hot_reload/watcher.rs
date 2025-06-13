@@ -50,7 +50,7 @@ impl FileWatcher {
         let debounce_duration = Duration::from_millis(debounce_ms);
         
         // Create notify watcher
-        let mut watcher = notify::recommended_watcher(move |res: Result<Event, notify::Error>| {
+        let watcher = notify::recommended_watcher(move |res: Result<Event, notify::Error>| {
             if let Ok(event) = res {
                 let now = Instant::now();
                 

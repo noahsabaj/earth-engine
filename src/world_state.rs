@@ -292,7 +292,7 @@ pub mod operations {
 
 /// Buffer views for CPU access (debugging/tools only)
 pub mod views {
-    use super::*;
+    
     
     /// Read-only view of entity positions
     pub struct EntityPositionView<'a> {

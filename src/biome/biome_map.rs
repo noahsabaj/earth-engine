@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use glam::Vec2;
 use crate::biome::{BiomeType, BiomeProperties};
 
 /// Information about a biome at a specific location

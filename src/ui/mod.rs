@@ -27,5 +27,6 @@ pub use inventory_input::{InventoryInputHandler, MouseButton};
 // Legacy OOP-style UI (to be removed)
 #[deprecated(note = "Use data_inventory_ui module instead")]
 pub mod inventory_ui;
+#[allow(deprecated)]
 #[deprecated(note = "Use InventoryUIData instead")]
 pub use inventory_ui::InventoryUI;

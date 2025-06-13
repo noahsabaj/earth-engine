@@ -1,6 +1,6 @@
-use crate::world::{BlockId, VoxelPos, ChunkPos, Chunk};
+use crate::world::{BlockId, VoxelPos, ChunkPos};
 use cgmath::Point3;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 /// Common interface for world implementations
 /// This trait allows GameContext to work with both World and ParallelWorld

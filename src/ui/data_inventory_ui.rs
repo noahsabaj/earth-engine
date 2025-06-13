@@ -4,13 +4,11 @@
 /// No methods, no mutations through self, just data and transformations.
 
 use crate::inventory::{
-    PlayerInventoryData, ItemStackData, InventorySlotData,
+    PlayerInventoryData, ItemStackData,
     get_selected_hotbar_index, get_slot, get_slot_item,
     HOTBAR_SIZE, INVENTORY_SIZE
 };
-use crate::renderer::ui::{UIRenderer, UIElement, UIRect, UIColor};
-use crate::item::ItemId;
-use glam::Vec2;
+use crate::renderer::ui::{UIRenderer, UIRect, UIColor};
 use bytemuck::{Pod, Zeroable};
 
 /// Size of inventory slots in pixels

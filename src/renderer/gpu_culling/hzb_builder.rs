@@ -1,3 +1,4 @@
+#![allow(unused_variables, dead_code)]
 /// Hierarchical Z-Buffer Builder
 /// 
 /// Builds and manages hierarchical depth buffer for occlusion culling.

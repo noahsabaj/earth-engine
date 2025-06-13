@@ -1,5 +1,5 @@
 use crate::crafting::{RecipeRegistry, CraftingGrid};
-use crate::inventory::{ItemStackData, create_item_stack};
+use crate::inventory::ItemStackData;
 use crate::item::{ItemRegistry, ItemId};
 use crate::renderer::ui::{UIRenderer, UIRect, UIColor};
 use glam::Vec2;

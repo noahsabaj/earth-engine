@@ -2,7 +2,6 @@ use std::collections::{HashSet, VecDeque};
 use std::time::Instant;
 use cgmath::Point3;
 use crate::{Chunk, ChunkPos, VoxelPos, BlockId};
-use crate::lighting::SkylightCalculator;
 use crate::utils::chunk_spatial_hash::{ChunkSpatialHash, ChunkDistanceHash};
 use super::generation::WorldGenerator;
 use super::frame_budget::ChunkLoadThrottler;

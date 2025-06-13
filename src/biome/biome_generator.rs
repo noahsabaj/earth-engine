@@ -1,5 +1,5 @@
 use crate::biome::{BiomeType, BiomeMap, BiomeProperties};
-use crate::world::{Chunk, ChunkPos, VoxelPos, BlockId};
+use crate::world::{Chunk, ChunkPos, BlockId};
 use noise::{NoiseFn, Perlin};
 
 /// Parameters for biome generation

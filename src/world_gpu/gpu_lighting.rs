@@ -1,6 +1,5 @@
 use std::sync::Arc;
 use wgpu::util::DeviceExt;
-use bytemuck::{Pod, Zeroable};
 use crate::world::ChunkPos;
 use super::world_buffer::WorldBuffer;
 

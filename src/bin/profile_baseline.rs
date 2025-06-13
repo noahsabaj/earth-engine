@@ -1,3 +1,4 @@
+#![allow(unused_variables, dead_code, unused_imports)]
 use earth_engine::profiling::{CacheProfiler, MemoryProfiler, PerformanceMetrics};
 use earth_engine::world::{
     Block, BlockId, Chunk, ChunkPos, VoxelPos, World,

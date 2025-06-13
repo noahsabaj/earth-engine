@@ -6,7 +6,6 @@
 //! buffer bindings with appropriate lifetimes.
 
 use std::sync::Arc;
-use bytemuck::{Pod, Zeroable};
 
 /// Unified memory layout for all GPU world systems
 /// This ensures all systems can access world data efficiently without copies

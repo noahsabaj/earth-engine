@@ -1,3 +1,4 @@
+#![allow(unused_variables, dead_code, unused_imports)]
 /// Test program for Dynamic Attribute System
 /// 
 /// Demonstrates flexible runtime attribute management with:

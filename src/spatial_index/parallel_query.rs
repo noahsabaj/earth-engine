@@ -1,4 +1,3 @@
-use std::sync::Arc;
 use rayon::prelude::*;
 use crate::thread_pool::{ThreadPoolManager, PoolCategory};
 use super::{SpatialQuery, QueryResult, HierarchicalGrid, entity_store::EntityStore, QueryType};

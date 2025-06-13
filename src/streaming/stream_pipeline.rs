@@ -4,8 +4,7 @@ use tokio::sync::mpsc;
 use wgpu::{Device, Queue};
 use crate::streaming::{
     PageTable, PageTableEntry, PageFlags,
-    MemoryMapper, GpuVirtualMemory, PredictiveLoader,
-    LoadRequest, GpuPageFault, PAGE_SIZE_BYTES,
+    MemoryMapper, GpuVirtualMemory, PredictiveLoader, PAGE_SIZE_BYTES,
 };
 
 /// Stream request from GPU or predictive system

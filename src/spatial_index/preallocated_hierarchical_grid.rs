@@ -1,8 +1,8 @@
+#![allow(unused_variables, dead_code, unused_imports)]
 /// Pre-allocated hierarchical grid using fixed-size arrays
 /// Replaces HashMap-based spatial indexing with zero-allocation lookups
 
 use parking_lot::RwLock;
-use std::sync::Arc;
 
 /// Maximum levels in the hierarchy
 pub const MAX_LEVELS: usize = 8;

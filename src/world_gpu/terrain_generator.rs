@@ -1,8 +1,8 @@
 use std::sync::Arc;
 use wgpu::util::DeviceExt;
 use bytemuck::{Pod, Zeroable};
-use crate::world::{ChunkPos, BlockId};
-use super::world_buffer::{WorldBuffer, VoxelData, CHUNK_SIZE};
+use crate::world::ChunkPos;
+use super::world_buffer::WorldBuffer;
 
 /// Parameters for terrain generation
 #[repr(C)]

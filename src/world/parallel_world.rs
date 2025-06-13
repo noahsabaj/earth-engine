@@ -7,7 +7,7 @@ use cgmath::Point3;
 use crate::{BlockId, VoxelPos, ChunkPos, Chunk};
 use crate::world::WorldInterface;
 use crate::thread_pool::{ThreadPoolManager, PoolCategory};
-use super::{ParallelChunkManager, WorldGenerator, GenerationStats};
+use super::{ParallelChunkManager, WorldGenerator};
 
 /// Handle for tracking spawn area generation progress
 #[derive(Clone)]

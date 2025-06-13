@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use wgpu::{Device, ShaderModule, ShaderModuleDescriptor, ShaderSource};
-use super::{FileWatcher, WatchEvent, WatchEventType, HotReloadResult, HotReloadErrorContext, shader_reload_error};
+use super::{WatchEvent, WatchEventType, HotReloadResult, HotReloadErrorContext, shader_reload_error};
 use crate::error::EngineError;
 
 /// Shader type identifier

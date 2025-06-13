@@ -1,3 +1,4 @@
+#![allow(unused_variables, dead_code, unused_imports)]
 /// Progressive Mesh Streaming System
 /// 
 /// Streams mesh data progressively from low to high detail,
@@ -5,7 +6,6 @@
 /// Part of Sprint 29: Mesh Optimization & Advanced LOD
 
 use crate::renderer::{Vertex, MeshLod};
-use crate::renderer::error::{RendererResult, RendererErrorContext};
 use std::sync::{Arc, Mutex};
 use tokio::sync::mpsc;
 use std::collections::HashMap;

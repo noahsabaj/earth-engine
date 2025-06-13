@@ -4,7 +4,7 @@
 /// Stores who changed what, when, and previous values.
 /// Uses ring buffer for efficient memory usage.
 
-use crate::instance::{InstanceId, MetadataValue, MetadataKey};
+use crate::instance::{InstanceId, MetadataValue};
 use crate::instance::error::{InstanceResult, timestamp_error};
 use serde::{Serialize, Deserialize};
 

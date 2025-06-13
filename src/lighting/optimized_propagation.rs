@@ -2,7 +2,7 @@
 /// Uses pre-allocated buffers to eliminate allocations during light updates
 
 use crate::world::{World, VoxelPos, BlockId};
-use crate::lighting::{LightLevel, LightType, MAX_LIGHT_LEVEL, LIGHT_FALLOFF};
+use crate::lighting::{LightType, MAX_LIGHT_LEVEL, LIGHT_FALLOFF};
 
 /// Pre-allocated buffers for light propagation
 struct PropagationBuffers {
@@ -259,7 +259,7 @@ impl OptimizedLightPropagator {
     }
 }
 
-/// Thread-local optimized propagator for parallel chunk processing
+// Thread-local optimized propagator for parallel chunk processing
 thread_local! {
     static LOCAL_PROPAGATOR: std::cell::RefCell<OptimizedLightPropagator> = 
         std::cell::RefCell::new(OptimizedLightPropagator::new());

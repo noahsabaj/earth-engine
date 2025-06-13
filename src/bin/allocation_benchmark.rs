@@ -69,13 +69,23 @@ impl AllocationReport {
     }
 }
 
+// SAFETY: Implementing GlobalAlloc requires unsafe because it deals with raw memory management.
+// This implementation is safe because it delegates to the system allocator and only adds tracking.
 unsafe impl GlobalAlloc for TrackingAllocator {
+    // SAFETY: This allocation function is safe because:
+    // - We delegate to the system allocator (System.alloc) which handles the actual memory allocation
+    // - We only add atomic counters for tracking, which are thread-safe
+    // - The layout parameter is passed through unchanged to the system allocator
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         self.allocations.fetch_add(1, Ordering::SeqCst);
         self.bytes_allocated.fetch_add(layout.size(), Ordering::SeqCst);
         System.alloc(layout)
     }
     
+    // SAFETY: This deallocation function is safe because:
+    // - We delegate to the system allocator (System.dealloc) which handles the actual memory deallocation
+    // - We only add atomic counters for tracking, which are thread-safe
+    // - The ptr and layout parameters are passed through unchanged to the system allocator
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
         self.deallocations.fetch_add(1, Ordering::SeqCst);
         self.bytes_deallocated.fetch_add(layout.size(), Ordering::SeqCst);

@@ -1,8 +1,9 @@
+#![allow(unused_variables, dead_code)]
 use std::sync::Arc;
-use std::collections::{VecDeque, HashSet};
+use std::collections::VecDeque;
 use std::time::{Duration, Instant};
 use parking_lot::{RwLock, Mutex};
-use crossbeam_channel::{unbounded, bounded, Sender, Receiver};
+use crossbeam_channel::{unbounded, Sender, Receiver};
 use dashmap::DashMap;
 use crate::{
     world::{ChunkPos, VoxelPos, BlockId},
@@ -217,7 +218,7 @@ impl ParallelLightPropagator {
         let stats = Arc::clone(&self.stats);
         
         ThreadPoolManager::global().execute(PoolCategory::Lighting, || {
-            use rayon::prelude::*;
+            
             rayon::scope(|s| {
             for (chunk_pos, updates) in updates_by_chunk {
                 let chunk_lights = Arc::clone(&chunk_lights);

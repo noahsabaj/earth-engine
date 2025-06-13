@@ -1,7 +1,5 @@
 use std::collections::VecDeque;
 use glam::{Vec3, Quat};
-use crate::physics::{PhysicsWorld, RigidBody};
-use crate::world::World;
 use crate::network::packet::MovementState;
 
 /// Maximum number of inputs to buffer

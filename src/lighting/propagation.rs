@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 use crate::world::{WorldInterface, VoxelPos, BlockId};
-use crate::lighting::{LightLevel, LightType, MAX_LIGHT_LEVEL, LIGHT_FALLOFF};
+use crate::lighting::{LightType, MAX_LIGHT_LEVEL, LIGHT_FALLOFF};
 
 /// Light propagation engine using flood-fill algorithm
 pub struct LightPropagator {

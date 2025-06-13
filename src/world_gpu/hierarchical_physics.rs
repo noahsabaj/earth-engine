@@ -5,9 +5,8 @@
 use std::sync::Arc;
 use wgpu::{Device, Queue, Buffer, ComputePipeline};
 use bytemuck::{Pod, Zeroable};
-use cgmath::Vector3;
 use crate::memory::MemoryManager;
-use crate::world_gpu::error::{WorldGpuResult, WorldGpuErrorContext};
+use crate::world_gpu::error::WorldGpuResult;
 use crate::error::EngineError;
 
 /// Physics query types

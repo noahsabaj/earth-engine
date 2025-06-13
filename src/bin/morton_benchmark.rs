@@ -1,4 +1,4 @@
-use earth_engine::world::{Chunk, ChunkPos, MortonChunk, ChunkSoA, BlockId, VoxelPos};
+use earth_engine::world::{Chunk, ChunkPos, MortonChunk, ChunkSoA, BlockId};
 use earth_engine::morton::{morton_encode, morton_decode};
 use std::time::Instant;
 use rand::Rng;

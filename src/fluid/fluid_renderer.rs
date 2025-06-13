@@ -1,6 +1,6 @@
 use wgpu::{Device, RenderPipeline, BindGroup, BindGroupLayout, Buffer, TextureView};
-use crate::fluid::{FluidBuffer, FluidType};
-use crate::camera::Camera;
+use crate::fluid::FluidBuffer;
+use crate::camera::data_camera::CameraData;
 use std::sync::Arc;
 use bytemuck::{Pod, Zeroable};
 
@@ -108,7 +108,7 @@ impl FluidRenderer {
         view: &TextureView,
         depth_view: &TextureView,
         fluid_buffer: &FluidBuffer,
-        camera: &Camera,
+        camera: &CameraData,
         bind_group: &BindGroup,
     ) {
         // Surface reconstruction and rendering pass

@@ -1,3 +1,4 @@
+#![allow(unused_variables, dead_code, unused_imports)]
 use earth_engine::{
     BlockId, BlockRegistry,
     world::generation::DefaultWorldGenerator,

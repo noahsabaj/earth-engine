@@ -1,5 +1,4 @@
 use std::sync::Arc;
-use parking_lot::RwLock;
 use cgmath::Point3;
 use crate::{BlockId, VoxelPos, ChunkPos};
 use crate::thread_pool::{ThreadPoolManager, PoolCategory};

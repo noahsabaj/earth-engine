@@ -4,7 +4,7 @@
 /// Uses thread pools for CPU-intensive operations.
 
 use crate::process::{ProcessData, ProcessStatus, StateMachine};
-use crate::process::error::{ProcessResult, ProcessErrorContext, thread_pool_error};
+use crate::process::error::ProcessResult;
 use crate::thread_pool::{ThreadPoolManager, PoolCategory};
 use rayon::prelude::*;
 use std::sync::{Arc, Mutex};

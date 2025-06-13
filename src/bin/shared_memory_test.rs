@@ -1,3 +1,4 @@
+#![allow(unused_variables, dead_code, unused_imports)]
 use earth_engine::renderer::GpuState;
 use std::time::Instant;
 use wgpu::util::DeviceExt;

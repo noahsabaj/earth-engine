@@ -18,10 +18,10 @@ pub mod state_preserve;
 pub mod mod_loader;
 pub mod rust_reload;
 
-pub use watcher::{FileWatcher, WatchEvent, WatchEventType};
+pub use watcher::{FileWatcher, WatchEvent, WatchEventType, FileFilter, EventBatcher};
 pub use shader_reload::{ShaderReloader, ShaderCache};
 pub use asset_reload::{AssetReloader, AssetType};
-pub use config_reload::{ConfigReloader, ConfigValue};
+pub use config_reload::{ConfigReloader, ConfigValue, ConfigFormat, ConfigBuilder};
 pub use state_preserve::{StatePreserver, SerializableState};
 pub use mod_loader::{ModLoader, ModInfo};
 pub use rust_reload::{RustReloader, HotReloadable};

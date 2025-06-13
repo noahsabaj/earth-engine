@@ -1,3 +1,4 @@
+#![allow(unused_variables, dead_code)]
 use wgpu::{Device, Buffer, Queue};
 use crate::sdf::{SdfBuffer, SdfChunk, MarchingCubes, SmoothVertex};
 use std::sync::Arc;

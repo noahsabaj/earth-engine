@@ -4,7 +4,7 @@
 /// and temporal blending to avoid popping artifacts.
 /// Part of Sprint 29: Mesh Optimization & Advanced LOD
 
-use cgmath::{Vector3, Vector4, InnerSpace, Zero};
+use cgmath::{Vector3, InnerSpace, Zero};
 use crate::renderer::{Vertex, MeshLod};
 use std::collections::HashMap;
 

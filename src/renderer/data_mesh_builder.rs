@@ -3,7 +3,7 @@
 /// Sprint 35: Zero-allocation mesh building using buffer pools.
 /// No Vec::new() in hot paths, all buffers are pre-allocated and reused.
 
-use crate::{ChunkPos, BlockId, VoxelPos};
+use crate::{ChunkPos, BlockId};
 use bytemuck::{Pod, Zeroable};
 use parking_lot::Mutex;
 use std::sync::Arc;
@@ -138,7 +138,7 @@ impl MeshBufferPool {
     }
 }
 
-/// Global mesh buffer pool
+// Global mesh buffer pool
 lazy_static::lazy_static! {
     pub static ref MESH_BUFFER_POOL: Arc<MeshBufferPool> = Arc::new(MeshBufferPool::new());
 }

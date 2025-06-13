@@ -1,6 +1,5 @@
-use crate::world::{Chunk, ChunkPos, BlockId};
+use crate::world::{Chunk, ChunkPos};
 use wgpu::util::DeviceExt;
-use std::sync::Arc;
 
 /// GPU-resident chunk data for efficient GPU processing
 pub struct GpuChunk {

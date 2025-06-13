@@ -119,7 +119,7 @@ impl DensityAnalyzer {
         let grid_stats = grid.stats();
         
         // Update cell densities
-        let mut cell_density = self.cell_density.write();
+        let cell_density = self.cell_density.write();
         
         for level_stats in &grid_stats.cells_by_level {
             // For each level, update density information

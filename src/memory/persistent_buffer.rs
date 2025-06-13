@@ -6,7 +6,7 @@
 use std::sync::{Arc, Mutex};
 use wgpu::{Device, Buffer};
 use crate::memory::memory_pool::PoolHandle;
-use crate::memory::{MemoryResult, MemoryErrorContext};
+use crate::memory::MemoryResult;
 use crate::error::EngineError;
 
 /// Buffer usage patterns

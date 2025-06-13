@@ -1,3 +1,4 @@
+#![allow(unused_variables, dead_code, unused_imports)]
 /// Test binary for process system
 /// Run with: cargo run --bin test_process
 

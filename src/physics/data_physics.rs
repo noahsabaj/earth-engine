@@ -3,11 +3,10 @@
 /// Sprint 35: Zero-allocation physics with pre-allocated buffers.
 /// All physics data stored in contiguous arrays for cache efficiency.
 
-use super::{AABB, FIXED_TIMESTEP, GRAVITY, TERMINAL_VELOCITY};
+use super::{FIXED_TIMESTEP, GRAVITY, TERMINAL_VELOCITY};
 use crate::{World, VoxelPos, BlockId};
-use cgmath::{Point3, Vector3, Zero, InnerSpace};
+use cgmath::{Point3, Vector3};
 use bytemuck::{Pod, Zeroable};
-use std::any::Any;
 
 /// Maximum entities in physics system
 pub const MAX_PHYSICS_ENTITIES: usize = 16384;

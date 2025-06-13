@@ -5,7 +5,7 @@
 use std::sync::Arc;
 use std::time::Instant;
 use wgpu::{Device, Queue};
-use crate::memory::{MemoryManager, PerformanceMetrics, MetricType, Implementation};
+use crate::memory::{MemoryManager, PerformanceMetrics};
 use super::{
     WorldBuffer, WorldBufferDescriptor,
     UnifiedWorldKernel, UnifiedKernelConfig, SystemFlags,
@@ -195,7 +195,7 @@ impl UnifiedKernelBenchmark {
             // Physics pass (simulated)
             let physics_start = Instant::now();
             {
-                let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                let encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
                     label: Some("Physics"),
                 });
                 

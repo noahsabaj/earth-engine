@@ -3,8 +3,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use libloading::{Library, Symbol};
 use serde::{Serialize, Deserialize};
-use super::{WatchEvent, WatchEventType, HotReloadResult, HotReloadErrorContext};
-use crate::error::EngineError;
+use super::{WatchEvent, WatchEventType};
 
 /// Mod metadata
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -228,7 +227,7 @@ impl ModLoader {
         let mut mods = self.mods.write()
             .map_err(|_| ModError::LoadError("Failed to acquire mods lock".to_string()))?;
         
-        if let Some(mut loaded_mod) = mods.remove(mod_id) {
+        if let Some(loaded_mod) = mods.remove(mod_id) {
             // Shutdown mod
             // SAFETY: Dereferencing the mod instance is safe because:
             // - The instance pointer is still valid (not yet destroyed)

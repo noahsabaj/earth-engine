@@ -1,5 +1,5 @@
-use wgpu::{Device, ComputePipeline, BindGroup, BindGroupLayout, Buffer};
-use crate::sdf::{SdfBuffer, SmoothVertex};
+use wgpu::{Device, ComputePipeline, BindGroupLayout, Buffer};
+use crate::sdf::SdfBuffer;
 use crate::sdf::error::{SdfResult, SdfErrorContext};
 use std::sync::Arc;
 use bytemuck::{Pod, Zeroable};
@@ -425,8 +425,8 @@ fn calculate_workgroups(size: (u32, u32, u32)) -> (u32, u32, u32) {
 /// Generate marching cubes lookup tables
 fn generate_march_tables() -> (Vec<u32>, Vec<MarchTableEntry>) {
     // Simplified version - in practice, use full tables
-    let mut edge_table = vec![0u32; 256];
-    let mut triangle_table = vec![MarchTableEntry {
+    let edge_table = vec![0u32; 256];
+    let triangle_table = vec![MarchTableEntry {
         edges: [0; 12],
         triangle_count: 0,
         _padding: [0; 3],

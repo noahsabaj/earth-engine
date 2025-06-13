@@ -4,7 +4,7 @@ use serde::{Serialize, Deserialize};
 use glam::{Vec3, Quat};
 
 use crate::inventory::{
-    PlayerInventoryData, ItemStackData, create_item_stack, 
+    PlayerInventoryData, ItemStackData, 
     create_empty_slot, create_slot_with_item, SlotType
 };
 use crate::persistence::{PersistenceResult, PersistenceError};

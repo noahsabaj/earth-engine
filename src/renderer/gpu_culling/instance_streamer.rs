@@ -4,7 +4,7 @@
 /// and triple buffering to avoid GPU stalls.
 /// Part of Sprint 28: GPU-Driven Rendering Optimization
 
-use wgpu::{Device, Buffer, Queue};
+use wgpu::{Device, Buffer};
 use std::sync::{Arc, Mutex};
 use super::ChunkInstance;
 

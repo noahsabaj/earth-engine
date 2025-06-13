@@ -1,6 +1,6 @@
 use wgpu::{Device, Buffer};
 use crate::world_gpu::WorldBuffer;
-use crate::sdf::{SdfBuffer, SdfChunk, SdfGenerator, SdfLod, LodLevel};
+use crate::sdf::{SdfChunk, SdfGenerator, SdfLod, LodLevel};
 use std::sync::Arc;
 use std::collections::HashMap;
 use glam::{Vec3, IVec3};

@@ -3,7 +3,7 @@
 /// Visual representation of process progress and status.
 /// Generates data for rendering progress bars, status icons, etc.
 
-use crate::process::{ProcessStatus, ProcessState, QualityLevel};
+use crate::process::{ProcessStatus, QualityLevel};
 use serde::{Serialize, Deserialize};
 
 /// Visual indicator for a process

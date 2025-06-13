@@ -8,17 +8,17 @@ pub mod fluid_data;
 pub mod fluid_compute;
 pub mod pressure_solver;
 pub mod multi_phase;
-// pub mod terrain_interaction; // Temporarily disabled for Sprint 27
+pub mod terrain_interaction; // Re-enabled for tests
 pub mod fluid_renderer;
 pub mod performance;
 
 pub use fluid_data::{FluidVoxel, FluidType, FluidBuffer, FluidConstants, BoundaryConditions};
 pub use fluid_compute::{FluidCompute, FluidPipeline};
 pub use pressure_solver::{PressureSolver, FlowField};
-pub use multi_phase::{PhaseSystem, FluidPhase};
-// pub use terrain_interaction::{TerrainInteraction, ErosionParams}; // Temporarily disabled
+pub use multi_phase::{PhaseSystem, FluidPhase, PhaseProperties, FluidReaction};
+pub use terrain_interaction::{TerrainInteraction, ErosionParams}; // Re-enabled for tests
 pub use fluid_renderer::{FluidRenderer, FluidRenderParams};
-pub use performance::{FluidPerformanceMonitor, FluidPerformanceMetrics};
+pub use performance::{FluidPerformanceMonitor, FluidPerformanceMetrics, PerformanceStatus};
 
 /// Maximum fluid velocity (units per second)
 pub const MAX_FLUID_VELOCITY: f32 = 10.0;

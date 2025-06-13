@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use wgpu::{Device, ComputePipeline, BindGroup, Buffer};
+use wgpu::{Device, ComputePipeline, Buffer};
 use bytemuck::{Pod, Zeroable};
 
 /// Compression types supported by GPU
@@ -150,7 +150,7 @@ fn create_hybrid_pipeline(device: &Device) -> ComputePipeline {
 /// CPU-side compression for background processing
 pub mod cpu_compressor {
     use super::*;
-    use crate::streaming::PAGE_VOXEL_COUNT;
+    
     
     /// Compress voxel data using RLE
     pub fn compress_rle(voxels: &[u32]) -> Vec<u8> {

@@ -54,9 +54,12 @@ pub mod player_inventory;
 pub mod slot;
 
 // Legacy exports for compatibility (to be removed)
+#[allow(deprecated)]
 #[deprecated(note = "Use ItemStackData instead")]
 pub use item::ItemStack;
+#[allow(deprecated)]
 #[deprecated(note = "Use PlayerInventoryData instead")]
 pub use player_inventory::PlayerInventory;
+#[allow(deprecated)]
 #[deprecated(note = "Use InventorySlotData instead")]
 pub use slot::InventorySlot;

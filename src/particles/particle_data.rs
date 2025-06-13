@@ -1,4 +1,3 @@
-use glam::{Vec3, Vec4};
 
 /// Maximum number of particles that can exist
 pub const MAX_PARTICLES: usize = 1_000_000;

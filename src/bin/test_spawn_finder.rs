@@ -1,9 +1,7 @@
 use earth_engine::{
-    BlockId, BlockRegistry, VoxelPos, ChunkPos,
+    BlockId, BlockRegistry,
     world::{DefaultWorldGenerator, ParallelWorld, ParallelWorldConfig, SpawnFinder, WorldInterface},
 };
-use cgmath::Point3;
-use std::sync::Arc;
 
 fn main() {
     env_logger::init();

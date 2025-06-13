@@ -1,3 +1,4 @@
+#![allow(unused_variables, dead_code, unused_imports)]
 use earth_engine::{
     ChunkPos, Chunk, BlockId, BlockRegistry,
     renderer::{SimpleAsyncRenderer, Vertex},

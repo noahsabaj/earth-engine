@@ -1,5 +1,5 @@
 use crate::world::{BlockId, Chunk, ChunkPos, VoxelPos, ChunkManager, WorldGenerator, WorldInterface};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use cgmath::Point3;
 
 pub struct World {

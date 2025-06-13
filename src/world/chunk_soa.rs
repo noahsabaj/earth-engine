@@ -15,7 +15,7 @@ const CACHE_LINE_SIZE: usize = 64;
 /// - SIMD-friendly data layout
 /// - Reduced memory bandwidth for partial updates
 /// - Cache-aligned arrays for optimal performance
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ChunkSoA {
     position: ChunkPos,
     size: u32,
@@ -127,6 +127,15 @@ impl<T> Drop for AlignedArray<T> {
 
 // Safety: AlignedArray owns its data and doesn't allow shared mutable access
 unsafe impl<T: Send> Send for AlignedArray<T> {}
+
+impl<T> std::fmt::Debug for AlignedArray<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AlignedArray")
+            .field("len", &self.len)
+            .field("ptr", &self.ptr)
+            .finish()
+    }
+}
 unsafe impl<T: Sync> Sync for AlignedArray<T> {}
 
 impl ChunkSoA {

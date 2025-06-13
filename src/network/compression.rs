@@ -1,7 +1,6 @@
 use std::collections::HashMap;
-use serde::{Serialize, Deserialize};
 use crate::world::VoxelPos;
-use crate::inventory::InventorySlot;
+use crate::inventory::InventorySlotData;
 use glam::{Vec3, Quat};
 
 /// Delta compression for entity state updates
@@ -55,7 +54,7 @@ pub struct EntityFieldChanges {
     pub velocity: Option<Vec3>,
     pub health: Option<f32>,
     pub animation: Option<u8>,
-    pub equipment: Option<Vec<InventorySlot>>,
+    pub equipment: Option<Vec<InventorySlotData>>,
     pub metadata: Option<HashMap<String, String>>,
     pub movement_state: Option<u8>,
 }
@@ -89,7 +88,7 @@ pub struct EntityState {
     pub velocity: Vec3,
     pub health: f32,
     pub animation: u8,
-    pub equipment: Vec<InventorySlot>,
+    pub equipment: Vec<InventorySlotData>,
     pub metadata: HashMap<String, String>,
     pub movement_state: u8,
 }

@@ -1,3 +1,4 @@
+#![allow(unused_variables, dead_code)]
 use std::net::{TcpListener, UdpSocket};
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -9,7 +10,7 @@ use crate::network::{
     Connection, ConnectionManager, ConnectionState,
     Packet, ClientPacket, ServerPacket, Protocol,
     DEFAULT_TCP_PORT, DEFAULT_UDP_PORT, TICK_DURATION,
-    PlayerUpdateData, MovementState, BlockFace,
+    PlayerUpdateData, MovementState,
     NetworkResult, NetworkErrorContext, connection_error, protocol_error,
 };
 use crate::error::EngineError;

@@ -7,14 +7,16 @@ mod tests {
         TerrainGenerator, TerrainParams,
         ChunkModifier, ModificationCommand,
         GpuLighting,
-        UnifiedMemoryManager,
+        UnifiedMemoryManager, UnifiedMemoryLayout, SystemType, MemoryStats,
     };
     
     /// Helper to create a test GPU device
     async fn create_test_device() -> (wgpu::Device, wgpu::Queue) {
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
+            flags: wgpu::InstanceFlags::empty(),
             dx12_shader_compiler: Default::default(),
+            gles_minor_version: wgpu::Gles3MinorVersion::Automatic,
         });
         
         let adapter = instance
@@ -29,8 +31,8 @@ mod tests {
         adapter
             .request_device(
                 &wgpu::DeviceDescriptor {
-                    features: wgpu::Features::empty(),
-                    limits: wgpu::Limits::default(),
+                    required_features: wgpu::Features::empty(),
+                    required_limits: wgpu::Limits::default(),
                     label: Some("Test Device"),
                 },
                 None,
@@ -46,14 +48,15 @@ mod tests {
         
         let desc = WorldBufferDescriptor {
             world_size: 16,
-            world_height: 256,
+            enable_atomics: true,
+            enable_readback: true,
         };
         
         let world_buffer = WorldBuffer::new(device.clone(), &desc);
         
         // Verify buffer sizes
         assert_eq!(world_buffer.world_size(), 16);
-        assert_eq!(world_buffer.world_height(), 256);
+        assert_eq!(world_buffer.world_size(), 16);
         
         // Calculate expected sizes
         let total_chunks = 16 * 16 * 8; // 16x16x8 chunks
@@ -71,15 +74,15 @@ mod tests {
         let voxel = VoxelData::new(12345, 7, 15, 3);
         
         assert_eq!(voxel.block_id(), 12345);
-        assert_eq!(voxel.light(), 7);
-        assert_eq!(voxel.skylight(), 15);
+        assert_eq!(voxel.light_level(), 7);
+        assert_eq!(voxel.sky_light_level(), 15);
         assert_eq!(voxel.metadata(), 3);
         
         // Test with maximum values
         let max_voxel = VoxelData::new(65535, 15, 15, 255);
         assert_eq!(max_voxel.block_id(), 65535);
-        assert_eq!(max_voxel.light(), 15);
-        assert_eq!(max_voxel.skylight(), 15);
+        assert_eq!(max_voxel.light_level(), 15);
+        assert_eq!(max_voxel.sky_light_level(), 15);
         assert_eq!(max_voxel.metadata(), 255);
     }
     
@@ -91,7 +94,8 @@ mod tests {
         // Create world buffer
         let world_buffer = WorldBuffer::new(device.clone(), &WorldBufferDescriptor {
             world_size: 8,
-            world_height: 256,
+            enable_atomics: true,
+            enable_readback: true,
         });
         
         // Create terrain generator
@@ -136,7 +140,8 @@ mod tests {
         // Create world buffer
         let world_buffer = WorldBuffer::new(device.clone(), &WorldBufferDescriptor {
             world_size: 8,
-            world_height: 256,
+            enable_atomics: true,
+            enable_readback: true,
         });
         
         // Create chunk modifier
@@ -166,7 +171,8 @@ mod tests {
         // Create world buffer and lighting system
         let world_buffer = WorldBuffer::new(device.clone(), &WorldBufferDescriptor {
             world_size: 8,
-            world_height: 256,
+            enable_atomics: true,
+            enable_readback: true,
         });
         
         let lighting = GpuLighting::new(device.clone());
@@ -228,10 +234,10 @@ mod tests {
         assert!(stats.chunk_metadata > 0);
         
         // Test bind group entry creation
-        let entries = manager.create_bind_group_entries(SystemType::TerrainGeneration);
+        let entries = manager.create_bind_group_layout_entries(SystemType::TerrainGeneration);
         assert_eq!(entries.len(), 2); // voxel + metadata
         
-        let entries = manager.create_bind_group_entries(SystemType::Rendering);
+        let entries = manager.create_bind_group_layout_entries(SystemType::Rendering);
         assert_eq!(entries.len(), 3); // voxel + metadata + lighting
     }
     

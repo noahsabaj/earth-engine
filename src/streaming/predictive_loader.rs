@@ -1,4 +1,4 @@
-use crate::streaming::{PageTable, PAGE_SIZE};
+use crate::streaming::PageTable;
 use crate::streaming::error::{StreamingResult, StreamingErrorContext};
 use std::collections::VecDeque;
 

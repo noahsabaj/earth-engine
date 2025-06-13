@@ -1,6 +1,6 @@
 use super::entity_data::{EntityData, EntityId};
-use super::component_data::{ComponentData, TransformData, PhysicsData, ItemData, RenderableData};
-use super::component_data::{COMPONENT_TRANSFORM, COMPONENT_PHYSICS, COMPONENT_ITEM, COMPONENT_RENDERABLE};
+use super::component_data::{ComponentData, TransformData, PhysicsData, ItemData};
+use super::component_data::{COMPONENT_TRANSFORM, COMPONENT_PHYSICS, COMPONENT_ITEM};
 
 /// Data-oriented ECS world
 pub struct EcsWorldData {

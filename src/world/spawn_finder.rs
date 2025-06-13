@@ -1,4 +1,4 @@
-use crate::{BlockId, VoxelPos, ChunkPos};
+use crate::{BlockId, VoxelPos};
 use crate::world::{WorldInterface, ParallelWorld};
 use cgmath::Point3;
 
@@ -19,8 +19,8 @@ impl SpawnFinder {
         // Search for the ABSOLUTE HIGHEST point in a large area
         // This ensures we spawn above ALL terrain including mountain peaks
         let mut highest_ground = -1000.0;
-        let mut spawn_x = start_x;
-        let mut spawn_z = start_z;
+        let spawn_x = start_x;
+        let spawn_z = start_z;
         
         // Expand search radius for better coverage
         let actual_radius = search_radius.max(20); // At least 20 blocks

@@ -1,3 +1,4 @@
+#![allow(unused_variables, dead_code, unused_imports)]
 /// GPU Culling System Test and Benchmark
 /// 
 /// Tests the GPU-driven frustum and occlusion culling system.

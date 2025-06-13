@@ -7,7 +7,7 @@ use crate::instance::InstanceId;
 use crate::process::{
     ProcessId, ProcessData, ProcessStatus, ProcessType,
     StateMachine, TransformStage, StageValidator, ValidationContext,
-    TransitionAction, QualityLevel, ActualOutput
+    TransitionAction, ActualOutput
 };
 use std::collections::HashMap;
 

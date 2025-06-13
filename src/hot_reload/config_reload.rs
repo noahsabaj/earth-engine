@@ -1,7 +1,6 @@
 use std::path::{Path, PathBuf};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
-use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use toml::Value as TomlValue;
 use super::{WatchEvent, WatchEventType, HotReloadResult, HotReloadErrorContext};

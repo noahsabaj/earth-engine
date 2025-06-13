@@ -3,9 +3,9 @@
 /// Provides efficient GPU memory allocation with recycling and defragmentation.
 
 use std::sync::{Arc, Mutex};
-use std::collections::{HashMap, BTreeMap};
+use std::collections::HashMap;
 use wgpu::{Device, Buffer};
-use super::{MemoryResult, MemoryErrorContext, allocation_error};
+use super::{MemoryResult, MemoryErrorContext};
 
 /// Allocation strategy for the memory pool
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

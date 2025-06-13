@@ -1,7 +1,6 @@
 use crate::world::{BlockId, ChunkPos, VoxelPos};
 use crate::lighting::{LightMap, LightLevel};
 use crate::morton::{morton_encode_chunk, morton_decode_chunk};
-use serde::{Serialize, Deserialize};
 
 /// A chunk of voxels using Morton encoding for cache-friendly access
 /// 

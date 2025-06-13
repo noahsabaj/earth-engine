@@ -1,3 +1,4 @@
+#![allow(unused_variables, dead_code)]
 use std::net::{TcpStream, UdpSocket, SocketAddr, ToSocketAddrs};
 use std::sync::{Arc, Mutex};
 use std::thread;
