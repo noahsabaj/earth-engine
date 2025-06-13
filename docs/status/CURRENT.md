@@ -91,6 +91,13 @@ After false claims, a full verification was performed:
 - ✅ Fixed GPU renderer instance buffer disconnect
   - Added missing upload_instances() call after submit_objects
   - Chunks should now properly render instead of showing "0 drawn"
+- ✅ Completed WGSL shader audit
+  - Audited all 54 shaders: 49 active, 1 dead code, 4 web-only
+  - Identified particles/gpu_update.wgsl as unused
+  - Created comprehensive shader documentation
+- ✅ Fixed spawn position (again)
+  - Increased to 15 blocks above surface for ridge clearance
+  - Added debug logging to track spawn calculations
 
 ### Completed Previously (June 12)
 - ✅ Particle system converted to data-oriented design
