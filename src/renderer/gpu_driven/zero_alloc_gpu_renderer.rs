@@ -189,10 +189,10 @@ mod tests {
         assert!(render_data.add_instance(2, 20).is_ok());
         
         // Check that instances are grouped correctly
-        let mesh1_instances = render_data.get_instances(1).unwrap();
+        let mesh1_instances = render_data.get_instances(1).expect("mesh1 instances should exist");
         assert_eq!(mesh1_instances, &vec![10, 11]);
         
-        let mesh2_instances = render_data.get_instances(2).unwrap();
+        let mesh2_instances = render_data.get_instances(2).expect("mesh2 instances should exist");
         assert_eq!(mesh2_instances, &vec![20]);
         
         // Clear and verify empty

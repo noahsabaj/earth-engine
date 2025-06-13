@@ -198,8 +198,8 @@ pub fn get_slot_data_zero_alloc(
     let id_key = SLOT_KEYS.get_id_key(slot_index)?;
     let count_key = SLOT_KEYS.get_count_key(slot_index)?;
     
-    let item_id = data.get(id_key)?.as_u64()? as ItemId;
-    let count = data.get(count_key)?.as_u64()? as u16;
+    let item_id = data.get(id_key)?.as_u64()? as u32;
+    let count = data.get(count_key)?.as_u64()? as u32;
     
     Some(ItemStackData { item_id, count })
 }
