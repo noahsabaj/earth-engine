@@ -1476,12 +1476,25 @@ impl GpuState {
             }
         }
 
-        // Handle screenshot capture before submitting commands
-        if self.should_capture_screenshot(delta_time) {
-            self.capture_screenshot(&mut encoder, &output.texture);
+        // Check if we need to capture a screenshot
+        let should_capture = self.should_capture_screenshot(delta_time);
+
+        // Submit render commands first
+        self.queue.submit(std::iter::once(encoder.finish()));
+
+        // Handle screenshot capture after commands are submitted but before present
+        if should_capture {
+            // Create a new encoder for the screenshot operation
+            let mut screenshot_encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Screenshot Capture Encoder"),
+            });
+            
+            self.capture_screenshot(&mut screenshot_encoder, &output.texture);
+            
+            // Submit screenshot commands
+            self.queue.submit(std::iter::once(screenshot_encoder.finish()));
         }
 
-        self.queue.submit(std::iter::once(encoder.finish()));
         output.present();
 
         Ok(())
@@ -1546,9 +1559,6 @@ impl GpuState {
         // but in a way that minimizes render loop impact
         let device = Arc::clone(&self.device);
         let queue = Arc::clone(&self.queue);
-        
-        // Submit a marker command to ensure texture is ready
-        queue.submit(None);
         
         // Process screenshot synchronously but efficiently
         std::thread::spawn(move || {
