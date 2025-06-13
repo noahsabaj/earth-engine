@@ -1,0 +1,40 @@
+# Earth Engine DOP Enforcement - Clippy Configuration
+# Sprint 37: DOP Reality Check
+# This configuration enforces data-oriented programming patterns
+
+# Disallow method implementations on data structures
+disallowed-methods = [
+    # Self methods that violate DOP principles
+    "*.update",
+    "*.process", 
+    "*.render",
+    "*.draw",
+    "*.tick",
+    "*.step",
+]
+
+# Disallow types that encourage OOP patterns
+disallowed-types = [
+    # Trait objects (dynamic dispatch)
+    "Box<dyn*>",
+    "Rc<dyn*>", 
+    "Arc<dyn*>",
+    # Builder patterns
+    "*Builder",
+    "*Factory",
+]
+
+# Performance and memory settings
+too-large-for-stack = 512
+type-complexity-threshold = 60
+cognitive-complexity-threshold = 30
+
+# Array settings (encourage SoA over AoS)
+array-size-threshold = 512000  # Warn about large arrays that might need optimization
+
+# Function settings
+max-lines-for-function = 100  # Keep kernel functions focused
+too-many-arguments-threshold = 8  # Encourage data structure parameters
+
+# Encourage specific patterns
+avoid-breaking-exported-api = false  # Allow breaking changes for DOP conversion
