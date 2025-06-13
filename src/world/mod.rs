@@ -1,6 +1,7 @@
 mod block;
 mod block_drops;
 mod block_entity;
+mod zero_alloc_block_entity;
 mod position;
 mod ray;
 mod registry;
