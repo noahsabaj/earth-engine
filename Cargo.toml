@@ -132,21 +132,70 @@ web-sys = { version = "0.3", features = [
 js-sys = "0.3"
 getrandom = { version = "0.2", features = ["js"] }
 
+# Rendering Examples
 [[example]]
-name = "inventory_system"
-path = "examples/inventory_system.rs"
+name = "async_mesh_integration"
+path = "examples/rendering/async_mesh_integration.rs"
 
 [[example]]
-name = "crafting_system"
-path = "examples/crafting_system.rs"
+name = "mesh_builder_integration"
+path = "examples/rendering/mesh_builder_integration.rs"
+
+# World Generation Examples
+[[example]]
+name = "chunk_loading_demo"
+path = "examples/world_generation/chunk_loading_demo.rs"
 
 [[example]]
-name = "multiplayer"
-path = "examples/multiplayer.rs"
+name = "test_chunk_boundaries"
+path = "examples/world_generation/test_chunk_boundaries.rs"
 
+[[example]]
+name = "test_noise_detailed"
+path = "examples/world_generation/test_noise_detailed.rs"
+
+[[example]]
+name = "test_noise_values"
+path = "examples/world_generation/test_noise_values.rs"
+
+[[example]]
+name = "test_spawn_pregeneration"
+path = "examples/world_generation/test_spawn_pregeneration.rs"
+
+[[example]]
+name = "test_terrain_generation"
+path = "examples/world_generation/test_terrain_generation.rs"
+
+# Gameplay Examples
+[[example]]
+name = "data_inventory_example"
+path = "examples/gameplay/data_inventory_example.rs"
+
+[[example]]
+name = "test_spawn_position"
+path = "examples/gameplay/test_spawn_position.rs"
+
+# Particle Examples
 [[example]]
 name = "dop_particles"
-path = "examples/dop_particles.rs"
+path = "examples/particles/dop_particles.rs"
+
+# Debugging Examples
+[[example]]
+name = "debug_screenshot_issue"
+path = "examples/debugging/debug_screenshot_issue.rs"
+
+[[example]]
+name = "gpu_memory_leak_fix"
+path = "examples/debugging/gpu_memory_leak_fix.rs"
+
+[[example]]
+name = "trace_spawn_detail"
+path = "examples/debugging/trace_spawn_detail.rs"
+
+[[example]]
+name = "trace_terrain_at_origin"
+path = "examples/debugging/trace_terrain_at_origin.rs"
 
 [[bin]]
 name = "parallel_benchmark"
