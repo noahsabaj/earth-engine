@@ -80,6 +80,19 @@ After false claims, a full verification was performed:
 ## Sprint 35.2 Progress (DOP Reality Check)
 
 ### Completed Today (June 13)
+- ✅ Removed all web-specific code
+  - Deleted src/web directory (3000+ lines removed)
+  - Web platform no longer supported
+- ✅ Implemented GPU particle system
+  - Created GpuParticleSystem using gpu_update.wgsl
+  - Offloads particle physics to GPU compute shaders
+  - Ready for future integration
+- ✅ Fixed spawn position (final fix)
+  - Now searches 40x40 area for highest terrain
+  - Spawns 25 blocks above highest point
+  - Should work for all terrain types
+
+### Completed Earlier Today (June 13)
 - ✅ Fixed player spawning inside terrain issue
   - Increased spawn height offset to 10 blocks above surface
   - Fixed coordinate system mismatch in verify_spawn_position (feet vs body center)
