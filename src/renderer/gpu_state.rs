@@ -714,9 +714,23 @@ impl GpuState {
         );
         log::info!("[GpuState::new] Physics world created with player entity ID: {} at safe spawn position: {:?}", player_entity, camera.position);
         
+        // Print movement instructions for user
+        log::info!("=== MOVEMENT CONTROLS ===");
+        log::info!("WASD - Move around");
+        log::info!("Mouse - Look around (click in window to lock cursor)");
+        log::info!("Space - Jump");
+        log::info!("Shift - Sprint");
+        log::info!("Ctrl - Crouch");
+        log::info!("Escape - Toggle cursor lock");
+        log::info!("========================");
+        
         // Verify the entity was added correctly
         if let Some(body) = physics_world.get_body(player_entity) {
             log::info!("[GpuState::new] Player body verified at position: [{:.2}, {:.2}, {:.2}]", body.position[0], body.position[1], body.position[2]);
+            let is_grounded = (body.flags & flags::GROUNDED) != 0;
+            if !is_grounded {
+                log::info!("[GpuState::new] Player spawned in air - will fall to ground and become grounded");
+            }
         } else {
             log::error!("[GpuState::new] Failed to retrieve player body after creation!");
         }
@@ -1249,6 +1263,9 @@ impl GpuState {
                     move_speed = 5.6; // Sprint speed
                 } else if input.is_key_pressed(KeyCode::ControlLeft) {
                     move_speed = 1.3; // Crouch speed
+                } else if !is_grounded {
+                    // Allow air movement but at reduced speed for better control
+                    move_speed = 2.0; // Air movement speed
                 }
             } else if is_in_water {
                 move_speed = 2.0; // Swimming speed
@@ -1261,6 +1278,21 @@ impl GpuState {
             
             log::debug!("[process_input] Move direction: [{:.2}, {:.2}, {:.2}], speed: {:.2}", move_dir.x, move_dir.y, move_dir.z, move_speed);
             log::debug!("[process_input] Body velocity after: [{:.2}, {:.2}, {:.2}]", body.velocity[0], body.velocity[1], body.velocity[2]);
+            
+            // Provide helpful movement state feedback
+            if move_dir.magnitude() > 0.0 {
+                log::debug!("[Movement] Player moving: grounded={}, in_water={}, on_ladder={}, speed={:.1}", 
+                           is_grounded, is_in_water, is_on_ladder, move_speed);
+            } else {
+                static mut MOVEMENT_HELP_COOLDOWN: f32 = 0.0;
+                unsafe {
+                    MOVEMENT_HELP_COOLDOWN -= delta_time;
+                    if MOVEMENT_HELP_COOLDOWN <= 0.0 {
+                        log::info!("[Movement] Use WASD to move, Space to jump, Shift to sprint, Ctrl to crouch");
+                        MOVEMENT_HELP_COOLDOWN = 10.0; // Show help every 10 seconds when not moving
+                    }
+                }
+            }
             
             // Handle vertical movement
             if is_on_ladder {
@@ -1294,6 +1326,16 @@ impl GpuState {
             let (dx, dy) = input.get_mouse_delta();
             let sensitivity = 0.5;
             self.camera.rotate(dx * sensitivity, -dy * sensitivity);
+        } else {
+            // Provide helpful feedback if cursor is not locked
+            static mut CURSOR_WARNING_COOLDOWN: f32 = 0.0;
+            unsafe {
+                CURSOR_WARNING_COOLDOWN -= delta_time;
+                if CURSOR_WARNING_COOLDOWN <= 0.0 {
+                    log::info!("[Movement] Click in the window or press Escape to lock cursor for mouse look");
+                    CURSOR_WARNING_COOLDOWN = 5.0; // Show message every 5 seconds
+                }
+            }
         }
         
         // Ray casting for block selection
