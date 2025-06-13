@@ -1,23 +1,56 @@
 #![allow(unused_variables, dead_code, unused_imports)]
 use earth_engine::{
-    BlockId, BlockRegistry,
+    BlockId,
     world::generation::DefaultWorldGenerator,
-    world::chunk_manager::ChunkManager,
+    world::chunk_manager::{
+        ChunkManagerData, ChunkManagerConfig, create_chunk_manager_data, 
+        set_max_chunks_per_frame, update_loaded_chunks, get_loading_stats, is_loading
+    },
 };
 use cgmath::Point3;
 use std::time::Instant;
+
+// Simple block type for the demo
+#[derive(Debug, Clone)]
+struct DemoBlock {
+    id: BlockId,
+    name: String,
+}
+
+impl earth_engine::world::Block for DemoBlock {
+    fn get_id(&self) -> BlockId {
+        self.id
+    }
+    
+    fn get_render_data(&self) -> earth_engine::world::RenderData {
+        earth_engine::world::RenderData {
+            color: [0.5, 0.8, 0.3], // Green-ish color
+            texture_id: 0,
+        }
+    }
+    
+    fn get_physics_properties(&self) -> earth_engine::world::PhysicsProperties {
+        earth_engine::world::PhysicsProperties {
+            solid: true,
+            density: 1.0,
+        }
+    }
+    
+    fn get_name(&self) -> &str {
+        &self.name
+    }
+}
 
 fn main() {
     println!("Earth Engine - Chunk Loading Throttling Demo");
     println!("===========================================\n");
     
-    // Create a simple block registry
-    let mut registry = BlockRegistry::new();
-    let grass_id = registry.register_block("grass", earth_engine::Block::default());
-    let dirt_id = registry.register_block("dirt", earth_engine::Block::default());
-    let stone_id = registry.register_block("stone", earth_engine::Block::default());
-    let water_id = registry.register_block("water", earth_engine::Block::default());
-    let sand_id = registry.register_block("sand", earth_engine::Block::default());
+    // Use predefined BlockIds from the system
+    let grass_id = BlockId::GRASS;
+    let dirt_id = BlockId::DIRT;
+    let stone_id = BlockId::STONE;
+    let water_id = BlockId::WATER;
+    let sand_id = BlockId::SAND;
     
     // Create world generator
     let generator = Box::new(DefaultWorldGenerator::new(
@@ -40,13 +73,19 @@ fn main() {
     println!("- Player position: ({}, {}, {})", player_pos.x, player_pos.y, player_pos.z);
     
     // Calculate approximate number of chunks
-    let approx_chunks = (view_distance * 2 + 1).pow(3);
+    let approx_chunks = (view_distance * 2 + 1_i32).pow(3);
     println!("- Approximate chunks to load: {}\n", approx_chunks);
     
     // Create chunk manager with throttling
-    let mut chunk_manager = ChunkManager::new(view_distance, chunk_size, generator);
-    chunk_manager.set_max_chunks_per_frame(5);
-    chunk_manager.set_adaptive_loading(true);
+    let config = ChunkManagerConfig {
+        view_distance,
+        chunk_size,
+        cache_size: 64,
+        max_chunks_per_frame: 5,
+    };
+    
+    let mut chunk_manager = create_chunk_manager_data(config, generator);
+    set_max_chunks_per_frame(&mut chunk_manager, 5);
     
     println!("Loading chunks with throttling (5 chunks per frame, adaptive mode)...\n");
     
@@ -58,10 +97,10 @@ fn main() {
         let frame_start = Instant::now();
         
         // Update chunk loading
-        chunk_manager.update_loaded_chunks(player_pos);
+        update_loaded_chunks(&mut chunk_manager, player_pos);
         
         // Get current stats
-        let stats = chunk_manager.get_loading_stats();
+        let stats = get_loading_stats(&chunk_manager);
         
         // Print progress if chunks were loaded this frame
         if stats.loaded_chunks > last_loaded {
@@ -81,7 +120,7 @@ fn main() {
         frame_count += 1;
         
         // Check if loading is complete
-        if !chunk_manager.is_loading() {
+        if !is_loading(&chunk_manager) {
             break;
         }
         
@@ -101,7 +140,7 @@ fn main() {
     }
     
     let total_time = start_time.elapsed();
-    let final_stats = chunk_manager.get_loading_stats();
+    let final_stats = get_loading_stats(&chunk_manager);
     
     println!("\n=== Summary ===");
     println!("Total chunks loaded: {}", final_stats.loaded_chunks);
