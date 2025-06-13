@@ -44,7 +44,7 @@ impl<'a> GameContext<'a> {
             self.camera.position[1], 
             self.camera.position[2]
         );
-        let forward = calculate_forward_vector(self.camera.yaw_radians, self.camera.pitch_radians);
+        let forward = calculate_forward_vector(self.camera);
         let ray = Ray::new(position, forward);
         cast_ray(&*self.world, ray, max_distance)
     }

@@ -253,10 +253,10 @@ impl ProgressiveStreamer {
     }
     
     /// Finalize LOD and send update
-    fn finalize_lod(&self, _chunk_id: u64, state: &mut ProgressiveMeshState, _lod: MeshLod) {
+    fn finalize_lod(&self, chunk_id: u64, state: &mut ProgressiveMeshState, lod: MeshLod) {
         // Build complete mesh for LOD
-        let mut _vertices = state.base_vertices.clone();
-        let mut _indices = state.base_indices.clone();
+        let mut vertices = state.base_vertices.clone();
+        let mut indices = state.base_indices.clone();
         
         // Apply deltas up to current LOD
         for check_lod in [MeshLod::Lod3, MeshLod::Lod2, MeshLod::Lod1, MeshLod::Lod0] {

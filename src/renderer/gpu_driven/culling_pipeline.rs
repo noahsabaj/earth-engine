@@ -10,6 +10,7 @@ use wgpu::util::DeviceExt;
 use bytemuck::{Pod, Zeroable};
 use cgmath::{Matrix4};
 use super::indirect_commands::DrawMetadata;
+use crate::camera::Camera;
 
 /// Camera data for culling shader
 #[repr(C)]
@@ -32,7 +33,7 @@ pub struct CameraData {
 }
 
 impl CameraData {
-    pub fn from_camera(camera: &crate::Camera) -> Self {
+    pub fn from_camera(camera: &Camera) -> Self {
         let view_proj = camera.build_projection_matrix() * camera.build_view_matrix();
         let position = [camera.position.x, camera.position.y, camera.position.z];
         
@@ -263,7 +264,7 @@ impl CullingPipeline {
     }
     
     /// Update camera data
-    pub fn update_camera(&self, queue: &wgpu::Queue, camera: &crate::Camera) {
+    pub fn update_camera(&self, queue: &wgpu::Queue, camera: &Camera) {
         let camera_data = CameraData::from_camera(camera);
         queue.write_buffer(&self.camera_buffer, 0, bytemuck::bytes_of(&camera_data));
     }

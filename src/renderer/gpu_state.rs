@@ -5,7 +5,8 @@
 
 #![allow(deprecated)]
 
-use crate::{Camera, EngineConfig, Game, GameContext, BlockRegistry, BlockId, VoxelPos};
+use crate::{EngineConfig, Game, GameContext, BlockRegistry, BlockId, VoxelPos};
+use crate::camera::{Camera, camera_to_data};
 use crate::input::InputState;
 use crate::physics::{PhysicsWorldData, EntityId, flags};
 use crate::renderer::{SelectionRenderer, GpuDiagnostics, GpuInitProgress, gpu_driven::GpuDrivenRenderer, screenshot};
@@ -2081,10 +2082,11 @@ pub async fn run_app<G: Game + 'static>(
                         }
 
                         // Update game with context
+                        let camera_data = camera_to_data(&gpu_state.camera);
                         let mut ctx = GameContext {
                             world: &mut gpu_state.world,
                             registry: &gpu_state.block_registry,
-                            camera: &gpu_state.camera,
+                            camera: &camera_data,
                             input: &input_state,
                             selected_block: gpu_state.selected_block.clone(),
                         };

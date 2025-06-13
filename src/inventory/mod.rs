@@ -35,6 +35,8 @@ pub use data_inventory::{
     get_slot_item,
     get_hotbar_slots,
     get_main_slots,
+    create_empty_slot,
+    create_slot_with_item,
     
     // Batch operations
     InventoryOperationBatch,

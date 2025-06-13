@@ -2,6 +2,9 @@ use crate::{
     inventory::{ItemStackData, create_item_stack}, 
     item::ItemId
 };
+
+// Type alias for compatibility
+type ItemStack = ItemStackData;
 use std::collections::HashMap;
 
 /// Type of crafting recipe
@@ -261,7 +264,7 @@ impl RecipeRegistry {
                     };
                     
                     match grid_item {
-                        Some(item) if item.item_id == *expected_item && item.count >= 1 => {
+                        Some(item) if ItemId(item.item_id) == *expected_item && item.count >= 1 => {
                             // Matches
                         }
                         _ => return false,
@@ -281,7 +284,7 @@ impl RecipeRegistry {
         // Check each slot in the grid
         for slot in &grid.slots {
             if let Some(item) = slot {
-                if let Some(pos) = required.iter().position(|&item_id| item_id == item.item_id) {
+                if let Some(pos) = required.iter().position(|&item_id| item_id == ItemId(item.item_id)) {
                     required.remove(pos);
                     found_count += 1;
                 } else {

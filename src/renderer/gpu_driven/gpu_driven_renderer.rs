@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use wgpu::util::DeviceExt;
 use cgmath::{Vector3};
-use crate::Camera;
+use crate::camera::Camera;
 use super::{
     indirect_commands::{IndirectCommandManager, DrawMetadata},
     instance_buffer::{InstanceManager, InstanceData, InstanceBuffer},
