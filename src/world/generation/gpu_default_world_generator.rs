@@ -319,6 +319,11 @@ impl GpuDefaultWorldGenerator {
             log::debug!("[GPU_COMMANDS] GPU commands submitted successfully for chunk {:?}", chunk_pos);
         }
         
+        // CRITICAL: Ensure GPU generation is 100% complete before readback
+        log::debug!("[GPU_SYNC] Ensuring GPU terrain generation completes before readback...");
+        self.device.poll(wgpu::Maintain::Wait);
+        log::debug!("[GPU_SYNC] GPU generation guaranteed complete for chunk {:?}", chunk_pos);
+        
         log::debug!("[GPU_GENERATION] GPU command submission complete, proceeding to readback...");
         
         // Extract the generated chunk data back to CPU format

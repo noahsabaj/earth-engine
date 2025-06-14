@@ -251,28 +251,45 @@ impl WorldBuffer {
     }
     
     /// Get or allocate a buffer slot for a chunk position
+    /// CRITICAL: Prevents slot collisions that cause GPU readback failures
     pub fn get_chunk_slot(&mut self, chunk_pos: ChunkPos) -> u32 {
         if let Some(&slot) = self.chunk_slots.get(&chunk_pos) {
             log::debug!("[WORLD_BUFFER] Reusing existing slot {} for chunk {:?}", slot, chunk_pos);
             slot
         } else {
-            // Allocate new slot
-            let slot = self.next_slot % self.max_chunks;
+            // CRITICAL FIX: Find an unused slot instead of immediately overwriting
+            let mut slot = self.next_slot % self.max_chunks;
+            let mut attempts = 0;
             
-            // If slot is occupied, remove the old chunk mapping
-            let old_chunk = self.chunk_slots.iter()
-                .find_map(|(pos, &s)| if s == slot { Some(*pos) } else { None });
-            if let Some(old_pos) = old_chunk {
-                log::debug!("[WORLD_BUFFER] Evicting chunk {:?} from slot {} to make room for {:?}", 
-                           old_pos, slot, chunk_pos);
-                self.chunk_slots.remove(&old_pos);
+            // Try to find an unused slot first to prevent race conditions
+            while attempts < self.max_chunks {
+                let slot_in_use = self.chunk_slots.iter().any(|(_, &s)| s == slot);
+                if !slot_in_use {
+                    log::debug!("[WORLD_BUFFER] Found unused slot {} for chunk {:?}", slot, chunk_pos);
+                    break;
+                }
+                slot = (slot + 1) % self.max_chunks;
+                attempts += 1;
+            }
+            
+            // If all slots are used, only then overwrite the oldest one
+            if attempts >= self.max_chunks {
+                slot = self.next_slot % self.max_chunks;
+                // Remove old chunk mapping for this slot
+                let old_chunk = self.chunk_slots.iter()
+                    .find_map(|(pos, &s)| if s == slot { Some(*pos) } else { None });
+                if let Some(old_pos) = old_chunk {
+                    log::warn!("[WORLD_BUFFER] SLOT COLLISION: Evicting chunk {:?} from slot {} for chunk {:?} (buffer full)", 
+                              old_pos, slot, chunk_pos);
+                    self.chunk_slots.remove(&old_pos);
+                }
             }
             
             // Map new chunk to slot
             self.chunk_slots.insert(chunk_pos, slot);
-            self.next_slot = (self.next_slot + 1) % self.max_chunks;
+            self.next_slot = (slot + 1) % self.max_chunks;
             
-            log::debug!("[WORLD_BUFFER] Allocated new slot {} for chunk {:?} (usage: {}/{})", 
+            log::debug!("[WORLD_BUFFER] Allocated slot {} for chunk {:?} (usage: {}/{})", 
                        slot, chunk_pos, self.chunk_slots.len(), self.max_chunks);
             
             slot
