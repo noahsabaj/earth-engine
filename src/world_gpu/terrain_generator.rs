@@ -58,6 +58,9 @@ impl TerrainGenerator {
             include_str!("shaders/terrain_generation.wgsl")
         );
         
+        // Debug: Print combined shader for debugging
+        log::info!("[TerrainGenerator] Combined shader length: {} characters", shader_source.len());
+        
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Terrain Generation Shader"),
             source: wgpu::ShaderSource::Wgsl(shader_source.into()),

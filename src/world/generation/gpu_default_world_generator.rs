@@ -167,25 +167,28 @@ impl GpuDefaultWorldGenerator {
     
     /// Generate chunk on GPU and extract to CPU format
     fn generate_chunk_gpu(&self, chunk_pos: ChunkPos) -> Chunk {
-        log::info!("[GpuDefaultWorldGenerator] GPU-generating chunk {:?}", chunk_pos);
+        log::info!("[GpuDefaultWorldGenerator] GPU-generating chunk {:?} (TESTING MINIMAL SHADER)", chunk_pos);
         
-        // Create command encoder for GPU operations
-        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("GPU Terrain Generation"),
-        });
-        
-        // Generate chunk directly in WorldBuffer using compute shader
+        // TEST: Re-enable GPU generation with minimal shader
         {
-            let world_buffer = self.world_buffer.lock().unwrap();
-            self.terrain_generator.generate_chunk(
-                &mut encoder,
-                &world_buffer,
-                chunk_pos,
-            );
+            // Create command encoder for GPU operations
+            let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("GPU Terrain Generation"),
+            });
+            
+            // Generate chunk directly in WorldBuffer using compute shader
+            {
+                let world_buffer = self.world_buffer.lock().unwrap();
+                self.terrain_generator.generate_chunk(
+                    &mut encoder,
+                    &world_buffer,
+                    chunk_pos,
+                );
+            }
+            
+            // Submit GPU commands asynchronously
+            self.queue.submit(std::iter::once(encoder.finish()));
         }
-        
-        // Submit GPU commands asynchronously
-        self.queue.submit(std::iter::once(encoder.finish()));
         
         // Extract the generated chunk data back to CPU format
         // This maintains compatibility with existing engine systems
