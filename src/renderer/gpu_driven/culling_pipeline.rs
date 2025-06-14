@@ -39,9 +39,69 @@ impl CameraData {
             view_proj: uniform.view_projection_matrix,
             position: uniform.position,
             _padding0: 0.0,
-            frustum_planes: [[0.0; 4]; 6], // TODO: Calculate actual frustum planes
+            frustum_planes: Self::calculate_frustum_planes(&uniform.view_projection_matrix),
             _padding1: [0.0; 8],
         }
+    }
+    
+    /// Calculate frustum planes from view-projection matrix
+    /// Returns 6 planes: [left, right, bottom, top, near, far]
+    /// Each plane is [a, b, c, d] where ax + by + cz + d = 0
+    fn calculate_frustum_planes(view_proj: &[[f32; 4]; 4]) -> [[f32; 4]; 6] {
+        let m = view_proj;
+        
+        // Extract frustum planes from view-projection matrix
+        // This is the standard algorithm for extracting frustum planes
+        let mut planes = [[0.0f32; 4]; 6];
+        
+        // Left plane: m[3] + m[0]
+        planes[0][0] = m[3][0] + m[0][0];
+        planes[0][1] = m[3][1] + m[0][1];
+        planes[0][2] = m[3][2] + m[0][2];
+        planes[0][3] = m[3][3] + m[0][3];
+        
+        // Right plane: m[3] - m[0]
+        planes[1][0] = m[3][0] - m[0][0];
+        planes[1][1] = m[3][1] - m[0][1];
+        planes[1][2] = m[3][2] - m[0][2];
+        planes[1][3] = m[3][3] - m[0][3];
+        
+        // Bottom plane: m[3] + m[1]
+        planes[2][0] = m[3][0] + m[1][0];
+        planes[2][1] = m[3][1] + m[1][1];
+        planes[2][2] = m[3][2] + m[1][2];
+        planes[2][3] = m[3][3] + m[1][3];
+        
+        // Top plane: m[3] - m[1]
+        planes[3][0] = m[3][0] - m[1][0];
+        planes[3][1] = m[3][1] - m[1][1];
+        planes[3][2] = m[3][2] - m[1][2];
+        planes[3][3] = m[3][3] - m[1][3];
+        
+        // Near plane: m[3] + m[2]
+        planes[4][0] = m[3][0] + m[2][0];
+        planes[4][1] = m[3][1] + m[2][1];
+        planes[4][2] = m[3][2] + m[2][2];
+        planes[4][3] = m[3][3] + m[2][3];
+        
+        // Far plane: m[3] - m[2]
+        planes[5][0] = m[3][0] - m[2][0];
+        planes[5][1] = m[3][1] - m[2][1];
+        planes[5][2] = m[3][2] - m[2][2];
+        planes[5][3] = m[3][3] - m[2][3];
+        
+        // Normalize each plane
+        for plane in &mut planes {
+            let length = (plane[0] * plane[0] + plane[1] * plane[1] + plane[2] * plane[2]).sqrt();
+            if length > 0.0 {
+                plane[0] /= length;
+                plane[1] /= length;
+                plane[2] /= length;
+                plane[3] /= length;
+            }
+        }
+        
+        planes
     }
 }
 
@@ -261,13 +321,7 @@ impl CullingPipeline {
     /// Update camera data
     pub fn update_camera(&self, queue: &wgpu::Queue, camera_data: &CameraCameraData) {
         let camera_uniform = build_camera_uniform(camera_data);
-        let culling_camera_data = CameraData {
-            view_proj: camera_uniform.view_projection_matrix,
-            position: camera_uniform.position,
-            _padding0: 0.0,
-            frustum_planes: [[0.0; 4]; 6], // TODO: Calculate actual frustum planes
-            _padding1: [0.0; 8],
-        };
+        let culling_camera_data = CameraData::from_camera_uniform(&camera_uniform);
         queue.write_buffer(&self.camera_buffer, 0, bytemuck::bytes_of(&culling_camera_data));
     }
     
