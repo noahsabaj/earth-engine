@@ -11,7 +11,9 @@ use crate::input::InputState;
 use crate::physics::{PhysicsWorldData, EntityId, flags};
 use crate::renderer::{SelectionRenderer, GpuDiagnostics, GpuInitProgress, gpu_driven::GpuDrivenRenderer, screenshot};
 use crate::world::{Ray, RaycastHit, ParallelWorld, ParallelWorldConfig, WorldInterface, SpawnFinder};
-use crate::lighting::{DayNightCycle, LightPropagator};
+use crate::lighting::{DayNightCycleData, LightPropagatorData};
+use crate::lighting::time_of_day::{create_default_day_night_cycle, update_day_night_cycle};
+use crate::lighting::propagation::{create_light_propagator_data, add_light_to_queue, remove_light_from_queue, propagate_queued_lights};
 use anyhow::Result;
 use cgmath::{Matrix4, SquareMatrix, Point3, Vector3, InnerSpace, Zero};
 use chrono;
@@ -205,8 +207,8 @@ pub struct GpuState {
     physics_world: PhysicsWorldData,
     player_entity: EntityId,
     // Lighting
-    day_night_cycle: DayNightCycle,
-    light_propagator: LightPropagator,
+    day_night_cycle: DayNightCycleData,
+    light_propagator: LightPropagatorData,
     // Loading state
     first_chunks_loaded: bool,
     frames_rendered: u32,
@@ -744,8 +746,8 @@ impl GpuState {
         
         // Create lighting systems
         log::info!("[GpuState::new] Creating lighting systems...");
-        let day_night_cycle = DayNightCycle::default(); // Starts at noon
-        let light_propagator = LightPropagator::new();
+        let day_night_cycle = create_default_day_night_cycle(); // Starts at noon
+        let light_propagator = create_light_propagator_data();
         log::info!("[GpuState::new] Lighting systems created");
 
         let total_time = init_start.elapsed();
@@ -2029,7 +2031,7 @@ pub async fn run_app<G: Game + 'static>(
                         }
                         
                         // Update day/night cycle
-                        gpu_state.day_night_cycle.update(delta_time);
+                        update_day_night_cycle(&mut gpu_state.day_night_cycle, delta_time);
                         
                         // Update block lighting if blocks were changed
                         if let Some((pos, block_id)) = broken_block_info {
@@ -2037,7 +2039,7 @@ pub async fn run_app<G: Game + 'static>(
                             if let Some(block) = gpu_state.block_registry.get_block(block_id) {
                                 if block.get_light_emission() > 0 {
                                     // Removed a light source
-                                    gpu_state.light_propagator.remove_light(pos, crate::lighting::LightType::Block, block.get_light_emission());
+                                    remove_light_from_queue(&mut gpu_state.light_propagator, pos, crate::lighting::LightType::Block, block.get_light_emission());
                                 }
                             }
                             // Update skylight column
@@ -2048,7 +2050,7 @@ pub async fn run_app<G: Game + 'static>(
                             if let Some(block) = gpu_state.block_registry.get_block(active_block) {
                                 if block.get_light_emission() > 0 {
                                     // Placed a light source
-                                    gpu_state.light_propagator.add_light(place_pos, crate::lighting::LightType::Block, block.get_light_emission());
+                                    add_light_to_queue(&mut gpu_state.light_propagator, place_pos, crate::lighting::LightType::Block, block.get_light_emission());
                                 }
                             }
                             // Update skylight column
@@ -2057,7 +2059,7 @@ pub async fn run_app<G: Game + 'static>(
                         
                         // Process light propagation if needed
                         if broken_block_info.is_some() || placed_block_pos.is_some() {
-                            gpu_state.light_propagator.propagate(&mut gpu_state.world);
+                            propagate_queued_lights(&mut gpu_state.light_propagator, &mut gpu_state.world);
                         }
                         
                         gpu_state.update_camera();

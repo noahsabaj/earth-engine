@@ -53,60 +53,72 @@ impl LightMap {
             data: vec![0; total_size],
         }
     }
-    
-    fn index(&self, x: u32, y: u32, z: u32) -> usize {
-        (y * self.size * self.size + z * self.size + x) as usize
+}
+
+/// Calculate index for light map coordinates
+/// Pure function - computes array index from 3D coordinates
+fn light_map_index(light_map: &LightMap, x: u32, y: u32, z: u32) -> usize {
+    (y * light_map.size * light_map.size + z * light_map.size + x) as usize
+}
+
+/// Get light level at coordinates
+/// Pure function - reads light data from map
+pub fn get_light_from_map(light_map: &LightMap, x: u32, y: u32, z: u32) -> LightLevel {
+    if x >= light_map.size || y >= light_map.size || z >= light_map.size {
+        return LightLevel::dark();
     }
     
-    pub fn get_light(&self, x: u32, y: u32, z: u32) -> LightLevel {
-        if x >= self.size || y >= self.size || z >= self.size {
-            return LightLevel::dark();
-        }
-        
-        let packed = self.data[self.index(x, y, z)];
-        LightLevel {
-            sky: (packed >> 4) & 0x0F,
-            block: packed & 0x0F,
-        }
+    let packed = light_map.data[light_map_index(light_map, x, y, z)];
+    LightLevel {
+        sky: (packed >> 4) & 0x0F,
+        block: packed & 0x0F,
+    }
+}
+
+/// Set light level at coordinates
+/// Function - transforms light map data
+pub fn set_light_in_map(light_map: &mut LightMap, x: u32, y: u32, z: u32, light: LightLevel) {
+    if x >= light_map.size || y >= light_map.size || z >= light_map.size {
+        return;
     }
     
-    pub fn set_light(&mut self, x: u32, y: u32, z: u32, light: LightLevel) {
-        if x >= self.size || y >= self.size || z >= self.size {
-            return;
-        }
-        
-        let idx = self.index(x, y, z);
-        let packed = ((light.sky & 0x0F) << 4) | (light.block & 0x0F);
-        self.data[idx] = packed;
+    let idx = light_map_index(light_map, x, y, z);
+    let packed = ((light.sky & 0x0F) << 4) | (light.block & 0x0F);
+    light_map.data[idx] = packed;
+}
+
+/// Set sky light level at coordinates
+/// Function - transforms light map sky data
+pub fn set_sky_light_in_map(light_map: &mut LightMap, x: u32, y: u32, z: u32, level: u8) {
+    if x >= light_map.size || y >= light_map.size || z >= light_map.size {
+        return;
     }
     
-    pub fn set_sky_light(&mut self, x: u32, y: u32, z: u32, level: u8) {
-        if x >= self.size || y >= self.size || z >= self.size {
-            return;
-        }
-        
-        let idx = self.index(x, y, z);
-        let block_light = self.data[idx] & 0x0F;
-        self.data[idx] = ((level.min(15) & 0x0F) << 4) | block_light;
+    let idx = light_map_index(light_map, x, y, z);
+    let block_light = light_map.data[idx] & 0x0F;
+    light_map.data[idx] = ((level.min(15) & 0x0F) << 4) | block_light;
+}
+
+/// Set block light level at coordinates
+/// Function - transforms light map block data
+pub fn set_block_light_in_map(light_map: &mut LightMap, x: u32, y: u32, z: u32, level: u8) {
+    if x >= light_map.size || y >= light_map.size || z >= light_map.size {
+        return;
     }
     
-    pub fn set_block_light(&mut self, x: u32, y: u32, z: u32, level: u8) {
-        if x >= self.size || y >= self.size || z >= self.size {
-            return;
-        }
-        
-        let idx = self.index(x, y, z);
-        let sky_light = self.data[idx] & 0xF0;
-        self.data[idx] = sky_light | (level.min(15) & 0x0F);
-    }
-    
-    /// Clear all light data
-    pub fn clear(&mut self) {
-        self.data.fill(0);
-    }
-    
-    /// Fill with full skylight (for initialization)
-    pub fn fill_sky(&mut self) {
-        self.data.fill(0xF0); // Full sky light, no block light
-    }
+    let idx = light_map_index(light_map, x, y, z);
+    let sky_light = light_map.data[idx] & 0xF0;
+    light_map.data[idx] = sky_light | (level.min(15) & 0x0F);
+}
+
+/// Clear all light data
+/// Function - transforms light map to empty state
+pub fn clear_light_map(light_map: &mut LightMap) {
+    light_map.data.fill(0);
+}
+
+/// Fill with full skylight (for initialization)
+/// Function - transforms light map to full sky lighting
+pub fn fill_sky_light_map(light_map: &mut LightMap) {
+    light_map.data.fill(0xF0); // Full sky light, no block light
 }

@@ -118,17 +118,6 @@ impl CraftingGrid {
         }
     }
     
-    /// Set item at position
-    pub fn set(&mut self, x: usize, y: usize, item: Option<ItemStack>) {
-        if x < self.width && y < self.height {
-            self.slots[y * self.width + x] = item;
-        }
-    }
-    
-    /// Clear the grid
-    pub fn clear(&mut self) {
-        self.slots.fill(None);
-    }
     
     /// Check if grid is empty
     pub fn is_empty(&self) -> bool {
@@ -181,20 +170,6 @@ impl RecipeRegistry {
         }
     }
     
-    /// Register a new recipe
-    pub fn register(&mut self, recipe: Recipe) {
-        let index = self.recipes.len();
-        
-        match &recipe.recipe_type {
-            RecipeType::Shaped(_) => self.shaped_recipes.push(index),
-            RecipeType::Shapeless(_) => self.shapeless_recipes.push(index),
-            RecipeType::Smelting(smelting) => {
-                self.smelting_recipes.insert(smelting.input, index);
-            }
-        }
-        
-        self.recipes.push(recipe);
-    }
     
     /// Find a matching recipe for the crafting grid
     pub fn find_recipe(&self, grid: &CraftingGrid) -> Option<&Recipe> {
@@ -298,113 +273,151 @@ impl RecipeRegistry {
         required.is_empty() && found_count == recipe.ingredients.len()
     }
     
-    /// Initialize with default Minecraft-like recipes
-    pub fn init_default_recipes(&mut self) {
-        use crate::item::ItemId;
-        
-        // Planks from logs
-        self.register(Recipe::shapeless(
-            "planks_from_wood".to_string(),
-            vec![ItemId::WOOD_BLOCK],
-            create_item_stack(ItemId::PLANKS_BLOCK, 4),
-        ));
-        
-        // Sticks from planks
-        self.register(Recipe::shaped(
-            "sticks".to_string(),
-            vec!["P", "P"],
-            [('P', ItemId::PLANKS_BLOCK)].into_iter().collect(),
-            create_item_stack(ItemId::STICK, 4),
-        ));
-        
-        // Wooden pickaxe
-        self.register(Recipe::shaped(
-            "wooden_pickaxe".to_string(),
-            vec!["PPP", " S ", " S "],
-            [('P', ItemId::PLANKS_BLOCK), ('S', ItemId::STICK)].into_iter().collect(),
-            create_item_stack(ItemId::WOODEN_PICKAXE, 1),
-        ));
-        
-        // Stone pickaxe
-        self.register(Recipe::shaped(
-            "stone_pickaxe".to_string(),
-            vec!["SSS", " T ", " T "],
-            [('S', ItemId::COBBLESTONE_BLOCK), ('T', ItemId::STICK)].into_iter().collect(),
-            create_item_stack(ItemId::STONE_PICKAXE, 1),
-        ));
-        
-        // Iron pickaxe
-        self.register(Recipe::shaped(
-            "iron_pickaxe".to_string(),
-            vec!["III", " S ", " S "],
-            [('I', ItemId::IRON_INGOT), ('S', ItemId::STICK)].into_iter().collect(),
-            create_item_stack(ItemId::IRON_PICKAXE, 1),
-        ));
-        
-        // Wooden axe
-        self.register(Recipe::shaped(
-            "wooden_axe".to_string(),
-            vec!["PP ", "PS ", " S "],
-            [('P', ItemId::PLANKS_BLOCK), ('S', ItemId::STICK)].into_iter().collect(),
-            create_item_stack(ItemId::WOODEN_AXE, 1),
-        ));
-        
-        // Stone from cobblestone (smelting)
-        self.register(Recipe::smelting(
-            "stone_from_cobblestone".to_string(),
-            ItemId::COBBLESTONE_BLOCK,
-            create_item_stack(ItemId::STONE_BLOCK, 1),
-            10.0, // 10 seconds
-            0.1, // 0.1 experience
-        ));
-        
-        // Iron ingot from iron ore (smelting)
-        self.register(Recipe::smelting(
-            "iron_from_ore".to_string(),
-            ItemId::IRON_ORE_BLOCK,
-            create_item_stack(ItemId::IRON_INGOT, 1),
-            10.0,
-            0.7,
-        ));
-        
-        // Torch
-        self.register(Recipe::shaped(
-            "torch".to_string(),
-            vec!["C", "S"],
-            [('C', ItemId::COAL), ('S', ItemId::STICK)].into_iter().collect(),
-            create_item_stack(ItemId::TORCH_BLOCK, 4),
-        ));
-        
-        // Crafting table
-        self.register(Recipe::shaped(
-            "crafting_table".to_string(),
-            vec!["PP", "PP"],
-            [('P', ItemId::PLANKS_BLOCK)].into_iter().collect(),
-            create_item_stack(ItemId::CRAFTING_TABLE_BLOCK, 1),
-        ));
-        
-        // Furnace
-        self.register(Recipe::shaped(
-            "furnace".to_string(),
-            vec!["CCC", "C C", "CCC"],
-            [('C', ItemId::COBBLESTONE_BLOCK)].into_iter().collect(),
-            create_item_stack(ItemId::FURNACE_BLOCK, 1),
-        ));
-        
-        // Chest
-        self.register(Recipe::shaped(
-            "chest".to_string(),
-            vec!["PPP", "P P", "PPP"],
-            [('P', ItemId::PLANKS_BLOCK)].into_iter().collect(),
-            create_item_stack(ItemId::CHEST_BLOCK, 1),
-        ));
+}
+
+/// Set item at position in crafting grid
+/// Function - transforms grid data by setting item
+pub fn set_item_in_grid(grid: &mut CraftingGrid, x: usize, y: usize, item: Option<ItemStack>) {
+    if x < grid.width && y < grid.height {
+        grid.slots[y * grid.width + x] = item;
     }
+}
+
+/// Clear the crafting grid
+/// Function - transforms grid data by clearing all slots
+pub fn clear_crafting_grid(grid: &mut CraftingGrid) {
+    grid.slots.fill(None);
+}
+
+/// Register a new recipe in the registry
+/// Function - transforms registry data by adding recipe
+pub fn register_recipe(registry: &mut RecipeRegistry, recipe: Recipe) {
+    let index = registry.recipes.len();
+    
+    match &recipe.recipe_type {
+        RecipeType::Shaped(_) => registry.shaped_recipes.push(index),
+        RecipeType::Shapeless(_) => registry.shapeless_recipes.push(index),
+        RecipeType::Smelting(smelting) => {
+            registry.smelting_recipes.insert(smelting.input, index);
+        }
+    }
+    
+    registry.recipes.push(recipe);
+}
+
+/// Initialize registry with default Minecraft-like recipes
+/// Function - transforms registry data by adding all default recipes
+pub fn init_default_recipes_in_registry(registry: &mut RecipeRegistry) {
+    use crate::item::ItemId;
+    
+    // Planks from logs
+    register_recipe(registry, Recipe::shapeless(
+        "planks_from_wood".to_string(),
+        vec![ItemId::WOOD_BLOCK],
+        create_item_stack(ItemId::PLANKS_BLOCK, 4),
+    ));
+    
+    // Sticks from planks
+    register_recipe(registry, Recipe::shaped(
+        "sticks".to_string(),
+        vec!["P", "P"],
+        [('P', ItemId::PLANKS_BLOCK)].into_iter().collect(),
+        create_item_stack(ItemId::STICK, 4),
+    ));
+    
+    // Wooden pickaxe
+    register_recipe(registry, Recipe::shaped(
+        "wooden_pickaxe".to_string(),
+        vec!["PPP", " S ", " S "],
+        [('P', ItemId::PLANKS_BLOCK), ('S', ItemId::STICK)].into_iter().collect(),
+        create_item_stack(ItemId::WOODEN_PICKAXE, 1),
+    ));
+    
+    // Stone pickaxe
+    register_recipe(registry, Recipe::shaped(
+        "stone_pickaxe".to_string(),
+        vec!["SSS", " T ", " T "],
+        [('S', ItemId::COBBLESTONE_BLOCK), ('T', ItemId::STICK)].into_iter().collect(),
+        create_item_stack(ItemId::STONE_PICKAXE, 1),
+    ));
+    
+    // Iron pickaxe
+    register_recipe(registry, Recipe::shaped(
+        "iron_pickaxe".to_string(),
+        vec!["III", " S ", " S "],
+        [('I', ItemId::IRON_INGOT), ('S', ItemId::STICK)].into_iter().collect(),
+        create_item_stack(ItemId::IRON_PICKAXE, 1),
+    ));
+    
+    // Wooden axe
+    register_recipe(registry, Recipe::shaped(
+        "wooden_axe".to_string(),
+        vec!["PP ", "PS ", " S "],
+        [('P', ItemId::PLANKS_BLOCK), ('S', ItemId::STICK)].into_iter().collect(),
+        create_item_stack(ItemId::WOODEN_AXE, 1),
+    ));
+    
+    // Stone from cobblestone (smelting)
+    register_recipe(registry, Recipe::smelting(
+        "stone_from_cobblestone".to_string(),
+        ItemId::COBBLESTONE_BLOCK,
+        create_item_stack(ItemId::STONE_BLOCK, 1),
+        10.0, // 10 seconds
+        0.1, // 0.1 experience
+    ));
+    
+    // Iron ingot from iron ore (smelting)
+    register_recipe(registry, Recipe::smelting(
+        "iron_from_ore".to_string(),
+        ItemId::IRON_ORE_BLOCK,
+        create_item_stack(ItemId::IRON_INGOT, 1),
+        10.0,
+        0.7,
+    ));
+    
+    // Torch
+    register_recipe(registry, Recipe::shaped(
+        "torch".to_string(),
+        vec!["C", "S"],
+        [('C', ItemId::COAL), ('S', ItemId::STICK)].into_iter().collect(),
+        create_item_stack(ItemId::TORCH_BLOCK, 4),
+    ));
+    
+    // Crafting table
+    register_recipe(registry, Recipe::shaped(
+        "crafting_table".to_string(),
+        vec!["PP", "PP"],
+        [('P', ItemId::PLANKS_BLOCK)].into_iter().collect(),
+        create_item_stack(ItemId::CRAFTING_TABLE_BLOCK, 1),
+    ));
+    
+    // Furnace
+    register_recipe(registry, Recipe::shaped(
+        "furnace".to_string(),
+        vec!["CCC", "C C", "CCC"],
+        [('C', ItemId::COBBLESTONE_BLOCK)].into_iter().collect(),
+        create_item_stack(ItemId::FURNACE_BLOCK, 1),
+    ));
+    
+    // Chest
+    register_recipe(registry, Recipe::shaped(
+        "chest".to_string(),
+        vec!["PPP", "P P", "PPP"],
+        [('P', ItemId::PLANKS_BLOCK)].into_iter().collect(),
+        create_item_stack(ItemId::CHEST_BLOCK, 1),
+    ));
+}
+
+/// Create a recipe registry with default recipes
+/// Pure function - returns registry data with defaults pre-loaded
+pub fn create_default_recipe_registry() -> RecipeRegistry {
+    let mut registry = RecipeRegistry::new();
+    init_default_recipes_in_registry(&mut registry);
+    registry
 }
 
 impl Default for RecipeRegistry {
     fn default() -> Self {
-        let mut registry = Self::new();
-        registry.init_default_recipes();
-        registry
+        create_default_recipe_registry()
     }
 }

@@ -183,34 +183,3 @@ pub fn calculate_chunk_skylight(world: &mut dyn WorldInterface, chunk_x: i32, ch
 // ===== COMPATIBILITY LAYER =====
 // Temporary aliases for code that hasn't been converted yet
 
-/// Compatibility alias - will be removed in future sprints
-#[deprecated(note = "Use LightPropagatorData and pure functions instead")]
-pub type LightPropagator = LightPropagatorData;
-
-/// Compatibility implementation for gradual migration
-#[allow(deprecated)]
-impl LightPropagator {
-    /// Compatibility constructor
-    #[deprecated(note = "Use create_light_propagator_data instead")]
-    pub fn new() -> Self {
-        create_light_propagator_data()
-    }
-    
-    /// Compatibility method
-    #[deprecated(note = "Use add_light_to_queue instead")]
-    pub fn add_light(&mut self, pos: VoxelPos, light_type: LightType, level: u8) {
-        add_light_to_queue(self, pos, light_type, level);
-    }
-    
-    /// Compatibility method
-    #[deprecated(note = "Use remove_light_from_queue instead")]
-    pub fn remove_light(&mut self, pos: VoxelPos, light_type: LightType, level: u8) {
-        remove_light_from_queue(self, pos, light_type, level);
-    }
-    
-    /// Compatibility method
-    #[deprecated(note = "Use propagate_queued_lights instead")]
-    pub fn propagate(&mut self, world: &mut dyn WorldInterface) {
-        propagate_queued_lights(self, world);
-    }
-}

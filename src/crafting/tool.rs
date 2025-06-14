@@ -79,15 +79,6 @@ impl ToolDurability {
         Self { current: max, max }
     }
     
-    /// Use the tool, reducing durability
-    pub fn use_tool(&mut self) -> bool {
-        if self.current > 0 {
-            self.current -= 1;
-            true
-        } else {
-            false // Tool is broken
-        }
-    }
     
     /// Get the percentage of durability remaining (0.0 - 1.0)
     pub fn percentage(&self) -> f32 {
@@ -99,10 +90,6 @@ impl ToolDurability {
         self.current == 0
     }
     
-    /// Repair the tool by a certain amount
-    pub fn repair(&mut self, amount: u32) {
-        self.current = (self.current + amount).min(self.max);
-    }
 }
 
 /// Represents a tool item
@@ -327,4 +314,21 @@ pub fn get_block_properties(block: BlockId) -> BlockProperties {
             drops: vec![ItemDrop::simple(block)],
         },
     }
+}
+
+/// Use the tool, reducing durability
+/// Function - transforms tool durability data
+pub fn use_tool_durability(durability: &mut ToolDurability) -> bool {
+    if durability.current > 0 {
+        durability.current -= 1;
+        true
+    } else {
+        false // Tool is broken
+    }
+}
+
+/// Repair the tool by a certain amount
+/// Function - transforms tool durability data by repairing
+pub fn repair_tool_durability(durability: &mut ToolDurability, amount: u32) {
+    durability.current = (durability.current + amount).min(durability.max);
 }

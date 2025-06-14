@@ -1,5 +1,6 @@
 use crate::world::{BlockId, ChunkPos, VoxelPos};
 use crate::lighting::{LightMap, LightLevel};
+use crate::lighting::light_map::{get_light_from_map, set_light_in_map, set_sky_light_in_map, set_block_light_in_map};
 use crate::morton::{morton_encode_chunk, morton_decode_chunk};
 
 /// A chunk of voxels using Morton encoding for cache-friendly access
@@ -141,31 +142,31 @@ impl MortonChunk {
     
     // Light methods (still using linear indexing for now)
     pub fn get_light(&self, x: u32, y: u32, z: u32) -> LightLevel {
-        self.light_map.get_light(x, y, z)
+        get_light_from_map(&self.light_map, x, y, z)
     }
     
     pub fn set_light(&mut self, x: u32, y: u32, z: u32, light: LightLevel) {
-        self.light_map.set_light(x, y, z, light);
+        set_light_in_map(&mut self.light_map, x, y, z, light);
         self.light_dirty = true;
         self.dirty = true;
     }
     
     pub fn get_sky_light(&self, x: u32, y: u32, z: u32) -> u8 {
-        self.light_map.get_light(x, y, z).sky
+        get_light_from_map(&self.light_map, x, y, z).sky
     }
     
     pub fn set_sky_light(&mut self, x: u32, y: u32, z: u32, level: u8) {
-        self.light_map.set_sky_light(x, y, z, level);
+        set_sky_light_in_map(&mut self.light_map, x, y, z, level);
         self.light_dirty = true;
         self.dirty = true;
     }
     
     pub fn get_block_light(&self, x: u32, y: u32, z: u32) -> u8 {
-        self.light_map.get_light(x, y, z).block
+        get_light_from_map(&self.light_map, x, y, z).block
     }
     
     pub fn set_block_light(&mut self, x: u32, y: u32, z: u32, level: u8) {
-        self.light_map.set_block_light(x, y, z, level);
+        set_block_light_in_map(&mut self.light_map, x, y, z, level);
         self.light_dirty = true;
         self.dirty = true;
     }
