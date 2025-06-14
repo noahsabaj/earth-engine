@@ -23,13 +23,13 @@ const LIGHT_SHIFT: u32 = 16u;
 const SKYLIGHT_SHIFT: u32 = 20u;
 const METADATA_SHIFT: u32 = 24u;
 
-// Block IDs
+// Block IDs (must match Test block get_id() implementations)
 const BLOCK_AIR: u32 = 0u;
-const BLOCK_STONE: u32 = 1u;
-const BLOCK_DIRT: u32 = 2u;
-const BLOCK_GRASS: u32 = 3u;
-const BLOCK_SAND: u32 = 4u;
-const BLOCK_WATER: u32 = 5u;
+const BLOCK_GRASS: u32 = 1u;   // Matches TestGrassBlock::get_id() = BlockId(1)
+const BLOCK_DIRT: u32 = 2u;    // Matches TestDirtBlock::get_id() = BlockId(2)  
+const BLOCK_STONE: u32 = 3u;   // Matches TestStoneBlock::get_id() = BlockId(3)
+const BLOCK_SAND: u32 = 5u;    // Matches TestSandBlock::get_id() = BlockId(5)
+const BLOCK_WATER: u32 = 6u;   // Matches TestWaterBlock::get_id() = BlockId(6)
 const BLOCK_COAL_ORE: u32 = 16u;
 const BLOCK_IRON_ORE: u32 = 17u;
 const BLOCK_GOLD_ORE: u32 = 18u;
