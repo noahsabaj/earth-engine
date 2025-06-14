@@ -98,7 +98,7 @@ libc = "0.2"
 
 [dev-dependencies]
 tempfile = "3.10"
-criterion = { workspace = true }
+criterion = { version = "0.5.1", features = ["html_reports"] }
 
 # Benchmarks
 [[bench]]
