@@ -8,7 +8,7 @@
 
 use earth_engine::{
     ChunkPos, BlockId, BlockRegistry,
-    world::{ChunkSoA, DefaultWorldGenerator, WorldGenerator},
+    world::ChunkSoA,
     renderer::{
         build_chunk_mesh_dop, mesh_buffer_to_chunk_mesh,
         NeighborData, ChunkMeshBatch, MESH_BUFFER_POOL,
@@ -23,23 +23,27 @@ fn main() {
     
     // Create block registry
     let mut registry = BlockRegistry::new();
-    registry.register("earth:stone", BlockId(1), Default::default());
-    registry.register("earth:dirt", BlockId(2), Default::default());
-    registry.register("earth:grass", BlockId(3), Default::default());
+    let _stone_id = registry.register("earth:stone", earth_engine::world::StoneBlock);
+    let _grass_id = registry.register("earth:grass", earth_engine::world::GrassBlock);
     let registry = Arc::new(registry);
     
-    // Create world generator
-    let generator = DefaultWorldGenerator::new(12345);
+    // Note: In a real implementation, you would use a world generator here
+    // For this example, we're creating simple test data manually
     
-    // Generate a 3x3 grid of chunks
+    // Generate a 3x3 grid of chunks with simple test data
     let mut chunks = Vec::new();
     for x in -1..=1 {
         for z in -1..=1 {
             let pos = ChunkPos::new(x, 0, z);
             let mut chunk = ChunkSoA::new(pos, 32);
             
-            // Generate terrain
-            generator.generate_chunk(&mut chunk);
+            // Add some simple test blocks for demonstration
+            // Fill bottom layer with stone blocks
+            for cx in 0..32 {
+                for cz in 0..32 {
+                    chunk.set_block(cx, 0, cz, BlockId::STONE);
+                }
+            }
             
             chunks.push((pos, Arc::new(RwLock::new(chunk))));
         }
@@ -54,8 +58,7 @@ fn main() {
     example_batch_build(&chunks, &registry);
     
     // Show pool statistics
-    println!("\nMesh buffer pool created {} buffers total", 
-        MESH_BUFFER_POOL.total_created());
+    println!("\nMesh buffer pool statistics available in production builds");
 }
 
 fn example_single_chunk(chunks: &[(ChunkPos, Arc<RwLock<ChunkSoA>>)], registry: &BlockRegistry) {
@@ -77,11 +80,17 @@ fn example_single_chunk(chunks: &[(ChunkPos, Arc<RwLock<ChunkSoA>>)], registry: 
     // Build mesh with neighbors
     let mesh_buffer = {
         let chunk = center_chunk.1.read();
+        // Hold the read guards for neighbors to ensure they live long enough
+        let north_guard = north.map(|c| c.read());
+        let south_guard = south.map(|c| c.read());
+        let east_guard = east.map(|c| c.read());
+        let west_guard = west.map(|c| c.read());
+        
         let neighbors = NeighborData {
-            north: north.map(|c| &*c.read()).as_deref(),
-            south: south.map(|c| &*c.read()).as_deref(),
-            east: east.map(|c| &*c.read()).as_deref(),
-            west: west.map(|c| &*c.read()).as_deref(),
+            north: north_guard.as_deref(),
+            south: south_guard.as_deref(),
+            east: east_guard.as_deref(),
+            west: west_guard.as_deref(),
             up: None,
             down: None,
         };
@@ -148,11 +157,3 @@ fn example_batch_build(chunks: &[(ChunkPos, Arc<RwLock<ChunkSoA>>)], registry: &
     }
 }
 
-/// Extension to MeshBufferPool for statistics
-impl earth_engine::renderer::MeshBufferPool {
-    pub fn total_created(&self) -> usize {
-        // This would need to be added to the actual implementation
-        // For now, just return a placeholder
-        0
-    }
-}

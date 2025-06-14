@@ -59,7 +59,7 @@ mod tests {
         assert_eq!(world_buffer.world_size(), 16);
         
         // Calculate expected sizes
-        let total_chunks = 16 * 16 * 8; // 16x16x8 chunks
+        let total_chunks = 16 * 16 * 16; // 16x16x16 chunks (not 16x16x8!)
         let voxels_per_chunk = 32 * 32 * 32;
         let expected_voxel_size = total_chunks * voxels_per_chunk * 4; // 4 bytes per voxel
         let expected_metadata_size = total_chunks * 16; // 16 bytes per chunk
@@ -91,7 +91,7 @@ mod tests {
         let (device, queue) = create_test_device().await;
         let device = std::sync::Arc::new(device);
         
-        // Create world buffer
+        // Create world buffer (small size for testing)
         let world_buffer = WorldBuffer::new(device.clone(), &WorldBufferDescriptor {
             world_size: 8,
             enable_atomics: true,
@@ -137,7 +137,7 @@ mod tests {
         let (device, queue) = create_test_device().await;
         let device = std::sync::Arc::new(device);
         
-        // Create world buffer
+        // Create world buffer (small size for testing)  
         let world_buffer = WorldBuffer::new(device.clone(), &WorldBufferDescriptor {
             world_size: 8,
             enable_atomics: true,
@@ -168,7 +168,7 @@ mod tests {
         let (device, queue) = create_test_device().await;
         let device = std::sync::Arc::new(device);
         
-        // Create world buffer and lighting system
+        // Create world buffer and lighting system (small size for testing)
         let world_buffer = WorldBuffer::new(device.clone(), &WorldBufferDescriptor {
             world_size: 8,
             enable_atomics: true,
@@ -199,11 +199,11 @@ mod tests {
     
     #[tokio::test]
     async fn test_unified_memory_layout() {
-        let layout = UnifiedMemoryLayout::new(512, 256);
+        let layout = UnifiedMemoryLayout::new(32, 64); // Use smaller test-safe values
         
         // Verify layout calculations
-        assert_eq!(layout.world_size, 512);
-        assert_eq!(layout.world_height, 256);
+        assert_eq!(layout.world_size, 32);
+        assert_eq!(layout.world_height, 64);
         assert_eq!(layout.chunk_size, 32);
         
         // Check offsets are properly aligned
@@ -225,7 +225,7 @@ mod tests {
         let (device, _queue) = create_test_device().await;
         let device = std::sync::Arc::new(device);
         
-        let manager = UnifiedMemoryManager::new(device.clone(), 64, 256);
+        let manager = UnifiedMemoryManager::new(device.clone(), 8, 32); // Use test-safe values
         
         // Get memory stats
         let stats = manager.get_memory_stats();

@@ -97,9 +97,9 @@ async fn run_benchmarks(config: EngineConfig, max_entities: u32, view_distance: 
         },
     );
     
-    // Initialize world state
+    // Initialize world state  
     let mut world_config = world_state::WorldConfig::zeroed();
-    world_config.world_size = 1024;
+    world_config.world_size = 32; // Use test-friendly size (4GB instead of 131TB!)
     world_config.chunk_size = config.chunk_size;
     world_config.max_entities = max_entities;
     world_config.max_chunks = 4096;
@@ -117,7 +117,7 @@ async fn run_benchmarks(config: EngineConfig, max_entities: u32, view_distance: 
     let world_buffer = world_gpu::WorldBuffer::new(
         device.clone(),
         &world_gpu::WorldBufferDescriptor {
-            world_size: 1024,
+            world_size: 32, // Use test-friendly size (4GB instead of 131TB!)
             enable_atomics: true,
             enable_readback: false,
         },

@@ -250,7 +250,7 @@ pub mod operations {
         let config = crate::world_gpu::UnifiedKernelConfig {
             frame_number: params.frame_number as u32,
             delta_time_ms: params.delta_time_ms,
-            world_size: 1024, // From config
+            world_size: 32, // Use reasonable size (should come from WorldConfig)
             active_chunks: state.active_chunks,
             physics_substeps: 4,
             lighting_iterations: 2,

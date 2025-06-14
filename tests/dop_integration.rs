@@ -10,8 +10,10 @@ use glam::Vec3;
 // Import existing DOP implementations
 use earth_engine::particles::particle_data::ParticleData;
 use earth_engine::particles::update::update_particles;
-use earth_engine::physics_data::physics_tables::PhysicsData;
+use earth_engine::physics_data::{PhysicsData, EntityId};
+use earth_engine::physics_data::integration::parallel::{apply_gravity, integrate_positions};
 use earth_engine::world::World;
+use earth_engine::physics::GRAVITY;
 
 #[test]
 fn test_particle_system_dop_integration() {
@@ -22,6 +24,17 @@ fn test_particle_system_dop_integration() {
     
     // Spawn some particles using DOP functions
     particles.count = 100;
+    
+    // Resize vectors to hold the particles
+    particles.position_x.resize(particles.count, 0.0);
+    particles.position_y.resize(particles.count, 0.0);
+    particles.position_z.resize(particles.count, 0.0);
+    particles.velocity_x.resize(particles.count, 0.0);
+    particles.velocity_y.resize(particles.count, 0.0);
+    particles.velocity_z.resize(particles.count, 0.0);
+    particles.lifetime.resize(particles.count, 0.0);
+    particles.max_lifetime.resize(particles.count, 0.0);
+    
     for i in 0..particles.count {
         particles.position_x[i] = i as f32;
         particles.position_y[i] = 0.0;
@@ -34,7 +47,7 @@ fn test_particle_system_dop_integration() {
     }
     
     // Create a simple world for collision testing
-    let world = World::new();
+    let world = World::new(32); // 32x32x32 chunk size
     
     // Update particles using DOP kernel functions
     let dt = 0.016; // 60 FPS
@@ -63,33 +76,45 @@ fn test_physics_dop_integration() {
     // Create physics data using Structure of Arrays
     let mut physics_data = PhysicsData::new(1000);
     
-    // Add some entities
-    physics_data.entity_count = 50;
-    for i in 0..physics_data.entity_count {
-        physics_data.positions_x[i] = i as f32 * 2.0;
-        physics_data.positions_y[i] = 100.0;
-        physics_data.positions_z[i] = 0.0;
-        physics_data.velocities_x[i] = 0.0;
-        physics_data.velocities_y[i] = 0.0;
-        physics_data.velocities_z[i] = 0.0;
-        physics_data.masses[i] = 1.0;
+    // Add some entities using proper DOP API
+    let entity_count = 50;
+    for i in 0..entity_count {
+        let position = [i as f32 * 2.0, 100.0, 0.0];
+        let velocity = [0.0, 0.0, 0.0];
+        let mass = 1.0;
+        let half_extents = [0.5, 0.5, 0.5];
+        
+        physics_data.add_entity(position, velocity, mass, half_extents);
     }
     
     // Apply gravity using DOP kernel function
     let dt = 0.016;
-    earth_engine::physics_data::parallel_solver::apply_gravity(&mut physics_data, dt);
+    let entity_count = physics_data.entity_count();
+    
+    // Apply gravity to velocities
+    apply_gravity(
+        &mut physics_data.velocities[..entity_count],
+        &physics_data.flags[..entity_count],
+        GRAVITY,
+        dt
+    );
     
     // Verify gravity was applied to all entities
-    for i in 0..physics_data.entity_count {
-        assert!(physics_data.velocities_y[i] < 0.0, "Entity {} should be falling", i);
+    for i in 0..entity_count {
+        assert!(physics_data.velocities[i][1] < 0.0, "Entity {} should be falling", i);
     }
     
     // Update positions using DOP kernel
-    earth_engine::physics_data::parallel_solver::integrate_motion(&mut physics_data, dt);
+    integrate_positions(
+        &mut physics_data.positions[..entity_count],
+        &physics_data.velocities[..entity_count],
+        &physics_data.flags[..entity_count],
+        dt
+    );
     
     // Verify positions updated
-    for i in 0..physics_data.entity_count {
-        assert!(physics_data.positions_y[i] < 100.0, "Entity {} should have fallen", i);
+    for i in 0..entity_count {
+        assert!(physics_data.positions[i][1] < 100.0, "Entity {} should have fallen", i);
     }
     
     println!("✅ Physics DOP integration test passed");
@@ -197,7 +222,7 @@ fn test_no_runtime_allocation() {
     let initial_capacity_z = particles.position_z.capacity();
     
     // Run multiple update cycles
-    let world = World::new();
+    let world = World::new(32);
     for _ in 0..100 {
         update_particles(&mut particles, &world, 0.016, Vec3::ZERO, false);
     }
@@ -291,7 +316,7 @@ fn test_kernel_function_purity() {
     }
     
     // Apply same transformation to both
-    let world = World::new();
+    let world = World::new(32);
     let dt = 0.016;
     let wind = Vec3::ZERO;
     
@@ -426,29 +451,43 @@ fn test_cross_system_dop_integration() {
     
     // Create physics system
     let mut physics = PhysicsData::new(100);
-    physics.entity_count = 10;
     
     // Initialize data in both systems
     for i in 0..10 {
-        // Particles
+        // Particles - resize vectors first
+        if i == 0 {
+            particles.position_x.resize(10, 0.0);
+            particles.position_y.resize(10, 0.0);
+            particles.position_z.resize(10, 0.0);
+        }
         particles.position_x[i] = i as f32;
         particles.position_y[i] = 0.0;
         particles.position_z[i] = 0.0;
         
-        // Physics entities
-        physics.positions_x[i] = i as f32;
-        physics.positions_y[i] = 0.0;
-        physics.positions_z[i] = 0.0;
+        // Physics entities - use proper API
+        let position = [i as f32, 0.0, 0.0];
+        let velocity = [0.0, 0.0, 0.0];
+        let mass = 1.0;
+        let half_extents = [0.5, 0.5, 0.5];
+        
+        physics.add_entity(position, velocity, mass, half_extents);
     }
     
     // Update both systems using DOP kernel functions
-    let world = World::new();
+    let world = World::new(32);
     update_particles(&mut particles, &world, 0.016, Vec3::ZERO, false);
-    earth_engine::physics_data::parallel_solver::apply_gravity(&mut physics, 0.016);
+    
+    let entity_count = physics.entity_count();
+    apply_gravity(
+        &mut physics.velocities[..entity_count],
+        &physics.flags[..entity_count],
+        GRAVITY,
+        0.016
+    );
     
     // Verify both systems updated independently without coupling
     assert!(particles.position_x[0] > 0.0, "Particles should have moved");
-    assert!(physics.velocities_y[0] < 0.0, "Physics entities should be falling");
+    assert!(physics.velocities[0][1] < 0.0, "Physics entities should be falling");
     
     // Verify no hidden coupling between systems (pure DOP)
     // In pure DOP, systems only communicate through explicit data transfers

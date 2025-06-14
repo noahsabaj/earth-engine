@@ -64,7 +64,9 @@ pub struct WorldBufferDescriptor {
 impl Default for WorldBufferDescriptor {
     fn default() -> Self {
         Self {
-            world_size: 256, // 256³ chunks by default
+            // Use reasonable size for tests/development: 16³ = 0.5GB
+            // Production should explicitly set larger sizes
+            world_size: if cfg!(test) { 8 } else { 16 },
             enable_atomics: true,
             enable_readback: cfg!(debug_assertions),
         }
@@ -96,6 +98,20 @@ pub struct WorldBuffer {
 impl WorldBuffer {
     pub fn new(device: Arc<wgpu::Device>, desc: &WorldBufferDescriptor) -> Self {
         let world_size = desc.world_size;
+        
+        // Safety check: prevent massive allocations during tests
+        if cfg!(test) && world_size > 32 {
+            panic!("WorldBuffer test safety: world_size {} too large (max 32 for tests, {} chunks = {}GB)", 
+                world_size, world_size * world_size * world_size,
+                (world_size * world_size * world_size) as u64 * VOXELS_PER_CHUNK as u64 * 4 / (1024 * 1024 * 1024));
+        }
+        
+        // Development safety check: warn about large allocations
+        if world_size > 64 {
+            let gb = (world_size * world_size * world_size) as u64 * VOXELS_PER_CHUNK as u64 * 4 / (1024 * 1024 * 1024);
+            eprintln!("WARNING: Creating WorldBuffer with world_size {} ({} GB). Consider smaller sizes for development.", world_size, gb);
+        }
+        
         let chunks_total = world_size * world_size * world_size;
         let total_voxels = chunks_total as u64 * VOXELS_PER_CHUNK as u64;
         let buffer_size = total_voxels * std::mem::size_of::<VoxelData>() as u64;

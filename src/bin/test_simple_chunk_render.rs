@@ -86,7 +86,7 @@ async fn test_chunk_rendering() {
     
     // Create renderer
     let chunk_size = 32;
-    let mut renderer = SimpleAsyncRenderer::new();
+    let mut renderer = SimpleAsyncRenderer::new(registry.clone(), chunk_size, None);
     
     // Create a test chunk at origin with some blocks
     let mut chunk = Chunk::new(ChunkPos::new(0, 0, 0), chunk_size);

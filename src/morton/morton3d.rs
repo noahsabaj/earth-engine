@@ -13,24 +13,27 @@ const MAGIC_Z: u64 = 0x4924924924924924;
 /// Spreads bits of a 21-bit integer to every 3rd bit
 /// Used for Morton encoding
 #[inline(always)]
-fn spread_bits(mut v: u32) -> u64 {
-    v = (v | (v << 16)) & 0x030000FF;
-    v = (v | (v << 8)) & 0x0300F00F;
-    v = (v | (v << 4)) & 0x030C30C3;
-    v = (v | (v << 2)) & 0x09249249;
-    v as u64
+fn spread_bits(v: u32) -> u64 {
+    let mut result = 0u64;
+    for i in 0..21 {
+        if (v >> i) & 1 != 0 {
+            result |= 1u64 << (i * 3);
+        }
+    }
+    result
 }
 
 /// Compacts every 3rd bit back to a 21-bit integer
 /// Used for Morton decoding
 #[inline(always)]
-fn compact_bits(mut v: u64) -> u32 {
-    v &= 0x09249249;
-    v = (v | (v >> 2)) & 0x030C30C3;
-    v = (v | (v >> 4)) & 0x0300F00F;
-    v = (v | (v >> 8)) & 0x030000FF;
-    v = (v | (v >> 16)) & 0x0000001F;
-    v as u32
+fn compact_bits(v: u64) -> u32 {
+    let mut result = 0u32;
+    for i in 0..21 {
+        if (v >> (i * 3)) & 1 != 0 {
+            result |= 1u32 << i;
+        }
+    }
+    result
 }
 
 /// Encode 3D coordinates into Morton code (Z-order)

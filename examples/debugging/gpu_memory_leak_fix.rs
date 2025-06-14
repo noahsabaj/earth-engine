@@ -1,9 +1,10 @@
 // Example demonstrating the GPU memory leak fix for async renderer
 
 use earth_engine::{
-    ChunkPos, BlockId, BlockRegistry, Camera,
+    ChunkPos, BlockId, BlockRegistry,
     renderer::SimpleAsyncRenderer,
-    world::{ParallelWorld, ParallelWorldConfig, DefaultWorldGenerator},
+    world::{ParallelWorld, ParallelWorldConfig, generation::DefaultWorldGenerator},
+    camera::{Camera, CameraData, init_camera},
 };
 use std::sync::Arc;
 use cgmath::Point3;
@@ -24,11 +25,11 @@ fn main() {
     let chunk_size = 16;
     let generator = Box::new(DefaultWorldGenerator::new(
         12345, // seed
-        stone_id,
-        stone_id,
-        stone_id,
-        BlockId::AIR,
-        BlockId::AIR,
+        BlockId::GRASS,
+        BlockId::DIRT,
+        BlockId::STONE,
+        BlockId::WATER,
+        BlockId::SAND,
     ));
     
     let config = ParallelWorldConfig {
@@ -48,7 +49,8 @@ fn main() {
         Some(2),
     );
     
-    // Create camera
+    // Create camera using the deprecated API for this example
+    #[allow(deprecated)]
     let mut camera = Camera::new(800, 600);
     
     println!("Step 1: Initial position - generating chunks");
@@ -103,16 +105,16 @@ fn main() {
 // Simple test block
 struct TestStoneBlock;
 
-impl earth_engine::Block for TestStoneBlock {
-    fn get_id(&self) -> BlockId { BlockId(1) }
-    fn get_render_data(&self) -> earth_engine::RenderData {
-        earth_engine::RenderData {
+impl earth_engine::world::Block for TestStoneBlock {
+    fn get_id(&self) -> BlockId { BlockId::STONE }
+    fn get_render_data(&self) -> earth_engine::world::RenderData {
+        earth_engine::world::RenderData {
             color: [0.6, 0.6, 0.6],
             texture_id: 0,
         }
     }
-    fn get_physics_properties(&self) -> earth_engine::PhysicsProperties {
-        earth_engine::PhysicsProperties {
+    fn get_physics_properties(&self) -> earth_engine::world::PhysicsProperties {
+        earth_engine::world::PhysicsProperties {
             solid: true,
             density: 2500.0,
         }
