@@ -18,7 +18,7 @@ pub struct GpuLightPropagator {
     device: Arc<Device>,
     queue: Arc<Queue>,
     gpu_lighting: Arc<GpuLighting>,
-    world_buffer: Arc<WorldBuffer>,
+    world_buffer: Arc<std::sync::Mutex<WorldBuffer>>,
     
     /// Pending light updates to be processed
     pending_updates: Arc<parking_lot::Mutex<VecDeque<LightUpdate>>>,
@@ -34,7 +34,7 @@ impl GpuLightPropagator {
     pub fn new(
         device: Arc<Device>,
         queue: Arc<Queue>,
-        world_buffer: Arc<WorldBuffer>,
+        world_buffer: Arc<std::sync::Mutex<WorldBuffer>>,
         enable_profiling: bool,
     ) -> Self {
         let gpu_lighting = Arc::new(GpuLighting::new(device.clone()));
@@ -103,11 +103,14 @@ impl GpuLightPropagator {
         });
         
         // Process lighting updates on GPU
-        self.gpu_lighting.batch_update_lighting(
-            &mut encoder,
-            &self.world_buffer,
-            &chunk_positions,
-        );
+        {
+            let world_buffer = self.world_buffer.lock().unwrap();
+            self.gpu_lighting.batch_update_lighting(
+                &mut encoder,
+                &world_buffer,
+                &chunk_positions,
+            );
+        }
         
         // Submit GPU commands
         self.queue.submit(std::iter::once(encoder.finish()));
@@ -200,7 +203,7 @@ impl BlockProvider for GpuBlockProvider {
 pub fn migrate_to_gpu_lighting(
     device: Arc<Device>,
     queue: Arc<Queue>,
-    world_buffer: Arc<WorldBuffer>,
+    world_buffer: Arc<std::sync::Mutex<WorldBuffer>>,
 ) -> GpuLightPropagator {
     GpuLightPropagator::new(device, queue, world_buffer, true)
 }

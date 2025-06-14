@@ -392,6 +392,12 @@ impl ParallelWorld {
         &self.config
     }
     
+    /// Get access to GPU WorldBuffer if using GPU-based generator
+    /// Returns None if using CPU-based generator
+    pub fn get_world_buffer(&self) -> Option<std::sync::Arc<std::sync::Mutex<crate::world_gpu::WorldBuffer>>> {
+        self.chunk_manager.get_world_buffer()
+    }
+    
     /// Get loaded chunk positions for cleanup purposes
     pub fn get_loaded_chunk_positions(&self) -> Vec<ChunkPos> {
         self.chunk_manager.get_loaded_chunk_positions()

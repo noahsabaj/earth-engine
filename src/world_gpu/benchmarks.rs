@@ -36,7 +36,7 @@ impl GpuWorldBenchmarks {
         println!("## Terrain Generation Benchmark");
         
         let world_buffer = WorldBuffer::new(self.device.clone(), &WorldBufferDescriptor {
-            world_size: 64,
+            view_distance: 8,
             enable_atomics: true,
             enable_readback: false,
         });
@@ -106,7 +106,7 @@ impl GpuWorldBenchmarks {
         println!("## Chunk Modification Benchmark");
         
         let world_buffer = WorldBuffer::new(self.device.clone(), &WorldBufferDescriptor {
-            world_size: 64,
+            view_distance: 8,
             enable_atomics: true,
             enable_readback: false,
         });
@@ -157,7 +157,7 @@ impl GpuWorldBenchmarks {
         println!("## Ambient Occlusion Benchmark");
         
         let world_buffer = WorldBuffer::new(self.device.clone(), &WorldBufferDescriptor {
-            world_size: 64,
+            view_distance: 8,
             enable_atomics: true,
             enable_readback: false,
         });

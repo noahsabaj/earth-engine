@@ -47,7 +47,7 @@ mod tests {
         let device = std::sync::Arc::new(device);
         
         let desc = WorldBufferDescriptor {
-            world_size: 16,
+            view_distance: 16,
             enable_atomics: true,
             enable_readback: true,
         };
@@ -55,8 +55,8 @@ mod tests {
         let world_buffer = WorldBuffer::new(device.clone(), &desc);
         
         // Verify buffer sizes
-        assert_eq!(world_buffer.world_size(), 16);
-        assert_eq!(world_buffer.world_size(), 16);
+        assert_eq!(world_buffer.view_distance(), 16);
+        assert_eq!(world_buffer.view_distance(), 16);
         
         // Calculate expected sizes
         let total_chunks = 16 * 16 * 16; // 16x16x16 chunks (not 16x16x8!)
@@ -93,7 +93,7 @@ mod tests {
         
         // Create world buffer (small size for testing)
         let world_buffer = WorldBuffer::new(device.clone(), &WorldBufferDescriptor {
-            world_size: 8,
+            view_distance: 8,
             enable_atomics: true,
             enable_readback: true,
         });
@@ -139,7 +139,7 @@ mod tests {
         
         // Create world buffer (small size for testing)  
         let world_buffer = WorldBuffer::new(device.clone(), &WorldBufferDescriptor {
-            world_size: 8,
+            view_distance: 8,
             enable_atomics: true,
             enable_readback: true,
         });
@@ -170,7 +170,7 @@ mod tests {
         
         // Create world buffer and lighting system (small size for testing)
         let world_buffer = WorldBuffer::new(device.clone(), &WorldBufferDescriptor {
-            world_size: 8,
+            view_distance: 8,
             enable_atomics: true,
             enable_readback: true,
         });

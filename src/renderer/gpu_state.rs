@@ -16,9 +16,9 @@ use crate::input::InputState;
 use crate::physics::{PhysicsWorldData, EntityId, flags};
 use crate::renderer::{SelectionRenderer, GpuDiagnostics, GpuInitProgress, gpu_driven::GpuDrivenRenderer, screenshot};
 use crate::world::{Ray, RaycastHit, ParallelWorld, ParallelWorldConfig, WorldInterface, SpawnFinder};
-use crate::lighting::{DayNightCycleData, LightPropagatorData};
+use crate::lighting::{DayNightCycleData, LightUpdate, LightType};
 use crate::lighting::time_of_day::{create_default_day_night_cycle, update_day_night_cycle};
-use crate::lighting::propagation::{create_light_propagator_data, add_light_to_queue, remove_light_from_queue, propagate_queued_lights};
+use crate::world_gpu::GpuLightPropagator;
 use anyhow::Result;
 use cgmath::{Matrix4, SquareMatrix, Point3, Vector3, InnerSpace, Zero};
 use chrono;
@@ -229,7 +229,7 @@ pub struct GpuState {
     player_entity: EntityId,
     // Lighting
     day_night_cycle: DayNightCycleData,
-    light_propagator: LightPropagatorData,
+    light_propagator: Option<GpuLightPropagator>,
     // Loading state
     first_chunks_loaded: bool,
     frames_rendered: u32,
@@ -629,10 +629,12 @@ impl GpuState {
         
         let block_registry = Arc::new(block_registry_mut);
         
-        // Create world with terrain generator
-        log::info!("[GpuState::new] Creating world generator...");
+        // Create world with GPU terrain generator (95% GPU / 5% CPU split)
+        log::info!("[GpuState::new] Creating GPU-powered world generator...");
         let seed = 12345; // Fixed seed for consistent worlds
-        let generator = Box::new(crate::world::DefaultWorldGenerator::new(
+        let generator = Box::new(crate::world::GpuDefaultWorldGenerator::new(
+            device.clone(),
+            queue.clone(),
             seed,
             grass_id,
             dirt_id,
@@ -768,7 +770,20 @@ impl GpuState {
         // Create lighting systems
         log::info!("[GpuState::new] Creating lighting systems...");
         let day_night_cycle = create_default_day_night_cycle(); // Starts at noon
-        let light_propagator = create_light_propagator_data();
+        
+        // Create GPU light propagator if WorldBuffer is available
+        let light_propagator = if let Some(world_buffer) = world.get_world_buffer() {
+            log::info!("[GpuState::new] Creating GPU-based lighting system...");
+            Some(GpuLightPropagator::new(
+                device.clone(),
+                queue.clone(),
+                world_buffer,
+                true, // Enable profiling
+            ))
+        } else {
+            log::warn!("[GpuState::new] WorldBuffer not available - falling back to CPU lighting");
+            None
+        };
         log::info!("[GpuState::new] Lighting systems created");
 
         let total_time = init_start.elapsed();
@@ -2059,8 +2074,11 @@ pub async fn run_app<G: Game + 'static>(
                             // A block was broken - check if it was a light source
                             if let Some(block) = gpu_state.block_registry.get_block(block_id) {
                                 if block.get_light_emission() > 0 {
-                                    // Removed a light source
-                                    remove_light_from_queue(&mut gpu_state.light_propagator, pos, crate::lighting::LightType::Block, block.get_light_emission());
+                                    // Removed a light source - queue for GPU processing
+                                    if let Some(ref light_propagator) = gpu_state.light_propagator {
+                                        let update = LightUpdate { pos, light_type: LightType::Block, level: block.get_light_emission(), is_removal: true };
+                                        light_propagator.queue_update(update);
+                                    }
                                 }
                             }
                             // Update skylight column
@@ -2070,8 +2088,11 @@ pub async fn run_app<G: Game + 'static>(
                         if let Some(place_pos) = placed_block_pos {
                             if let Some(block) = gpu_state.block_registry.get_block(active_block) {
                                 if block.get_light_emission() > 0 {
-                                    // Placed a light source
-                                    add_light_to_queue(&mut gpu_state.light_propagator, place_pos, crate::lighting::LightType::Block, block.get_light_emission());
+                                    // Placed a light source - queue for GPU processing
+                                    if let Some(ref light_propagator) = gpu_state.light_propagator {
+                                        let update = LightUpdate { pos: place_pos, light_type: LightType::Block, level: block.get_light_emission(), is_removal: false };
+                                        light_propagator.queue_update(update);
+                                    }
                                 }
                             }
                             // Update skylight column
@@ -2080,7 +2101,12 @@ pub async fn run_app<G: Game + 'static>(
                         
                         // Process light propagation if needed
                         if broken_block_info.is_some() || placed_block_pos.is_some() {
-                            propagate_queued_lights(&mut gpu_state.light_propagator, &mut gpu_state.world);
+                            if let Some(ref light_propagator) = gpu_state.light_propagator {
+                                // Process GPU lighting updates
+                                if let Err(e) = light_propagator.process_updates() {
+                                    log::error!("[GPU Lighting] Failed to process light updates: {:?}", e);
+                                }
+                            }
                         }
                         
                         gpu_state.update_camera();

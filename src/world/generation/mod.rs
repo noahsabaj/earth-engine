@@ -4,6 +4,7 @@ pub mod terrain;
 pub mod caves;
 pub mod ores;
 pub mod gpu_world_generator;
+pub mod gpu_default_world_generator;
 
 #[cfg(test)]
 mod tests;
@@ -12,6 +13,7 @@ pub use terrain::TerrainGenerator;
 pub use caves::CaveGenerator;
 pub use ores::OreGenerator;
 pub use gpu_world_generator::GpuWorldGenerator;
+pub use gpu_default_world_generator::{GpuDefaultWorldGenerator, create_gpu_default_world_generator};
 
 pub trait WorldGenerator: Send + Sync {
     fn generate_chunk(&self, chunk_pos: ChunkPos, chunk_size: u32) -> Chunk;
@@ -24,6 +26,12 @@ pub trait WorldGenerator: Send + Sync {
         let safe_height = surface_height as f32 + 3.0;
         // Clamp to reasonable values
         safe_height.clamp(20.0, 250.0)
+    }
+    
+    /// Get access to GPU WorldBuffer if this is a GPU-based generator
+    /// Returns None for CPU-based generators
+    fn get_world_buffer(&self) -> Option<std::sync::Arc<std::sync::Mutex<crate::world_gpu::WorldBuffer>>> {
+        None
     }
 }
 

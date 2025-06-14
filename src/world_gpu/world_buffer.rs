@@ -1,6 +1,8 @@
 use std::sync::Arc;
+use std::collections::HashMap;
 use bytemuck::{Pod, Zeroable};
 use crate::morton::morton_encode;
+use crate::world::ChunkPos;
 
 /// Maximum world size in chunks per dimension
 pub const MAX_WORLD_SIZE: u32 = 512; // 512³ chunks = 134M chunks max
@@ -53,8 +55,8 @@ impl VoxelData {
 
 /// Descriptor for creating a WorldBuffer
 pub struct WorldBufferDescriptor {
-    /// Size of the world in chunks per dimension
-    pub world_size: u32,
+    /// View distance in chunks (determines buffer size)
+    pub view_distance: u32,
     /// Enable atomic operations for modifications
     pub enable_atomics: bool,
     /// Enable readback for debugging
@@ -64,9 +66,8 @@ pub struct WorldBufferDescriptor {
 impl Default for WorldBufferDescriptor {
     fn default() -> Self {
         Self {
-            // Use reasonable size for tests/development: 16³ = 0.5GB
-            // Production should explicitly set larger sizes
-            world_size: if cfg!(test) { 8 } else { 16 },
+            // Use view distance to determine buffer size (much more reasonable)
+            view_distance: 8, // 8 chunk view distance = ~2,000 chunks max
             enable_atomics: true,
             enable_readback: cfg!(debug_assertions),
         }
@@ -90,30 +91,40 @@ pub struct WorldBuffer {
     bind_group: wgpu::BindGroup,
     bind_group_layout: wgpu::BindGroupLayout,
     
-    /// World dimensions
-    world_size: u32,
+    /// Maximum chunks that can be loaded (based on view distance)
+    max_chunks: u32,
+    /// View distance in chunks
+    view_distance: u32,
     total_voxels: u64,
+    
+    /// Chunk slot management: maps chunk position to buffer slot index
+    chunk_slots: HashMap<ChunkPos, u32>,
+    /// Next available slot (simple round-robin allocation)
+    next_slot: u32,
 }
 
 impl WorldBuffer {
     pub fn new(device: Arc<wgpu::Device>, desc: &WorldBufferDescriptor) -> Self {
-        let world_size = desc.world_size;
+        let view_distance = desc.view_distance;
         
-        // Safety check: prevent massive allocations during tests
-        if cfg!(test) && world_size > 32 {
-            panic!("WorldBuffer test safety: world_size {} too large (max 32 for tests, {} chunks = {}GB)", 
-                world_size, world_size * world_size * world_size,
-                (world_size * world_size * world_size) as u64 * VOXELS_PER_CHUNK as u64 * 4 / (1024 * 1024 * 1024));
+        // Calculate maximum chunks based on view distance
+        // Use sphere approximation: chunks within view_distance radius
+        // Conservative estimate: (2 * view_distance + 1)³ to ensure we have enough space
+        let diameter = 2 * view_distance + 1;
+        let max_chunks = diameter * diameter * diameter;
+        
+        // Safety check: prevent massive allocations
+        let gb = max_chunks as u64 * VOXELS_PER_CHUNK as u64 * 4 / (1024 * 1024 * 1024);
+        if gb > 4 {
+            panic!("WorldBuffer: view_distance {} would require {} GB GPU memory (max 4GB recommended)", 
+                   view_distance, gb);
         }
         
-        // Development safety check: warn about large allocations
-        if world_size > 64 {
-            let gb = (world_size * world_size * world_size) as u64 * VOXELS_PER_CHUNK as u64 * 4 / (1024 * 1024 * 1024);
-            eprintln!("WARNING: Creating WorldBuffer with world_size {} ({} GB). Consider smaller sizes for development.", world_size, gb);
-        }
+        log::info!("Creating WorldBuffer with view_distance {} ({} max chunks, {} MB)", 
+                  view_distance, max_chunks, 
+                  max_chunks as u64 * VOXELS_PER_CHUNK as u64 * 4 / (1024 * 1024));
         
-        let chunks_total = world_size * world_size * world_size;
-        let total_voxels = chunks_total as u64 * VOXELS_PER_CHUNK as u64;
+        let total_voxels = max_chunks as u64 * VOXELS_PER_CHUNK as u64;
         let buffer_size = total_voxels * std::mem::size_of::<VoxelData>() as u64;
         
         // Main voxel buffer
@@ -130,7 +141,7 @@ impl WorldBuffer {
         });
         
         // Chunk metadata buffer
-        let metadata_size = chunks_total as u64 * 16; // 16 bytes per chunk
+        let metadata_size = max_chunks as u64 * 16; // 16 bytes per chunk
         let metadata_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Chunk Metadata Buffer"),
             size: metadata_size,
@@ -200,8 +211,11 @@ impl WorldBuffer {
             staging_buffer,
             bind_group,
             bind_group_layout,
-            world_size,
+            max_chunks,
+            view_distance,
             total_voxels,
+            chunk_slots: HashMap::new(),
+            next_slot: 0,
         }
     }
     
@@ -225,28 +239,57 @@ impl WorldBuffer {
         &self.metadata_buffer
     }
     
-    /// Get the world size
-    pub fn world_size(&self) -> u32 {
-        self.world_size
+    /// Get the view distance
+    pub fn view_distance(&self) -> u32 {
+        self.view_distance
     }
     
-    /// Calculate buffer offset for a chunk position using Morton encoding
-    pub fn chunk_offset(&self, chunk_x: u32, chunk_y: u32, chunk_z: u32) -> u64 {
-        let chunk_morton = morton_encode(chunk_x, chunk_y, chunk_z);
-        chunk_morton * VOXELS_PER_CHUNK as u64 * std::mem::size_of::<VoxelData>() as u64
+    /// Get the maximum chunks this buffer can hold
+    pub fn max_chunks(&self) -> u32 {
+        self.max_chunks
+    }
+    
+    /// Get or allocate a buffer slot for a chunk position
+    pub fn get_chunk_slot(&mut self, chunk_pos: ChunkPos) -> u32 {
+        if let Some(&slot) = self.chunk_slots.get(&chunk_pos) {
+            slot
+        } else {
+            // Allocate new slot
+            let slot = self.next_slot % self.max_chunks;
+            
+            // If slot is occupied, remove the old chunk mapping
+            let old_chunk = self.chunk_slots.iter()
+                .find_map(|(pos, &s)| if s == slot { Some(*pos) } else { None });
+            if let Some(old_pos) = old_chunk {
+                self.chunk_slots.remove(&old_pos);
+            }
+            
+            // Map new chunk to slot
+            self.chunk_slots.insert(chunk_pos, slot);
+            self.next_slot = (self.next_slot + 1) % self.max_chunks;
+            
+            slot
+        }
+    }
+    
+    /// Calculate buffer offset for a chunk slot
+    pub fn slot_offset(&self, slot: u32) -> u64 {
+        slot as u64 * VOXELS_PER_CHUNK as u64 * std::mem::size_of::<VoxelData>() as u64
     }
     
     /// Upload a single chunk from CPU (migration path)
-    pub fn upload_chunk(&self, queue: &wgpu::Queue, chunk_pos: [u32; 3], voxels: &[VoxelData]) {
+    pub fn upload_chunk(&mut self, queue: &wgpu::Queue, chunk_pos: ChunkPos, voxels: &[VoxelData]) {
         assert_eq!(voxels.len(), VOXELS_PER_CHUNK as usize);
         
-        let offset = self.chunk_offset(chunk_pos[0], chunk_pos[1], chunk_pos[2]);
+        let slot = self.get_chunk_slot(chunk_pos);
+        let offset = self.slot_offset(slot);
         queue.write_buffer(&self.voxel_buffer, offset, bytemuck::cast_slice(voxels));
     }
     
     /// Clear a chunk to air
-    pub fn clear_chunk(&self, encoder: &mut wgpu::CommandEncoder, chunk_pos: [u32; 3]) {
-        let offset = self.chunk_offset(chunk_pos[0], chunk_pos[1], chunk_pos[2]);
+    pub fn clear_chunk(&mut self, encoder: &mut wgpu::CommandEncoder, chunk_pos: ChunkPos) {
+        let slot = self.get_chunk_slot(chunk_pos);
+        let offset = self.slot_offset(slot);
         let size = VOXELS_PER_CHUNK as u64 * std::mem::size_of::<VoxelData>() as u64;
         
         encoder.clear_buffer(&self.voxel_buffer, offset, Some(size));

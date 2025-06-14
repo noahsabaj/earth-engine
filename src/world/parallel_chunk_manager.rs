@@ -542,6 +542,12 @@ impl ParallelChunkManager {
         self.generator.get_surface_height(world_x, world_z)
     }
     
+    /// Get access to GPU WorldBuffer if using GPU-based generator
+    /// Returns None if using CPU-based generator
+    pub fn get_world_buffer(&self) -> Option<std::sync::Arc<std::sync::Mutex<crate::world_gpu::WorldBuffer>>> {
+        self.generator.get_world_buffer()
+    }
+    
     /// Get current queue metrics
     pub fn get_queue_metrics(&self) -> QueueMetrics {
         let generation_queue_length = self.get_generation_queue_depth();

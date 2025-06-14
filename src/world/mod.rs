@@ -37,7 +37,7 @@ pub use concurrent_chunk_manager::ConcurrentChunkManager;
 pub use concurrent_world::ConcurrentWorld;
 pub use parallel_chunk_manager::{ParallelChunkManager, GenerationStats};
 pub use parallel_world::{ParallelWorld, ParallelWorldConfig, WorldPerformanceMetrics};
-pub use generation::{WorldGenerator, DefaultWorldGenerator, GpuWorldGenerator};
+pub use generation::{WorldGenerator, DefaultWorldGenerator, GpuWorldGenerator, GpuDefaultWorldGenerator, create_gpu_default_world_generator};
 pub use gpu_chunk::{GpuChunk, GpuChunkManager, GpuChunkStats};
 pub use morton_chunk::MortonChunk;
 pub use chunk_soa::{ChunkSoA, ChunkMemoryStats};

@@ -79,11 +79,11 @@ impl UnifiedKernelBenchmark {
         println!("Iterations: {}", iterations);
         println!();
         
-        // Create world buffer
+        // Create world buffer  
         let world_buffer = WorldBuffer::new(
             self.device.clone(),
             &WorldBufferDescriptor {
-                world_size,
+                view_distance: world_size.min(16), // Use world_size as view_distance but cap at 16
                 enable_atomics: true,
                 enable_readback: false,
             },
@@ -271,7 +271,7 @@ impl UnifiedKernelBenchmark {
         let mut octree = SparseVoxelOctree::new(
             self.device.clone(),
             &mut self.memory_manager,
-            world_buffer.world_size(),
+            world_buffer.view_distance(),
         );
         octree.build_from_world(&self.queue, world_buffer, chunk_positions);
         
@@ -294,7 +294,7 @@ impl UnifiedKernelBenchmark {
             let config = UnifiedKernelConfig {
                 frame_number: i,
                 delta_time_ms: 16, // 60 FPS
-                world_size: world_buffer.world_size(),
+                world_size: world_buffer.view_distance(),
                 active_chunks: chunk_positions.len() as u32,
                 physics_substeps: 2,
                 lighting_iterations: 3,
