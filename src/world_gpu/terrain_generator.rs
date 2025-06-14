@@ -51,20 +51,18 @@ pub struct TerrainGenerator {
 
 impl TerrainGenerator {
     pub fn new(device: Arc<wgpu::Device>) -> Self {
-        // Use proper terrain generation shader with Perlin noise
-        let shader_source = format!(
-            "{}\n\n{}",
-            include_str!("../renderer/shaders/perlin_noise.wgsl"),
-            include_str!("shaders/terrain_generation.wgsl")
-        );
+        // TESTING: Use minimal shader first to verify pipeline works
+        let shader_source = include_str!("shaders/minimal_terrain.wgsl");
         
-        // Debug: Print shader info
-        log::info!("[TerrainGenerator] Using FULL terrain generation shader with Perlin noise, length: {} characters", shader_source.len());
+        log::info!("[TerrainGenerator] TESTING with minimal terrain shader: {} characters", shader_source.len());
         
+        // Create shader module with error handling
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("Terrain Generation Shader"),
+            label: Some("Minimal Terrain Generation Shader"),
             source: wgpu::ShaderSource::Wgsl(shader_source.into()),
         });
+        
+        log::info!("[TerrainGenerator] Minimal shader module created successfully");
         
         // Create bind group layout for full terrain generation shader
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
