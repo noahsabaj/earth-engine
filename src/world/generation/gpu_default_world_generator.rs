@@ -120,6 +120,23 @@ impl GpuDefaultWorldGenerator {
         // Convert GPU VoxelData format to CPU Chunk format
         let mut chunk = Chunk::new(chunk_pos, self.chunk_size);
         
+        // Debug: Check first few raw voxel values and block IDs
+        let mut non_zero_count = 0;
+        let mut non_air_count = 0;
+        for (i, gpu_voxel) in gpu_voxels.iter().take(10).enumerate() {
+            if gpu_voxel.0 != 0 {
+                non_zero_count += 1;
+            }
+            if gpu_voxel.block_id() != 0 {
+                non_air_count += 1;
+            }
+            if i < 3 || gpu_voxel.0 != 0 || gpu_voxel.block_id() != 0 {
+                log::debug!("[GPU→CPU] Voxel {}: raw=0x{:08x}, block_id={}", i, gpu_voxel.0, gpu_voxel.block_id());
+            }
+        }
+        log::debug!("[GPU→CPU] Chunk {:?}: {} non-zero raw, {} non-air blocks (of first 10 voxels)", 
+                   chunk_pos, non_zero_count, non_air_count);
+        
         for (voxel_index, gpu_voxel) in gpu_voxels.iter().enumerate() {
             // Convert linear index to 3D coordinates
             let x = (voxel_index as u32) % self.chunk_size;
