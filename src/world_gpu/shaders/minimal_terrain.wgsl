@@ -81,8 +81,8 @@ fn generate_chunk(
                 var block_id = BLOCK_AIR;
                 var skylight = 15u;
                 
-                // Generate simple terrain: grass surface at y=64, dirt below, stone deeper
-                let surface_height = 64.0;
+                // Generate simple terrain: grass surface at y=32, dirt below, stone deeper
+                let surface_height = 32.0;
                 
                 if (world_y < surface_height) {
                     skylight = 0u;
