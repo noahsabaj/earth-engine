@@ -169,15 +169,17 @@ impl GpuDefaultWorldGenerator {
     fn generate_chunk_gpu(&self, chunk_pos: ChunkPos) -> Chunk {
         log::info!("[GpuDefaultWorldGenerator] GPU-generating chunk {:?} (TESTING SELF-CONTAINED SHADER)", chunk_pos);
         
-        // TEMPORARILY RE-ENABLE GPU GENERATION to test minimal pipeline
-        log::info!("[GpuDefaultWorldGenerator] GPU generation RE-ENABLED - testing minimal pipeline");
+        // GPU GENERATION DISABLED - WSL Software Renderer Limitation
+        log::info!("[GpuDefaultWorldGenerator] GPU generation DISABLED - WSL llvmpipe does not support compute shaders properly");
+        /*
+        // GPU generation fails with InvalidPipeline errors on WSL software renderer
+        // Investigation shows the pipeline appears to create successfully but becomes invalid
+        // when used, likely due to llvmpipe compute shader limitations
         {
-            // Create command encoder for GPU operations
             let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("GPU Terrain Generation"),
             });
             
-            // Generate chunk directly in WorldBuffer using compute shader
             {
                 let world_buffer = self.world_buffer.lock().unwrap();
                 self.terrain_generator.generate_chunk(
@@ -187,9 +189,9 @@ impl GpuDefaultWorldGenerator {
                 );
             }
             
-            // Submit GPU commands asynchronously
             self.queue.submit(std::iter::once(encoder.finish()));
         }
+        */
         
         // Extract the generated chunk data back to CPU format
         // This maintains compatibility with existing engine systems
