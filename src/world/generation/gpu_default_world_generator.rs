@@ -167,9 +167,10 @@ impl GpuDefaultWorldGenerator {
     
     /// Generate chunk on GPU and extract to CPU format
     fn generate_chunk_gpu(&self, chunk_pos: ChunkPos) -> Chunk {
-        log::info!("[GpuDefaultWorldGenerator] GPU-generating chunk {:?} (TESTING MINIMAL SHADER)", chunk_pos);
+        log::info!("[GpuDefaultWorldGenerator] GPU-generating chunk {:?} (TESTING SELF-CONTAINED SHADER)", chunk_pos);
         
-        // TEST: Re-enable GPU generation with minimal shader
+        // TEMPORARILY RE-ENABLE GPU GENERATION to test minimal pipeline
+        log::info!("[GpuDefaultWorldGenerator] GPU generation RE-ENABLED - testing minimal pipeline");
         {
             // Create command encoder for GPU operations
             let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
