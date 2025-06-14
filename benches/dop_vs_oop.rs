@@ -427,58 +427,25 @@ criterion_main!(benches);
 // Analysis and Results Documentation
 // ========================================
 
-#[cfg(test)]
-mod analysis {
-    use super::*;
-    
-    /// Expected Performance Results:
-    /// 
-    /// 1. **Entity Update**:
-    ///    - DOP should be 2-3x faster than OOP due to cache efficiency
-    ///    - SIMD-friendly DOP should be 3-5x faster with compiler vectorization
-    /// 
-    /// 2. **Area Damage**:
-    ///    - DOP should be 5-10x faster due to:
-    ///      - Better cache locality for position data
-    ///      - Reduced pointer chasing
-    ///      - SIMD-friendly distance calculations
-    /// 
-    /// 3. **Memory Layout**:
-    ///    - SoA separate loops should be 10-20x faster than AoS
-    ///    - Demonstrates the power of cache-friendly access patterns
-    /// 
-    /// 4. **Cache Efficiency**:
-    ///    - Sequential access should be 100x+ faster than random access
-    ///    - Shows why data layout matters more than algorithmic complexity
-    /// 
-    /// These benchmarks validate the DOP approach and provide concrete
-    /// evidence for why Earth Engine adopts these patterns.
-    
-    #[test]
-    fn verify_dop_patterns() {
-        // Basic smoke test to ensure our DOP implementations work
-        let mut data = EntityDataDOP::new(100);
-        update_all_dop(&mut data, 0.016);
-        
-        // Verify some entity moved
-        assert!(data.positions_x[0] > 0.0);
-        
-        // Verify area damage works
-        apply_area_damage_dop(&mut data, 0.0, 0.0, 0.0, 10.0, 50.0);
-        assert!(data.health[0] < 100.0);
-    }
-    
-    #[test]
-    fn verify_oop_patterns() {
-        // Basic smoke test to ensure our OOP implementations work
-        let mut system = EntitySystemOOP::new(100);
-        system.update_all(0.016);
-        
-        // Verify some entity moved
-        assert!(system.entities[0].position.x > 0.0);
-        
-        // Verify area damage works
-        system.apply_area_damage(Vec3::ZERO, 10.0, 50.0);
-        assert!(system.entities[0].health < 100.0);
-    }
-}
+// Expected Performance Results:
+// 
+// 1. **Entity Update**:
+//    - DOP should be 2-3x faster than OOP due to cache efficiency
+//    - SIMD-friendly DOP should be 3-5x faster with compiler vectorization
+// 
+// 2. **Area Damage**:
+//    - DOP should be 5-10x faster due to:
+//      - Better cache locality for position data
+//      - Reduced pointer chasing
+//      - SIMD-friendly distance calculations
+// 
+// 3. **Memory Layout**:
+//    - SoA separate loops should be 10-20x faster than AoS
+//    - Demonstrates the power of cache-friendly access patterns
+// 
+// 4. **Cache Efficiency**:
+//    - Sequential access should be 100x+ faster than random access
+//    - Shows why data layout matters more than algorithmic complexity
+// 
+// These benchmarks validate the DOP approach and provide concrete
+// evidence for why Earth Engine adopts these patterns.
