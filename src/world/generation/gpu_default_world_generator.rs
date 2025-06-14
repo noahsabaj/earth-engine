@@ -301,12 +301,12 @@ impl GpuDefaultWorldGenerator {
             
             // Generate chunk directly in WorldBuffer using compute shader on NVIDIA GPU
             {
-                let world_buffer = self.world_buffer.lock().unwrap();
+                let mut world_buffer = self.world_buffer.lock().unwrap();
                 log::debug!("[GPU_COMMANDS] WorldBuffer locked, dispatching compute shader...");
                 
                 self.terrain_generator.generate_chunk(
                     &mut encoder,
-                    &world_buffer,
+                    &mut world_buffer,
                     chunk_pos,
                 );
                 

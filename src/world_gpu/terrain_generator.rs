@@ -164,7 +164,7 @@ impl TerrainGenerator {
     pub fn generate_chunks(
         &self,
         encoder: &mut wgpu::CommandEncoder,
-        world_buffer: &WorldBuffer,
+        world_buffer: &mut WorldBuffer,
         chunk_positions: &[ChunkPos],
     ) {
         let overall_start = Instant::now();
@@ -193,11 +193,16 @@ impl TerrainGenerator {
                        min_x, max_x, min_y, max_y, min_z, max_z);
         }
         
-        // Create buffer for chunk positions
+        // Create buffer for chunk positions WITH SLOT INDICES
+        // CRITICAL FIX: Include actual slot indices to resolve buffer index mismatch
         let buffer_prep_start = Instant::now();
         let positions_data: Vec<[i32; 4]> = chunk_positions
             .iter()
-            .map(|pos| [pos.x, pos.y, pos.z, 0])
+            .map(|pos| {
+                let slot = world_buffer.get_chunk_slot(*pos);
+                log::debug!("[GPU_TERRAIN] Chunk {:?} allocated to slot {}", pos, slot);
+                [pos.x, pos.y, pos.z, slot as i32]  // Pack slot in 4th component
+            })
             .collect();
         
         let buffer_size = positions_data.len() * std::mem::size_of::<[i32; 4]>();
@@ -295,7 +300,7 @@ impl TerrainGenerator {
     pub fn generate_chunk(
         &self,
         encoder: &mut wgpu::CommandEncoder,
-        world_buffer: &WorldBuffer,
+        world_buffer: &mut WorldBuffer,
         chunk_pos: ChunkPos,
     ) {
         self.generate_chunks(encoder, world_buffer, &[chunk_pos]);

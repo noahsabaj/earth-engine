@@ -92,7 +92,7 @@ mod tests {
         let device = std::sync::Arc::new(device);
         
         // Create world buffer (small size for testing)
-        let world_buffer = WorldBuffer::new(device.clone(), &WorldBufferDescriptor {
+        let mut world_buffer = WorldBuffer::new(device.clone(), &WorldBufferDescriptor {
             view_distance: 8,
             enable_atomics: true,
             enable_readback: true,
@@ -124,7 +124,7 @@ mod tests {
             label: Some("Test Terrain Generation"),
         });
         
-        terrain_gen.generate_chunks(&mut encoder, &world_buffer, &chunks_to_generate);
+        terrain_gen.generate_chunks(&mut encoder, &mut world_buffer, &chunks_to_generate);
         
         queue.submit(std::iter::once(encoder.finish()));
         

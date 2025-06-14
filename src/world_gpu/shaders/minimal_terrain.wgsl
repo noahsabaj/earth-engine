@@ -107,8 +107,11 @@ fn generate_chunk(
                     block_id = BLOCK_GRASS; // Thick grass layer for visibility
                 }
                 
-                // Calculate buffer index
-                let buffer_index = chunk_idx * CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE + 
+                // CRITICAL FIX: Use actual slot index from chunk_positions.w instead of sequential chunk_idx
+                // This fixes the buffer index mismatch where compute shader assumed sequential layout
+                // but WorldBuffer uses slot-based allocation
+                let slot = u32(chunk_pos.w);  // Slot index packed in 4th component
+                let buffer_index = slot * CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE + 
                                   x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE;
                 
                 // Write voxel data
@@ -119,11 +122,12 @@ fn generate_chunk(
         }
     }
     
-    // Update metadata
+    // Update metadata using slot index
     if (all(local_id == vec3<u32>(0u, 0u, 0u))) {
-        if (chunk_idx < arrayLength(&chunk_metadata)) {
-            chunk_metadata[chunk_idx].flags = 1u; // Mark as generated
-            chunk_metadata[chunk_idx].timestamp = 0u;
+        let slot = u32(chunk_pos.w);  // Use same slot index from positions
+        if (slot < arrayLength(&chunk_metadata)) {
+            chunk_metadata[slot].flags = 1u; // Mark as generated
+            chunk_metadata[slot].timestamp = 0u;
         }
     }
 }

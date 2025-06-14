@@ -3,7 +3,7 @@
 /// This implements the WorldGenerator trait but delegates actual generation to GPU compute shaders,
 /// then extracts the results back to CPU Chunk format for compatibility with existing systems.
 
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use crate::{BlockId, Chunk, ChunkPos};
 use crate::world_gpu::{WorldBuffer, WorldBufferDescriptor, TerrainGenerator, TerrainParams, VoxelData};
 use super::{WorldGenerator, terrain::TerrainGenerator as CpuTerrainGenerator};
@@ -13,7 +13,7 @@ use wgpu::util::DeviceExt;
 pub struct GpuWorldGenerator {
     device: Arc<wgpu::Device>,
     queue: Arc<wgpu::Queue>,
-    world_buffer: WorldBuffer,
+    world_buffer: Arc<Mutex<WorldBuffer>>,
     terrain_generator: TerrainGenerator,
     cpu_terrain_gen: CpuTerrainGenerator, // For surface height queries
     chunk_size: u32,
@@ -66,7 +66,7 @@ impl GpuWorldGenerator {
         Self {
             device,
             queue,
-            world_buffer,
+            world_buffer: Arc::new(Mutex::new(world_buffer)),
             terrain_generator,
             cpu_terrain_gen,
             chunk_size,
@@ -163,11 +163,14 @@ impl GpuWorldGenerator {
         });
         
         // Generate chunk directly in WorldBuffer using compute shader
-        self.terrain_generator.generate_chunk(
-            &mut encoder,
-            &self.world_buffer,
-            chunk_pos,
-        );
+        {
+            let mut world_buffer = self.world_buffer.lock().unwrap();
+            self.terrain_generator.generate_chunk(
+                &mut encoder,
+                &mut world_buffer,
+                chunk_pos,
+            );
+        }
         
         // Submit GPU commands
         self.queue.submit(std::iter::once(encoder.finish()));
@@ -191,6 +194,10 @@ impl WorldGenerator for GpuWorldGenerator {
         // For now, delegate to CPU terrain generator
         // TODO: Add GPU compute shader for surface height queries
         self.cpu_terrain_gen.get_height(world_x, world_z)
+    }
+    
+    fn get_world_buffer(&self) -> Option<std::sync::Arc<std::sync::Mutex<crate::world_gpu::WorldBuffer>>> {
+        Some(Arc::clone(&self.world_buffer))
     }
 }
 

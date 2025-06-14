@@ -80,7 +80,7 @@ impl UnifiedKernelBenchmark {
         println!();
         
         // Create world buffer  
-        let world_buffer = WorldBuffer::new(
+        let mut world_buffer = WorldBuffer::new(
             self.device.clone(),
             &WorldBufferDescriptor {
                 view_distance: world_size.min(16), // Use world_size as view_distance but cap at 16
@@ -100,7 +100,7 @@ impl UnifiedKernelBenchmark {
         
         // Benchmark traditional approach
         let traditional_results = self.benchmark_traditional(
-            &world_buffer,
+            &mut world_buffer,
             &chunk_positions,
             iterations,
         ).await;
@@ -133,7 +133,7 @@ impl UnifiedKernelBenchmark {
     /// Benchmark traditional multi-pass approach
     async fn benchmark_traditional(
         &mut self,
-        world_buffer: &WorldBuffer,
+        world_buffer: &mut WorldBuffer,
         chunk_positions: &[ChunkPos],
         iterations: u32,
     ) -> TraditionalResults {

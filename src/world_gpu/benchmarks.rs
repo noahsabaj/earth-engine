@@ -35,7 +35,7 @@ impl GpuWorldBenchmarks {
     fn benchmark_terrain_generation(&self) {
         println!("## Terrain Generation Benchmark");
         
-        let world_buffer = WorldBuffer::new(self.device.clone(), &WorldBufferDescriptor {
+        let mut world_buffer = WorldBuffer::new(self.device.clone(), &WorldBufferDescriptor {
             view_distance: 8,
             enable_atomics: true,
             enable_readback: false,
@@ -62,7 +62,7 @@ impl GpuWorldBenchmarks {
                 label: Some("Benchmark Encoder"),
             });
             
-            terrain_gen.generate_chunks(&mut encoder, &world_buffer, &chunks);
+            terrain_gen.generate_chunks(&mut encoder, &mut world_buffer, &chunks);
             
             self.queue.submit(std::iter::once(encoder.finish()));
             self.device.poll(wgpu::Maintain::Wait);
@@ -90,7 +90,7 @@ impl GpuWorldBenchmarks {
         let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: None,
         });
-        terrain_gen.generate_chunks(&mut encoder, &world_buffer, &chunks);
+        terrain_gen.generate_chunks(&mut encoder, &mut world_buffer, &chunks);
         self.queue.submit(std::iter::once(encoder.finish()));
         self.device.poll(wgpu::Maintain::Wait);
         let elapsed = start.elapsed();
