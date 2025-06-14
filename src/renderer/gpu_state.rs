@@ -13,7 +13,7 @@ use crate::camera::{
     init_camera, init_camera_with_spawn,
 };
 use crate::input::InputState;
-use crate::physics::{PhysicsWorldData, EntityId, flags};
+use crate::physics::{PhysicsWorldData, GpuPhysicsWorld, EntityId, flags};
 use crate::renderer::{SelectionRenderer, GpuDiagnostics, GpuInitProgress, gpu_driven::GpuDrivenRenderer, screenshot};
 use crate::world::{Ray, RaycastHit, ParallelWorld, ParallelWorldConfig, WorldInterface, SpawnFinder};
 use crate::lighting::{DayNightCycleData, LightUpdate, LightType};
@@ -224,8 +224,8 @@ pub struct GpuState {
     // Block breaking progress
     breaking_block: Option<VoxelPos>,
     breaking_progress: f32,
-    // Physics
-    physics_world: PhysicsWorldData,
+    // Physics (GPU-accelerated)
+    physics_world: Option<GpuPhysicsWorld>,
     player_entity: EntityId,
     // Lighting
     day_night_cycle: DayNightCycleData,
@@ -734,16 +734,36 @@ impl GpuState {
         log::info!("[GpuState::new] Selection renderer created");
         
         // Create physics world and player entity
-        log::info!("[GpuState::new] Creating physics world...");
-        let mut physics_world = PhysicsWorldData::new();
-        let player_entity = physics_world.add_entity(
-            Point3::new(camera.position[0], camera.position[1], camera.position[2]),
-            Vector3::zero(),
-            Vector3::new(0.8, 1.8, 0.8), // Player size
-            80.0, // Mass in kg
-            0.8,  // Friction
-            0.0,  // Restitution
-        );
+        log::info!("[GpuState::new] Creating GPU physics world...");
+        
+        // Create GPU physics system if WorldBuffer is available
+        let (mut physics_world, player_entity) = if let Some(world_buffer) = world.get_world_buffer() {
+            log::info!("[GpuState::new] Creating GPU-accelerated physics system...");
+            let mut gpu_physics = GpuPhysicsWorld::new(
+                device.clone(),
+                queue.clone(),
+                1024, // Max entities
+            );
+            
+            // Integrate with GPU WorldBuffer
+            gpu_physics.set_world_buffer(world_buffer);
+            
+            let player_entity = gpu_physics.add_entity(
+                Point3::new(camera.position[0], camera.position[1], camera.position[2]),
+                Vector3::zero(),
+                Vector3::new(0.8, 1.8, 0.8), // Player size
+                80.0, // Mass in kg
+                0.8,  // Friction
+                0.0,  // Restitution
+            );
+            
+            (Some(gpu_physics), player_entity)
+        } else {
+            log::warn!("[GpuState::new] WorldBuffer not available - falling back to CPU physics");
+            // Fallback player entity ID
+            (None, 1)
+        };
+        
         log::info!("[GpuState::new] Physics world created with player entity ID: {} at safe spawn position: {:?}", player_entity, camera.position);
         
         // Print movement instructions for user
@@ -757,14 +777,18 @@ impl GpuState {
         log::info!("========================");
         
         // Verify the entity was added correctly
-        if let Some(body) = physics_world.get_body(player_entity) {
-            log::info!("[GpuState::new] Player body verified at position: [{:.2}, {:.2}, {:.2}]", body.position[0], body.position[1], body.position[2]);
-            let is_grounded = (body.flags & flags::GROUNDED) != 0;
-            if !is_grounded {
-                log::info!("[GpuState::new] Player spawned in air - will fall to ground and become grounded");
+        if let Some(ref physics_world) = physics_world {
+            if let Some(body) = physics_world.get_body(player_entity) {
+                log::info!("[GpuState::new] Player body verified at position: [{:.2}, {:.2}, {:.2}]", body.position[0], body.position[1], body.position[2]);
+                let is_grounded = (body.flags & flags::GROUNDED) != 0;
+                if !is_grounded {
+                    log::info!("[GpuState::new] Player spawned in air - will fall to ground and become grounded");
+                }
+            } else {
+                log::error!("[GpuState::new] Failed to retrieve player body after creation!");
             }
         } else {
-            log::error!("[GpuState::new] Failed to retrieve player body after creation!");
+            log::warn!("[GpuState::new] GPU physics world not available - using fallback physics");
         }
         
         // Create lighting systems
@@ -1263,112 +1287,115 @@ impl GpuState {
     fn process_input(&mut self, input: &InputState, delta_time: f32, active_block: BlockId) -> (Option<(VoxelPos, BlockId)>, Option<VoxelPos>) {
         // Get player body for movement
         log::debug!("[process_input] Player entity ID: {}", self.player_entity);
-        if let Some(body) = self.physics_world.get_body_mut(self.player_entity) {
-            log::debug!("[process_input] Body position before: [{:.2}, {:.2}, {:.2}]", body.position[0], body.position[1], body.position[2]);
-            log::debug!("[process_input] Body velocity before: [{:.2}, {:.2}, {:.2}]", body.velocity[0], body.velocity[1], body.velocity[2]);
-            // Calculate movement direction based on camera yaw
-            let yaw_rad = self.camera.yaw_radians;
-            let forward = Vector3::new(yaw_rad.cos(), 0.0, yaw_rad.sin());
-            let right = Vector3::new(yaw_rad.sin(), 0.0, -yaw_rad.cos());
-            
-            let mut move_dir = Vector3::new(0.0, 0.0, 0.0);
-            
-            // Movement input
-            if input.is_key_pressed(KeyCode::KeyW) {
-                log::debug!("[process_input] W key pressed!");
-                move_dir += forward;
-            }
-            if input.is_key_pressed(KeyCode::KeyS) {
-                log::debug!("[process_input] S key pressed!");
-                move_dir -= forward;
-            }
-            if input.is_key_pressed(KeyCode::KeyA) {
-                log::debug!("[process_input] A key pressed!");
-                move_dir -= right;
-            }
-            if input.is_key_pressed(KeyCode::KeyD) {
-                log::debug!("[process_input] D key pressed!");
-                move_dir += right;
-            }
-            
-            // Normalize diagonal movement
-            if move_dir.magnitude() > 0.0 {
-                move_dir = move_dir.normalize();
-            }
-            
-            // Check player state flags
-            let is_grounded = (body.flags & flags::GROUNDED) != 0;
-            let is_in_water = (body.flags & flags::IN_WATER) != 0;
-            let is_on_ladder = (body.flags & flags::ON_LADDER) != 0;
-            
-            // Determine movement speed based on state
-            let mut move_speed = 4.3; // Normal walking speed
-            if !is_in_water && !is_on_ladder {
-                if input.is_key_pressed(KeyCode::ShiftLeft) && is_grounded {
-                    move_speed = 5.6; // Sprint speed
-                } else if input.is_key_pressed(KeyCode::ControlLeft) {
-                    move_speed = 1.3; // Crouch speed
-                } else if !is_grounded {
-                    // Allow air movement but at reduced speed for better control
-                    move_speed = 2.0; // Air movement speed
+        if let Some(physics_world) = &mut self.physics_world {
+            if let Some(body) = physics_world.get_body_mut(self.player_entity) {
+                log::debug!("[process_input] Body position before: [{:.2}, {:.2}, {:.2}]", body.position[0], body.position[1], body.position[2]);
+                log::debug!("[process_input] Body velocity before: [{:.2}, {:.2}, {:.2}]", body.velocity[0], body.velocity[1], body.velocity[2]);
+                // Calculate movement direction based on camera yaw
+                let yaw_rad = self.camera.yaw_radians;
+                let forward = Vector3::new(yaw_rad.cos(), 0.0, yaw_rad.sin());
+                let right = Vector3::new(yaw_rad.sin(), 0.0, -yaw_rad.cos());
+                
+                let mut move_dir = Vector3::new(0.0, 0.0, 0.0);
+                
+                // Movement input
+                if input.is_key_pressed(KeyCode::KeyW) {
+                    log::debug!("[process_input] W key pressed!");
+                    move_dir += forward;
                 }
-            } else if is_in_water {
-                move_speed = 2.0; // Swimming speed
-            }
-            
-            // Apply horizontal movement
-            let horizontal_vel = move_dir * move_speed;
-            body.velocity[0] = horizontal_vel.x;
-            body.velocity[2] = horizontal_vel.z;
-            
-            log::debug!("[process_input] Move direction: [{:.2}, {:.2}, {:.2}], speed: {:.2}", move_dir.x, move_dir.y, move_dir.z, move_speed);
-            log::debug!("[process_input] Body velocity after: [{:.2}, {:.2}, {:.2}]", body.velocity[0], body.velocity[1], body.velocity[2]);
-            
-            // Provide helpful movement state feedback
-            if move_dir.magnitude() > 0.0 {
-                log::debug!("[Movement] Player moving: grounded={}, in_water={}, on_ladder={}, speed={:.1}", 
-                           is_grounded, is_in_water, is_on_ladder, move_speed);
-            } else {
-                static mut MOVEMENT_HELP_COOLDOWN: f32 = 0.0;
-                // SAFETY: Static mut access is safe here because:
-                // - This is only used for UI cooldown timing
-                // - Single-threaded access pattern (render loop)
-                // - Only modified during movement handling
-                // - Race conditions would only affect help message timing
-                unsafe {
-                    MOVEMENT_HELP_COOLDOWN -= delta_time;
-                    if MOVEMENT_HELP_COOLDOWN <= 0.0 {
-                        log::info!("[Movement] Use WASD to move, Space to jump, Shift to sprint, Ctrl to crouch");
-                        MOVEMENT_HELP_COOLDOWN = 10.0; // Show help every 10 seconds when not moving
+                if input.is_key_pressed(KeyCode::KeyS) {
+                    log::debug!("[process_input] S key pressed!");
+                    move_dir -= forward;
+                }
+                if input.is_key_pressed(KeyCode::KeyA) {
+                    log::debug!("[process_input] A key pressed!");
+                    move_dir -= right;
+                }
+                if input.is_key_pressed(KeyCode::KeyD) {
+                    log::debug!("[process_input] D key pressed!");
+                    move_dir += right;
+                }
+                
+                // Normalize diagonal movement
+                if move_dir.magnitude() > 0.0 {
+                    move_dir = move_dir.normalize();
+                }
+                
+                // Check player state flags
+                let is_grounded = (body.flags & flags::GROUNDED) != 0;
+                let is_in_water = (body.flags & flags::IN_WATER) != 0;
+                let is_on_ladder = (body.flags & flags::ON_LADDER) != 0;
+                
+                // Determine movement speed based on state
+                let mut move_speed = 4.3; // Normal walking speed
+                if !is_in_water && !is_on_ladder {
+                    if input.is_key_pressed(KeyCode::ShiftLeft) && is_grounded {
+                        move_speed = 5.6; // Sprint speed
+                    } else if input.is_key_pressed(KeyCode::ControlLeft) {
+                        move_speed = 1.3; // Crouch speed
+                    } else if !is_grounded {
+                        // Allow air movement but at reduced speed for better control
+                        move_speed = 2.0; // Air movement speed
+                    }
+                } else if is_in_water {
+                    move_speed = 2.0; // Swimming speed
+                }
+                
+                // Apply horizontal movement
+                let horizontal_vel = move_dir * move_speed;
+                body.velocity[0] = horizontal_vel.x;
+                body.velocity[2] = horizontal_vel.z;
+                
+                log::debug!("[process_input] Move direction: [{:.2}, {:.2}, {:.2}], speed: {:.2}", move_dir.x, move_dir.y, move_dir.z, move_speed);
+                log::debug!("[process_input] Body velocity after: [{:.2}, {:.2}, {:.2}]", body.velocity[0], body.velocity[1], body.velocity[2]);
+                
+                // Provide helpful movement state feedback
+                if move_dir.magnitude() > 0.0 {
+                    log::debug!("[Movement] Player moving: grounded={}, in_water={}, on_ladder={}, speed={:.1}", 
+                               is_grounded, is_in_water, is_on_ladder, move_speed);
+                } else {
+                    static mut MOVEMENT_HELP_COOLDOWN: f32 = 0.0;
+                    // SAFETY: Static mut access is safe here because:
+                    // - This is only used for UI cooldown timing
+                    // - Single-threaded access pattern (render loop)
+                    // - Only modified during movement handling
+                    // - Race conditions would only affect help message timing
+                    unsafe {
+                        MOVEMENT_HELP_COOLDOWN -= delta_time;
+                        if MOVEMENT_HELP_COOLDOWN <= 0.0 {
+                            log::info!("[Movement] Use WASD to move, Space to jump, Shift to sprint, Ctrl to crouch");
+                            MOVEMENT_HELP_COOLDOWN = 10.0; // Show help every 10 seconds when not moving
+                        }
                     }
                 }
-            }
-            
-            // Handle vertical movement
-            if is_on_ladder {
-                // Ladder climbing
-                if input.is_key_pressed(KeyCode::KeyW) {
-                    body.velocity[1] = 3.0; // Climb up
-                } else if input.is_key_pressed(KeyCode::KeyS) {
-                    body.velocity[1] = -3.0; // Climb down
-                } else {
-                    body.velocity[1] = 0.0; // Stay in place on ladder
+                
+                // Handle vertical movement
+                if is_on_ladder {
+                    // Ladder climbing
+                    if input.is_key_pressed(KeyCode::KeyW) {
+                        body.velocity[1] = 3.0; // Climb up
+                    } else if input.is_key_pressed(KeyCode::KeyS) {
+                        body.velocity[1] = -3.0; // Climb down
+                    } else {
+                        body.velocity[1] = 0.0; // Stay in place on ladder
+                    }
+                } else if input.is_key_pressed(KeyCode::Space) {
+                    if is_in_water {
+                        // Swim up
+                        body.velocity[1] = 4.0;
+                    } else if is_grounded {
+                        // Jump
+                        body.velocity[1] = 8.5; // Jump velocity
+                    }
+                } else if is_in_water && input.is_key_pressed(KeyCode::ControlLeft) {
+                    // Swim down
+                    body.velocity[1] = -2.0;
                 }
-            } else if input.is_key_pressed(KeyCode::Space) {
-                if is_in_water {
-                    // Swim up
-                    body.velocity[1] = 4.0;
-                } else if is_grounded {
-                    // Jump
-                    body.velocity[1] = 8.5; // Jump velocity
-                }
-            } else if is_in_water && input.is_key_pressed(KeyCode::ControlLeft) {
-                // Swim down
-                body.velocity[1] = -2.0;
+            } else {
+                log::error!("[process_input] Failed to get player body! Entity ID: {}", self.player_entity);
             }
         } else {
-            log::error!("[process_input] Failed to get player body! Entity ID: {}", self.player_entity);
-            log::error!("[process_input] Physics world active count: {}", self.physics_world.active_count);
+            log::error!("[process_input] GPU physics world not available - cannot process player movement");
         }
         
         // Mouse look - only process if cursor is locked
@@ -1571,8 +1598,10 @@ impl GpuState {
                 self.camera.position = [adjusted_pos.x, adjusted_pos.y, adjusted_pos.z];
                 
                 // Update physics entity position
-                self.physics_world.set_position(self.player_entity, adjusted_pos);
-                log::info!("[GpuState::render] Updated physics entity position");
+                if let Some(ref mut physics_world) = self.physics_world {
+                    physics_world.set_position(self.player_entity, adjusted_pos);
+                    log::info!("[GpuState::render] Updated physics entity position");
+                }
                 
                 // Update camera uniform
                 self.camera_uniform.update_view_proj_data(&self.camera);
@@ -2013,25 +2042,29 @@ pub async fn run_app<G: Game + 'static>(
                         
                         // Update physics
                         log::trace!("[render loop] Updating physics with delta_time: {:.4}", delta_time);
-                        gpu_state.physics_world.update(&gpu_state.world, delta_time);
+                        if let Some(ref mut physics_world) = gpu_state.physics_world {
+                            physics_world.update(&gpu_state.world, delta_time);
+                        }
                         
                         // Sync camera position with player physics body
                         log::trace!("[render loop] Syncing camera with player entity {}", gpu_state.player_entity);
-                        if let Some(body) = gpu_state.physics_world.get_body(gpu_state.player_entity) {
-                            log::debug!("[render loop] Physics body position: [{:.2}, {:.2}, {:.2}]", body.position[0], body.position[1], body.position[2]);
-                            let player_pos = Point3::new(
-                                body.position[0],
-                                body.position[1],
-                                body.position[2],
-                            );
-                            
-                            // Camera at eye level (0.72m offset from body center)
-                            gpu_state.camera.position = [
-                                player_pos.x,
-                                player_pos.y + 0.72,
-                                player_pos.z
-                            ];
-                            log::debug!("[render loop] Camera position updated to: [{:.2}, {:.2}, {:.2}]", gpu_state.camera.position[0], gpu_state.camera.position[1], gpu_state.camera.position[2]);
+                        if let Some(ref physics_world) = gpu_state.physics_world {
+                            if let Some(body) = physics_world.get_body(gpu_state.player_entity) {
+                                log::debug!("[render loop] Physics body position: [{:.2}, {:.2}, {:.2}]", body.position[0], body.position[1], body.position[2]);
+                                let player_pos = Point3::new(
+                                    body.position[0],
+                                    body.position[1],
+                                    body.position[2],
+                                );
+                                
+                                // Camera at eye level (0.72m offset from body center)
+                                gpu_state.camera.position = [
+                                    player_pos.x,
+                                    player_pos.y + 0.72,
+                                    player_pos.z
+                                ];
+                                log::debug!("[render loop] Camera position updated to: [{:.2}, {:.2}, {:.2}]", gpu_state.camera.position[0], gpu_state.camera.position[1], gpu_state.camera.position[2]);
+                            }
                         }
                         
                         // Update loaded chunks based on player position
