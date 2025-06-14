@@ -59,6 +59,20 @@ pub enum ClientPacket {
         action: InventoryActionType,
         sequence: u32,
     },
+    /// Request world save
+    SaveWorldRequest {
+        force: bool,
+        sequence: u32,
+    },
+    /// Request player data save
+    SavePlayerRequest {
+        sequence: u32,
+    },
+    /// Request world load/restore
+    LoadWorldRequest {
+        save_name: String,
+        sequence: u32,
+    },
 }
 
 /// Packets sent from server to client
@@ -164,6 +178,59 @@ pub enum ServerPacket {
         max_players: u32,
         tps: f32, // Ticks per second
     },
+    /// Save operation progress
+    SaveProgress {
+        operation_id: u32,
+        progress: f32, // 0.0 to 1.0
+        status: SaveStatus,
+        message: String,
+    },
+    /// Save operation result
+    SaveResult {
+        operation_id: u32,
+        success: bool,
+        error_message: Option<String>,
+        save_time: u64,
+        sequence: u32, // Echo client sequence
+    },
+    /// World save completed
+    WorldSaved {
+        chunks_saved: u32,
+        players_saved: u32,
+        save_time: u64,
+        sequence: u32,
+    },
+    /// Player data saved
+    PlayerSaved {
+        success: bool,
+        error_message: Option<String>,
+        sequence: u32,
+    },
+    /// World loading progress
+    LoadProgress {
+        operation_id: u32,
+        progress: f32,
+        status: LoadStatus,
+        message: String,
+    },
+    /// World loaded
+    WorldLoaded {
+        save_name: String,
+        chunks_loaded: u32,
+        players_loaded: u32,
+        load_time: u64,
+        sequence: u32,
+    },
+    /// Chunk save/load state
+    ChunkSaveState {
+        chunk_pos: ChunkPos,
+        state: ChunkSaveStatus,
+        timestamp: u64,
+    },
+    /// Batch chunk save states
+    ChunkSaveStates {
+        states: Vec<ChunkSaveStateData>,
+    },
 }
 
 /// Player movement state
@@ -253,6 +320,53 @@ pub struct InventorySlotData {
     pub count: u32,
 }
 
+/// Save operation status
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum SaveStatus {
+    Starting,
+    InProgress,
+    CompressingData,
+    WritingToDisk,
+    CreatingBackup,
+    Completed,
+    Failed,
+}
+
+/// Load operation status
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum LoadStatus {
+    Starting,
+    ReadingFromDisk,
+    DecompressingData,
+    ValidatingData,
+    LoadingChunks,
+    LoadingPlayers,
+    Completed,
+    Failed,
+}
+
+/// Chunk save status
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+pub enum ChunkSaveStatus {
+    Clean,        // No changes to save
+    Dirty,        // Has unsaved changes
+    Saving,       // Currently being saved
+    Saved,        // Successfully saved
+    SaveFailed,   // Failed to save
+    Loading,      // Currently being loaded
+    Loaded,       // Successfully loaded
+    LoadFailed,   // Failed to load
+}
+
+/// Chunk save state data for batch operations
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChunkSaveStateData {
+    pub chunk_pos: ChunkPos,
+    pub state: ChunkSaveStatus,
+    pub timestamp: u64,
+    pub error_message: Option<String>,
+}
+
 /// Packet type for routing
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum PacketType {
@@ -268,6 +382,10 @@ impl Packet {
             Packet::Client(client) => match client {
                 ClientPacket::PlayerInput { .. } => PacketType::Unreliable,
                 ClientPacket::Ping { .. } => PacketType::Unreliable,
+                // Save/load operations must be reliable
+                ClientPacket::SaveWorldRequest { .. } => PacketType::Reliable,
+                ClientPacket::SavePlayerRequest { .. } => PacketType::Reliable,
+                ClientPacket::LoadWorldRequest { .. } => PacketType::Reliable,
                 _ => PacketType::Reliable,
             },
             // Server packets
@@ -276,6 +394,16 @@ impl Packet {
                 ServerPacket::PlayerUpdates { .. } => PacketType::Unreliable,
                 ServerPacket::EntityUpdate { .. } => PacketType::Unreliable,
                 ServerPacket::Pong { .. } => PacketType::Unreliable,
+                // Save/load progress can be unreliable for frequent updates
+                ServerPacket::SaveProgress { .. } => PacketType::Unreliable,
+                ServerPacket::LoadProgress { .. } => PacketType::Unreliable,
+                ServerPacket::ChunkSaveState { .. } => PacketType::Unreliable,
+                // Save/load results must be reliable
+                ServerPacket::SaveResult { .. } => PacketType::Reliable,
+                ServerPacket::WorldSaved { .. } => PacketType::Reliable,
+                ServerPacket::PlayerSaved { .. } => PacketType::Reliable,
+                ServerPacket::WorldLoaded { .. } => PacketType::Reliable,
+                ServerPacket::ChunkSaveStates { .. } => PacketType::Reliable,
                 _ => PacketType::Reliable,
             },
         }

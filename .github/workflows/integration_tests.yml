@@ -1,0 +1,538 @@
+# Earth Engine Integration Tests CI/CD Pipeline
+# Sprint 38: System Integration
+#
+# Comprehensive CI/CD pipeline for automated integration testing,
+# performance regression detection, and quality assurance.
+
+name: Integration Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    # Run nightly performance regression tests
+    - cron: '0 2 * * *'
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  # Performance test configuration
+  PERF_BASELINE_THRESHOLD: 15
+  MEMORY_REGRESSION_THRESHOLD: 20
+
+jobs:
+  # Fast compilation and unit tests
+  quick-validation:
+    name: Quick Validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        components: rustfmt, clippy
+    
+    - name: Cache Cargo dependencies
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target/
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-
+    
+    - name: Check formatting
+      run: cargo fmt --all -- --check
+    
+    - name: Clippy analysis
+      run: cargo clippy --all-targets --all-features -- -D warnings
+    
+    - name: Quick compile check
+      run: cargo check --all-targets
+    
+    - name: Run unit tests
+      run: cargo test --lib --bins
+      env:
+        RUST_LOG: warn
+
+  # Movement + Physics Integration Tests
+  movement-physics-integration:
+    name: Movement + Physics Integration
+    runs-on: ubuntu-latest
+    needs: quick-validation
+    timeout-minutes: 20
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+    
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          libasound2-dev \
+          libudev-dev \
+          libxcb-render0-dev \
+          libxcb-shape0-dev \
+          libxcb-xfixes0-dev \
+          libspeechd-dev \
+          libxkbcommon-dev \
+          libssl-dev
+    
+    - name: Cache dependencies
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target/
+        key: ${{ runner.os }}-cargo-integration-${{ hashFiles('**/Cargo.lock') }}
+    
+    - name: Run movement + physics integration tests
+      run: cargo test --test movement_physics_integration -- --nocapture
+      env:
+        RUST_LOG: info
+        RUST_BACKTRACE: 1
+    
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: movement-physics-test-results
+        path: |
+          target/debug/deps/movement_physics_integration-*
+          logs/
+
+  # Network + Persistence Integration Tests  
+  network-persistence-integration:
+    name: Network + Persistence Integration
+    runs-on: ubuntu-latest
+    needs: quick-validation
+    timeout-minutes: 25
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+    
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          libasound2-dev \
+          libudev-dev \
+          libxcb-render0-dev \
+          libxcb-shape0-dev \
+          libxcb-xfixes0-dev \
+          libspeechd-dev \
+          libxkbcommon-dev \
+          libssl-dev
+    
+    - name: Cache dependencies
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target/
+        key: ${{ runner.os }}-cargo-network-${{ hashFiles('**/Cargo.lock') }}
+    
+    - name: Run network + persistence integration tests
+      run: cargo test --test network_persistence_integration -- --nocapture
+      env:
+        RUST_LOG: info
+    
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: network-persistence-test-results
+        path: |
+          target/debug/deps/network_persistence_integration-*
+          logs/
+
+  # Spawn + Chunk Generation Integration Tests
+  spawn-chunk-integration:
+    name: Spawn + Chunk Generation Integration
+    runs-on: ubuntu-latest
+    needs: quick-validation
+    timeout-minutes: 20
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+    
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          libasound2-dev \
+          libudev-dev \
+          libxcb-render0-dev \
+          libxcb-shape0-dev \
+          libxcb-xfixes0-dev \
+          libspeechd-dev \
+          libxkbcommon-dev \
+          libssl-dev
+    
+    - name: Cache dependencies
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target/
+        key: ${{ runner.os }}-cargo-spawn-${{ hashFiles('**/Cargo.lock') }}
+    
+    - name: Run spawn + chunk integration tests
+      run: cargo test --test spawn_chunk_integration -- --nocapture
+      env:
+        RUST_LOG: info
+    
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: spawn-chunk-test-results
+        path: |
+          target/debug/deps/spawn_chunk_integration-*
+          logs/
+
+  # GPU + Rendering Integration Tests
+  gpu-rendering-integration:
+    name: GPU + Rendering Integration
+    runs-on: ubuntu-latest
+    needs: quick-validation
+    timeout-minutes: 30
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+    
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          libasound2-dev \
+          libudev-dev \
+          libxcb-render0-dev \
+          libxcb-shape0-dev \
+          libxcb-xfixes0-dev \
+          libspeechd-dev \
+          libxkbcommon-dev \
+          libssl-dev \
+          mesa-vulkan-drivers \
+          xvfb
+    
+    - name: Cache dependencies
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target/
+        key: ${{ runner.os }}-cargo-gpu-${{ hashFiles('**/Cargo.lock') }}
+    
+    - name: Run GPU + rendering integration tests
+      run: |
+        # Use virtual display for GPU tests
+        export DISPLAY=:99
+        Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 &
+        sleep 3
+        cargo test --test gpu_rendering_integration -- --nocapture
+      env:
+        RUST_LOG: info
+        WGPU_BACKEND: vulkan
+    
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: gpu-rendering-test-results
+        path: |
+          target/debug/deps/gpu_rendering_integration-*
+          logs/
+
+  # Performance Regression Tests
+  performance-regression:
+    name: Performance Regression Detection
+    runs-on: ubuntu-latest
+    needs: [movement-physics-integration, network-persistence-integration, spawn-chunk-integration]
+    timeout-minutes: 35
+    
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        # Fetch full history for performance comparison
+        fetch-depth: 0
+    
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+    
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          libasound2-dev \
+          libudev-dev \
+          libxcb-render0-dev \
+          libxcb-shape0-dev \
+          libxcb-xfixes0-dev \
+          libspeechd-dev \
+          libxkbcommon-dev \
+          libssl-dev
+    
+    - name: Cache dependencies
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target/
+        key: ${{ runner.os }}-cargo-perf-${{ hashFiles('**/Cargo.lock') }}
+    
+    - name: Build release version for performance tests
+      run: cargo build --release --all-targets
+    
+    - name: Run performance regression tests
+      run: cargo test --release --test performance_regression -- --nocapture
+      env:
+        RUST_LOG: info
+        PERF_MODE: regression_test
+    
+    - name: Generate performance report
+      run: |
+        echo "# Performance Test Results" > performance_report.md
+        echo "## Test Run: $(date)" >> performance_report.md
+        echo "## Commit: ${{ github.sha }}" >> performance_report.md
+        echo "" >> performance_report.md
+        
+        # Extract performance metrics from test output
+        if [ -f target/release/performance_results.json ]; then
+          echo "## Performance Metrics" >> performance_report.md
+          cat target/release/performance_results.json >> performance_report.md
+        fi
+    
+    - name: Upload performance report
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: performance-report
+        path: |
+          performance_report.md
+          target/release/performance_results.json
+          logs/
+
+  # Comprehensive Integration Test Suite
+  comprehensive-integration:
+    name: Comprehensive Integration Test Suite
+    runs-on: ubuntu-latest
+    needs: [movement-physics-integration, network-persistence-integration, spawn-chunk-integration, gpu-rendering-integration]
+    timeout-minutes: 45
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+    
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          libasound2-dev \
+          libudev-dev \
+          libxcb-render0-dev \
+          libxcb-shape0-dev \
+          libxcb-xfixes0-dev \
+          libspeechd-dev \
+          libxkbcommon-dev \
+          libssl-dev \
+          mesa-vulkan-drivers \
+          xvfb
+    
+    - name: Cache dependencies
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target/
+        key: ${{ runner.os }}-cargo-comprehensive-${{ hashFiles('**/Cargo.lock') }}
+    
+    - name: Run all integration tests
+      run: |
+        export DISPLAY=:99
+        Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 &
+        sleep 3
+        
+        echo "🚀 Running comprehensive integration test suite..."
+        
+        # Run all integration tests in sequence
+        cargo test --test movement_physics_integration -- --nocapture
+        cargo test --test network_persistence_integration -- --nocapture  
+        cargo test --test spawn_chunk_integration -- --nocapture
+        cargo test --test gpu_rendering_integration -- --nocapture
+        
+        # Run existing integration tests
+        cargo test --test dop_integration -- --nocapture
+        
+        echo "✅ All integration tests completed successfully"
+      env:
+        RUST_LOG: info
+        COMPREHENSIVE_TEST: true
+    
+    - name: Generate comprehensive test report
+      run: |
+        echo "# Comprehensive Integration Test Report" > integration_report.md
+        echo "## Test Suite: Sprint 38 System Integration" >> integration_report.md
+        echo "## Date: $(date)" >> integration_report.md
+        echo "## Commit: ${{ github.sha }}" >> integration_report.md
+        echo "## Branch: ${{ github.ref_name }}" >> integration_report.md
+        echo "" >> integration_report.md
+        
+        echo "## Test Categories Completed" >> integration_report.md
+        echo "- ✅ Movement + Physics Integration" >> integration_report.md
+        echo "- ✅ Network + Persistence Integration" >> integration_report.md
+        echo "- ✅ Spawn System + Chunk Generation Integration" >> integration_report.md
+        echo "- ✅ GPU + Rendering Integration" >> integration_report.md
+        echo "- ✅ Data-Oriented Programming Integration" >> integration_report.md
+        echo "" >> integration_report.md
+        
+        echo "## System Integration Coverage" >> integration_report.md
+        echo "- Real-world player movement scenarios ✅" >> integration_report.md
+        echo "- Multiplayer networking with persistence ✅" >> integration_report.md
+        echo "- Safe spawn point generation ✅" >> integration_report.md
+        echo "- GPU-driven rendering performance ✅" >> integration_report.md
+        echo "- Multi-system coordination ✅" >> integration_report.md
+        echo "- Performance regression detection ✅" >> integration_report.md
+        echo "" >> integration_report.md
+        
+        if [ -f logs/integration_results.log ]; then
+          echo "## Detailed Results" >> integration_report.md
+          echo "\`\`\`" >> integration_report.md
+          tail -50 logs/integration_results.log >> integration_report.md
+          echo "\`\`\`" >> integration_report.md
+        fi
+    
+    - name: Upload comprehensive test report
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: comprehensive-integration-report
+        path: |
+          integration_report.md
+          logs/
+          target/debug/deps/*integration*
+
+  # Security and Quality Gates
+  security-quality:
+    name: Security & Quality Gates
+    runs-on: ubuntu-latest
+    needs: quick-validation
+    timeout-minutes: 15
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        components: rustfmt, clippy
+    
+    - name: Security audit
+      run: |
+        cargo install cargo-audit
+        cargo audit
+    
+    - name: Check for unsafe code patterns
+      run: |
+        echo "Checking for unsafe code blocks..."
+        unsafe_count=$(grep -r "unsafe" src/ --include="*.rs" | wc -l)
+        echo "Found $unsafe_count unsafe blocks"
+        
+        if [ $unsafe_count -gt 50 ]; then
+          echo "⚠️ Warning: High number of unsafe blocks ($unsafe_count)"
+          echo "Consider reviewing unsafe code usage"
+        fi
+    
+    - name: Check for unwrap() usage
+      run: |
+        echo "Checking for unwrap() usage..."
+        unwrap_count=$(grep -r "\.unwrap()" src/ --include="*.rs" | wc -l)
+        echo "Found $unwrap_count unwrap() calls"
+        
+        if [ $unwrap_count -gt 100 ]; then
+          echo "⚠️ Warning: High number of unwrap() calls ($unwrap_count)"
+          echo "Consider using proper error handling"
+        fi
+    
+    - name: Dependency check
+      run: |
+        echo "Checking dependency count..."
+        dep_count=$(grep -c "^[a-zA-Z0-9_-]\\+\\s*=" Cargo.toml || true)
+        echo "Found $dep_count dependencies"
+        
+        if [ $dep_count -gt 100 ]; then
+          echo "⚠️ Warning: High number of dependencies ($dep_count)"
+        fi
+
+# Notification and Reporting
+  notify-results:
+    name: Notify Results
+    runs-on: ubuntu-latest
+    needs: [comprehensive-integration, performance-regression, security-quality]
+    if: always()
+    
+    steps:
+    - name: Download all artifacts
+      uses: actions/download-artifact@v3
+    
+    - name: Generate summary report
+      run: |
+        echo "# Earth Engine Integration Test Summary" > summary.md
+        echo "## Build: ${{ github.run_number }}" >> summary.md
+        echo "## Commit: ${{ github.sha }}" >> summary.md
+        echo "## Date: $(date)" >> summary.md
+        echo "" >> summary.md
+        
+        # Check job results
+        echo "## Job Results" >> summary.md
+        echo "- Quick Validation: ${{ needs.quick-validation.result }}" >> summary.md
+        echo "- Movement + Physics: ${{ needs.movement-physics-integration.result }}" >> summary.md
+        echo "- Network + Persistence: ${{ needs.network-persistence-integration.result }}" >> summary.md
+        echo "- Spawn + Chunk Generation: ${{ needs.spawn-chunk-integration.result }}" >> summary.md
+        echo "- GPU + Rendering: ${{ needs.gpu-rendering-integration.result }}" >> summary.md
+        echo "- Performance Regression: ${{ needs.performance-regression.result }}" >> summary.md
+        echo "- Comprehensive Tests: ${{ needs.comprehensive-integration.result }}" >> summary.md
+        echo "- Security & Quality: ${{ needs.security-quality.result }}" >> summary.md
+        echo "" >> summary.md
+        
+        # Overall status
+        if [ "${{ needs.comprehensive-integration.result }}" = "success" ]; then
+          echo "## Overall Status: ✅ SUCCESS" >> summary.md
+          echo "All integration tests passed successfully!" >> summary.md
+        else
+          echo "## Overall Status: ❌ FAILURE" >> summary.md
+          echo "Some integration tests failed. Please check the logs." >> summary.md
+        fi
+    
+    - name: Upload summary
+      uses: actions/upload-artifact@v3
+      with:
+        name: test-summary
+        path: summary.md

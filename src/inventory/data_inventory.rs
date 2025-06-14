@@ -51,6 +51,12 @@ pub struct PlayerInventoryData {
     pub _padding: u32,
 }
 
+impl Default for PlayerInventoryData {
+    fn default() -> Self {
+        init_inventory()
+    }
+}
+
 // Pure functions for item stack operations
 
 /// Create a new item stack

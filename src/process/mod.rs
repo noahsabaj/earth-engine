@@ -14,6 +14,7 @@ pub mod parallel_processor;
 pub mod process_control;
 pub mod visual_indicators;
 pub mod error;
+pub mod system_coordinator;
 
 pub use process_data::{ProcessId, ProcessData, ProcessType, ProcessStatus};
 pub use state_machine::{ProcessState, StateTransition, StateMachine, TransitionAction};

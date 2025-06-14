@@ -1,6 +1,7 @@
 use std::time::{Duration, Instant};
 
 /// Frame time budget manager for chunk loading
+#[derive(Debug)]
 pub struct FrameBudget {
     frame_start: Instant,
     target_frame_time: Duration,
@@ -62,6 +63,7 @@ impl FrameBudget {
 }
 
 /// Chunk loading throttler with frame time budgeting
+#[derive(Debug)]
 pub struct ChunkLoadThrottler {
     budget: FrameBudget,
     chunks_per_frame_limit: usize,

@@ -1,7 +1,12 @@
-/// Data-Oriented Physics System
+/// Data-Oriented Physics System (DEPRECATED)
+/// 
+/// This module is deprecated in favor of the physics_data system which provides
+/// better collision detection, sliding mechanics, and world integration.
+/// Use crate::physics_data::PhysicsIntegrator instead.
 /// 
 /// Sprint 35: Zero-allocation physics with pre-allocated buffers.
 /// All physics data stored in contiguous arrays for cache efficiency.
+#[deprecated(since = "0.35.0", note = "Use crate::physics_data::PhysicsIntegrator instead")]
 
 use super::{FIXED_TIMESTEP, GRAVITY, TERMINAL_VELOCITY};
 use crate::{World, VoxelPos, BlockId};

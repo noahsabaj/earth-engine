@@ -13,7 +13,7 @@ pub use physics_tables::{PhysicsData, EntityId, MAX_ENTITIES};
 pub use collision_data::{CollisionData, ContactPoint, ContactPair};
 pub use spatial_hash::{SpatialHash, SpatialHashConfig};
 pub use parallel_solver::{ParallelPhysicsSolver, SolverConfig};
-pub use integration::PhysicsIntegrator;
+pub use integration::{PhysicsIntegrator, WorldInterface, WorldAdapter};
 
 // Re-export common types
 pub use crate::physics::{GRAVITY, TERMINAL_VELOCITY, FIXED_TIMESTEP};

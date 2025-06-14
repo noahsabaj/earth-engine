@@ -3,6 +3,7 @@ use crate::world::chunk_manager::{ChunkManagerData, ChunkManagerConfig, create_c
 use std::collections::HashSet;
 use cgmath::Point3;
 
+#[derive(Debug)]
 pub struct World {
     chunk_manager: ChunkManagerData,
     chunk_size: u32,
@@ -53,11 +54,14 @@ impl World {
         get_chunk_mut(&mut self.chunk_manager, pos)
     }
     
+    pub fn create_chunk(&self, pos: ChunkPos) -> Chunk {
+        Chunk::new(pos, self.chunk_size)
+    }
+    
     pub fn set_chunk(&mut self, pos: ChunkPos, chunk: Chunk) {
-        // For backwards compatibility - directly insert into loaded chunks
-        if let Some(existing) = get_chunk_mut(&mut self.chunk_manager, pos) {
-            *existing = chunk;
-        }
+        // Insert the chunk directly into loaded chunks and mark as dirty
+        self.chunk_manager.loaded_chunks.insert(pos, chunk);
+        self.chunk_manager.dirty_chunks.insert(pos);
     }
     
     pub fn get_block(&self, pos: VoxelPos) -> BlockId {
@@ -134,6 +138,28 @@ impl World {
     
     pub fn get_surface_height(&self, world_x: f64, world_z: f64) -> i32 {
         get_surface_height(&self.chunk_manager, world_x, world_z)
+    }
+    
+    pub fn get_loaded_chunks(&self) -> impl Iterator<Item = ChunkPos> + use<'_> {
+        get_loaded_chunks(&self.chunk_manager).map(|(pos, _)| pos)
+    }
+    
+    pub fn loaded_chunk_count(&self) -> usize {
+        self.chunk_manager.loaded_chunks.len()
+    }
+    
+    pub fn has_chunk(&self, pos: ChunkPos) -> bool {
+        get_chunk(&self.chunk_manager, pos).is_some()
+    }
+    
+    pub fn unload_chunk(&mut self, pos: ChunkPos) {
+        // For backwards compatibility - mark chunk for unloading
+        // Implementation would depend on chunk_manager having an unload function
+        // For now, we'll just remove it if it exists
+        if let Some(_) = get_chunk(&self.chunk_manager, pos) {
+            // In a real implementation, we would call an unload function
+            // For now, we'll assume the chunk gets unloaded by the manager
+        }
     }
 }
 

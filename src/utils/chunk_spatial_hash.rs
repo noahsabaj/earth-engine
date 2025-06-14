@@ -42,6 +42,7 @@ pub fn index_to_chunk_pos(index: usize) -> ChunkPos {
 }
 
 /// Pre-allocated chunk storage with spatial hashing
+#[derive(Debug)]
 pub struct ChunkSpatialHash<T> {
     /// Dense storage for chunk data
     data: Vec<Option<T>>,
@@ -213,6 +214,7 @@ impl<T> ChunkSpatialHash<T> {
 }
 
 /// Specialized version for view distance culling
+#[derive(Debug)]
 pub struct ChunkDistanceHash<T> {
     storage: ChunkSpatialHash<T>,
     /// Cached center position for distance calculations

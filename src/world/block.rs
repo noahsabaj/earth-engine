@@ -58,6 +58,7 @@ impl fmt::Display for BlockId {
             BlockId::MUSHROOM_BROWN => write!(f, "Brown Mushroom"),
             BlockId::SUGAR_CANE => write!(f, "Sugar Cane"),
             BlockId::VINES => write!(f, "Vines"),
+            BlockId::BRICK => write!(f, "Brick"),
             _ => write!(f, "Block({})", self.0),
         }
     }
@@ -99,6 +100,7 @@ impl BlockId {
     pub const MUSHROOM_BROWN: BlockId = BlockId(32);
     pub const SUGAR_CANE: BlockId = BlockId(33);
     pub const VINES: BlockId = BlockId(34);
+    pub const BRICK: BlockId = BlockId(35);
     
     // Aliases for compatibility
     pub const Air: BlockId = Self::AIR;
@@ -108,7 +110,16 @@ impl BlockId {
     pub const Wood: BlockId = Self::WOOD;
     pub const Sand: BlockId = Self::SAND;
     pub const Water: BlockId = Self::WATER;
+    pub const Leaves: BlockId = Self::LEAVES;
+    pub const Glass: BlockId = Self::GLASS;
+    pub const Chest: BlockId = Self::CHEST;
     pub const Lava: BlockId = Self::LAVA;
+    pub const Brick: BlockId = Self::BRICK;
+    
+    /// Create a new BlockId from a raw u16 value
+    pub const fn new(id: u16) -> Self {
+        BlockId(id)
+    }
 }
 
 /// Data needed to render a block

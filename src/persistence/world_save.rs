@@ -12,6 +12,7 @@ use crate::persistence::{
 };
 
 /// World save structure
+#[derive(Debug)]
 pub struct WorldSave {
     /// Root directory for the save
     save_dir: PathBuf,

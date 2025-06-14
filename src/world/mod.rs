@@ -8,6 +8,7 @@ mod ray;
 mod registry;
 mod world;
 mod world_interface;
+mod read_only_interface;
 pub mod generation;
 pub mod chunk_manager;
 pub mod concurrent_chunk_manager;

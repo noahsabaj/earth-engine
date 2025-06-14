@@ -179,7 +179,13 @@ path = "examples/engine_testbed.rs"
 name = "minimal_engine"
 path = "examples/minimal_engine.rs"
 
+# Physics Integration Example
+[[example]]
+name = "physics_integration_demo"
+path = "examples/physics_integration_demo.rs"
+
 # Earth Engine is now a pure library
 # All binaries have been moved to examples or removed
 # Use `cargo run --example engine_testbed` for comprehensive testing
 # Use `cargo run --example minimal_engine` for simple usage examples
+# Use `cargo run --example physics_integration_demo` for physics system testing

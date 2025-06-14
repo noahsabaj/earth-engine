@@ -122,7 +122,7 @@ pub trait BlockProvider: Send + Sync {
 }
 
 /// Light propagation job for a chunk
-struct ChunkLightJob {
+pub struct ChunkLightJob {
     chunk_pos: ChunkPos,
     light_queue: VecDeque<(VoxelPos, LightType, u8)>,
     removal_queue: VecDeque<(VoxelPos, LightType, u8)>,

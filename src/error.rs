@@ -71,6 +71,13 @@ pub enum EngineError {
     SerializationError { context: String, error: String },
     DeserializationError { context: String, error: String },
     
+    // Additional integration errors
+    ValidationFailed(String),
+    TimeoutError(String),
+    ProcessingFailed(String),
+    ResourceExhausted(String),
+    FeatureDisabled(String),
+    
     // Generic fallback for unexpected errors
     Internal { message: String },
 }
@@ -166,6 +173,17 @@ impl fmt::Display for EngineError {
                 write!(f, "Serialization error in {}: {}", context, error),
             EngineError::DeserializationError { context, error } => 
                 write!(f, "Deserialization error in {}: {}", context, error),
+            
+            EngineError::ValidationFailed(msg) => 
+                write!(f, "Validation failed: {}", msg),
+            EngineError::TimeoutError(msg) => 
+                write!(f, "Timeout error: {}", msg),
+            EngineError::ProcessingFailed(msg) => 
+                write!(f, "Processing failed: {}", msg),
+            EngineError::ResourceExhausted(msg) => 
+                write!(f, "Resource exhausted: {}", msg),
+            EngineError::FeatureDisabled(msg) => 
+                write!(f, "Feature disabled: {}", msg),
             
             EngineError::Internal { message } => 
                 write!(f, "Internal error: {}", message),

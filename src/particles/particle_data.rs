@@ -66,52 +66,64 @@ pub struct ParticleData {
 impl ParticleData {
     /// Create a new particle data buffer with pre-allocated capacity
     pub fn new(capacity: usize) -> Self {
+        // Safety check: prevent excessive memory allocations
+        let safe_capacity = if capacity > MAX_PARTICLES {
+            eprintln!("WARNING: ParticleData capacity {} exceeds MAX_PARTICLES {}, clamping", 
+                     capacity, MAX_PARTICLES);
+            MAX_PARTICLES
+        } else if capacity > 100_000_000 { // 100M particles would be ~13GB
+            eprintln!("WARNING: ParticleData capacity {} is extremely large, clamping to 100K", 
+                     capacity);
+            100_000
+        } else {
+            capacity
+        };
         Self {
             count: 0,
             
-            position_x: Vec::with_capacity(capacity),
-            position_y: Vec::with_capacity(capacity),
-            position_z: Vec::with_capacity(capacity),
+            position_x: Vec::with_capacity(safe_capacity),
+            position_y: Vec::with_capacity(safe_capacity),
+            position_z: Vec::with_capacity(safe_capacity),
             
-            velocity_x: Vec::with_capacity(capacity),
-            velocity_y: Vec::with_capacity(capacity),
-            velocity_z: Vec::with_capacity(capacity),
+            velocity_x: Vec::with_capacity(safe_capacity),
+            velocity_y: Vec::with_capacity(safe_capacity),
+            velocity_z: Vec::with_capacity(safe_capacity),
             
-            acceleration_x: Vec::with_capacity(capacity),
-            acceleration_y: Vec::with_capacity(capacity),
-            acceleration_z: Vec::with_capacity(capacity),
+            acceleration_x: Vec::with_capacity(safe_capacity),
+            acceleration_y: Vec::with_capacity(safe_capacity),
+            acceleration_z: Vec::with_capacity(safe_capacity),
             
-            color_r: Vec::with_capacity(capacity),
-            color_g: Vec::with_capacity(capacity),
-            color_b: Vec::with_capacity(capacity),
-            color_a: Vec::with_capacity(capacity),
+            color_r: Vec::with_capacity(safe_capacity),
+            color_g: Vec::with_capacity(safe_capacity),
+            color_b: Vec::with_capacity(safe_capacity),
+            color_a: Vec::with_capacity(safe_capacity),
             
-            size: Vec::with_capacity(capacity),
+            size: Vec::with_capacity(safe_capacity),
             
-            lifetime: Vec::with_capacity(capacity),
-            max_lifetime: Vec::with_capacity(capacity),
+            lifetime: Vec::with_capacity(safe_capacity),
+            max_lifetime: Vec::with_capacity(safe_capacity),
             
-            particle_type: Vec::with_capacity(capacity),
+            particle_type: Vec::with_capacity(safe_capacity),
             
-            gravity_multiplier: Vec::with_capacity(capacity),
-            drag: Vec::with_capacity(capacity),
-            bounce: Vec::with_capacity(capacity),
+            gravity_multiplier: Vec::with_capacity(safe_capacity),
+            drag: Vec::with_capacity(safe_capacity),
+            bounce: Vec::with_capacity(safe_capacity),
             
-            rotation: Vec::with_capacity(capacity),
-            rotation_speed: Vec::with_capacity(capacity),
-            texture_frame: Vec::with_capacity(capacity),
-            animation_speed: Vec::with_capacity(capacity),
-            emissive: Vec::with_capacity(capacity),
-            emission_intensity: Vec::with_capacity(capacity),
+            rotation: Vec::with_capacity(safe_capacity),
+            rotation_speed: Vec::with_capacity(safe_capacity),
+            texture_frame: Vec::with_capacity(safe_capacity),
+            animation_speed: Vec::with_capacity(safe_capacity),
+            emissive: Vec::with_capacity(safe_capacity),
+            emission_intensity: Vec::with_capacity(safe_capacity),
             
-            size_curve_type: Vec::with_capacity(capacity),
-            size_curve_param1: Vec::with_capacity(capacity),
-            size_curve_param2: Vec::with_capacity(capacity),
-            size_curve_param3: Vec::with_capacity(capacity),
+            size_curve_type: Vec::with_capacity(safe_capacity),
+            size_curve_param1: Vec::with_capacity(safe_capacity),
+            size_curve_param2: Vec::with_capacity(safe_capacity),
+            size_curve_param3: Vec::with_capacity(safe_capacity),
             
-            color_curve_type: Vec::with_capacity(capacity),
-            color_curve_param1: Vec::with_capacity(capacity),
-            color_curve_param2: Vec::with_capacity(capacity),
+            color_curve_type: Vec::with_capacity(safe_capacity),
+            color_curve_param1: Vec::with_capacity(safe_capacity),
+            color_curve_param2: Vec::with_capacity(safe_capacity),
         }
     }
     
@@ -341,31 +353,39 @@ pub struct EmitterData {
 impl EmitterData {
     /// Create new emitter data buffer
     pub fn new(capacity: usize) -> Self {
+        // Safety check: prevent excessive memory allocations
+        let safe_capacity = if capacity > 100_000 {
+            eprintln!("WARNING: EmitterData capacity {} is extremely large, clamping to 10K", 
+                     capacity);
+            10_000
+        } else {
+            capacity
+        };
         Self {
             count: 0,
             
-            id: Vec::with_capacity(capacity),
+            id: Vec::with_capacity(safe_capacity),
             
-            position_x: Vec::with_capacity(capacity),
-            position_y: Vec::with_capacity(capacity),
-            position_z: Vec::with_capacity(capacity),
+            position_x: Vec::with_capacity(safe_capacity),
+            position_y: Vec::with_capacity(safe_capacity),
+            position_z: Vec::with_capacity(safe_capacity),
             
-            emission_rate: Vec::with_capacity(capacity),
-            accumulated_particles: Vec::with_capacity(capacity),
-            particle_type: Vec::with_capacity(capacity),
+            emission_rate: Vec::with_capacity(safe_capacity),
+            accumulated_particles: Vec::with_capacity(safe_capacity),
+            particle_type: Vec::with_capacity(safe_capacity),
             
-            elapsed_time: Vec::with_capacity(capacity),
-            duration: Vec::with_capacity(capacity),
+            elapsed_time: Vec::with_capacity(safe_capacity),
+            duration: Vec::with_capacity(safe_capacity),
             
-            shape_type: Vec::with_capacity(capacity),
-            shape_param1: Vec::with_capacity(capacity),
-            shape_param2: Vec::with_capacity(capacity),
-            shape_param3: Vec::with_capacity(capacity),
+            shape_type: Vec::with_capacity(safe_capacity),
+            shape_param1: Vec::with_capacity(safe_capacity),
+            shape_param2: Vec::with_capacity(safe_capacity),
+            shape_param3: Vec::with_capacity(safe_capacity),
             
-            base_velocity_x: Vec::with_capacity(capacity),
-            base_velocity_y: Vec::with_capacity(capacity),
-            base_velocity_z: Vec::with_capacity(capacity),
-            velocity_variance: Vec::with_capacity(capacity),
+            base_velocity_x: Vec::with_capacity(safe_capacity),
+            base_velocity_y: Vec::with_capacity(safe_capacity),
+            base_velocity_z: Vec::with_capacity(safe_capacity),
+            velocity_variance: Vec::with_capacity(safe_capacity),
         }
     }
     

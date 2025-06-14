@@ -193,7 +193,7 @@ struct StageWork {
 }
 
 /// Result from stage processing
-struct StageResult {
+pub struct StageResult {
     process_id: usize,
     stage_index: u16,
     success: bool,

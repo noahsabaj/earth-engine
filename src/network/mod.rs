@@ -12,12 +12,15 @@ pub mod interest;
 pub mod compression;
 pub mod anticheat;
 pub mod sync;
+pub mod player_sync;
+pub mod disconnect_handler;
 
 pub use packet::{
     Packet, PacketType, ClientPacket, ServerPacket,
     MovementState, BlockFace, EntityType, EntityMetadata,
     PlayerUpdateData, BlockChangeData, InventoryActionType,
-    InventorySlotData,
+    InventorySlotData, SaveStatus, LoadStatus, ChunkSaveStatus,
+    ChunkSaveStateData,
 };
 pub use protocol::{
     Protocol, PROTOCOL_VERSION,
@@ -28,7 +31,11 @@ pub use protocol::{
 pub use server::{Server, ServerConfig, ServerPlayer};
 pub use client::{Client, ClientState, RemotePlayer};
 pub use connection::{Connection, ConnectionState, ConnectionManager};
-pub use replication::{ReplicationManager, NetworkEntity, NetworkEntityId};
+pub use replication::{
+    ReplicationManager, NetworkEntity, NetworkEntityId, ChunkReplicationData,
+    ChunkSyncPriority, ReplicationConfig, ChunkSyncStats, IntegratedReplicationSystem,
+    ReplicationStats, ReplicationReceiver,
+};
 pub use interpolation::{
     EntityInterpolator, InterpolationManager, PositionSnapshot,
 };
@@ -50,5 +57,12 @@ pub use anticheat::{
 };
 pub use sync::{
     NetworkSync, SyncStats,
+};
+pub use player_sync::{
+    PlayerSyncBridge, PlayerSyncManager, PlayerSyncEvent, PlayerSyncState, 
+    PlayerSyncConfig, PlayerSyncStats, PlayerSyncTickResult,
+};
+pub use disconnect_handler::{
+    DisconnectHandler, DisconnectConfig, DisconnectingPlayer, ConnectionState as DisconnectConnectionState, DisconnectStats,
 };
 pub use error::{NetworkResult, NetworkErrorContext, connection_error, protocol_error};

@@ -82,6 +82,7 @@ pub struct PhysicsData {
     
     // Collision data
     pub bounding_boxes: Vec<AABB>,
+    pub half_extents: Vec<[f32; 3]>, // Half extents for collision detection
     pub collision_groups: Vec<u32>,
     pub collision_masks: Vec<u32>,
     
@@ -168,6 +169,7 @@ impl PhysicsData {
             frictions: Vec::with_capacity(max_entities),
             
             bounding_boxes: Vec::with_capacity(max_entities),
+            half_extents: Vec::with_capacity(max_entities),
             collision_groups: Vec::with_capacity(max_entities),
             collision_masks: Vec::with_capacity(max_entities),
             
@@ -200,6 +202,7 @@ impl PhysicsData {
         self.frictions.push(0.5); // Default friction
         
         self.bounding_boxes.push(AABB::from_center_half_extents(position, half_extents));
+        self.half_extents.push(half_extents);
         self.collision_groups.push(1); // Default group
         self.collision_masks.push(u32::MAX); // Collide with everything
         
@@ -230,6 +233,7 @@ impl PhysicsData {
             self.frictions.swap(idx, last_idx);
             
             self.bounding_boxes.swap(idx, last_idx);
+            self.half_extents.swap(idx, last_idx);
             self.collision_groups.swap(idx, last_idx);
             self.collision_masks.swap(idx, last_idx);
             
@@ -248,6 +252,7 @@ impl PhysicsData {
         self.frictions.pop();
         
         self.bounding_boxes.pop();
+        self.half_extents.pop();
         self.collision_groups.pop();
         self.collision_masks.pop();
         
@@ -364,6 +369,7 @@ impl PhysicsData {
         self.frictions.clear();
         
         self.bounding_boxes.clear();
+        self.half_extents.clear();
         self.collision_groups.clear();
         self.collision_masks.clear();
         

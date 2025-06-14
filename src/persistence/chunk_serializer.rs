@@ -32,6 +32,7 @@ struct ChunkHeader {
 }
 
 /// Serializes and deserializes chunks
+#[derive(Debug)]
 pub struct ChunkSerializer {
     format: ChunkFormat,
 }

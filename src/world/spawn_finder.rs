@@ -1,5 +1,5 @@
 use crate::{BlockId, VoxelPos};
-use crate::world::{WorldInterface, ParallelWorld};
+use crate::world::WorldInterface;
 use cgmath::Point3;
 
 /// Utility for finding safe spawn positions in the world
@@ -9,7 +9,7 @@ impl SpawnFinder {
     /// Find a safe spawn position using noise-based terrain height
     /// Returns the position where the player's feet should be (standing on solid ground)
     pub fn find_safe_spawn(
-        world: &ParallelWorld,
+        world: &dyn WorldInterface,
         start_x: f32,
         start_z: f32,
         search_radius: i32,
@@ -51,9 +51,6 @@ impl SpawnFinder {
                   safe_y, safe_y - 0.9, safe_y - highest_ground);
         
         log::info!("[SpawnFinder] Selected spawn position at {:?}", spawn_pos);
-        
-        // Try to pregenerate the spawn area (non-blocking, best effort)
-        let _ = world.pregenerate_spawn_area(spawn_pos, 2);
         
         Ok(spawn_pos)
     }

@@ -14,6 +14,26 @@ impl ChunkPos {
         Self { x, y, z }
     }
     
+    /// Create ChunkPos from world position coordinates
+    pub fn from_world_pos(world_x: i32, world_z: i32) -> Self {
+        // Assume 32-block chunks
+        Self::new(
+            world_x.div_euclid(32),
+            0,
+            world_z.div_euclid(32),
+        )
+    }
+    
+    /// Create ChunkPos from VoxelPos
+    pub fn from_voxel_pos(voxel_pos: VoxelPos) -> Self {
+        // Assume 32-block chunks
+        Self::new(
+            voxel_pos.x.div_euclid(32),
+            voxel_pos.y.div_euclid(32), 
+            voxel_pos.z.div_euclid(32),
+        )
+    }
+    
     /// Convert to world position (multiply by chunk size)
     pub fn to_world_pos(&self, chunk_size: u32) -> Vector3<f32> {
         Vector3::new(

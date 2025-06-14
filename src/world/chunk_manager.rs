@@ -13,7 +13,7 @@ use super::frame_budget::ChunkLoadThrottler;
 
 /// Chunk loading request with priority
 #[derive(Debug, Clone)]
-struct ChunkLoadRequest {
+pub struct ChunkLoadRequest {
     position: ChunkPos,
     priority: i32, // Lower value = higher priority (distance squared)
 }
@@ -46,6 +46,24 @@ pub struct ChunkManagerData {
     pub chunks_in_generation: HashSet<ChunkPos>,
     /// Frame budget management
     pub throttler: ChunkLoadThrottler,
+}
+
+impl std::fmt::Debug for ChunkManagerData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ChunkManagerData")
+            .field("loaded_chunks", &self.loaded_chunks)
+            .field("view_distance", &self.view_distance)
+            .field("chunk_size", &self.chunk_size)
+            .field("generator", &"<WorldGenerator>")
+            .field("dirty_chunks", &self.dirty_chunks)
+            .field("chunk_cache", &self.chunk_cache)
+            .field("cache_size", &self.cache_size)
+            .field("load_queue", &self.load_queue)
+            .field("max_chunks_per_frame", &self.max_chunks_per_frame)
+            .field("chunks_in_generation", &self.chunks_in_generation)
+            .field("throttler", &self.throttler)
+            .finish()
+    }
 }
 
 /// Chunk management configuration

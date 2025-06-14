@@ -9,6 +9,9 @@ pub mod metadata;
 pub mod migration;
 pub mod backup;
 pub mod error;
+pub mod atomic_save;
+pub mod state_validator;
+pub mod network_validator;
 
 pub use chunk_serializer::{ChunkSerializer, ChunkFormat};
 pub use world_save::{WorldSave, WorldSaveError};
@@ -19,6 +22,14 @@ pub use metadata::{WorldMetadata, SaveVersion};
 pub use migration::{MigrationManager, Migration};
 pub use backup::{BackupManager, BackupPolicy};
 pub use error::{atomic_write, PersistenceErrorContext, LockResultExt};
+pub use atomic_save::{AtomicSaveManager, AtomicSaveConfig, SaveOperation, SavePriority, SaveOperationResult, AtomicSaveStats};
+pub use state_validator::{StateValidator, ValidationConfig, ValidationResult, ValidationError, ValidationWarning, StateSnapshot, ValidationStats};
+pub use network_validator::{
+    NetworkValidator, ValidationConfig as NetworkValidationConfig, ValidationResult as NetworkValidationResult, 
+    ValidationError as NetworkValidationError, ValidationWarning as NetworkValidationWarning, 
+    ValidationStats as NetworkValidationStats, ValidationType, ChunkValidationData,
+    PlayerValidationData, WorldValidationState,
+};
 
 /// Result type for persistence operations
 pub type PersistenceResult<T> = Result<T, PersistenceError>;

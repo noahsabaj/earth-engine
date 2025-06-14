@@ -237,7 +237,7 @@ impl ViolationType {
 
 /// Movement violations
 #[derive(Debug, Clone)]
-enum MovementViolation {
+pub enum MovementViolation {
     TooFast { speed: f32 },
     TooHigh { height: f32 },
     InvalidFlight,

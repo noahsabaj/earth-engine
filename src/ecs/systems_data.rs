@@ -1,6 +1,7 @@
 use super::world_data::EcsWorldData;
 use super::entity_data::EntityId;
 use super::component_data::{COMPONENT_TRANSFORM, COMPONENT_PHYSICS};
+use crate::physics_data::{PhysicsData, PhysicsIntegrator, WorldInterface};
 
 /// Gravity constant for items
 const ITEM_GRAVITY: f32 = 20.0;
@@ -230,4 +231,178 @@ pub fn get_position(world: &EcsWorldData, entity: EntityId) -> Option<[f32; 3]> 
 /// Get entity velocity
 pub fn get_velocity(world: &EcsWorldData, entity: EntityId) -> Option<[f32; 3]> {
     world.components.get_physics(entity).map(|p| p.velocity)
+}
+
+/// New integrated physics system using physics_data
+pub struct IntegratedPhysicsSystem {
+    physics_data: PhysicsData,
+    integrator: PhysicsIntegrator,
+    entity_mapping: rustc_hash::FxHashMap<EntityId, crate::physics_data::EntityId>,
+}
+
+impl IntegratedPhysicsSystem {
+    pub fn new() -> Self {
+        Self {
+            physics_data: PhysicsData::new(4096), // Support up to 4096 physics entities
+            integrator: PhysicsIntegrator::new(4096),
+            entity_mapping: rustc_hash::FxHashMap::default(),
+        }
+    }
+    
+    /// Add ECS entity to physics system
+    pub fn add_physics_entity(
+        &mut self,
+        ecs_entity: EntityId,
+        position: [f32; 3],
+        velocity: [f32; 3],
+        mass: f32,
+        half_extents: [f32; 3],
+    ) -> Result<(), &'static str> {
+        let physics_entity = self.physics_data.add_entity(position, velocity, mass, half_extents);
+        self.entity_mapping.insert(ecs_entity, physics_entity);
+        Ok(())
+    }
+    
+    /// Remove ECS entity from physics system
+    pub fn remove_physics_entity(&mut self, ecs_entity: EntityId) {
+        if let Some(physics_entity) = self.entity_mapping.remove(&ecs_entity) {
+            self.physics_data.remove_entity(physics_entity);
+        }
+    }
+    
+    /// Update physics system with world collision
+    pub fn update_with_world<W: WorldInterface>(&mut self, world: &W, delta_time: f32) {
+        self.integrator.integrate_with_world(&mut self.physics_data, world, delta_time);
+    }
+    
+    /// Get position for rendering with interpolation
+    pub fn get_interpolated_position(&self, ecs_entity: EntityId) -> Option<[f32; 3]> {
+        let physics_entity = self.entity_mapping.get(&ecs_entity)?;
+        self.integrator.get_interpolated_position(*physics_entity, &self.physics_data)
+    }
+    
+    /// Set velocity for an entity
+    pub fn set_entity_velocity(&mut self, ecs_entity: EntityId, velocity: [f32; 3]) {
+        if let Some(&physics_entity) = self.entity_mapping.get(&ecs_entity) {
+            PhysicsIntegrator::set_velocity(&mut self.physics_data, physics_entity, velocity);
+        }
+    }
+    
+    /// Apply impulse to an entity
+    pub fn apply_entity_impulse(&mut self, ecs_entity: EntityId, impulse: [f32; 3]) {
+        if let Some(&physics_entity) = self.entity_mapping.get(&ecs_entity) {
+            let impulses = vec![(physics_entity, impulse)];
+            PhysicsIntegrator::apply_impulses(&mut self.physics_data, &impulses);
+        }
+    }
+    
+    /// Get position from physics system
+    pub fn get_entity_position(&self, ecs_entity: EntityId) -> Option<[f32; 3]> {
+        let physics_entity = self.entity_mapping.get(&ecs_entity)?;
+        let idx = physics_entity.index();
+        self.physics_data.positions.get(idx).copied()
+    }
+    
+    /// Get velocity from physics system
+    pub fn get_entity_velocity(&self, ecs_entity: EntityId) -> Option<[f32; 3]> {
+        let physics_entity = self.entity_mapping.get(&ecs_entity)?;
+        let idx = physics_entity.index();
+        self.physics_data.velocities.get(idx).copied()
+    }
+}
+
+/// Update ECS world with integrated physics system
+pub fn update_integrated_physics_system<W: WorldInterface>(
+    ecs_world: &mut EcsWorldData,
+    physics_system: &mut IntegratedPhysicsSystem,
+    world: &W,
+    delta_time: f32,
+) {
+    // Update physics simulation
+    physics_system.update_with_world(world, delta_time);
+    
+    // Sync physics results back to ECS transform components
+    sync_physics_to_transforms(ecs_world, physics_system);
+    
+    // Handle item lifetimes
+    let expired_items = update_item_lifetimes(ecs_world, delta_time);
+    
+    // Remove expired items from physics system
+    for entity in expired_items {
+        physics_system.remove_physics_entity(entity);
+    }
+}
+
+/// Sync physics positions back to ECS transform components
+fn sync_physics_to_transforms(
+    ecs_world: &mut EcsWorldData,
+    physics_system: &IntegratedPhysicsSystem,
+) {
+    // Process entities that have both transform and physics
+    let mask = (1u64 << COMPONENT_TRANSFORM) | (1u64 << COMPONENT_PHYSICS);
+    
+    for i in 0..ecs_world.entities.entity_count() {
+        let meta = &ecs_world.entities.metas[i];
+        if !meta.alive || (meta.component_mask & mask) != mask {
+            continue;
+        }
+        
+        let entity = EntityId {
+            index: i as u32,
+            generation: meta.generation,
+        };
+        
+        // Get interpolated position from physics system
+        if let Some(position) = physics_system.get_interpolated_position(entity) {
+            // Update ECS transform
+            if let Some(transform) = ecs_world.components.get_transform_mut(entity) {
+                transform.position = position;
+            }
+        }
+    }
+}
+
+/// Input processing with proper timing for physics integration
+pub fn process_movement_input<W: WorldInterface>(
+    ecs_world: &mut EcsWorldData,
+    physics_system: &mut IntegratedPhysicsSystem,
+    world: &W,
+    input_state: &crate::input::InputState,
+    player_entity: EntityId,
+    delta_time: f32,
+) {
+    use crate::input::KeyCode;
+    
+    // Calculate movement direction from input
+    let mut movement = [0.0f32, 0.0f32, 0.0f32];
+    let movement_speed = 4.0f32; // 4 m/s
+    
+    if input_state.is_key_pressed(KeyCode::KeyW) {
+        movement[2] -= 1.0;
+    }
+    if input_state.is_key_pressed(KeyCode::KeyS) {
+        movement[2] += 1.0;
+    }
+    if input_state.is_key_pressed(KeyCode::KeyA) {
+        movement[0] -= 1.0;
+    }
+    if input_state.is_key_pressed(KeyCode::KeyD) {
+        movement[0] += 1.0;
+    }
+    
+    // Normalize horizontal movement
+    let horizontal_magnitude = (movement[0] * movement[0] + movement[2] * movement[2]).sqrt();
+    if horizontal_magnitude > 0.0f32 {
+        movement[0] = (movement[0] / horizontal_magnitude) * movement_speed;
+        movement[2] = (movement[2] / horizontal_magnitude) * movement_speed;
+    }
+    
+    // Handle jumping
+    if input_state.is_key_pressed(KeyCode::Space) {
+        // Check if player is grounded (this would need to be tracked)
+        movement[1] = 8.0f32; // Jump velocity
+    }
+    
+    // Apply movement to physics system
+    physics_system.set_entity_velocity(player_entity, movement);
 }
