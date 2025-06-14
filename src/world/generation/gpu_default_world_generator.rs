@@ -48,9 +48,9 @@ impl GpuDefaultWorldGenerator {
         water_id: BlockId,
         sand_id: BlockId,
     ) -> Self {
-        // Create WorldBuffer with reasonable size based on typical view distance
+        // Create WorldBuffer with safe size that fits GPU memory limits (128MB max)
         let world_buffer_desc = WorldBufferDescriptor {
-            view_distance: 12, // Support larger view distances for better performance
+            view_distance: 3, // Conservative: 7³=343 chunks, ~45MB (safe for 128MB GPU limit)
             enable_atomics: true,
             enable_readback: true,
         };

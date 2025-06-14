@@ -66,8 +66,8 @@ pub struct WorldBufferDescriptor {
 impl Default for WorldBufferDescriptor {
     fn default() -> Self {
         Self {
-            // Use view distance to determine buffer size (much more reasonable)
-            view_distance: 8, // 8 chunk view distance = ~2,000 chunks max
+            // Use view distance to determine buffer size (safe for GPU limits)
+            view_distance: 3, // Conservative: 7³=343 chunks, ~45MB (safe for 128MB GPU limit)
             enable_atomics: true,
             enable_readback: cfg!(debug_assertions),
         }

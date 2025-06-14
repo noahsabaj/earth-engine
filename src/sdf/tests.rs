@@ -152,7 +152,7 @@ mod tests {
         
         // Create mock world buffer
         let desc = crate::world_gpu::WorldBufferDescriptor {
-            view_distance: 64, // Reasonable size for test
+            view_distance: 3, // Safe size for test (avoids GPU buffer limits)
             enable_atomics: true,
             enable_readback: true,
         };

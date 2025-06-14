@@ -40,7 +40,7 @@ impl GpuWorldGenerator {
     ) -> Self {
         // Create WorldBuffer for GPU-resident voxel data
         let world_buffer_desc = WorldBufferDescriptor {
-            view_distance: 8, // 8 chunk view distance = reasonable buffer size
+            view_distance: 3, // Conservative: 7³=343 chunks, ~45MB (safe for 128MB GPU limit)
             enable_atomics: true,
             enable_readback: true, // Enable readback so we can extract chunks
         };

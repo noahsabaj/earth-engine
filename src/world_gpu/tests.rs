@@ -47,7 +47,7 @@ mod tests {
         let device = std::sync::Arc::new(device);
         
         let desc = WorldBufferDescriptor {
-            view_distance: 16,
+            view_distance: 3,
             enable_atomics: true,
             enable_readback: true,
         };
