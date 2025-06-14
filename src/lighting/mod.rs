@@ -8,7 +8,7 @@ pub mod concurrent_provider;
 
 pub use light_map::{LightMap, LightLevel};
 pub use propagation::LightPropagatorData;
-pub use optimized_propagation::{OptimizedLightPropagator, propagate_light_thread_local};
+pub use optimized_propagation::{propagate_light_thread_local};
 pub use skylight::SkylightCalculator;
 pub use time_of_day::{TimeOfDayData, DayNightCycleData};
 pub use parallel_propagator::{

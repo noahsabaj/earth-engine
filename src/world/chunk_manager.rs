@@ -454,9 +454,3 @@ pub fn get_surface_height(data: &ChunkManagerData, world_x: f64, world_z: f64) -
     data.generator.get_surface_height(world_x, world_z)
 }
 
-// ===== COMPATIBILITY LAYER =====
-// Temporary aliases for code that hasn't been converted yet
-
-/// Compatibility alias - will be removed in future sprints
-#[deprecated(note = "Use ChunkManagerData and pure functions instead")]
-pub type ChunkManager = ChunkManagerData;

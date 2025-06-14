@@ -321,9 +321,3 @@ where
     });
 }
 
-// ===== COMPATIBILITY LAYER =====
-// Temporary aliases for code that hasn't been converted yet
-
-/// Compatibility alias - will be removed in future sprints
-#[deprecated(note = "Use LightPropagatorData and pure functions instead")]
-pub type OptimizedLightPropagator = LightPropagatorData;
