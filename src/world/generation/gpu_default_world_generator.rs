@@ -99,6 +99,12 @@ impl GpuDefaultWorldGenerator {
     fn extract_chunk_from_gpu(&self, chunk_pos: ChunkPos) -> Chunk {
         log::info!("[GpuDefaultWorldGenerator] Extracting chunk {:?} from GPU using REAL GPU readback", chunk_pos);
         
+        // CRITICAL: Add proper GPU synchronization before attempting readback
+        // This ensures all GPU compute commands have completed before reading data
+        log::debug!("[GPU_SYNC] Waiting for GPU compute operations to complete before readback...");
+        self.device.poll(wgpu::Maintain::Wait);
+        log::debug!("[GPU_SYNC] GPU synchronization complete, proceeding with readback");
+        
         // Read actual GPU-generated voxel data from WorldBuffer
         let gpu_voxels = {
             let mut world_buffer = self.world_buffer.lock().unwrap();
@@ -120,6 +126,30 @@ impl GpuDefaultWorldGenerator {
         // Convert GPU VoxelData format to CPU Chunk format
         let mut chunk = Chunk::new(chunk_pos, self.chunk_size);
         
+        // COMPREHENSIVE DATA VERIFICATION: Check if GPU generation actually produced terrain
+        let mut total_non_air_count = 0;
+        let mut total_solid_blocks = 0;
+        let mut block_type_counts = std::collections::HashMap::new();
+        
+        // Count all non-air blocks in the entire chunk
+        for gpu_voxel in gpu_voxels.iter() {
+            let block_id = gpu_voxel.block_id();
+            if block_id != 0 { // 0 = AIR block
+                total_non_air_count += 1;
+                total_solid_blocks += 1;
+                *block_type_counts.entry(block_id).or_insert(0) += 1;
+            }
+        }
+        
+        // Log comprehensive statistics
+        log::info!("[DATA_VERIFICATION] Chunk {:?}: {}/{} voxels are non-air ({:.1}%)", 
+                  chunk_pos, total_non_air_count, gpu_voxels.len(), 
+                  (total_non_air_count as f32 / gpu_voxels.len() as f32) * 100.0);
+        
+        if !block_type_counts.is_empty() {
+            log::info!("[DATA_VERIFICATION] Block types found: {:?}", block_type_counts);
+        }
+        
         // Debug: Check first few raw voxel values and block IDs
         let mut non_zero_count = 0;
         let mut non_air_count = 0;
@@ -136,6 +166,22 @@ impl GpuDefaultWorldGenerator {
         }
         log::debug!("[GPU→CPU] Chunk {:?}: {} non-zero raw, {} non-air blocks (of first 10 voxels)", 
                    chunk_pos, non_zero_count, non_air_count);
+        
+        // CRITICAL: Detect if GPU generation failed for chunks that should contain terrain
+        // Chunks at Y=0,1,2 (ground level) should contain significant terrain
+        let expected_terrain = chunk_pos.y >= 0 && chunk_pos.y <= 2;
+        if expected_terrain && total_non_air_count == 0 {
+            log::error!("[GPU_GENERATION_FAILURE] Chunk {:?} at ground level contains NO terrain blocks! GPU generation likely failed.", chunk_pos);
+            log::error!("[GPU_GENERATION_FAILURE] Expected terrain at ground level (Y={}) but got {} solid blocks. Falling back to CPU.", 
+                       chunk_pos.y, total_non_air_count);
+            return self.generate_cpu_fallback_chunk(chunk_pos);
+        }
+        
+        // Warn if terrain density seems suspiciously low for ground-level chunks
+        if expected_terrain && total_non_air_count < 1000 { // Less than ~3% filled
+            log::warn!("[GPU_DATA_QUALITY] Chunk {:?} has suspiciously low terrain density: {} solid blocks ({:.1}%). Possible GPU generation issue.", 
+                      chunk_pos, total_non_air_count, (total_non_air_count as f32 / gpu_voxels.len() as f32) * 100.0);
+        }
         
         for (voxel_index, gpu_voxel) in gpu_voxels.iter().enumerate() {
             // Convert linear index to 3D coordinates
@@ -165,7 +211,7 @@ impl GpuDefaultWorldGenerator {
     /// CPU fallback for when GPU readback fails
     /// This generates simple terrain using the CPU terrain generator
     fn generate_cpu_fallback_chunk(&self, chunk_pos: ChunkPos) -> Chunk {
-        log::warn!("[GpuDefaultWorldGenerator] Using CPU fallback for chunk {:?}", chunk_pos);
+        log::error!("[CPU_FALLBACK] Using CPU fallback for chunk {:?} - GPU generation failed", chunk_pos);
         
         let mut chunk = Chunk::new(chunk_pos, self.chunk_size);
         
@@ -231,27 +277,49 @@ impl GpuDefaultWorldGenerator {
     fn generate_chunk_gpu(&self, chunk_pos: ChunkPos) -> Chunk {
         log::info!("[GpuDefaultWorldGenerator] GPU-generating chunk {:?} (TESTING SELF-CONTAINED SHADER)", chunk_pos);
         
+        // Log chunk context for debugging
+        let world_x = chunk_pos.x * self.chunk_size as i32;
+        let world_y = chunk_pos.y * self.chunk_size as i32;
+        let world_z = chunk_pos.z * self.chunk_size as i32;
+        log::debug!("[GPU_GENERATION] Chunk {:?} world coordinates: ({}, {}, {}) to ({}, {}, {})", 
+                   chunk_pos, world_x, world_y, world_z, 
+                   world_x + self.chunk_size as i32 - 1, 
+                   world_y + self.chunk_size as i32 - 1, 
+                   world_z + self.chunk_size as i32 - 1);
+        
         // GPU GENERATION RE-ENABLED - NVIDIA GPU now properly detected and selected
         log::info!("[GpuDefaultWorldGenerator] GPU generation ENABLED - using NVIDIA RTX 4060 Ti hardware acceleration");
+        log::debug!("[GPU_COMMANDS] Starting GPU command recording for chunk {:?}", chunk_pos);
+        
         {
             // Create command encoder for GPU operations
             let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("GPU Terrain Generation"),
             });
             
+            log::debug!("[GPU_COMMANDS] Created command encoder, acquiring WorldBuffer lock...");
+            
             // Generate chunk directly in WorldBuffer using compute shader on NVIDIA GPU
             {
                 let world_buffer = self.world_buffer.lock().unwrap();
+                log::debug!("[GPU_COMMANDS] WorldBuffer locked, dispatching compute shader...");
+                
                 self.terrain_generator.generate_chunk(
                     &mut encoder,
                     &world_buffer,
                     chunk_pos,
                 );
+                
+                log::debug!("[GPU_COMMANDS] Compute shader dispatch complete for chunk {:?}", chunk_pos);
             }
             
             // Submit GPU commands to NVIDIA hardware
+            log::debug!("[GPU_COMMANDS] Submitting command buffer to GPU queue...");
             self.queue.submit(std::iter::once(encoder.finish()));
+            log::debug!("[GPU_COMMANDS] GPU commands submitted successfully for chunk {:?}", chunk_pos);
         }
+        
+        log::debug!("[GPU_GENERATION] GPU command submission complete, proceeding to readback...");
         
         // Extract the generated chunk data back to CPU format
         // This maintains compatibility with existing engine systems

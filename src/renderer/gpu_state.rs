@@ -736,7 +736,7 @@ impl GpuState {
         let _chunk_size = parallel_config.chunk_size;
         
         log::info!("[GpuState::new] Creating parallel world...");
-        let world = ParallelWorld::new(generator, parallel_config);
+        let mut world = ParallelWorld::new(generator, parallel_config);
         
         // Find safe spawn position by checking actual blocks
         log::info!("[GpuState::new] Finding safe spawn position...");
@@ -770,7 +770,17 @@ impl GpuState {
         // Do one initial update to start chunk loading
         log::info!("[GpuState::new] Performing initial world update to queue chunk generation...");
         log::info!("[GpuState::new] Camera position for initial update: {:?}", camera.position);
-        world.update(Point3::new(camera.position[0], camera.position[1], camera.position[2]));
+        
+        // Ensure camera chunk is loaded before initial world update
+        let initial_camera_pos = Point3::new(camera.position[0], camera.position[1], camera.position[2]);
+        let camera_chunk_loaded = world.ensure_camera_chunk_loaded(initial_camera_pos);
+        if camera_chunk_loaded {
+            log::info!("[GpuState::new] Camera chunk successfully loaded at initialization");
+        } else {
+            log::warn!("[GpuState::new] Camera chunk still being generated at initialization");
+        }
+        
+        world.update(initial_camera_pos);
         log::info!("[GpuState::new] World initialization complete (chunk loading started)");
         
         // Create GPU-driven renderer
@@ -2130,7 +2140,15 @@ pub async fn run_app<G: Game + 'static>(
                                      gpu_state.camera.position,
                                      gpu_state.world.chunk_manager().loaded_chunk_count());
                         }
-                        gpu_state.world.update(Point3::new(gpu_state.camera.position[0], gpu_state.camera.position[1], gpu_state.camera.position[2]));
+                        
+                        // Ensure camera chunk is loaded before world update
+                        let camera_pos = Point3::new(gpu_state.camera.position[0], gpu_state.camera.position[1], gpu_state.camera.position[2]);
+                        let camera_chunk_loaded = gpu_state.world.ensure_camera_chunk_loaded(camera_pos);
+                        if !camera_chunk_loaded {
+                            log::warn!("[render loop] Camera chunk still being generated at position: {:?}", camera_pos);
+                        }
+                        
+                        gpu_state.world.update(camera_pos);
                         
                         // Periodic sync check
                         if gpu_state.frames_rendered % 300 == 0 && gpu_state.frames_rendered > 0 {

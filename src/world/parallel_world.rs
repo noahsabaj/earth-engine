@@ -598,4 +598,10 @@ impl WorldInterface for ParallelWorld {
         // For now, only air and water are transparent
         block_id == BlockId::AIR || block_id == BlockId(6) // Water
     }
+    
+    fn ensure_camera_chunk_loaded(&mut self, _camera_pos: Point3<f32>) -> bool {
+        // ParallelWorld uses priority-based chunk generation which handles
+        // camera position prioritization in its own system
+        true
+    }
 }

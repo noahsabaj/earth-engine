@@ -1,5 +1,6 @@
 use std::sync::Arc;
 use std::collections::HashMap;
+use std::time::Instant;
 use bytemuck::{Pod, Zeroable};
 use crate::morton::morton_encode;
 use crate::world::ChunkPos;
@@ -252,6 +253,7 @@ impl WorldBuffer {
     /// Get or allocate a buffer slot for a chunk position
     pub fn get_chunk_slot(&mut self, chunk_pos: ChunkPos) -> u32 {
         if let Some(&slot) = self.chunk_slots.get(&chunk_pos) {
+            log::debug!("[WORLD_BUFFER] Reusing existing slot {} for chunk {:?}", slot, chunk_pos);
             slot
         } else {
             // Allocate new slot
@@ -261,12 +263,17 @@ impl WorldBuffer {
             let old_chunk = self.chunk_slots.iter()
                 .find_map(|(pos, &s)| if s == slot { Some(*pos) } else { None });
             if let Some(old_pos) = old_chunk {
+                log::debug!("[WORLD_BUFFER] Evicting chunk {:?} from slot {} to make room for {:?}", 
+                           old_pos, slot, chunk_pos);
                 self.chunk_slots.remove(&old_pos);
             }
             
             // Map new chunk to slot
             self.chunk_slots.insert(chunk_pos, slot);
             self.next_slot = (self.next_slot + 1) % self.max_chunks;
+            
+            log::debug!("[WORLD_BUFFER] Allocated new slot {} for chunk {:?} (usage: {}/{})", 
+                       slot, chunk_pos, self.chunk_slots.len(), self.max_chunks);
             
             slot
         }
@@ -279,20 +286,60 @@ impl WorldBuffer {
     
     /// Upload a single chunk from CPU (migration path)
     pub fn upload_chunk(&mut self, queue: &wgpu::Queue, chunk_pos: ChunkPos, voxels: &[VoxelData]) {
-        assert_eq!(voxels.len(), VOXELS_PER_CHUNK as usize);
+        let start = Instant::now();
+        
+        assert_eq!(voxels.len(), VOXELS_PER_CHUNK as usize, 
+                   "[WORLD_BUFFER] Invalid voxel count for chunk {:?}: expected {}, got {}", 
+                   chunk_pos, VOXELS_PER_CHUNK, voxels.len());
+        
+        log::info!("[WORLD_BUFFER] Uploading chunk {:?} to GPU ({} voxels)", chunk_pos, voxels.len());
+        
+        // Count non-air voxels for diagnostics
+        let non_air_count = voxels.iter().filter(|v| v.block_id() != 0).count();
+        let fill_percentage = (non_air_count as f64 / voxels.len() as f64) * 100.0;
         
         let slot = self.get_chunk_slot(chunk_pos);
         let offset = self.slot_offset(slot);
+        let upload_size = voxels.len() * std::mem::size_of::<VoxelData>();
+        
+        log::debug!("[WORLD_BUFFER] Upload details: slot {}, offset {} bytes, size {} bytes", 
+                   slot, offset, upload_size);
+        log::debug!("[WORLD_BUFFER] Chunk content: {} non-air voxels ({:.1}% filled)", 
+                   non_air_count, fill_percentage);
+        
+        let upload_start = Instant::now();
         queue.write_buffer(&self.voxel_buffer, offset, bytemuck::cast_slice(voxels));
+        let upload_duration = upload_start.elapsed();
+        
+        let total_duration = start.elapsed();
+        
+        // Calculate upload bandwidth
+        let bandwidth_mbps = if upload_duration.as_secs_f64() > 0.0 {
+            (upload_size as f64 / upload_duration.as_secs_f64()) / (1024.0 * 1024.0)
+        } else { 0.0 };
+        
+        log::info!("[WORLD_BUFFER] Chunk {:?} upload completed: {:.2}ms total, {:.1} MB/s bandwidth", 
+                  chunk_pos, total_duration.as_secs_f64() * 1000.0, bandwidth_mbps);
     }
     
     /// Clear a chunk to air
     pub fn clear_chunk(&mut self, encoder: &mut wgpu::CommandEncoder, chunk_pos: ChunkPos) {
+        let start = Instant::now();
+        
+        log::debug!("[WORLD_BUFFER] Clearing chunk {:?} to air", chunk_pos);
+        
         let slot = self.get_chunk_slot(chunk_pos);
         let offset = self.slot_offset(slot);
         let size = VOXELS_PER_CHUNK as u64 * std::mem::size_of::<VoxelData>() as u64;
         
+        log::debug!("[WORLD_BUFFER] Clear operation: slot {}, offset {} bytes, size {} bytes", 
+                   slot, offset, size);
+        
         encoder.clear_buffer(&self.voxel_buffer, offset, Some(size));
+        
+        let duration = start.elapsed();
+        log::debug!("[WORLD_BUFFER] Chunk {:?} clear operation queued in {:.1}μs", 
+                   chunk_pos, duration.as_micros());
     }
     
     
@@ -314,9 +361,15 @@ impl WorldBuffer {
         queue: &wgpu::Queue,
         chunk_pos: ChunkPos,
     ) -> Result<Vec<VoxelData>, Box<dyn std::error::Error>> {
+        let overall_start = Instant::now();
+        
+        log::info!("[WORLD_BUFFER] Starting GPU→CPU readback for chunk {:?}", chunk_pos);
+        
         // Check staging buffer exists
         if self.staging_buffer.is_none() {
-            return Err("WorldBuffer readback not enabled - missing staging buffer".into());
+            let error_msg = "WorldBuffer readback not enabled - missing staging buffer";
+            log::error!("[WORLD_BUFFER] {}", error_msg);
+            return Err(error_msg.into());
         }
         
         // Get chunk slot and calculate source offset
@@ -327,13 +380,16 @@ impl WorldBuffer {
         // Get staging buffer reference after mutable operations
         let staging_buffer = self.staging_buffer.as_ref().unwrap();
         
-        log::debug!("[WorldBuffer] Reading chunk {:?} from slot {} at offset {}", 
-                   chunk_pos, slot, source_offset);
+        log::info!("[WORLD_BUFFER] GPU readback details: chunk {:?} from slot {} at offset {} bytes (size: {} bytes)", 
+                  chunk_pos, slot, source_offset, chunk_size_bytes);
         
         // Create command encoder for copy operation
+        let encoder_start = Instant::now();
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("WorldBuffer Readback"),
         });
+        
+        log::debug!("[WORLD_BUFFER] Copying GPU buffer to staging buffer...");
         
         // Copy GPU buffer data to staging buffer
         encoder.copy_buffer_to_buffer(
@@ -344,10 +400,20 @@ impl WorldBuffer {
             chunk_size_bytes,      // size: one chunk worth of voxel data
         );
         
+        let encoder_duration = encoder_start.elapsed();
+        
         // Submit copy command and wait for completion
+        let submit_start = Instant::now();
         queue.submit(std::iter::once(encoder.finish()));
+        let submit_duration = submit_start.elapsed();
+        
+        log::debug!("[WORLD_BUFFER] GPU copy command submitted (encode: {:.1}μs, submit: {:.1}μs)", 
+                   encoder_duration.as_micros(), submit_duration.as_micros());
         
         // Map staging buffer for reading
+        let mapping_start = Instant::now();
+        log::debug!("[WORLD_BUFFER] Mapping staging buffer for CPU read access...");
+        
         let buffer_slice = staging_buffer.slice(..);
         let (sender, receiver) = std::sync::mpsc::channel();
         buffer_slice.map_async(wgpu::MapMode::Read, move |result| {
@@ -355,24 +421,58 @@ impl WorldBuffer {
         });
         
         // Poll device until mapping completes
+        let poll_start = Instant::now();
         device.poll(wgpu::Maintain::Wait);
+        let poll_duration = poll_start.elapsed();
+        
         let map_result = receiver.recv()
             .map_err(|_| "Failed to receive mapping result")?
             .map_err(|e| format!("Buffer mapping failed: {:?}", e))?;
         
+        let mapping_duration = mapping_start.elapsed();
+        log::debug!("[WORLD_BUFFER] Buffer mapping completed (poll: {:.1}ms, total: {:.1}ms)", 
+                   poll_duration.as_secs_f64() * 1000.0, mapping_duration.as_secs_f64() * 1000.0);
+        
         // Read the mapped data
+        let read_start = Instant::now();
         let mapped_data = buffer_slice.get_mapped_range();
         let voxel_data: &[VoxelData] = bytemuck::cast_slice(&mapped_data);
         
+        log::debug!("[WORLD_BUFFER] Reading {} voxels from mapped buffer...", voxel_data.len());
+        
         // Copy data out before unmapping
+        let copy_start = Instant::now();
         let result: Vec<VoxelData> = voxel_data.to_vec();
+        let copy_duration = copy_start.elapsed();
+        
+        // Analyze the data for diagnostics
+        let non_air_count = result.iter().filter(|v| v.block_id() != 0).count();
+        let fill_percentage = (non_air_count as f64 / result.len() as f64) * 100.0;
         
         // Unmap the buffer
         drop(mapped_data);
         staging_buffer.unmap();
         
-        log::debug!("[WorldBuffer] Successfully read {} voxels from GPU for chunk {:?}", 
-                   result.len(), chunk_pos);
+        let read_duration = read_start.elapsed();
+        let total_duration = overall_start.elapsed();
+        
+        // Calculate readback performance metrics
+        let readback_bandwidth = if total_duration.as_secs_f64() > 0.0 {
+            (chunk_size_bytes as f64 / total_duration.as_secs_f64()) / (1024.0 * 1024.0)
+        } else { 0.0 };
+        
+        log::info!("[WORLD_BUFFER] GPU→CPU readback completed for chunk {:?}: {} voxels ({} non-air, {:.1}% filled)", 
+                  chunk_pos, result.len(), non_air_count, fill_percentage);
+        
+        log::debug!("[WORLD_BUFFER] Readback performance: {:.2}ms total, {:.1} MB/s bandwidth (copy: {:.1}μs, read: {:.1}ms)", 
+                   total_duration.as_secs_f64() * 1000.0, readback_bandwidth,
+                   copy_duration.as_micros(), read_duration.as_secs_f64() * 1000.0);
+        
+        // Warn if readback is slow
+        if total_duration.as_millis() > 10 {
+            log::warn!("[WORLD_BUFFER] Slow GPU→CPU readback for chunk {:?}: {:.2}ms (expected <10ms)", 
+                      chunk_pos, total_duration.as_secs_f64() * 1000.0);
+        }
         
         Ok(result)
     }

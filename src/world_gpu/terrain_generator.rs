@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Instant;
 use wgpu::util::DeviceExt;
 use bytemuck::{Pod, Zeroable};
 use crate::world::ChunkPos;
@@ -149,7 +150,14 @@ impl TerrainGenerator {
     
     /// Update terrain generation parameters
     pub fn update_params(&self, queue: &wgpu::Queue, params: &TerrainParams) {
+        let start = Instant::now();
+        log::debug!("[GPU_TERRAIN] Updating terrain parameters: seed={}, sea_level={}, scale={}", 
+                   params.seed, params.sea_level, params.terrain_scale);
+        
         queue.write_buffer(&self.params_buffer, 0, bytemuck::cast_slice(&[*params]));
+        
+        let duration = start.elapsed();
+        log::debug!("[GPU_TERRAIN] Parameter update completed in {:.2}μs", duration.as_micros());
     }
     
     /// Generate multiple chunks on the GPU
@@ -159,15 +167,42 @@ impl TerrainGenerator {
         world_buffer: &WorldBuffer,
         chunk_positions: &[ChunkPos],
     ) {
+        let overall_start = Instant::now();
+        
         if chunk_positions.is_empty() {
+            log::debug!("[GPU_TERRAIN] No chunks to generate, returning early");
             return;
         }
         
+        log::info!("[GPU_TERRAIN] Starting GPU terrain generation for {} chunks", chunk_positions.len());
+        
+        // Log spatial context of chunks being generated
+        if chunk_positions.len() <= 5 {
+            for pos in chunk_positions {
+                log::debug!("[GPU_TERRAIN] Generating chunk at world position ({}, {}, {})", 
+                           pos.x * 32, pos.y * 32, pos.z * 32);
+            }
+        } else {
+            let min_x = chunk_positions.iter().map(|p| p.x).min().unwrap_or(0);
+            let max_x = chunk_positions.iter().map(|p| p.x).max().unwrap_or(0);
+            let min_y = chunk_positions.iter().map(|p| p.y).min().unwrap_or(0);
+            let max_y = chunk_positions.iter().map(|p| p.y).max().unwrap_or(0);
+            let min_z = chunk_positions.iter().map(|p| p.z).min().unwrap_or(0);
+            let max_z = chunk_positions.iter().map(|p| p.z).max().unwrap_or(0);
+            log::debug!("[GPU_TERRAIN] Chunk batch bounds: X({} to {}), Y({} to {}), Z({} to {})", 
+                       min_x, max_x, min_y, max_y, min_z, max_z);
+        }
+        
         // Create buffer for chunk positions
+        let buffer_prep_start = Instant::now();
         let positions_data: Vec<[i32; 4]> = chunk_positions
             .iter()
             .map(|pos| [pos.x, pos.y, pos.z, 0])
             .collect();
+        
+        let buffer_size = positions_data.len() * std::mem::size_of::<[i32; 4]>();
+        log::debug!("[GPU_TERRAIN] Creating chunk positions buffer: {} bytes for {} chunks", 
+                   buffer_size, chunk_positions.len());
         
         let positions_buffer = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Chunk Positions Buffer"),
@@ -175,8 +210,19 @@ impl TerrainGenerator {
             usage: wgpu::BufferUsages::STORAGE,
         });
         
+        let buffer_prep_duration = buffer_prep_start.elapsed();
+        log::debug!("[GPU_TERRAIN] Chunk positions buffer created in {:.2}μs", buffer_prep_duration.as_micros());
+        
         // Create bind group for terrain generation
-        log::debug!("[TerrainGenerator] Creating bind group for terrain generation...");
+        let bind_group_start = Instant::now();
+        log::debug!("[GPU_TERRAIN] Creating bind group for terrain generation...");
+        
+        // Log buffer information for diagnostics
+        log::debug!("[GPU_TERRAIN] Bind group buffer info:");
+        log::debug!("[GPU_TERRAIN]   - World buffer size: {} bytes (max {} chunks)", 
+                   world_buffer.buffer_size(), world_buffer.max_chunks());
+        log::debug!("[GPU_TERRAIN]   - Positions buffer size: {} bytes", buffer_size);
+        
         let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("Terrain Generation Bind Group"),
             layout: &self.bind_group_layout,
@@ -199,29 +245,50 @@ impl TerrainGenerator {
                 },
             ],
         });
-        log::debug!("[TerrainGenerator] Terrain generation bind group created successfully");
+        
+        let bind_group_duration = bind_group_start.elapsed();
+        log::debug!("[GPU_TERRAIN] Terrain generation bind group created in {:.2}μs", bind_group_duration.as_micros());
         
         // Dispatch compute shader
-        log::debug!("[TerrainGenerator] Starting compute pass for {} chunks", chunk_positions.len());
+        let compute_start = Instant::now();
+        log::info!("[GPU_TERRAIN] Starting compute pass for {} chunks", chunk_positions.len());
+        
         let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
             label: Some("Terrain Generation Pass"),
             timestamp_writes: None,
         });
         
-        log::debug!("[TerrainGenerator] Setting compute pipeline...");
+        log::debug!("[GPU_TERRAIN] Setting compute pipeline...");
         compute_pass.set_pipeline(&self.generate_pipeline);
-        log::debug!("[TerrainGenerator] Setting bind group...");
+        
+        log::debug!("[GPU_TERRAIN] Setting bind group...");
         compute_pass.set_bind_group(0, &bind_group, &[]);
         
         // Process chunks in parallel on GPU
         // Each workgroup handles one chunk
-        log::debug!("[TerrainGenerator] Dispatching {} workgroups for terrain generation", chunk_positions.len());
-        compute_pass.dispatch_workgroups(
-            chunk_positions.len() as u32,
-            1,
-            1,
-        );
-        log::debug!("[TerrainGenerator] Terrain generation compute pass complete");
+        let workgroup_count = chunk_positions.len() as u32;
+        log::info!("[GPU_TERRAIN] Dispatching {} workgroups for parallel terrain generation", workgroup_count);
+        log::debug!("[GPU_TERRAIN] GPU workload: {} chunks × 32³ voxels = {} total voxels to generate", 
+                   workgroup_count, workgroup_count * 32 * 32 * 32);
+        
+        compute_pass.dispatch_workgroups(workgroup_count, 1, 1);
+        
+        // Note: Compute pass completion time will be logged after encoder submission
+        let compute_setup_duration = compute_start.elapsed();
+        log::debug!("[GPU_TERRAIN] Compute pass setup completed in {:.2}μs", compute_setup_duration.as_micros());
+        
+        // Drop compute pass to end it
+        drop(compute_pass);
+        
+        let overall_duration = overall_start.elapsed();
+        log::info!("[GPU_TERRAIN] GPU terrain generation dispatch completed in {:.2}ms for {} chunks", 
+                  overall_duration.as_secs_f64() * 1000.0, chunk_positions.len());
+        
+        // Calculate theoretical performance metrics
+        let chunks_per_second = chunk_positions.len() as f64 / overall_duration.as_secs_f64();
+        let voxels_per_second = chunks_per_second * (32.0 * 32.0 * 32.0);
+        log::info!("[GPU_TERRAIN] Performance metrics: {:.1} chunks/sec, {:.0} voxels/sec", 
+                  chunks_per_second, voxels_per_second);
     }
     
     /// Generate a single chunk (convenience method)

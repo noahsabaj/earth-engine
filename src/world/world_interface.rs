@@ -45,4 +45,11 @@ pub trait WorldInterface: Send + Sync {
     
     /// Check if a block is transparent (for lighting)
     fn is_block_transparent(&self, pos: VoxelPos) -> bool;
+    
+    /// Ensure the chunk containing the camera position is loaded
+    /// Returns true if the chunk is loaded, false if still being generated
+    fn ensure_camera_chunk_loaded(&mut self, camera_pos: Point3<f32>) -> bool {
+        // Default implementation for compatibility - just return true
+        true
+    }
 }

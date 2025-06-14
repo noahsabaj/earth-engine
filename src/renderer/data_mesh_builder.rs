@@ -304,74 +304,98 @@ pub mod operations {
                     
                     // Top face
                     if y == chunk_size - 1 || get_block(x, y + 1, z) == BlockId::AIR {
-                        let _ = add_quad(
+                        if let Err(e) = add_quad(
                             buffer,
                             BlockFace::Top,
                             world_x, world_y, world_z,
                             block,
                             15, // Full light for now
                             [255; 4], // No AO for now
-                        );
+                        ) {
+                            log::error!("[MESH_BUILD] Failed to add top face at ({}, {}, {}): {}", 
+                                       world_x, world_y, world_z, e);
+                            break; // Stop processing if buffer is full
+                        }
                     }
                     
                     // Bottom face
                     if y == 0 || get_block(x, y - 1, z) == BlockId::AIR {
-                        let _ = add_quad(
+                        if let Err(e) = add_quad(
                             buffer,
                             BlockFace::Bottom,
                             world_x, world_y, world_z,
                             block,
                             15,
                             [255; 4],
-                        );
+                        ) {
+                            log::error!("[MESH_BUILD] Failed to add bottom face at ({}, {}, {}): {}", 
+                                       world_x, world_y, world_z, e);
+                            break;
+                        }
                     }
                     
                     // North face (negative Z)
                     if z == 0 || get_block(x, y, z - 1) == BlockId::AIR {
-                        let _ = add_quad(
+                        if let Err(e) = add_quad(
                             buffer,
                             BlockFace::North,
                             world_x, world_y, world_z,
                             block,
                             15,
                             [255; 4],
-                        );
+                        ) {
+                            log::error!("[MESH_BUILD] Failed to add north face at ({}, {}, {}): {}", 
+                                       world_x, world_y, world_z, e);
+                            break;
+                        }
                     }
                     
                     // South face (positive Z)
                     if z == chunk_size - 1 || get_block(x, y, z + 1) == BlockId::AIR {
-                        let _ = add_quad(
+                        if let Err(e) = add_quad(
                             buffer,
                             BlockFace::South,
                             world_x, world_y, world_z,
                             block,
                             15,
                             [255; 4],
-                        );
+                        ) {
+                            log::error!("[MESH_BUILD] Failed to add south face at ({}, {}, {}): {}", 
+                                       world_x, world_y, world_z, e);
+                            break;
+                        }
                     }
                     
                     // East face (positive X)
                     if x == chunk_size - 1 || get_block(x + 1, y, z) == BlockId::AIR {
-                        let _ = add_quad(
+                        if let Err(e) = add_quad(
                             buffer,
                             BlockFace::East,
                             world_x, world_y, world_z,
                             block,
                             15,
                             [255; 4],
-                        );
+                        ) {
+                            log::error!("[MESH_BUILD] Failed to add east face at ({}, {}, {}): {}", 
+                                       world_x, world_y, world_z, e);
+                            break;
+                        }
                     }
                     
                     // West face (negative X)
                     if x == 0 || get_block(x - 1, y, z) == BlockId::AIR {
-                        let _ = add_quad(
+                        if let Err(e) = add_quad(
                             buffer,
                             BlockFace::West,
                             world_x, world_y, world_z,
                             block,
                             15,
                             [255; 4],
-                        );
+                        ) {
+                            log::error!("[MESH_BUILD] Failed to add west face at ({}, {}, {}): {}", 
+                                       world_x, world_y, world_z, e);
+                            break;
+                        }
                     }
                 }
             }

@@ -1,5 +1,6 @@
 #![allow(unused_variables, dead_code)]
 use std::sync::Arc;
+use std::time::Instant;
 use cgmath::{Vector3};
 use crate::camera::data_camera::CameraData;
 use super::{
@@ -175,6 +176,13 @@ impl GpuDrivenRenderer {
     
     /// Begin a new frame
     pub fn begin_frame(&mut self, camera: &CameraData) {
+        let start = Instant::now();
+        
+        // Log camera spatial context for debugging
+        log::debug!("[GPU_RENDER] Beginning frame at camera position ({:.1}, {:.1}, {:.1}), yaw: {:.1}°, pitch: {:.1}°", 
+                   camera.position[0], camera.position[1], camera.position[2], 
+                   camera.yaw_radians.to_degrees(), camera.pitch_radians.to_degrees());
+        
         // Clear previous frame data
         self.culling_data.clear();
         self.stats = RenderStats::default();
@@ -184,8 +192,14 @@ impl GpuDrivenRenderer {
         // when objects change (chunks are added/removed/modified).
         // This fixes the issue where instances were being cleared every frame.
         
+        log::debug!("[GPU_RENDER] Instance persistence: keeping {} existing instances across frames", 
+                   self.instance_manager.chunk_instances().count());
+        
         // Update camera for culling
         self.culling_pipeline.update_camera(&self.queue, camera);
+        
+        let duration = start.elapsed();
+        log::debug!("[GPU_RENDER] Frame begin completed in {:.1}μs", duration.as_micros());
     }
     
     /// Clear all instances - should only be called when rebuilding the entire scene
@@ -196,7 +210,23 @@ impl GpuDrivenRenderer {
     
     /// Upload instance data to GPU after submission
     pub fn upload_instances(&mut self, queue: &wgpu::Queue) {
+        let start = Instant::now();
+        let instance_count_before = self.instance_manager.chunk_instances().count();
+        
+        log::debug!("[GPU_RENDER] Uploading {} instances to GPU", instance_count_before);
+        
         self.instance_manager.upload_all(queue);
+        
+        let duration = start.elapsed();
+        let instance_data_size = instance_count_before as usize * std::mem::size_of::<super::instance_buffer::InstanceData>();
+        log::info!("[GPU_RENDER] Instance upload completed: {} instances ({} bytes) in {:.2}ms", 
+                  instance_count_before, instance_data_size, duration.as_secs_f64() * 1000.0);
+        
+        // Calculate upload bandwidth
+        if duration.as_secs_f64() > 0.0 {
+            let bandwidth_mbps = (instance_data_size as f64 / duration.as_secs_f64()) / (1024.0 * 1024.0);
+            log::debug!("[GPU_RENDER] Upload bandwidth: {:.1} MB/s", bandwidth_mbps);
+        }
     }
     
     /// Submit objects for rendering
@@ -284,11 +314,26 @@ impl GpuDrivenRenderer {
     
     /// Build GPU commands (can be called from multiple threads)
     pub fn build_commands(&mut self) {
+        let start = Instant::now();
+        
+        log::debug!("[GPU_RENDER] Building GPU commands for {} objects", self.stats.objects_submitted);
+        
         // Upload instance data
+        let instance_upload_start = Instant::now();
         self.instance_manager.upload_all(&self.queue);
+        let instance_upload_duration = instance_upload_start.elapsed();
         
         // Upload culling data
+        let culling_upload_start = Instant::now();
         self.culling_data.upload(&self.queue);
+        let culling_upload_duration = culling_upload_start.elapsed();
+        
+        let total_duration = start.elapsed();
+        
+        log::debug!("[GPU_RENDER] Command building completed in {:.2}ms (instance: {:.2}ms, culling: {:.2}ms)", 
+                   total_duration.as_secs_f64() * 1000.0, 
+                   instance_upload_duration.as_secs_f64() * 1000.0,
+                   culling_upload_duration.as_secs_f64() * 1000.0);
         
         // In a real implementation, this would build commands on multiple threads
         // For now, we'll prepare the buffers for GPU culling
@@ -296,42 +341,70 @@ impl GpuDrivenRenderer {
     
     /// Execute GPU culling phase (must be called before render_draw)
     pub fn execute_culling(&mut self, encoder: &mut wgpu::CommandEncoder) {
+        let start = Instant::now();
+        
         // Skip if no objects to cull
         if self.culling_data.metadata.is_empty() {
-            log::debug!("[GpuDrivenRenderer] No objects to cull, skipping GPU culling");
+            log::debug!("[GPU_RENDER] No objects to cull, skipping GPU culling");
             return;
         }
         
         // Check if GPU culling is available
         if !self.culling_pipeline.is_available() {
-            log::warn!("[GpuDrivenRenderer] GPU culling not available, rendering all objects");
+            log::warn!("[GPU_RENDER] GPU culling not available, rendering all {} objects without culling", 
+                      self.culling_data.metadata.len());
             // In production, we might want to fall back to CPU culling here
             return;
         }
         
+        log::info!("[GPU_RENDER] Executing GPU culling for {} objects", self.culling_data.metadata.len());
+        
         // Create culling bind group
+        let bind_group_start = Instant::now();
         let culling_bind_group = self.culling_pipeline.create_bind_group(
             &self.culling_data.metadata_buffer,
             self.command_manager.opaque_commands().buffer(),
         );
+        let bind_group_duration = bind_group_start.elapsed();
         
         // Execute GPU culling
+        let culling_start = Instant::now();
         self.culling_pipeline.execute_culling(
             encoder,
             &culling_bind_group,
             self.culling_data.metadata.len() as u32,
         );
+        let culling_duration = culling_start.elapsed();
         
         // Copy commands from staging to GPU
+        let copy_start = Instant::now();
         self.command_manager.copy_all_to_gpu(encoder);
+        let copy_duration = copy_start.elapsed();
+        
+        let total_duration = start.elapsed();
+        
+        log::info!("[GPU_RENDER] GPU culling completed in {:.2}ms (bind: {:.1}μs, cull: {:.1}μs, copy: {:.1}μs)", 
+                  total_duration.as_secs_f64() * 1000.0,
+                  bind_group_duration.as_micros(),
+                  culling_duration.as_micros(),
+                  copy_duration.as_micros());
     }
     
     /// Update cached buffer references before rendering
     pub fn update_buffer_cache(&mut self) {
+        let start = Instant::now();
+        
         if let Some((vb, ib)) = self.mesh_buffers.get_chunk_buffers() {
             self.cached_vertex_buffer = Some(vb);
             self.cached_index_buffer = Some(ib);
+            
+            log::debug!("[GPU_RENDER] Buffer cache updated with vertex and index buffers");
+        } else {
+            log::warn!("[GPU_RENDER] Failed to get chunk buffers for cache update");
         }
+        
+        let duration = start.elapsed();
+        log::debug!("[GPU_RENDER] Buffer cache update completed in {:.1}μs", duration.as_micros());
     }
     
     /// Execute rendering phase (must be called after execute_culling)
@@ -340,13 +413,19 @@ impl GpuDrivenRenderer {
         render_pass: &mut wgpu::RenderPass<'a>,
         camera_bind_group: &'a wgpu::BindGroup,
     ) {
+        let start = Instant::now();
+        
         // Check if render pipeline is available
         let Some(render_pipeline) = &self.render_pipeline else {
-            log::debug!("[GpuDrivenRenderer] Skipping render - pipeline not available");
+            log::debug!("[GPU_RENDER] Skipping render - pipeline not available");
             return;
         };
         
+        log::debug!("[GPU_RENDER] Starting render draw phase with {} submitted objects", 
+                   self.stats.objects_submitted);
+        
         // Set up render state
+        let setup_start = Instant::now();
         render_pass.set_pipeline(render_pipeline);
         render_pass.set_bind_group(0, camera_bind_group, &[]);
         
@@ -354,10 +433,18 @@ impl GpuDrivenRenderer {
         if let (Some(vertex_buffer), Some(index_buffer)) = (&self.cached_vertex_buffer, &self.cached_index_buffer) {
             render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
             render_pass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+            log::debug!("[GPU_RENDER] Bound cached vertex and index buffers");
+        } else {
+            log::error!("[GPU_RENDER] No cached buffers available for rendering!");
+            return;
         }
         
         // Bind instance buffer
+        let instance_count = self.instance_manager.chunk_instances().count();
         render_pass.set_vertex_buffer(1, self.instance_manager.chunk_instances().buffer().slice(..));
+        log::debug!("[GPU_RENDER] Bound instance buffer with {} instances", instance_count);
+        
+        let setup_duration = setup_start.elapsed();
         
         // Execute draws for each mesh
         // Following DOP principles - iterate through data, not objects
@@ -378,12 +465,19 @@ impl GpuDrivenRenderer {
         }
         
         // Draw each mesh with its instances
+        let draw_start = Instant::now();
+        let mut total_draw_calls = 0;
+        let mut total_triangles = 0;
+        
         for (mesh_id, instance_indices) in instances_per_mesh.iter() {
             if let Some(mesh_info) = self.mesh_buffers.get_mesh_info(*mesh_id) {
                 if mesh_info.index_count > 0 && !instance_indices.is_empty() {
                     // Calculate index range for this mesh
                     let start_index = mesh_info.index_start;
                     let end_index = start_index + mesh_info.index_count;
+                    
+                    log::debug!("[GPU_RENDER] Drawing mesh {} with {} instances (indices {}-{}, {} triangles)", 
+                               mesh_id, instance_indices.len(), start_index, end_index, mesh_info.index_count / 3);
                     
                     // Draw all instances of this mesh
                     // In a proper GPU-driven renderer, we'd use indirect drawing
@@ -394,9 +488,29 @@ impl GpuDrivenRenderer {
                             mesh_info.vertex_start as i32,
                             instance_idx..instance_idx + 1,
                         );
+                        total_draw_calls += 1;
+                        total_triangles += mesh_info.index_count / 3;
                     }
                 }
+            } else {
+                log::warn!("[GPU_RENDER] Mesh info not found for mesh_id {}", mesh_id);
             }
+        }
+        
+        let draw_duration = draw_start.elapsed();
+        let total_duration = start.elapsed();
+        
+        log::info!("[GPU_RENDER] Render draw completed: {} draw calls, {} triangles in {:.2}ms (setup: {:.1}μs, draw: {:.1}μs)", 
+                  total_draw_calls, total_triangles, 
+                  total_duration.as_secs_f64() * 1000.0,
+                  setup_duration.as_micros(),
+                  draw_duration.as_micros());
+        
+        // Calculate rendering performance metrics
+        if total_duration.as_secs_f64() > 0.0 {
+            let triangles_per_second = total_triangles as f64 / total_duration.as_secs_f64();
+            log::debug!("[GPU_RENDER] Performance: {:.0} triangles/sec, {:.1} draw calls/ms", 
+                       triangles_per_second, total_draw_calls as f64 / (total_duration.as_secs_f64() * 1000.0));
         }
     }
     
@@ -418,15 +532,41 @@ impl GpuDrivenRenderer {
         // - Race conditions would only affect log timing
         unsafe {
             FRAME_COUNT += 1;
-            if FRAME_COUNT % 300 == 0 {
-                log::debug!(
-                    "[GpuDrivenRenderer] Frame {} stats - Submitted: {}, Drawn: {}, Instances: {}, Rejected: {}, Frame time: {:.2}ms",
+            
+            // Log stats every 60 frames (1 second at 60 FPS)
+            if FRAME_COUNT % 60 == 0 {
+                log::info!(
+                    "[GPU_RENDER] Frame {} performance - Submitted: {}, Drawn: {}, Instances: {}, Rejected: {}, Frame time: {:.2}ms",
                     FRAME_COUNT,
                     self.stats.objects_submitted,
                     self.stats.objects_drawn,
                     self.stats.instances_added,
                     self.stats.objects_rejected,
                     self.stats.frame_time_ms
+                );
+                
+                // Calculate FPS and warn if performance is poor
+                let fps = if self.stats.frame_time_ms > 0.0 { 1000.0 / self.stats.frame_time_ms } else { 0.0 };
+                log::info!("[GPU_RENDER] Current FPS: {:.1}, Target: 60.0", fps);
+                
+                if fps < 30.0 {
+                    log::warn!("[GPU_RENDER] Performance warning: FPS below 30 ({:.1})", fps);
+                }
+            }
+            
+            // More detailed logging every 300 frames (5 seconds at 60 FPS)
+            if FRAME_COUNT % 300 == 0 {
+                let instance_count = self.instance_manager.chunk_instances().count();
+                let rejection_rate = if self.stats.objects_submitted > 0 {
+                    (self.stats.objects_rejected as f64 / self.stats.objects_submitted as f64) * 100.0
+                } else { 0.0 };
+                
+                log::debug!(
+                    "[GPU_RENDER] Detailed frame {} stats - Instance buffer usage: {}, Rejection rate: {:.1}%, Draw call efficiency: {:.1}",
+                    FRAME_COUNT,
+                    instance_count,
+                    rejection_rate,
+                    if self.stats.draw_calls > 0 { self.stats.objects_drawn as f64 / self.stats.draw_calls as f64 } else { 0.0 }
                 );
             }
         }
@@ -556,15 +696,25 @@ impl MeshBufferManager {
         vertices: &[crate::renderer::vertex::Vertex],
         indices: &[u32],
     ) -> Option<u32> {
+        let start = Instant::now();
+        
         if vertices.is_empty() || indices.is_empty() {
+            log::debug!("[GPU_RENDER] Skipping mesh upload for chunk {:?}: empty data (vertices: {}, indices: {})", 
+                       chunk_pos, vertices.len(), indices.len());
             return None;
         }
         
+        log::info!("[GPU_RENDER] Uploading mesh for chunk {:?}: {} vertices, {} indices", 
+                  chunk_pos, vertices.len(), indices.len());
+        
         // Check if we have space for another mesh
         if self.next_mesh_id >= self.max_meshes {
-            log::warn!("[MeshBufferManager] Mesh buffer full, cannot upload new mesh");
+            log::error!("[GPU_RENDER] Mesh buffer full! Cannot upload mesh for chunk {:?} (used: {}/{})", 
+                       chunk_pos, self.next_mesh_id, self.max_meshes);
             return None;
         }
+        
+        log::debug!("[GPU_RENDER] Mesh buffer usage: {}/{} meshes allocated", self.next_mesh_id, self.max_meshes);
         
         // Calculate chunk position hash for lookup
         let chunk_hash = chunk_pos_to_hash(chunk_pos);
@@ -573,7 +723,7 @@ impl MeshBufferManager {
         if let Some(&existing_id) = self.chunk_mesh_ids.get(&chunk_hash) {
             // For now, we'll overwrite the existing mesh
             // In a real implementation, we'd handle this more gracefully
-            log::debug!("[MeshBufferManager] Overwriting existing mesh for chunk {:?}", chunk_pos);
+            log::debug!("[GPU_RENDER] Overwriting existing mesh ID {} for chunk {:?}", existing_id, chunk_pos);
         }
         
         let mesh_id = self.next_mesh_id;
@@ -583,23 +733,41 @@ impl MeshBufferManager {
         let vertex_byte_offset = self.vertex_offset * std::mem::size_of::<crate::renderer::vertex::Vertex>();
         let index_byte_offset = self.index_offset * std::mem::size_of::<u32>();
         
+        let vertex_upload_size = vertices.len() * std::mem::size_of::<crate::renderer::vertex::Vertex>();
+        let index_upload_size = indices.len() * std::mem::size_of::<u32>();
+        
+        log::debug!("[GPU_RENDER] Uploading to GPU: vertex offset {} bytes, index offset {} bytes", 
+                   vertex_byte_offset, index_byte_offset);
+        log::debug!("[GPU_RENDER] Upload sizes: {} bytes vertices, {} bytes indices", 
+                   vertex_upload_size, index_upload_size);
+        
         // Upload vertex data
+        let vertex_upload_start = Instant::now();
         if let Some(vertex_buffer) = &self.chunk_vertex_buffer {
             queue.write_buffer(
                 vertex_buffer,
                 vertex_byte_offset as u64,
                 bytemuck::cast_slice(vertices),
             );
+        } else {
+            log::error!("[GPU_RENDER] No vertex buffer available for upload!");
+            return None;
         }
+        let vertex_upload_duration = vertex_upload_start.elapsed();
         
         // Upload index data
+        let index_upload_start = Instant::now();
         if let Some(index_buffer) = &self.chunk_index_buffer {
             queue.write_buffer(
                 index_buffer,
                 index_byte_offset as u64,
                 bytemuck::cast_slice(indices),
             );
+        } else {
+            log::error!("[GPU_RENDER] No index buffer available for upload!");
+            return None;
         }
+        let index_upload_duration = index_upload_start.elapsed();
         
         // Create mesh info
         let mesh_info = MeshInfo {
@@ -626,6 +794,27 @@ impl MeshBufferManager {
         
         // Store mesh ID for this chunk
         self.chunk_mesh_ids.insert(chunk_hash, mesh_id);
+        
+        let total_duration = start.elapsed();
+        
+        // Calculate upload performance metrics
+        let total_upload_size = vertex_upload_size + index_upload_size;
+        let upload_bandwidth = if total_duration.as_secs_f64() > 0.0 {
+            (total_upload_size as f64 / total_duration.as_secs_f64()) / (1024.0 * 1024.0)
+        } else { 0.0 };
+        
+        log::info!("[GPU_RENDER] Mesh upload completed for chunk {:?}: mesh_id {}, {:.2}ms total ({:.1}MB/s)", 
+                  chunk_pos, mesh_id, total_duration.as_secs_f64() * 1000.0, upload_bandwidth);
+        
+        log::debug!("[GPU_RENDER] Upload breakdown: vertices {:.1}μs, indices {:.1}μs", 
+                   vertex_upload_duration.as_micros(), index_upload_duration.as_micros());
+        
+        // Update buffer usage statistics
+        let vertex_buffer_usage = (self.vertex_offset as f64 / (self.max_meshes * 40000) as f64) * 100.0;
+        let index_buffer_usage = (self.index_offset as f64 / (self.max_meshes * 60000) as f64) * 100.0;
+        
+        log::debug!("[GPU_RENDER] Buffer usage after upload: vertex {:.1}%, index {:.1}%", 
+                   vertex_buffer_usage, index_buffer_usage);
         
         Some(mesh_id)
     }

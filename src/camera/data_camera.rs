@@ -5,6 +5,7 @@
 
 use cgmath::{perspective, Rad, InnerSpace, Matrix4, Point3, Vector3};
 use bytemuck::{Pod, Zeroable};
+use crate::world::ChunkPos;
 
 /// Camera data as a plain old data structure
 #[repr(C)]
@@ -214,6 +215,110 @@ pub fn apply_transform_batch(camera: &CameraData, batch: &CameraTransformBatch) 
     updated
 }
 
+/// Diagnostic and logging functions
+pub mod diagnostics {
+    use super::*;
+    
+    /// Get camera position as chunk coordinates for spatial context
+    pub fn camera_chunk_position(camera: &CameraData) -> ChunkPos {
+        let chunk_x = (camera.position[0] / 32.0).floor() as i32;
+        let chunk_y = (camera.position[1] / 32.0).floor() as i32;
+        let chunk_z = (camera.position[2] / 32.0).floor() as i32;
+        ChunkPos::new(chunk_x, chunk_y, chunk_z)
+    }
+    
+    /// Get camera position within chunk (0-31 range)
+    pub fn camera_local_position(camera: &CameraData) -> (f32, f32, f32) {
+        let local_x = camera.position[0] % 32.0;
+        let local_y = camera.position[1] % 32.0;
+        let local_z = camera.position[2] % 32.0;
+        (local_x, local_y, local_z)
+    }
+    
+    /// Calculate distance from camera to a chunk position
+    pub fn distance_to_chunk(camera: &CameraData, chunk_pos: ChunkPos) -> f32 {
+        let chunk_center_x = (chunk_pos.x * 32) as f32 + 16.0;
+        let chunk_center_y = (chunk_pos.y * 32) as f32 + 16.0;
+        let chunk_center_z = (chunk_pos.z * 32) as f32 + 16.0;
+        
+        let dx = camera.position[0] - chunk_center_x;
+        let dy = camera.position[1] - chunk_center_y;
+        let dz = camera.position[2] - chunk_center_z;
+        
+        (dx * dx + dy * dy + dz * dz).sqrt()
+    }
+    
+    /// Log camera spatial context for debugging
+    pub fn log_camera_context(camera: &CameraData, context: &str) {
+        let chunk_pos = camera_chunk_position(camera);
+        let (local_x, local_y, local_z) = camera_local_position(camera);
+        
+        log::debug!(
+            "[CAMERA_CONTEXT] {} - World position: ({:.1}, {:.1}, {:.1}), \
+             Chunk: {:?}, Local: ({:.1}, {:.1}, {:.1}), \
+             Yaw: {:.1}°, Pitch: {:.1}°",
+            context,
+            camera.position[0], camera.position[1], camera.position[2],
+            chunk_pos,
+            local_x, local_y, local_z,
+            camera.yaw_radians.to_degrees(),
+            camera.pitch_radians.to_degrees()
+        );
+    }
+    
+    /// Get chunks within view distance for debugging
+    pub fn chunks_in_view_distance(camera: &CameraData, view_distance: u32) -> Vec<ChunkPos> {
+        let camera_chunk = camera_chunk_position(camera);
+        let mut chunks = Vec::new();
+        
+        let radius = view_distance as i32;
+        for dx in -radius..=radius {
+            for dy in -radius..=radius {
+                for dz in -radius..=radius {
+                    let chunk_pos = ChunkPos::new(
+                        camera_chunk.x + dx,
+                        camera_chunk.y + dy,
+                        camera_chunk.z + dz
+                    );
+                    
+                    // Only include chunks within spherical distance
+                    let distance = distance_to_chunk(camera, chunk_pos);
+                    if distance <= (view_distance as f32 * 32.0) {
+                        chunks.push(chunk_pos);
+                    }
+                }
+            }
+        }
+        
+        chunks
+    }
+    
+    /// Log performance context with camera information
+    pub fn log_performance_context(
+        camera: &CameraData, 
+        operation: &str, 
+        duration_ms: f64,
+        chunk_count: Option<usize>
+    ) {
+        let chunk_pos = camera_chunk_position(camera);
+        
+        match chunk_count {
+            Some(count) => {
+                log::info!(
+                    "[PERFORMANCE] {} completed in {:.2}ms at camera chunk {:?} ({} chunks)",
+                    operation, duration_ms, chunk_pos, count
+                );
+            }
+            None => {
+                log::info!(
+                    "[PERFORMANCE] {} completed in {:.2}ms at camera chunk {:?}",
+                    operation, duration_ms, chunk_pos
+                );
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -249,5 +354,34 @@ mod tests {
         assert_ne!(camera.position, transformed.position);
         assert_ne!(camera.yaw_radians, transformed.yaw_radians);
         assert_ne!(camera.pitch_radians, transformed.pitch_radians);
+    }
+    
+    #[test]
+    fn test_camera_diagnostics() {
+        use super::diagnostics::*;
+        
+        let camera = init_camera_with_spawn(1920, 1080, 100.0, 50.0, 200.0);
+        let chunk_pos = camera_chunk_position(&camera);
+        
+        // Camera at (100, 50, 200) should be in chunk (3, 1, 6)
+        assert_eq!(chunk_pos.x, 3);
+        assert_eq!(chunk_pos.y, 1);
+        assert_eq!(chunk_pos.z, 6);
+        
+        let (local_x, local_y, local_z) = camera_local_position(&camera);
+        assert!((local_x - 4.0).abs() < 0.001); // 100 % 32 = 4
+        assert!((local_y - 18.0).abs() < 0.001); // 50 % 32 = 18
+        assert!((local_z - 8.0).abs() < 0.001); // 200 % 32 = 8
+    }
+    
+    #[test]
+    fn test_distance_calculation() {
+        use super::diagnostics::*;
+        
+        let camera = init_camera_with_spawn(1920, 1080, 16.0, 16.0, 16.0); // Center of chunk (0,0,0)
+        let chunk_pos = ChunkPos::new(0, 0, 0);
+        
+        let distance = distance_to_chunk(&camera, chunk_pos);
+        assert!(distance < 1.0); // Should be very close to chunk center
     }
 }

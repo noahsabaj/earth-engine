@@ -20,6 +20,7 @@ use super::frame_budget::ChunkLoadThrottler;
 pub struct ChunkLoadRequest {
     position: ChunkPos,
     priority: i32, // Lower value = higher priority (distance squared)
+    is_camera_critical: bool, // True if this chunk is critical for camera view
 }
 
 /// Statistics about chunk loading
@@ -29,6 +30,7 @@ pub struct ChunkLoadingStats {
     pub cached_chunks: usize,
     pub pending_chunks: usize,
     pub chunks_in_generation: usize,
+    pub camera_critical_chunks: usize,
 }
 
 /// Chunk management data structure (no methods)
@@ -193,14 +195,64 @@ pub fn set_adaptive_loading(data: &mut ChunkManagerData, enabled: bool) {
 /// Get loading statistics
 /// Pure function - reads data, no mutation
 pub fn get_loading_stats(data: &ChunkManagerData) -> ChunkLoadingStats {
+    let camera_critical_chunks = data.load_queue.iter().filter(|req| req.is_camera_critical).count();
     ChunkLoadingStats {
         loaded_chunks: data.loaded_chunks.len(),
         cached_chunks: data.chunk_cache.len(),
         pending_chunks: data.load_queue.len(),
         chunks_in_generation: data.chunks_in_generation.len(),
+        camera_critical_chunks,
     }
 }
     
+/// Force-load chunks critical for camera viewing
+/// This ensures chunks around the camera position are always prioritized
+fn force_load_camera_critical_chunks(data: &mut ChunkManagerData, camera_chunk: ChunkPos) {
+    // Define the critical area around the camera (3x3x3 minimum)
+    let critical_radius = 1; // 1 chunk in each direction = 3x3x3 area
+    
+    let mut camera_critical_requests = Vec::new();
+    let mut force_loaded_count = 0;
+    
+    for dx in -critical_radius..=critical_radius {
+        for dy in -critical_radius..=critical_radius {
+            for dz in -critical_radius..=critical_radius {
+                let chunk_pos = ChunkPos::new(
+                    camera_chunk.x + dx,
+                    camera_chunk.y + dy,
+                    camera_chunk.z + dz,
+                );
+                
+                // If this chunk isn't loaded and isn't being generated, force load it
+                if data.loaded_chunks.get(chunk_pos).is_none() 
+                    && !data.chunks_in_generation.contains(&chunk_pos) {
+                    
+                    let distance_sq = dx * dx + dy * dy + dz * dz;
+                    camera_critical_requests.push(ChunkLoadRequest {
+                        position: chunk_pos,
+                        priority: -1000 + distance_sq, // Negative priority = highest priority
+                        is_camera_critical: true,
+                    });
+                    force_loaded_count += 1;
+                }
+            }
+        }
+    }
+    
+    if force_loaded_count > 0 {
+        log::info!(
+            "[chunk_manager::force_load_camera_critical_chunks] Force-loading {} camera-critical chunks around camera at {:?}",
+            force_loaded_count, 
+            camera_chunk
+        );
+        
+        // Insert camera critical chunks at the front of the queue
+        for request in camera_critical_requests.into_iter().rev() {
+            data.load_queue.push_front(request);
+        }
+    }
+}
+
 /// Update loaded chunks based on player position
 /// Pure function - transforms chunk manager data based on player position
 pub fn update_loaded_chunks(data: &mut ChunkManagerData, player_pos: Point3<f32>) {
@@ -227,6 +279,9 @@ pub fn update_loaded_chunks(data: &mut ChunkManagerData, player_pos: Point3<f32>
     
     // First, unload chunks that are too far
     unload_distant_chunks(data, player_chunk);
+    
+    // Force-load camera critical chunks (highest priority)
+    force_load_camera_critical_chunks(data, player_chunk);
     
     // Queue new chunks that need to be loaded
     queue_chunks_for_loading(data, player_chunk);
@@ -286,9 +341,14 @@ fn queue_chunks_for_loading(data: &mut ChunkManagerData, player_chunk: ChunkPos)
                     // Only queue if not already loaded or being generated
                     if data.loaded_chunks.get(chunk_pos).is_none()
                         && !data.chunks_in_generation.contains(&chunk_pos) {
+                        
+                        // Check if this chunk is within the camera critical area
+                        let is_camera_critical = dx.abs() <= 1 && dy.abs() <= 1 && dz.abs() <= 1;
+                        
                         new_requests.push(ChunkLoadRequest {
                             position: chunk_pos,
-                            priority: distance_sq,
+                            priority: if is_camera_critical { -500 + distance_sq } else { distance_sq },
+                            is_camera_critical,
                         });
                     }
                 }
@@ -296,8 +356,8 @@ fn queue_chunks_for_loading(data: &mut ChunkManagerData, player_chunk: ChunkPos)
         }
     }
     
-    // Sort by priority (closest chunks first)
-    new_requests.sort_by_key(|req| req.priority);
+    // Sort by priority (camera critical chunks first, then closest chunks)
+    new_requests.sort_by_key(|req| (if req.is_camera_critical { 0 } else { 1 }, req.priority));
     
     if log_this {
         log::info!("[chunk_manager::queue_chunks_for_loading] Queued {} chunks for loading", new_requests.len());
@@ -316,10 +376,19 @@ fn process_load_queue(data: &mut ChunkManagerData) {
     while chunks_loaded < chunks_per_frame && !data.load_queue.is_empty() && data.throttler.can_load_chunk() {
         if let Some(request) = data.load_queue.pop_front() {
             let chunk_pos = request.position;
+            let is_camera_critical = request.is_camera_critical;
             
             // Skip if already loaded (can happen due to queue updates)
             if data.loaded_chunks.get(chunk_pos).is_some() {
                 continue;
+            }
+            
+            // Log camera critical chunk processing
+            if is_camera_critical {
+                log::info!(
+                    "[chunk_manager::process_load_queue] Loading camera-critical chunk at {:?}",
+                    chunk_pos
+                );
             }
             
             // Mark as being generated
@@ -452,5 +521,51 @@ pub fn take_dirty_chunks(data: &mut ChunkManagerData) -> HashSet<ChunkPos> {
 /// Pure function - delegates to generator
 pub fn get_surface_height(data: &ChunkManagerData, world_x: f64, world_z: f64) -> i32 {
     data.generator.get_surface_height(world_x, world_z)
+}
+
+/// Ensure camera chunk is loaded with highest priority
+/// This function can be called from rendering code to guarantee camera chunks are available
+pub fn ensure_camera_chunk_loaded(data: &mut ChunkManagerData, camera_pos: Point3<f32>) -> bool {
+    let camera_chunk = ChunkPos::new(
+        (camera_pos.x / data.chunk_size as f32).floor() as i32,
+        (camera_pos.y / data.chunk_size as f32).floor() as i32,
+        (camera_pos.z / data.chunk_size as f32).floor() as i32,
+    );
+    
+    // Check if the camera chunk is already loaded
+    if data.loaded_chunks.get(camera_chunk).is_some() {
+        return true; // Already loaded
+    }
+    
+    // If not loaded and not being generated, force immediate load
+    if !data.chunks_in_generation.contains(&camera_chunk) {
+        log::warn!(
+            "[chunk_manager::ensure_camera_chunk_loaded] Camera chunk at {:?} not loaded, forcing immediate generation",
+            camera_chunk
+        );
+        
+        // Mark as being generated
+        data.chunks_in_generation.insert(camera_chunk);
+        
+        // Generate the chunk immediately
+        let chunk = data.generator.generate_chunk(camera_chunk, data.chunk_size);
+        
+        // Remove from generation tracking
+        data.chunks_in_generation.remove(&camera_chunk);
+        
+        // Add to loaded chunks
+        distance_hash_insert(&mut data.loaded_chunks, camera_chunk, chunk);
+        data.dirty_chunks.insert(camera_chunk);
+        
+        log::info!(
+            "[chunk_manager::ensure_camera_chunk_loaded] Camera chunk at {:?} force-loaded successfully",
+            camera_chunk
+        );
+        
+        return true;
+    }
+    
+    // Chunk is being generated
+    false
 }
 

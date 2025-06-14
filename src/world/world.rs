@@ -1,5 +1,5 @@
 use crate::world::{BlockId, Chunk, ChunkPos, VoxelPos, WorldGenerator, WorldInterface};
-use crate::world::chunk_manager::{ChunkManagerData, ChunkManagerConfig, create_chunk_manager_data, create_gpu_chunk_manager_data, update_loaded_chunks, get_chunk, get_chunk_mut, get_block, set_block, get_loaded_chunks, take_dirty_chunks, get_surface_height, add_chunk_to_manager};
+use crate::world::chunk_manager::{ChunkManagerData, ChunkManagerConfig, create_chunk_manager_data, create_gpu_chunk_manager_data, update_loaded_chunks, get_chunk, get_chunk_mut, get_block, set_block, get_loaded_chunks, take_dirty_chunks, get_surface_height, add_chunk_to_manager, ensure_camera_chunk_loaded};
 use std::collections::HashSet;
 use cgmath::Point3;
 
@@ -183,6 +183,12 @@ impl World {
             // For now, we'll assume the chunk gets unloaded by the manager
         }
     }
+    
+    /// Ensure the chunk containing the camera position is loaded
+    /// Returns true if the chunk is loaded, false if still being generated
+    pub fn ensure_camera_chunk_loaded(&mut self, camera_pos: Point3<f32>) -> bool {
+        ensure_camera_chunk_loaded(&mut self.chunk_manager, camera_pos)
+    }
 }
 
 // Simple flat world generator for backwards compatibility
@@ -313,5 +319,9 @@ impl WorldInterface for World {
         // For now, only air is transparent
         let block = get_block(&self.chunk_manager, pos);
         block == BlockId::AIR
+    }
+    
+    fn ensure_camera_chunk_loaded(&mut self, camera_pos: Point3<f32>) -> bool {
+        ensure_camera_chunk_loaded(&mut self.chunk_manager, camera_pos)
     }
 }

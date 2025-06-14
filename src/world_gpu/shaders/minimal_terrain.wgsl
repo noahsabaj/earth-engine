@@ -81,9 +81,19 @@ fn generate_chunk(
                 var block_id = BLOCK_AIR;
                 var skylight = 15u;
                 
-                // Generate thick terrain surface for debugging: grass surface at y=32-39, dirt below, stone deeper
-                let surface_top = 39.0;
-                let surface_bottom = 32.0;
+                // Generate terrain adaptive to chunk Y position to ensure camera visibility
+                // Camera spawns at Y=80, so we need terrain in chunks that intersect this view
+                // Each chunk is 32 blocks high, so:
+                // - Chunk Y=0: world Y 0-31, generate terrain at Y=24-31 (top 8 blocks)
+                // - Chunk Y=1: world Y 32-63, generate terrain at Y=56-63 (top 8 blocks) 
+                // - Chunk Y=2: world Y 64-95, generate terrain at Y=88-95 (top 8 blocks) <- Camera will see this
+                
+                let chunk_y_coord = f32(chunk_pos.y);
+                let chunk_base_y = chunk_y_coord * f32(CHUNK_SIZE);
+                
+                // Generate terrain in the top 8 blocks of each chunk
+                let surface_top = chunk_base_y + f32(CHUNK_SIZE) - 1.0;  // Top of chunk
+                let surface_bottom = chunk_base_y + f32(CHUNK_SIZE) - 8.0; // 8 blocks thick
                 
                 if (world_y < surface_bottom) {
                     skylight = 0u;
@@ -94,7 +104,7 @@ fn generate_chunk(
                     }
                 } else if (world_y >= surface_bottom && world_y <= surface_top) {
                     skylight = 0u;
-                    block_id = BLOCK_GRASS; // Thick grass layer
+                    block_id = BLOCK_GRASS; // Thick grass layer for visibility
                 }
                 
                 // Calculate buffer index
