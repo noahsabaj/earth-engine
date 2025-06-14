@@ -13,7 +13,7 @@ use earth_engine::{
     world::{SpawnFinder},
     biome::{BiomeType, BiomeGenerator, BiomeMap},
     physics_data::{PhysicsData, EntityId},
-    world::chunk_manager::ChunkManager,
+    world::chunk_manager::{ChunkManagerData, add_chunk_to_manager, manager_has_chunk, get_chunk},
 };
 
 /// Spawn criteria for testing
@@ -209,7 +209,7 @@ fn test_spawn_chunk_pregeneration() {
     println!("🧪 Testing spawn chunk pregeneration...");
     
     let mut terrain_gen = MockTerrainGenerator::new();
-    let mut chunk_manager = ChunkManager::new(32);
+    let mut chunk_manager = ChunkManagerData::new(32);
     
     // Define spawn position
     let spawn_position = Vec3::new(16.0, 64.0, 16.0);
@@ -237,7 +237,7 @@ fn test_spawn_chunk_pregeneration() {
     
     for chunk_pos in &required_chunks {
         let chunk = terrain_gen.generate_chunk(*chunk_pos);
-        chunk_manager.add_chunk(*chunk_pos, chunk);
+        add_chunk_to_manager(&mut chunk_manager, *chunk_pos, chunk);
         generated_chunks.push(*chunk_pos);
     }
     
@@ -248,7 +248,7 @@ fn test_spawn_chunk_pregeneration() {
                "Should generate all required chunks");
     
     for chunk_pos in &required_chunks {
-        assert!(chunk_manager.has_chunk(*chunk_pos), 
+        assert!(manager_has_chunk(&chunk_manager, *chunk_pos), 
                 "Chunk {:?} should be generated", chunk_pos);
     }
     
@@ -257,7 +257,7 @@ fn test_spawn_chunk_pregeneration() {
     let mut air_blocks = 0;
     
     for chunk_pos in &required_chunks {
-        if let Some(chunk) = chunk_manager.get_chunk(*chunk_pos) {
+        if let Some(chunk) = get_chunk(&chunk_manager, *chunk_pos) {
             for x in 0..32 {
                 for y in 0..128 {
                     for z in 0..32 {

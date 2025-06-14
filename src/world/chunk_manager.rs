@@ -93,26 +93,6 @@ impl ChunkManagerData {
         }
     }
 
-    /// Add a chunk to the manager
-    pub fn add_chunk(&mut self, pos: ChunkPos, chunk: Chunk) {
-        self.loaded_chunks.insert(pos, chunk);
-        self.dirty_chunks.insert(pos);
-    }
-
-    /// Check if a chunk is loaded
-    pub fn has_chunk(&self, pos: ChunkPos) -> bool {
-        self.loaded_chunks.get(pos).is_some()
-    }
-
-    /// Get a reference to a loaded chunk
-    pub fn get_chunk(&self, pos: ChunkPos) -> Option<&Chunk> {
-        self.loaded_chunks.get(pos)
-    }
-
-    /// Get a mutable reference to a loaded chunk
-    pub fn get_chunk_mut(&mut self, pos: ChunkPos) -> Option<&mut Chunk> {
-        self.loaded_chunks.get_mut(pos)
-    }
 }
 
 /// Chunk management configuration
@@ -339,6 +319,19 @@ pub fn get_pending_chunk_count(data: &ChunkManagerData) -> usize {
 /// Pure function - reads loading state
 pub fn is_loading(data: &ChunkManagerData) -> bool {
     !data.load_queue.is_empty() || !data.chunks_in_generation.is_empty()
+}
+
+/// Add chunk to manager data
+/// Function - transforms chunk data and marks as dirty
+pub fn add_chunk_to_manager(data: &mut ChunkManagerData, pos: ChunkPos, chunk: Chunk) {
+    data.loaded_chunks.insert(pos, chunk);
+    data.dirty_chunks.insert(pos);
+}
+
+/// Check if manager has chunk at position
+/// Pure function - reads chunk existence
+pub fn manager_has_chunk(data: &ChunkManagerData, pos: ChunkPos) -> bool {
+    data.loaded_chunks.get(pos).is_some()
 }
 
 /// Get chunk at position
