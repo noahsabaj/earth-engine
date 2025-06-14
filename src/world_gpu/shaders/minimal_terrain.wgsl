@@ -81,18 +81,20 @@ fn generate_chunk(
                 var block_id = BLOCK_AIR;
                 var skylight = 15u;
                 
-                // Generate simple terrain: grass surface at y=32, dirt below, stone deeper
-                let surface_height = 32.0;
+                // Generate thick terrain surface for debugging: grass surface at y=32-39, dirt below, stone deeper
+                let surface_top = 39.0;
+                let surface_bottom = 32.0;
                 
-                if (world_y < surface_height) {
+                if (world_y < surface_bottom) {
                     skylight = 0u;
-                    if (world_y < surface_height - 4.0) {
+                    if (world_y < surface_bottom - 8.0) {
                         block_id = BLOCK_STONE;
                     } else {
                         block_id = BLOCK_DIRT;
                     }
-                } else if (world_y == surface_height) {
-                    block_id = BLOCK_GRASS;
+                } else if (world_y >= surface_bottom && world_y <= surface_top) {
+                    skylight = 0u;
+                    block_id = BLOCK_GRASS; // Thick grass layer
                 }
                 
                 // Calculate buffer index
