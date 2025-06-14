@@ -100,6 +100,11 @@ libc = "0.2"
 tempfile = "3.10"
 criterion = "0.5"
 
+# Benchmarks
+[[bench]]
+name = "dop_vs_oop"
+harness = false
+
 # Rendering Examples
 [[example]]
 name = "async_mesh_integration"
