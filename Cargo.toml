@@ -98,7 +98,7 @@ libc = "0.2"
 
 [dev-dependencies]
 tempfile = "3.10"
-criterion = "0.5"
+criterion = { workspace = true }
 
 # Benchmarks
 [[bench]]

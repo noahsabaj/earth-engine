@@ -1,0 +1,9 @@
+[workspace]
+members = ["earth-engine", "example-game"]
+resolver = "2"
+
+[workspace.dependencies]
+# Shared dependencies across workspace
+log = "0.4"
+env_logger = "0.11"
+criterion = { version = "0.5.1", features = ["html_reports"] }
