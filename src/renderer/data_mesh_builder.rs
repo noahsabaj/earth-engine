@@ -274,6 +274,20 @@ pub mod operations {
         let start = Instant::now();
         buffer.metadata.chunk_pos = [chunk_pos.x, chunk_pos.y, chunk_pos.z];
         
+        // Debug: Count non-air blocks
+        let mut non_air_count = 0;
+        for y in 0..chunk_size {
+            for z in 0..chunk_size {
+                for x in 0..chunk_size {
+                    let block = get_block(x, y, z);
+                    if block != BlockId::AIR {
+                        non_air_count += 1;
+                    }
+                }
+            }
+        }
+        log::debug!("[build_chunk_mesh] Chunk {:?} has {} non-air blocks", chunk_pos, non_air_count);
+        
         // Simple visible face culling
         for y in 0..chunk_size {
             for z in 0..chunk_size {
@@ -367,6 +381,12 @@ pub mod operations {
         buffer.metadata.vertex_count = buffer.vertex_count as u32;
         buffer.metadata.index_count = buffer.index_count as u32;
         buffer.metadata.generation_time_us = start.elapsed().as_micros() as u32;
+        
+        // Debug: Log mesh generation results
+        log::debug!(
+            "[build_chunk_mesh] Chunk {:?} mesh complete - {} non-air blocks → {} vertices, {} indices", 
+            chunk_pos, non_air_count, buffer.vertex_count, buffer.index_count
+        );
     }
 }
 
