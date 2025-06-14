@@ -3,6 +3,7 @@ use crate::{BlockId, Chunk, ChunkPos};
 pub mod terrain;
 pub mod caves;
 pub mod ores;
+pub mod gpu_world_generator;
 
 #[cfg(test)]
 mod tests;
@@ -10,6 +11,7 @@ mod tests;
 pub use terrain::TerrainGenerator;
 pub use caves::CaveGenerator;
 pub use ores::OreGenerator;
+pub use gpu_world_generator::GpuWorldGenerator;
 
 pub trait WorldGenerator: Send + Sync {
     fn generate_chunk(&self, chunk_pos: ChunkPos, chunk_size: u32) -> Chunk;

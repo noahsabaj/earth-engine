@@ -1,5 +1,5 @@
 use crate::world::{BlockId, Chunk, ChunkPos, VoxelPos, WorldGenerator, WorldInterface};
-use crate::world::chunk_manager::{ChunkManagerData, ChunkManagerConfig, create_chunk_manager_data, update_loaded_chunks, get_chunk, get_chunk_mut, get_block, set_block, get_loaded_chunks, take_dirty_chunks, get_surface_height, add_chunk_to_manager};
+use crate::world::chunk_manager::{ChunkManagerData, ChunkManagerConfig, create_chunk_manager_data, create_gpu_chunk_manager_data, update_loaded_chunks, get_chunk, get_chunk_mut, get_block, set_block, get_loaded_chunks, take_dirty_chunks, get_surface_height, add_chunk_to_manager};
 use std::collections::HashSet;
 use cgmath::Point3;
 
@@ -35,6 +35,29 @@ impl World {
             max_chunks_per_frame: 5,
         };
         let chunk_manager = create_chunk_manager_data(config, generator);
+        
+        Self {
+            chunk_manager,
+            chunk_size,
+        }
+    }
+    
+    /// Create a new world with GPU terrain generation for maximum performance
+    /// This uses GPU compute shaders instead of CPU generation, providing massive speedup
+    pub fn new_with_gpu_generation(
+        chunk_size: u32, 
+        view_distance: i32,
+        device: std::sync::Arc<wgpu::Device>,
+        queue: std::sync::Arc<wgpu::Queue>,
+        seed: u32,
+    ) -> Self {
+        let config = ChunkManagerConfig {
+            view_distance,
+            chunk_size,
+            cache_size: 64,
+            max_chunks_per_frame: 8, // Can handle more chunks per frame with GPU
+        };
+        let chunk_manager = create_gpu_chunk_manager_data(config, device, queue, seed);
         
         Self {
             chunk_manager,

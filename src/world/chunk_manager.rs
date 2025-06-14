@@ -139,6 +139,43 @@ pub fn create_chunk_manager_data(
         throttler: ChunkLoadThrottler::new(),
     }
 }
+
+/// Create new chunk manager data with GPU terrain generation
+/// This replaces CPU generation with GPU compute shaders for massive performance improvement
+pub fn create_gpu_chunk_manager_data(
+    config: ChunkManagerConfig,
+    device: std::sync::Arc<wgpu::Device>,
+    queue: std::sync::Arc<wgpu::Queue>,
+    seed: u32,
+) -> ChunkManagerData {
+    use super::generation::GpuWorldGenerator;
+    
+    let generator = Box::new(GpuWorldGenerator::new(
+        device,
+        queue,
+        seed,
+        config.chunk_size,
+        crate::world::block::BlockId::GRASS,
+        crate::world::block::BlockId::DIRT,
+        crate::world::block::BlockId::STONE,
+        crate::world::block::BlockId::WATER,
+        crate::world::block::BlockId::SAND,
+    ));
+    
+    ChunkManagerData {
+        loaded_chunks: ChunkDistanceHash::new(config.view_distance),
+        view_distance: config.view_distance,
+        chunk_size: config.chunk_size,
+        generator,
+        dirty_chunks: HashSet::new(),
+        chunk_cache: ChunkSpatialHash::new(),
+        cache_size: config.cache_size,
+        load_queue: VecDeque::new(),
+        max_chunks_per_frame: config.max_chunks_per_frame,
+        chunks_in_generation: HashSet::new(),
+        throttler: ChunkLoadThrottler::new(),
+    }
+}
     
 /// Set the maximum number of chunks to load per frame
 /// Pure function - transforms chunk manager data
