@@ -15,7 +15,7 @@ pub mod network_validator;
 
 pub use chunk_serializer::{ChunkSerializer, ChunkFormat};
 pub use world_save::{WorldSave, WorldSaveError};
-pub use player_data::{PlayerData, PlayerSaveData};
+pub use player_data::{PlayerData, PlayerSaveData, GameMode, PlayerStats};
 pub use save_manager::{SaveManager, SaveConfig, AutoSaveConfig};
 pub use compression::{CompressionType, CompressionLevel, Compressor};
 pub use metadata::{WorldMetadata, SaveVersion};

@@ -66,6 +66,55 @@ impl std::fmt::Debug for ChunkManagerData {
     }
 }
 
+impl ChunkManagerData {
+    /// Create a new chunk manager with the specified chunk size
+    pub fn new(chunk_size: u32) -> Self {
+        use crate::world::generation::DefaultWorldGenerator;
+        
+        Self {
+            loaded_chunks: ChunkDistanceHash::new(8), // Pass view distance
+            view_distance: 8, // Default view distance
+            chunk_size,
+            generator: Box::new(crate::world::generation::DefaultWorldGenerator::new(
+                12345, // seed
+                crate::world::block::BlockId::GRASS, // grass_id
+                crate::world::block::BlockId::DIRT, // dirt_id
+                crate::world::block::BlockId::STONE, // stone_id
+                crate::world::block::BlockId::WATER, // water_id
+                crate::world::block::BlockId::SAND // sand_id
+            )), // Use correct generator with all parameters
+            dirty_chunks: HashSet::new(),
+            chunk_cache: ChunkSpatialHash::new(),
+            cache_size: 100, // Default cache size
+            load_queue: VecDeque::new(),
+            max_chunks_per_frame: 4, // Default load limit per frame
+            chunks_in_generation: HashSet::new(),
+            throttler: ChunkLoadThrottler::new(), // No arguments
+        }
+    }
+
+    /// Add a chunk to the manager
+    pub fn add_chunk(&mut self, pos: ChunkPos, chunk: Chunk) {
+        self.loaded_chunks.insert(pos, chunk);
+        self.dirty_chunks.insert(pos);
+    }
+
+    /// Check if a chunk is loaded
+    pub fn has_chunk(&self, pos: ChunkPos) -> bool {
+        self.loaded_chunks.get(pos).is_some()
+    }
+
+    /// Get a reference to a loaded chunk
+    pub fn get_chunk(&self, pos: ChunkPos) -> Option<&Chunk> {
+        self.loaded_chunks.get(pos)
+    }
+
+    /// Get a mutable reference to a loaded chunk
+    pub fn get_chunk_mut(&mut self, pos: ChunkPos) -> Option<&mut Chunk> {
+        self.loaded_chunks.get_mut(pos)
+    }
+}
+
 /// Chunk management configuration
 #[derive(Debug, Copy, Clone)]
 pub struct ChunkManagerConfig {

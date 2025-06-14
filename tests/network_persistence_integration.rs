@@ -151,12 +151,11 @@ impl MockNetworkServer {
     
     fn save_world(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         // Save world state
-        let world_save = WorldSave {
-            world_name: "test_world".to_string(),
-            seed: 12345,
-            spawn_position: Vec3::new(0.0, 64.0, 0.0),
-            game_time: 1000,
-        };
+        let mut world_save = WorldSave::new("/tmp/test_world").expect("Failed to create WorldSave");
+        world_save.world_name = "test_world".to_string();
+        world_save.seed = 12345;
+        world_save.spawn_position = Vec3::new(0.0, 64.0, 0.0);
+        world_save.game_time = 1000;
         
         self.save_manager.save_world_metadata(&world_save)?;
         

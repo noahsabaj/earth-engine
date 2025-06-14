@@ -68,7 +68,7 @@ impl MockTerrainGenerator {
         Self { height_map, biome_map }
     }
     
-    fn generate_chunk(&self, chunk_pos: ChunkPos) -> Chunk {
+    fn generate_chunk(&mut self, chunk_pos: ChunkPos) -> Chunk {
         let mut chunk = Chunk::new(chunk_pos, 32);
         
         let base_x = chunk_pos.x * 32;
@@ -128,7 +128,7 @@ impl MockTerrainGenerator {
 fn test_safe_spawn_point_generation() {
     println!("🧪 Testing safe spawn point generation...");
     
-    let terrain_gen = MockTerrainGenerator::new();
+    let mut terrain_gen = MockTerrainGenerator::new();
     let mut world = World::new(32);
     
     // Generate chunks around spawn area
@@ -208,7 +208,7 @@ fn test_safe_spawn_point_generation() {
 fn test_spawn_chunk_pregeneration() {
     println!("🧪 Testing spawn chunk pregeneration...");
     
-    let terrain_gen = MockTerrainGenerator::new();
+    let mut terrain_gen = MockTerrainGenerator::new();
     let mut chunk_manager = ChunkManager::new(32);
     
     // Define spawn position
@@ -223,6 +223,7 @@ fn test_spawn_chunk_pregeneration() {
         for dz in -render_distance..=render_distance {
             required_chunks.push(ChunkPos::new(
                 spawn_chunk.x + dx,
+                spawn_chunk.y, // Add missing y parameter
                 spawn_chunk.z + dz,
             ));
         }
@@ -287,7 +288,7 @@ fn test_spawn_chunk_pregeneration() {
 fn test_multiplayer_spawn_distribution() {
     println!("🧪 Testing multiplayer spawn distribution...");
     
-    let terrain_gen = MockTerrainGenerator::new();
+    let mut terrain_gen = MockTerrainGenerator::new();
     let mut world = World::new(32);
     
     // Generate large area for multiple spawn points
@@ -361,7 +362,7 @@ fn test_multiplayer_spawn_distribution() {
 fn test_spawn_infrastructure_generation() {
     println!("🧪 Testing spawn infrastructure generation...");
     
-    let terrain_gen = MockTerrainGenerator::new();
+    let mut terrain_gen = MockTerrainGenerator::new();
     let mut world = World::new(32);
     
     // Generate spawn area
@@ -481,7 +482,7 @@ fn test_spawn_infrastructure_generation() {
 fn test_spawn_performance_under_load() {
     println!("🧪 Testing spawn performance under load...");
     
-    let terrain_gen = MockTerrainGenerator::new();
+    let mut terrain_gen = MockTerrainGenerator::new();
     let mut world = World::new(32);
     
     // Generate large world area
@@ -553,7 +554,7 @@ fn test_spawn_performance_under_load() {
 fn test_spawn_chunk_dependencies() {
     println!("🧪 Testing spawn chunk dependencies...");
     
-    let terrain_gen = MockTerrainGenerator::new();
+    let mut terrain_gen = MockTerrainGenerator::new();
     let mut world = World::new(32);
     
     // Define spawn location

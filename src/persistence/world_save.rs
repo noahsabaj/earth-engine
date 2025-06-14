@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 use std::fs;
 use std::collections::HashMap;
 use serde::{Serialize, Deserialize};
+use glam::Vec3;
 
 use crate::world::{World, Chunk, ChunkPos};
 use crate::persistence::{
@@ -22,6 +23,14 @@ pub struct WorldSave {
     chunk_cache: HashMap<ChunkPos, Chunk>,
     /// Maximum chunks to keep in cache
     cache_size: usize,
+    /// World name identifier
+    pub world_name: String,
+    /// World generation seed
+    pub seed: u64,
+    /// Default spawn position
+    pub spawn_position: glam::Vec3,
+    /// Game time in ticks
+    pub game_time: u64,
 }
 
 /// Errors specific to world save operations
@@ -61,6 +70,10 @@ impl WorldSave {
             chunk_serializer: ChunkSerializer::new(ChunkFormat::RLE),
             chunk_cache: HashMap::new(),
             cache_size: 1024, // Cache up to 1024 chunks
+            world_name: "default_world".to_string(),
+            seed: 12345,
+            spawn_position: Vec3::new(0.0, 64.0, 0.0),
+            game_time: 0,
         })
     }
     
@@ -88,6 +101,10 @@ impl WorldSave {
             chunk_serializer: ChunkSerializer::new(ChunkFormat::RLE),
             chunk_cache: HashMap::new(),
             cache_size: 1024,
+            world_name: "loaded_world".to_string(),
+            seed: 54321, // Default seed for loaded worlds
+            spawn_position: Vec3::new(0.0, 64.0, 0.0),
+            game_time: 0,
         })
     }
     
