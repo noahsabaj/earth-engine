@@ -51,27 +51,64 @@ pub struct TerrainGenerator {
 
 impl TerrainGenerator {
     pub fn new(device: Arc<wgpu::Device>) -> Self {
-        // Use minimal test shader to isolate pipeline issues
-        let shader_source = include_str!("shaders/minimal_test.wgsl");
+        // Use proper terrain generation shader with Perlin noise
+        let shader_source = format!(
+            "{}\n\n{}",
+            include_str!("../renderer/shaders/perlin_noise.wgsl"),
+            include_str!("shaders/terrain_generation.wgsl")
+        );
         
         // Debug: Print shader info
-        log::info!("[TerrainGenerator] Using MINIMAL test shader, length: {} characters", shader_source.len());
+        log::info!("[TerrainGenerator] Using FULL terrain generation shader with Perlin noise, length: {} characters", shader_source.len());
         
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("Minimal Test Shader"),
+            label: Some("Terrain Generation Shader"),
             source: wgpu::ShaderSource::Wgsl(shader_source.into()),
         });
         
-        // Create bind group layout for minimal test shader
+        // Create bind group layout for full terrain generation shader
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("Minimal Test Bind Group Layout"),
+            label: Some("Terrain Generator Bind Group Layout"),
             entries: &[
-                // Single test buffer binding
+                // World buffer binding (from WorldBuffer)
                 wgpu::BindGroupLayoutEntry {
                     binding: 0,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: false },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                // Metadata buffer binding (from WorldBuffer)
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: false },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                // Parameters buffer
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: Some(std::num::NonZeroU64::new(std::mem::size_of::<TerrainParams>() as u64).unwrap()),
+                    },
+                    count: None,
+                },
+                // Chunk position buffer
+                wgpu::BindGroupLayoutEntry {
+                    binding: 3,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
                         has_dynamic_offset: false,
                         min_binding_size: None,
                     },
@@ -87,64 +124,15 @@ impl TerrainGenerator {
             push_constant_ranges: &[],
         });
         
-        // Create compute pipeline with proper validation
-        log::info!("[TerrainGenerator] Creating compute pipeline with MINIMAL test shader...");
-        
-        // Force validation by creating a test command encoder immediately
-        let mut test_encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("Pipeline Validation Test"),
-        });
-        
+        // Create compute pipeline for terrain generation
+        log::info!("[TerrainGenerator] Creating terrain generation compute pipeline on NVIDIA GPU...");
         let generate_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-            label: Some("Minimal Test Pipeline"),
+            label: Some("Terrain Generation Pipeline"),
             layout: Some(&pipeline_layout),
             module: &shader,
-            entry_point: "test_compute",
+            entry_point: "generate_chunk",
         });
-        
-        // Try to validate the pipeline by running a complete compute dispatch
-        log::info!("[TerrainGenerator] Validating pipeline by running full compute test...");
-        
-        // Create a test buffer for validation
-        let test_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Pipeline Validation Buffer"),
-            size: 64 * 4, // 64 u32 values
-            usage: wgpu::BufferUsages::STORAGE,
-            mapped_at_creation: false,
-        });
-        
-        // Create bind group for validation
-        let test_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("Pipeline Validation Bind Group"),
-            layout: &bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: test_buffer.as_entire_binding(),
-                },
-            ],
-        });
-        
-        let mut test_pass = test_encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-            label: Some("Pipeline Validation Pass"),
-            timestamp_writes: None,
-        });
-        
-        // Full pipeline validation - this should catch all issues
-        test_pass.set_pipeline(&generate_pipeline);
-        test_pass.set_bind_group(0, &test_bind_group, &[]);
-        test_pass.dispatch_workgroups(4, 1, 1); // Small test dispatch
-        
-        drop(test_pass);
-        
-        // Submit the validation command and wait for completion
-        // Note: We don't have access to queue during construction, so we'll skip this for now
-        // The validation pass creation itself should catch pipeline issues
-        drop(test_encoder);
-        
-        log::info!("[TerrainGenerator] Pipeline validation PASSED - full compute dispatch successful!");
-        
-        log::info!("[TerrainGenerator] Minimal test compute pipeline created and validated successfully!");
+        log::info!("[TerrainGenerator] Terrain generation compute pipeline created successfully!");
         
         // Create parameters buffer
         let params_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -177,27 +165,43 @@ impl TerrainGenerator {
             return;
         }
         
-        // Create test buffer for minimal shader
-        let test_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Minimal Test Buffer"),
-            size: 1024 * 4, // 1024 u32 values
-            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
-            mapped_at_creation: false,
+        // Create buffer for chunk positions
+        let positions_data: Vec<[i32; 4]> = chunk_positions
+            .iter()
+            .map(|pos| [pos.x, pos.y, pos.z, 0])
+            .collect();
+        
+        let positions_buffer = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Chunk Positions Buffer"),
+            contents: bytemuck::cast_slice(&positions_data),
+            usage: wgpu::BufferUsages::STORAGE,
         });
         
-        // Create bind group for minimal test
-        log::debug!("[TerrainGenerator] Creating bind group for minimal test...");
+        // Create bind group for terrain generation
+        log::debug!("[TerrainGenerator] Creating bind group for terrain generation...");
         let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("Minimal Test Bind Group"),
+            label: Some("Terrain Generation Bind Group"),
             layout: &self.bind_group_layout,
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
-                    resource: test_buffer.as_entire_binding(),
+                    resource: world_buffer.voxel_buffer().as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: world_buffer.metadata_buffer().as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: self.params_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: positions_buffer.as_entire_binding(),
                 },
             ],
         });
-        log::debug!("[TerrainGenerator] Minimal test bind group created successfully");
+        log::debug!("[TerrainGenerator] Terrain generation bind group created successfully");
         
         // Dispatch compute shader
         log::debug!("[TerrainGenerator] Starting compute pass for {} chunks", chunk_positions.len());
@@ -211,14 +215,15 @@ impl TerrainGenerator {
         log::debug!("[TerrainGenerator] Setting bind group...");
         compute_pass.set_bind_group(0, &bind_group, &[]);
         
-        // Dispatch minimal test - just process 64 elements
-        log::debug!("[TerrainGenerator] Dispatching minimal test workgroups");
+        // Process chunks in parallel on GPU
+        // Each workgroup handles one chunk
+        log::debug!("[TerrainGenerator] Dispatching {} workgroups for terrain generation", chunk_positions.len());
         compute_pass.dispatch_workgroups(
-            64, // Simple test with 64 workgroups
+            chunk_positions.len() as u32,
             1,
             1,
         );
-        log::debug!("[TerrainGenerator] Minimal test compute pass complete");
+        log::debug!("[TerrainGenerator] Terrain generation compute pass complete");
     }
     
     /// Generate a single chunk (convenience method)

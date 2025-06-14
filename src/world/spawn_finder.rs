@@ -16,39 +16,32 @@ impl SpawnFinder {
     ) -> Result<Point3<f32>, String> {
         log::info!("[SpawnFinder] Starting spawn search at ({}, ??, {})", start_x, start_z);
         
-        // Search for the ABSOLUTE HIGHEST point in a large area
-        // This ensures we spawn above ALL terrain including mountain peaks
-        let mut highest_ground = -1000.0;
-        let spawn_x = start_x;
-        let spawn_z = start_z;
+        // Get the surface height at the exact spawn position
+        let surface_height = world.get_surface_height(start_x as f64, start_z as f64) as f32;
         
-        // Expand search radius for better coverage
-        let actual_radius = search_radius.max(20); // At least 20 blocks
+        // Spawn player's body center just above the surface
+        // Player body is 1.8m tall, so center is 0.9m above feet
+        // Add 1 block (1.0m) clearance above the surface for safety
+        let feet_y = surface_height + 1.0;
+        let body_center_y = feet_y + 0.9; // Body center is 0.9m above feet
         
-        // Search in the area for the absolute highest ground
-        for dx in -actual_radius..=actual_radius {
-            for dz in -actual_radius..=actual_radius {
-                let check_x = start_x + dx as f32;
-                let check_z = start_z + dz as f32;
-                
-                let surface_height = world.get_surface_height(check_x as f64, check_z as f64) as f32;
-                
-                // Track the absolute highest point
-                if surface_height > highest_ground {
-                    highest_ground = surface_height;
-                }
+        let spawn_pos = Point3::new(start_x, body_center_y.clamp(20.0, 250.0), start_z);
+        
+        log::info!("[SpawnFinder] Surface height at ({}, {}): y={}", start_x, start_z, surface_height);
+        log::info!("[SpawnFinder] Spawning player with feet at y={}, body center at y={}", feet_y, body_center_y);
+        log::info!("[SpawnFinder] Player will be standing {} blocks above surface", feet_y - surface_height);
+        
+        // Try to verify the spawn is safe by checking actual blocks if chunks are loaded
+        if let Some(verified_height) = Self::find_safe_height_at(world, start_x, start_z) {
+            let verified_center_y = verified_height + 0.9; // Body center 0.9m above feet
+            log::info!("[SpawnFinder] Verified spawn height: feet at y={}, body center at y={}", verified_height, verified_center_y);
+            
+            // If the verified height is significantly different, use it instead
+            if (verified_center_y - body_center_y).abs() > 5.0 {
+                log::warn!("[SpawnFinder] Using verified spawn height instead of surface estimate");
+                return Ok(Point3::new(start_x, verified_center_y.clamp(20.0, 250.0), start_z));
             }
         }
-        
-        // Now spawn WELL ABOVE the highest point found
-        // Add 25 blocks above the highest terrain to ensure we're clear of any mountains
-        let safe_y = highest_ground + 25.0;
-        let spawn_pos = Point3::new(spawn_x, safe_y.clamp(20.0, 250.0), spawn_z);
-        
-        log::warn!("[SpawnFinder] Highest terrain in {}x{} area: y={}", 
-                  actual_radius*2, actual_radius*2, highest_ground);
-        log::warn!("[SpawnFinder] Spawning body center at y={} (feet at y={}, {} blocks above highest terrain)", 
-                  safe_y, safe_y - 0.9, safe_y - highest_ground);
         
         log::info!("[SpawnFinder] Selected spawn position at {:?}", spawn_pos);
         

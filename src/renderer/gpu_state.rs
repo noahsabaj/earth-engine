@@ -298,67 +298,122 @@ impl GpuState {
             }
         };
 
-        // Request adapter with timeout and fallback options
-        log::info!("[GpuState::new] Requesting GPU adapter...");
+        // CRITICAL FIX: Manually enumerate and select best hardware GPU adapter
+        // The default request_adapter() was selecting software renderer over NVIDIA GPU
+        log::info!("[GpuState::new] Enumerating all GPU adapters...");
         let adapter_start = std::time::Instant::now();
         
-        // Try high performance first
-        let mut adapter_options = wgpu::RequestAdapterOptions {
-            power_preference: wgpu::PowerPreference::HighPerformance,
-            compatible_surface: Some(&surface),
-            force_fallback_adapter: false,
-        };
+        let adapters = instance.enumerate_adapters(wgpu::Backends::all());
+        log::info!("[GpuState::new] Found {} total adapters", adapters.len());
         
-        log::info!("[GpuState::new] Trying high-performance adapter...");
-        let adapter_future = instance.request_adapter(&adapter_options);
+        // Log all available adapters for debugging
+        for (i, adapter) in adapters.iter().enumerate() {
+            let info = adapter.get_info();
+            log::info!("[GpuState::new] Adapter {}: {} ({:?}) - Backend: {:?}, Vendor: 0x{:04x}", 
+                      i, info.name, info.device_type, info.backend, info.vendor);
+        }
         
-        // WGPU has its own internal timeouts, so we don't need to add our own
-        let adapter_result = adapter_future.await;
+        // Smart adapter selection: Prioritize hardware GPUs over software renderers
+        let mut best_adapter = None;
+        let mut best_score = -1i32;
         
-        let adapter = match adapter_result {
+        for adapter in adapters {
+            let info = adapter.get_info();
+            
+            // Check if adapter is compatible with our surface
+            let surface_compatible = adapter.is_surface_supported(&surface);
+            log::info!("[GpuState::new] Adapter '{}' surface compatible: {}", info.name, surface_compatible);
+            
+            if !surface_compatible {
+                log::warn!("[GpuState::new] Adapter '{}' not surface compatible - skipping", info.name);
+                // For NVIDIA GPUs, this might be a false negative - let's be more permissive
+                if !(info.name.to_lowercase().contains("nvidia") || info.vendor == 0x10DE) {
+                    continue;
+                }
+                log::warn!("[GpuState::new] NVIDIA GPU detected - attempting to use despite surface incompatibility");
+            }
+            
+            let name_lower = info.name.to_lowercase();
+            
+            // Score adapters based on hardware vs software and vendor
+            let mut score = 0i32;
+            
+            // Hardware GPUs get massive bonus
+            match info.device_type {
+                wgpu::DeviceType::DiscreteGpu => score += 1000,
+                wgpu::DeviceType::IntegratedGpu => score += 500,
+                wgpu::DeviceType::VirtualGpu => score += 100,
+                wgpu::DeviceType::Other => score += 50,  // D3D12 wrapper shows as Other
+                wgpu::DeviceType::Cpu => score -= 1000,  // Software renderer penalty
+            }
+            
+            // NVIDIA GPUs get priority (especially RTX series)
+            if info.vendor == 0x10DE || name_lower.contains("nvidia") {
+                score += 500;
+                if name_lower.contains("rtx 40") {
+                    score += 200;  // RTX 40 series bonus
+                } else if name_lower.contains("rtx") {
+                    score += 100;  // RTX series bonus
+                }
+            }
+            
+            // AMD discrete GPUs get good score
+            if info.vendor == 0x1002 || name_lower.contains("amd") || name_lower.contains("radeon") {
+                score += 300;
+            }
+            
+            // Intel Arc gets medium score
+            if (info.vendor == 0x8086 || name_lower.contains("intel")) && name_lower.contains("arc") {
+                score += 200;
+            }
+            
+            // Heavily penalize software renderers
+            if name_lower.contains("llvmpipe") || name_lower.contains("software") || 
+               name_lower.contains("swiftshader") || info.device_type == wgpu::DeviceType::Cpu {
+                score -= 2000;
+            }
+            
+            // Backend preferences: Vulkan > DX12 > OpenGL > others
+            match info.backend {
+                wgpu::Backend::Vulkan => score += 20,
+                wgpu::Backend::Dx12 => score += 15,
+                wgpu::Backend::Gl => score += 10,
+                wgpu::Backend::Metal => score += 10,
+                _ => score += 0,
+            }
+            
+            log::info!("[GpuState::new] Adapter '{}' scored: {} points", info.name, score);
+            
+            if score > best_score {
+                best_score = score;
+                best_adapter = Some(adapter);
+            }
+        }
+        
+        let adapter = match best_adapter {
             Some(adapter) => {
                 let adapter_time = adapter_start.elapsed();
                 let info = adapter.get_info();
-                log::info!("[GpuState::new] GPU adapter found in {:?}", adapter_time);
+                log::info!("[GpuState::new] Selected best GPU adapter in {:?} (score: {})", adapter_time, best_score);
                 log::info!("[GpuState::new] Adapter: {} ({:?})", info.name, info.device_type);
                 log::info!("[GpuState::new] Backend: {:?}", info.backend);
                 log::info!("[GpuState::new] Vendor: 0x{:04x}, Device: 0x{:04x}", info.vendor, info.device);
+                
+                // Special logging for NVIDIA GPU success
+                if info.vendor == 0x10DE || info.name.to_lowercase().contains("nvidia") {
+                    log::info!("[GpuState::new] ✅ SUCCESSFULLY SELECTED NVIDIA GPU!");
+                    log::info!("[GpuState::new] ✅ Hardware acceleration enabled!");
+                }
+                
                 adapter
             }
             None => {
-                log::warn!("[GpuState::new] No high-performance adapter found, trying low power...");
-                
-                // Try low power adapter
-                adapter_options.power_preference = wgpu::PowerPreference::LowPower;
-                match instance.request_adapter(&adapter_options).await {
-                    Some(adapter) => {
-                        let info = adapter.get_info();
-                        log::info!("[GpuState::new] Low-power adapter found: {}", info.name);
-                        adapter
-                    }
-                    None => {
-                        log::warn!("[GpuState::new] No low-power adapter found, trying fallback...");
-                        
-                        // Try fallback adapter
-                        adapter_options.force_fallback_adapter = true;
-                        match instance.request_adapter(&adapter_options).await {
-                            Some(adapter) => {
-                                let info = adapter.get_info();
-                                log::warn!("[GpuState::new] Using fallback adapter: {}", info.name);
-                                adapter
-                            }
-                            None => {
-                                log::error!("[GpuState::new] No suitable GPU adapter found!");
-                                log::error!("[GpuState::new] Tried: high-performance, low-power, and fallback adapters");
-                                log::error!("[GpuState::new] This might be due to:");
-                                log::error!("[GpuState::new] - No GPU available or GPU drivers not installed");
-                                log::error!("[GpuState::new] - Running in WSL without GPU passthrough");
-                                log::error!("[GpuState::new] - Incompatible graphics backend");
-                                return Err(anyhow::anyhow!("No GPU adapter available"));
-                            }
-                        }
-                    }
-                }
+                log::error!("[GpuState::new] No suitable GPU adapter found!");
+                log::error!("[GpuState::new] This might be due to:");
+                log::error!("[GpuState::new] - No GPU available or GPU drivers not installed");
+                log::error!("[GpuState::new] - Running in WSL without GPU passthrough");
+                log::error!("[GpuState::new] - All adapters incompatible with surface");
+                return Err(anyhow::anyhow!("No GPU adapter available"));
             }
         };
         
@@ -2283,94 +2338,98 @@ fn determine_gpu_tier(info: &wgpu::AdapterInfo, limits: &wgpu::Limits) -> GpuTie
     
     log::info!("[GPU Tier] Analyzing GPU: {} (vendor: 0x{:04x})", info.name, info.vendor);
     
-    match info.vendor {
-        NVIDIA => {
-            // NVIDIA GPU detection
-            if name_lower.contains("rtx 40") || name_lower.contains("rtx 4080") || name_lower.contains("rtx 4090") {
-                log::info!("[GPU Tier] Detected high-end NVIDIA RTX 40 series");
+    // For D3D12-wrapped GPUs, vendor ID might be 0x0000, so also check name
+    let is_nvidia = info.vendor == NVIDIA || name_lower.contains("nvidia") || name_lower.contains("geforce") || name_lower.contains("rtx") || name_lower.contains("gtx");
+    let is_amd = info.vendor == AMD || name_lower.contains("amd") || name_lower.contains("radeon") || name_lower.contains("rx ");
+    let is_intel = info.vendor == INTEL || (name_lower.contains("intel") && !name_lower.contains("nvidia"));
+    let is_apple = info.vendor == APPLE || name_lower.contains("apple");
+    
+    if is_nvidia {
+        log::info!("[GPU Tier] Detected NVIDIA GPU (vendor check or name match)");
+        // NVIDIA GPU detection
+        if name_lower.contains("rtx 40") || name_lower.contains("rtx 4080") || name_lower.contains("rtx 4090") {
+            log::info!("[GPU Tier] Detected high-end NVIDIA RTX 40 series");
+            GpuTier::HighEnd
+        } else if name_lower.contains("rtx 4070") || name_lower.contains("rtx 4060") || 
+                  name_lower.contains("rtx 30") || name_lower.contains("rtx 3070") || 
+                  name_lower.contains("rtx 3080") || name_lower.contains("rtx 3090") {
+            // RTX 4060 Ti has excellent capabilities despite mid-range positioning
+            if name_lower.contains("rtx 4060 ti") && has_high_texture_support {
+                log::info!("[GPU Tier] Detected NVIDIA RTX 4060 Ti - using high-end profile");
                 GpuTier::HighEnd
-            } else if name_lower.contains("rtx 4070") || name_lower.contains("rtx 4060") || 
-                      name_lower.contains("rtx 30") || name_lower.contains("rtx 3070") || 
-                      name_lower.contains("rtx 3080") || name_lower.contains("rtx 3090") {
-                // RTX 4060 Ti has excellent capabilities despite mid-range positioning
-                if name_lower.contains("rtx 4060 ti") && has_high_texture_support {
-                    log::info!("[GPU Tier] Detected NVIDIA RTX 4060 Ti - using high-end profile");
-                    GpuTier::HighEnd
-                } else {
-                    log::info!("[GPU Tier] Detected mid-range NVIDIA RTX");
-                    GpuTier::MidRange
-                }
-            } else if name_lower.contains("rtx") || name_lower.contains("gtx 16") || 
-                      name_lower.contains("gtx 20") {
-                log::info!("[GPU Tier] Detected entry-level NVIDIA GPU");
-                GpuTier::Entry
-            } else if has_high_texture_support && has_large_buffers {
-                // Unknown NVIDIA GPU but has good capabilities
-                GpuTier::MidRange
             } else {
-                GpuTier::LowEnd
+                log::info!("[GPU Tier] Detected mid-range NVIDIA RTX");
+                GpuTier::MidRange
             }
+        } else if name_lower.contains("rtx") || name_lower.contains("gtx 16") || 
+                  name_lower.contains("gtx 20") {
+            log::info!("[GPU Tier] Detected entry-level NVIDIA GPU");
+            GpuTier::Entry
+        } else if has_high_texture_support && has_large_buffers {
+            // Unknown NVIDIA GPU but has good capabilities
+            GpuTier::MidRange
+        } else {
+            GpuTier::LowEnd
         }
-        AMD => {
-            // AMD GPU detection
-            if name_lower.contains("rx 7900") || name_lower.contains("rx 7800") ||
-               name_lower.contains("rx 6900") || name_lower.contains("rx 6800") {
-                log::info!("[GPU Tier] Detected high-end AMD GPU");
-                GpuTier::HighEnd
-            } else if name_lower.contains("rx 7700") || name_lower.contains("rx 7600") ||
-                      name_lower.contains("rx 6700") || name_lower.contains("rx 6600") ||
-                      name_lower.contains("rx 5700") {
-                log::info!("[GPU Tier] Detected mid-range AMD GPU");
-                GpuTier::MidRange
-            } else if name_lower.contains("rx") && has_high_texture_support {
-                GpuTier::Entry
-            } else {
-                GpuTier::LowEnd
-            }
+    } else if is_amd {
+        log::info!("[GPU Tier] Detected AMD GPU");
+        // AMD GPU detection
+        if name_lower.contains("rx 7900") || name_lower.contains("rx 7800") ||
+           name_lower.contains("rx 6900") || name_lower.contains("rx 6800") {
+            log::info!("[GPU Tier] Detected high-end AMD GPU");
+            GpuTier::HighEnd
+        } else if name_lower.contains("rx 7700") || name_lower.contains("rx 7600") ||
+                  name_lower.contains("rx 6700") || name_lower.contains("rx 6600") ||
+                  name_lower.contains("rx 5700") {
+            log::info!("[GPU Tier] Detected mid-range AMD GPU");
+            GpuTier::MidRange
+        } else if name_lower.contains("rx") && has_high_texture_support {
+            GpuTier::Entry
+        } else {
+            GpuTier::LowEnd
         }
-        INTEL => {
-            // Intel GPU detection
-            if name_lower.contains("arc a7") || name_lower.contains("arc a770") {
-                log::info!("[GPU Tier] Detected high-end Intel Arc");
-                GpuTier::MidRange
-            } else if name_lower.contains("arc") {
-                log::info!("[GPU Tier] Detected Intel Arc GPU");
-                GpuTier::Entry
-            } else if name_lower.contains("iris xe") || name_lower.contains("iris plus") {
-                log::info!("[GPU Tier] Detected Intel Iris integrated graphics");
-                GpuTier::LowEnd
-            } else {
-                log::info!("[GPU Tier] Detected Intel integrated graphics");
-                GpuTier::Fallback
-            }
+    } else if is_intel {
+        log::info!("[GPU Tier] Detected Intel GPU");
+        // Intel GPU detection
+        if name_lower.contains("arc a7") || name_lower.contains("arc a770") {
+            log::info!("[GPU Tier] Detected high-end Intel Arc");
+            GpuTier::MidRange
+        } else if name_lower.contains("arc") {
+            log::info!("[GPU Tier] Detected Intel Arc GPU");
+            GpuTier::Entry
+        } else if name_lower.contains("iris xe") || name_lower.contains("iris plus") {
+            log::info!("[GPU Tier] Detected Intel Iris integrated graphics");
+            GpuTier::LowEnd
+        } else {
+            log::info!("[GPU Tier] Detected Intel integrated graphics");
+            GpuTier::Fallback
         }
-        APPLE => {
-            // Apple Silicon detection
-            if name_lower.contains("m2 pro") || name_lower.contains("m2 max") || 
-               name_lower.contains("m3 pro") || name_lower.contains("m3 max") ||
-               name_lower.contains("m1 pro") || name_lower.contains("m1 max") {
-                log::info!("[GPU Tier] Detected high-end Apple Silicon");
-                GpuTier::HighEnd
-            } else if name_lower.contains("m1") || name_lower.contains("m2") || name_lower.contains("m3") {
-                log::info!("[GPU Tier] Detected Apple Silicon");
-                GpuTier::MidRange
-            } else {
-                GpuTier::Entry
-            }
+    } else if is_apple {
+        log::info!("[GPU Tier] Detected Apple GPU");
+        // Apple Silicon detection
+        if name_lower.contains("m2 pro") || name_lower.contains("m2 max") || 
+           name_lower.contains("m3 pro") || name_lower.contains("m3 max") ||
+           name_lower.contains("m1 pro") || name_lower.contains("m1 max") {
+            log::info!("[GPU Tier] Detected high-end Apple Silicon");
+            GpuTier::HighEnd
+        } else if name_lower.contains("m1") || name_lower.contains("m2") || name_lower.contains("m3") {
+            log::info!("[GPU Tier] Detected Apple Silicon");
+            GpuTier::MidRange
+        } else {
+            GpuTier::Entry
         }
-        _ => {
-            // Unknown vendor - use capabilities to determine tier
-            log::info!("[GPU Tier] Unknown vendor, analyzing capabilities...");
-            if has_high_texture_support && has_large_buffers && has_many_bind_groups {
-                log::info!("[GPU Tier] Unknown GPU with high-end capabilities");
-                GpuTier::MidRange
-            } else if limits.max_texture_dimension_2d >= 8192 && limits.max_buffer_size >= 512 * 1024 * 1024 {
-                log::info!("[GPU Tier] Unknown GPU with mid-range capabilities");
-                GpuTier::Entry
-            } else {
-                log::info!("[GPU Tier] Unknown GPU with limited capabilities");
-                GpuTier::LowEnd
-            }
+    } else {
+        // Unknown vendor - use capabilities to determine tier
+        log::info!("[GPU Tier] Unknown vendor, analyzing capabilities...");
+        if has_high_texture_support && has_large_buffers && has_many_bind_groups {
+            log::info!("[GPU Tier] Unknown GPU with high-end capabilities");
+            GpuTier::MidRange
+        } else if limits.max_texture_dimension_2d >= 8192 && limits.max_buffer_size >= 512 * 1024 * 1024 {
+            log::info!("[GPU Tier] Unknown GPU with mid-range capabilities");
+            GpuTier::Entry
+        } else {
+            log::info!("[GPU Tier] Unknown GPU with limited capabilities");
+            GpuTier::LowEnd
         }
     }
 }
