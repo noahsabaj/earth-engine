@@ -2,20 +2,70 @@
 set -e
 
 # Earth Engine DOP Compliance Checker
-# Sprint 37: DOP Reality Check
-# This script automatically detects OOP anti-patterns and enforces DOP compliance
+# This script shows ALL DOP violations and provides accurate compliance metrics
 
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
+BOLD='\033[1m'
 NC='\033[0m' # No Color
+
+# Change to project root
+cd "$(dirname "$0")/.."
 
 echo -e "${BLUE}🔍 Earth Engine DOP Compliance Check${NC}"
 echo -e "${BLUE}=====================================${NC}"
 
-# Initialize counters
+# Get ACTUAL counts first
+echo -e "${YELLOW}📊 Calculating compliance metrics...${NC}"
+
+# Count total DOP violations (methods with &mut self, excluding constructors/traits)
+TOTAL_VIOLATIONS=$(grep -r "fn [^(]*([^)]*&[[:space:]]*mut[[:space:]]*self" src --include="*.rs" | grep -v "fn new\|fn default\|fn clone\|fn fmt\|fn eq\|fn ne\|fn drop" | wc -l)
+
+# Count total methods/functions
+TOTAL_METHODS=$(grep -r "fn [a-zA-Z_][a-zA-Z0-9_]*(" src --include="*.rs" | wc -l)
+
+# Count DOP-style functions (functions that take data as first param)
+DOP_FUNCTIONS=$(grep -r "fn [a-zA-Z_][a-zA-Z0-9_]*([^)]*: &mut [A-Z]" src --include="*.rs" | wc -l)
+
+# Count files with violations
+FILES_WITH_VIOLATIONS=$(grep -r "fn [^(]*([^)]*&[[:space:]]*mut[[:space:]]*self" src --include="*.rs" | grep -v "fn new\|fn default\|fn clone\|fn fmt\|fn eq\|fn ne\|fn drop" | cut -d: -f1 | sort -u | wc -l)
+
+# Count total Rust files
+TOTAL_FILES=$(find src -name "*.rs" | wc -l)
+
+# Calculate percentages
+if [ "$TOTAL_METHODS" -gt 0 ]; then
+    VIOLATION_PERCENTAGE=$((TOTAL_VIOLATIONS * 100 / TOTAL_METHODS))
+    DOP_PERCENTAGE=$((DOP_FUNCTIONS * 100 / TOTAL_METHODS))
+    COMPLIANT_PERCENTAGE=$((100 - VIOLATION_PERCENTAGE))
+else
+    VIOLATION_PERCENTAGE=0
+    DOP_PERCENTAGE=0
+    COMPLIANT_PERCENTAGE=100
+fi
+
+FILE_COMPLIANCE_PERCENTAGE=$(((TOTAL_FILES - FILES_WITH_VIOLATIONS) * 100 / TOTAL_FILES))
+
+# Display comprehensive summary
+echo -e "\n${BOLD}${BLUE}📈 DOP COMPLIANCE SUMMARY${NC}"
+echo -e "${BLUE}=========================${NC}"
+echo -e "${RED}❌ TOTAL VIOLATIONS: ${BOLD}$TOTAL_VIOLATIONS${NC}"
+echo -e "${GREEN}✅ DOP FUNCTIONS: ${BOLD}$DOP_FUNCTIONS${NC}"
+echo -e "${BLUE}📊 TOTAL METHODS: ${BOLD}$TOTAL_METHODS${NC}"
+echo -e ""
+echo -e "${RED}📁 FILES WITH VIOLATIONS: ${BOLD}$FILES_WITH_VIOLATIONS${NC}${RED} / $TOTAL_FILES${NC}"
+echo -e "${GREEN}📁 CLEAN FILES: ${BOLD}$((TOTAL_FILES - FILES_WITH_VIOLATIONS))${NC}${GREEN} / $TOTAL_FILES${NC}"
+echo -e ""
+echo -e "${BOLD}${BLUE}📊 COMPLIANCE METRICS:${NC}"
+echo -e "   ${RED}🚫 OOP Violations: ${BOLD}$VIOLATION_PERCENTAGE%${NC}"
+echo -e "   ${GREEN}✅ DOP Compliance: ${BOLD}$COMPLIANT_PERCENTAGE%${NC}"
+echo -e "   ${BLUE}🏗️  DOP Functions: ${BOLD}$DOP_PERCENTAGE%${NC}"
+echo -e "   ${GREEN}📁 Clean Files: ${BOLD}$FILE_COMPLIANCE_PERCENTAGE%${NC}"
+
+# Initialize counters for detailed checks
 VIOLATIONS=0
 TOTAL_CHECKS=0
 
@@ -56,7 +106,7 @@ echo -e "\n${BLUE}Scanning src/ directory for OOP anti-patterns...${NC}"
 
 # 1. Check for methods with self parameter (excluding constructors)
 echo -e "\n${YELLOW}1. Checking for methods with &self or &mut self parameters...${NC}"
-SELF_METHODS=$(grep -r "fn [^(]*([^)]*&[[:space:]]*mut[[:space:]]*self" src --include="*.rs" | grep -v "fn new\|fn default\|fn clone\|fn fmt\|fn eq\|fn ne\|fn drop" | head -20)
+SELF_METHODS=$(grep -r "fn [^(]*([^)]*&[[:space:]]*mut[[:space:]]*self" src --include="*.rs" | grep -v "fn new\|fn default\|fn clone\|fn fmt\|fn eq\|fn ne\|fn drop")
 check_pattern "" "Methods with &self or &mut self (excluding constructors)" "$SELF_METHODS"
 
 # 2. Check for trait objects (dynamic dispatch)
