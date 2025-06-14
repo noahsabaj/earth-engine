@@ -7,7 +7,11 @@ use std::collections::{HashSet, VecDeque};
 use std::time::Instant;
 use cgmath::Point3;
 use crate::{Chunk, ChunkPos, VoxelPos, BlockId};
-use crate::utils::chunk_spatial_hash::{ChunkSpatialHash, ChunkDistanceHash};
+use crate::utils::chunk_spatial_hash::{
+    ChunkSpatialHash, ChunkDistanceHash,
+    spatial_hash_remove, spatial_hash_get_mut, 
+    distance_hash_insert, distance_hash_update_center, distance_hash_get_mut
+};
 use super::generation::WorldGenerator;
 use super::frame_budget::ChunkLoadThrottler;
 
@@ -182,7 +186,7 @@ pub fn update_loaded_chunks(data: &mut ChunkManagerData, player_pos: Point3<f32>
     }
     
     // Update the center position for distance-based storage
-    data.loaded_chunks.update_center(player_chunk);
+    distance_hash_update_center(&mut data.loaded_chunks, player_chunk);
     
     // First, unload chunks that are too far
     unload_distant_chunks(data, player_chunk);
@@ -214,7 +218,7 @@ fn unload_distant_chunks(data: &mut ChunkManagerData, player_chunk: ChunkPos) {
         }
         
         if let Some(pos) = furthest_pos {
-            data.chunk_cache.remove(pos);
+            spatial_hash_remove(&mut data.chunk_cache, pos);
         }
     }
 }
@@ -287,7 +291,7 @@ fn process_load_queue(data: &mut ChunkManagerData) {
             let load_start = Instant::now();
             
             // Check cache first
-            let chunk = if let Some(cached_chunk) = data.chunk_cache.remove(chunk_pos) {
+            let chunk = if let Some(cached_chunk) = spatial_hash_remove(&mut data.chunk_cache, chunk_pos) {
                 cached_chunk
             } else {
                 // Generate new chunk
@@ -301,7 +305,7 @@ fn process_load_queue(data: &mut ChunkManagerData) {
             data.chunks_in_generation.remove(&chunk_pos);
             
             // Add to loaded chunks
-            data.loaded_chunks.insert(chunk_pos, chunk);
+            distance_hash_insert(&mut data.loaded_chunks, chunk_pos, chunk);
             data.dirty_chunks.insert(chunk_pos);
             
             chunks_loaded += 1;
@@ -324,7 +328,7 @@ pub fn is_loading(data: &ChunkManagerData) -> bool {
 /// Add chunk to manager data
 /// Function - transforms chunk data and marks as dirty
 pub fn add_chunk_to_manager(data: &mut ChunkManagerData, pos: ChunkPos, chunk: Chunk) {
-    data.loaded_chunks.insert(pos, chunk);
+    distance_hash_insert(&mut data.loaded_chunks, pos, chunk);
     data.dirty_chunks.insert(pos);
 }
 
@@ -343,7 +347,7 @@ pub fn get_chunk(data: &ChunkManagerData, pos: ChunkPos) -> Option<&Chunk> {
 /// Get mutable chunk at position and mark as dirty
 /// Function - transforms chunk data and dirty set
 pub fn get_chunk_mut(data: &mut ChunkManagerData, pos: ChunkPos) -> Option<&mut Chunk> {
-    if let Some(chunk) = data.loaded_chunks.get_mut(pos) {
+    if let Some(chunk) = distance_hash_get_mut(&mut data.loaded_chunks, pos) {
         data.dirty_chunks.insert(pos);
         Some(chunk)
     } else {

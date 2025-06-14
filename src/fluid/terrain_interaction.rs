@@ -96,17 +96,6 @@ impl TerrainInteraction {
         }
     }
     
-    /// Initialize sediment buffer
-    pub fn init_sediment_buffer(&mut self, size: (u32, u32, u32)) {
-        let buffer_size = (size.0 * size.1 * size.2 * std::mem::size_of::<f32>() as u32) as u64;
-        
-        self.sediment_buffer = Some(self.device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Sediment Buffer"),
-            size: buffer_size,
-            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        }));
-    }
     
     /// Update erosion parameters
     pub fn update_erosion_params(&self, queue: &wgpu::Queue, params: &ErosionParams) {
@@ -168,6 +157,18 @@ impl TerrainInteraction {
     pub fn get_bind_group_layout(&self) -> &BindGroupLayout {
         &self.bind_group_layout
     }
+}
+
+/// Initialize sediment buffer for terrain interaction (DOP function)
+pub fn init_sediment_buffer(terrain_interaction: &mut TerrainInteraction, size: (u32, u32, u32)) {
+    let buffer_size = (size.0 * size.1 * size.2 * std::mem::size_of::<f32>() as u32) as u64;
+    
+    terrain_interaction.sediment_buffer = Some(terrain_interaction.device.create_buffer(&wgpu::BufferDescriptor {
+        label: Some("Sediment Buffer"),
+        size: buffer_size,
+        usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+        mapped_at_creation: false,
+    }));
 }
 
 /// Create bind group layout for terrain interaction

@@ -10,28 +10,30 @@ use earth_engine::attributes::*;
 use earth_engine::instance::{InstanceId, InstanceIdGenerator};
 use std::time::Instant;
 
-// Simple instance manager for testing
-struct InstanceManager {
+// Simple instance manager for testing - DOP style
+struct InstanceManagerData {
     id_gen: InstanceIdGenerator,
 }
 
-impl InstanceManager {
-    fn new() -> Self {
-        Self {
-            id_gen: InstanceIdGenerator::new(1), // Use node ID 1
-        }
+/// Create new instance manager data
+/// Pure function - returns instance manager data structure
+fn create_instance_manager_data() -> InstanceManagerData {
+    InstanceManagerData {
+        id_gen: InstanceIdGenerator::new(1), // Use node ID 1
     }
-    
-    fn create_instance(&mut self) -> InstanceId {
-        self.id_gen.generate().unwrap_or_else(|_| InstanceId::new())
-    }
+}
+
+/// Create instance from manager data
+/// Function - transforms instance manager data by generating new instance
+fn create_instance_from_manager(manager: &mut InstanceManagerData) -> InstanceId {
+    manager.id_gen.generate().unwrap_or_else(|_| InstanceId::new())
 }
 
 fn main() {
     println!("=== Earth Engine: Dynamic Attribute System Test ===\n");
     
     // Create managers
-    let mut instance_mgr = InstanceManager::new();
+    let mut instance_mgr = create_instance_manager_data();
     let mut attr_mgr = AttributeManager::new();
     
     // Register attribute metadata
@@ -40,9 +42,9 @@ fn main() {
     
     // Create test instances
     println!("\n2. Creating test instances...");
-    let player = instance_mgr.create_instance();
-    let enemy = instance_mgr.create_instance();
-    let weapon = instance_mgr.create_instance();
+    let player = create_instance_from_manager(&mut instance_mgr);
+    let enemy = create_instance_from_manager(&mut instance_mgr);
+    let weapon = create_instance_from_manager(&mut instance_mgr);
     
     println!("   Player: {:?}", player);
     println!("   Enemy:  {:?}", enemy);
@@ -272,9 +274,9 @@ fn test_change_events(mgr: &mut AttributeManager, player: InstanceId) {
 
 fn performance_test(mgr: &mut AttributeManager) {
     let start = Instant::now();
-    let mut id_gen = InstanceIdGenerator::new(1); // Use node ID 1
+    let mut id_gen_data = create_instance_manager_data();
     let instances: Vec<_> = (0..1000)
-        .map(|_| id_gen.generate().unwrap_or_else(|_| InstanceId::new()))
+        .map(|_| create_instance_from_manager(&mut id_gen_data))
         .collect();
     
     // Set attributes

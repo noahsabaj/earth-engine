@@ -60,45 +60,8 @@ impl LagCompensation {
         }
     }
     
-    /// Add a player state snapshot
-    pub fn add_player_snapshot(&mut self, snapshot: PlayerStateSnapshot) {
-        let history = self.player_history
-            .entry(snapshot.player_id)
-            .or_insert_with(|| VecDeque::with_capacity(MAX_HISTORY_SNAPSHOTS));
-        
-        // Remove old snapshots
-        while history.len() >= MAX_HISTORY_SNAPSHOTS {
-            history.pop_front();
-        }
-        
-        // Remove snapshots older than max history
-        let cutoff_time = self.server_time.checked_sub(self.max_rewind_time)
-            .unwrap_or(self.server_time);
-        while let Some(front) = history.front() {
-            if front.timestamp < cutoff_time {
-                history.pop_front();
-            } else {
-                break;
-            }
-        }
-        
-        history.push_back(snapshot);
-    }
     
-    /// Add a world state snapshot
-    pub fn add_world_snapshot(&mut self, snapshot: WorldStateSnapshot) {
-        // Remove old snapshots
-        while self.world_history.len() >= MAX_HISTORY_SNAPSHOTS {
-            self.world_history.pop_front();
-        }
-        
-        self.world_history.push_back(snapshot);
-    }
     
-    /// Update server time
-    pub fn update_time(&mut self, now: Instant) {
-        self.server_time = now;
-    }
     
     /// Rewind and validate a player action
     pub fn validate_action<F, R>(
@@ -253,29 +216,70 @@ impl LagCompensation {
         }
     }
     
-    /// Clean up old history
-    pub fn cleanup_old_history(&mut self) {
-        let cutoff_time = self.server_time.checked_sub(self.max_rewind_time)
-            .unwrap_or(self.server_time);
-        
-        // Clean player history
-        for history in self.player_history.values_mut() {
-            while let Some(front) = history.front() {
-                if front.timestamp < cutoff_time {
-                    history.pop_front();
-                } else {
-                    break;
-                }
-            }
+}
+
+/// Add a player state snapshot
+pub fn lag_compensation_add_player_snapshot(lag_comp: &mut LagCompensation, snapshot: PlayerStateSnapshot) {
+    let history = lag_comp.player_history
+        .entry(snapshot.player_id)
+        .or_insert_with(|| VecDeque::with_capacity(MAX_HISTORY_SNAPSHOTS));
+    
+    // Remove old snapshots
+    while history.len() >= MAX_HISTORY_SNAPSHOTS {
+        history.pop_front();
+    }
+    
+    // Remove snapshots older than max history
+    let cutoff_time = lag_comp.server_time.checked_sub(lag_comp.max_rewind_time)
+        .unwrap_or(lag_comp.server_time);
+    while let Some(front) = history.front() {
+        if front.timestamp < cutoff_time {
+            history.pop_front();
+        } else {
+            break;
         }
-        
-        // Clean world history
-        while let Some(front) = self.world_history.front() {
+    }
+    
+    history.push_back(snapshot);
+}
+
+/// Add a world state snapshot
+pub fn lag_compensation_add_world_snapshot(lag_comp: &mut LagCompensation, snapshot: WorldStateSnapshot) {
+    // Remove old snapshots
+    while lag_comp.world_history.len() >= MAX_HISTORY_SNAPSHOTS {
+        lag_comp.world_history.pop_front();
+    }
+    
+    lag_comp.world_history.push_back(snapshot);
+}
+
+/// Update server time
+pub fn lag_compensation_update_time(lag_comp: &mut LagCompensation, now: Instant) {
+    lag_comp.server_time = now;
+}
+
+/// Clean up old history
+pub fn lag_compensation_cleanup_old_history(lag_comp: &mut LagCompensation) {
+    let cutoff_time = lag_comp.server_time.checked_sub(lag_comp.max_rewind_time)
+        .unwrap_or(lag_comp.server_time);
+    
+    // Clean player history
+    for history in lag_comp.player_history.values_mut() {
+        while let Some(front) = history.front() {
             if front.timestamp < cutoff_time {
-                self.world_history.pop_front();
+                history.pop_front();
             } else {
                 break;
             }
+        }
+    }
+    
+    // Clean world history
+    while let Some(front) = lag_comp.world_history.front() {
+        if front.timestamp < cutoff_time {
+            lag_comp.world_history.pop_front();
+        } else {
+            break;
         }
     }
 }

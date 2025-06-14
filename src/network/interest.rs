@@ -84,21 +84,21 @@ impl PlayerInterest {
         }
     }
     
-    /// Update player position
-    pub fn update_position(&mut self, position: Vec3) {
-        self.position = position;
-        self.current_region = RegionCoord::from_position(position);
-    }
-    
-    /// Set custom view distance
-    pub fn set_view_distance(&mut self, distance: Option<f32>) {
-        self.view_distance_override = distance;
-    }
-    
     /// Get effective view distance
     pub fn get_view_distance(&self) -> f32 {
         self.view_distance_override.unwrap_or(MAX_ENTITY_VIEW_DISTANCE)
     }
+}
+
+/// Update player interest position (DOP function)
+pub fn interest_update_position(interest: &mut PlayerInterest, position: Vec3) {
+    interest.position = position;
+    interest.current_region = RegionCoord::from_position(position);
+}
+
+/// Set custom view distance for player interest (DOP function)
+pub fn interest_set_view_distance(interest: &mut PlayerInterest, distance: Option<f32>) {
+    interest.view_distance_override = distance;
 }
 
 /// Regional interest management system
@@ -126,175 +126,6 @@ impl InterestManager {
             chunk_subscribers: HashMap::new(),
             last_update: std::time::Instant::now(),
             update_interval: std::time::Duration::from_secs_f32(1.0 / INTEREST_UPDATE_RATE),
-        }
-    }
-    
-    /// Add a player to the interest system
-    pub fn add_player(&mut self, player_id: u32, position: Vec3) {
-        let interest = PlayerInterest::new(player_id, position);
-        self.players.insert(player_id, interest);
-        self.update_player_interests(player_id);
-    }
-    
-    /// Remove a player
-    pub fn remove_player(&mut self, player_id: u32) {
-        if let Some(interest) = self.players.remove(&player_id) {
-            // Remove from chunk subscriptions
-            for chunk in &interest.interested_chunks {
-                if let Some(subscribers) = self.chunk_subscribers.get_mut(chunk) {
-                    subscribers.remove(&player_id);
-                }
-            }
-        }
-    }
-    
-    /// Update player position
-    pub fn update_player_position(&mut self, player_id: u32, position: Vec3) {
-        if let Some(interest) = self.players.get_mut(&player_id) {
-            let old_region = interest.current_region;
-            interest.update_position(position);
-            
-            // If region changed, update interests immediately
-            if old_region != interest.current_region {
-                self.update_player_interests(player_id);
-            }
-        }
-    }
-    
-    /// Add or update an entity position
-    pub fn update_entity_position(&mut self, entity_id: u32, position: Vec3) {
-        let new_region = RegionCoord::from_position(position);
-        
-        // Remove from old region
-        if let Some((_, old_region)) = self.entity_positions.get(&entity_id) {
-            if old_region != &new_region {
-                if let Some(entities) = self.entity_regions.get_mut(old_region) {
-                    entities.remove(&entity_id);
-                }
-            }
-        }
-        
-        // Add to new region
-        self.entity_regions
-            .entry(new_region)
-            .or_insert_with(HashSet::new)
-            .insert(entity_id);
-        
-        self.entity_positions.insert(entity_id, (position, new_region));
-    }
-    
-    /// Remove an entity
-    pub fn remove_entity(&mut self, entity_id: u32) {
-        if let Some((_, region)) = self.entity_positions.remove(&entity_id) {
-            if let Some(entities) = self.entity_regions.get_mut(&region) {
-                entities.remove(&entity_id);
-            }
-        }
-        
-        // Remove from all player interests
-        for interest in self.players.values_mut() {
-            interest.interested_entities.remove(&entity_id);
-        }
-    }
-    
-    /// Update interests for all players (call periodically)
-    pub fn update_all_interests(&mut self) {
-        let now = std::time::Instant::now();
-        if now.duration_since(self.last_update) < self.update_interval {
-            return;
-        }
-        
-        self.last_update = now;
-        
-        let player_ids: Vec<u32> = self.players.keys().copied().collect();
-        for player_id in player_ids {
-            self.update_player_interests(player_id);
-        }
-    }
-    
-    /// Update interests for a specific player
-    fn update_player_interests(&mut self, player_id: u32) {
-        let Some(interest) = self.players.get(&player_id) else { return };
-        
-        let view_distance = interest.get_view_distance();
-        let view_distance_sq = view_distance * view_distance;
-        let player_pos = interest.position;
-        let player_region = interest.current_region;
-        
-        // Find entities in range
-        let mut new_entities = HashSet::new();
-        
-        // Check current region and neighbors
-        let mut regions_to_check = vec![player_region];
-        regions_to_check.extend(player_region.get_neighbors());
-        
-        for region in regions_to_check {
-            if let Some(entities) = self.entity_regions.get(&region) {
-                for &entity_id in entities {
-                    if entity_id == player_id {
-                        continue; // Don't include self
-                    }
-                    
-                    if let Some((entity_pos, _)) = self.entity_positions.get(&entity_id) {
-                        let dist_sq = (*entity_pos - player_pos).length_squared();
-                        if dist_sq <= view_distance_sq {
-                            new_entities.insert(entity_id);
-                        }
-                    }
-                }
-            }
-        }
-        
-        // Find chunks in range
-        let chunk_radius = (view_distance / 32.0).ceil() as i32;
-        let player_chunk = VoxelPos::from_world_pos(player_pos);
-        let mut new_chunks = HashSet::new();
-        
-        for dx in -chunk_radius..=chunk_radius {
-            for dy in -2..=2 { // Limit vertical chunk loading
-                for dz in -chunk_radius..=chunk_radius {
-                    let chunk_pos = VoxelPos {
-                        x: player_chunk.x + dx,
-                        y: player_chunk.y + dy,
-                        z: player_chunk.z + dz,
-                    };
-                    
-                    // Simple distance check
-                    let chunk_center = Vec3::new(
-                        (chunk_pos.x as f32 + 0.5) * 32.0,
-                        (chunk_pos.y as f32 + 0.5) * 32.0,
-                        (chunk_pos.z as f32 + 0.5) * 32.0,
-                    );
-                    
-                    let dist = (chunk_center - player_pos).length();
-                    if dist <= view_distance + 32.0 { // Add chunk size for margin
-                        new_chunks.insert(chunk_pos);
-                    }
-                }
-            }
-        }
-        
-        // Update the player's interests
-        if let Some(interest) = self.players.get_mut(&player_id) {
-            // Update chunk subscriptions
-            let old_chunks = std::mem::replace(&mut interest.interested_chunks, new_chunks.clone());
-            
-            // Remove from old chunks
-            for chunk in old_chunks.difference(&new_chunks) {
-                if let Some(subscribers) = self.chunk_subscribers.get_mut(chunk) {
-                    subscribers.remove(&player_id);
-                }
-            }
-            
-            // Add to new chunks
-            for chunk in new_chunks.difference(&old_chunks) {
-                self.chunk_subscribers
-                    .entry(*chunk)
-                    .or_insert_with(HashSet::new)
-                    .insert(player_id);
-            }
-            
-            interest.interested_entities = new_entities;
         }
     }
     
@@ -380,6 +211,175 @@ impl InterestManager {
     }
 }
 
+/// Add a player to the interest system (DOP function)
+pub fn interest_add_player(manager: &mut InterestManager, player_id: u32, position: Vec3) {
+    let interest = PlayerInterest::new(player_id, position);
+    manager.players.insert(player_id, interest);
+    interest_update_player_interests(manager, player_id);
+}
+
+/// Remove a player (DOP function)
+pub fn interest_remove_player(manager: &mut InterestManager, player_id: u32) {
+    if let Some(interest) = manager.players.remove(&player_id) {
+        // Remove from chunk subscriptions
+        for chunk in &interest.interested_chunks {
+            if let Some(subscribers) = manager.chunk_subscribers.get_mut(chunk) {
+                subscribers.remove(&player_id);
+            }
+        }
+    }
+}
+
+/// Update player position (DOP function)
+pub fn interest_update_player_position(manager: &mut InterestManager, player_id: u32, position: Vec3) {
+    if let Some(interest) = manager.players.get_mut(&player_id) {
+        let old_region = interest.current_region;
+        interest_update_position(interest, position);
+        
+        // If region changed, update interests immediately
+        if old_region != interest.current_region {
+            interest_update_player_interests(manager, player_id);
+        }
+    }
+}
+
+/// Add or update an entity position (DOP function)
+pub fn interest_update_entity_position(manager: &mut InterestManager, entity_id: u32, position: Vec3) {
+    let new_region = RegionCoord::from_position(position);
+    
+    // Remove from old region
+    if let Some((_, old_region)) = manager.entity_positions.get(&entity_id) {
+        if old_region != &new_region {
+            if let Some(entities) = manager.entity_regions.get_mut(old_region) {
+                entities.remove(&entity_id);
+            }
+        }
+    }
+    
+    // Add to new region
+    manager.entity_regions
+        .entry(new_region)
+        .or_insert_with(HashSet::new)
+        .insert(entity_id);
+    
+    manager.entity_positions.insert(entity_id, (position, new_region));
+}
+
+/// Remove an entity (DOP function)
+pub fn interest_remove_entity(manager: &mut InterestManager, entity_id: u32) {
+    if let Some((_, region)) = manager.entity_positions.remove(&entity_id) {
+        if let Some(entities) = manager.entity_regions.get_mut(&region) {
+            entities.remove(&entity_id);
+        }
+    }
+    
+    // Remove from all player interests
+    for interest in manager.players.values_mut() {
+        interest.interested_entities.remove(&entity_id);
+    }
+}
+
+/// Update interests for all players (DOP function)
+pub fn interest_update_all_interests(manager: &mut InterestManager) {
+    let now = std::time::Instant::now();
+    if now.duration_since(manager.last_update) < manager.update_interval {
+        return;
+    }
+    
+    manager.last_update = now;
+    
+    let player_ids: Vec<u32> = manager.players.keys().copied().collect();
+    for player_id in player_ids {
+        interest_update_player_interests(manager, player_id);
+    }
+}
+
+/// Update interests for a specific player (DOP function)
+pub fn interest_update_player_interests(manager: &mut InterestManager, player_id: u32) {
+    let Some(interest) = manager.players.get(&player_id) else { return };
+    
+    let view_distance = interest.get_view_distance();
+    let view_distance_sq = view_distance * view_distance;
+    let player_pos = interest.position;
+    let player_region = interest.current_region;
+    
+    // Find entities in range
+    let mut new_entities = HashSet::new();
+    
+    // Check current region and neighbors
+    let mut regions_to_check = vec![player_region];
+    regions_to_check.extend(player_region.get_neighbors());
+    
+    for region in regions_to_check {
+        if let Some(entities) = manager.entity_regions.get(&region) {
+            for &entity_id in entities {
+                if entity_id == player_id {
+                    continue; // Don't include self
+                }
+                
+                if let Some((entity_pos, _)) = manager.entity_positions.get(&entity_id) {
+                    let dist_sq = (*entity_pos - player_pos).length_squared();
+                    if dist_sq <= view_distance_sq {
+                        new_entities.insert(entity_id);
+                    }
+                }
+            }
+        }
+    }
+    
+    // Find chunks in range
+    let chunk_radius = (view_distance / 32.0).ceil() as i32;
+    let player_chunk = VoxelPos::from_world_pos(player_pos);
+    let mut new_chunks = HashSet::new();
+    
+    for dx in -chunk_radius..=chunk_radius {
+        for dy in -2..=2 { // Limit vertical chunk loading
+            for dz in -chunk_radius..=chunk_radius {
+                let chunk_pos = VoxelPos {
+                    x: player_chunk.x + dx,
+                    y: player_chunk.y + dy,
+                    z: player_chunk.z + dz,
+                };
+                
+                // Simple distance check
+                let chunk_center = Vec3::new(
+                    (chunk_pos.x as f32 + 0.5) * 32.0,
+                    (chunk_pos.y as f32 + 0.5) * 32.0,
+                    (chunk_pos.z as f32 + 0.5) * 32.0,
+                );
+                
+                let dist = (chunk_center - player_pos).length();
+                if dist <= view_distance + 32.0 { // Add chunk size for margin
+                    new_chunks.insert(chunk_pos);
+                }
+            }
+        }
+    }
+    
+    // Update the player's interests
+    if let Some(interest) = manager.players.get_mut(&player_id) {
+        // Update chunk subscriptions
+        let old_chunks = std::mem::replace(&mut interest.interested_chunks, new_chunks.clone());
+        
+        // Remove from old chunks
+        for chunk in old_chunks.difference(&new_chunks) {
+            if let Some(subscribers) = manager.chunk_subscribers.get_mut(chunk) {
+                subscribers.remove(&player_id);
+            }
+        }
+        
+        // Add to new chunks
+        for chunk in new_chunks.difference(&old_chunks) {
+            manager.chunk_subscribers
+                .entry(*chunk)
+                .or_insert_with(HashSet::new)
+                .insert(player_id);
+        }
+        
+        interest.interested_entities = new_entities;
+    }
+}
+
 /// Statistics for interest management
 #[derive(Debug)]
 pub struct InterestStats {
@@ -409,18 +409,18 @@ mod tests {
         let mut manager = InterestManager::new();
         
         // Add players
-        manager.add_player(1, Vec3::new(0.0, 0.0, 0.0));
-        manager.add_player(2, Vec3::new(50.0, 0.0, 0.0));
-        manager.add_player(3, Vec3::new(200.0, 0.0, 0.0)); // Far away
+        interest_add_player(&mut manager, 1, Vec3::new(0.0, 0.0, 0.0));
+        interest_add_player(&mut manager, 2, Vec3::new(50.0, 0.0, 0.0));
+        interest_add_player(&mut manager, 3, Vec3::new(200.0, 0.0, 0.0)); // Far away
         
         // Add entities
-        manager.update_entity_position(10, Vec3::new(10.0, 0.0, 0.0));
-        manager.update_entity_position(11, Vec3::new(60.0, 0.0, 0.0));
-        manager.update_entity_position(12, Vec3::new(250.0, 0.0, 0.0));
+        interest_update_entity_position(&mut manager, 10, Vec3::new(10.0, 0.0, 0.0));
+        interest_update_entity_position(&mut manager, 11, Vec3::new(60.0, 0.0, 0.0));
+        interest_update_entity_position(&mut manager, 12, Vec3::new(250.0, 0.0, 0.0));
         
         // Force update by setting last_update to a past time
         manager.last_update = std::time::Instant::now() - std::time::Duration::from_secs(10);
-        manager.update_all_interests();
+        interest_update_all_interests(&mut manager);
         
         // Check interests
         let p1_entities = manager.get_interested_entities(1)

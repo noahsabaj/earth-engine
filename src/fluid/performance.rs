@@ -83,56 +83,6 @@ impl FluidPerformanceMonitor {
         }
     }
     
-    /// Start frame timing
-    pub fn begin_frame(&mut self) {
-        let now = Instant::now();
-        let frame_time = now - self.last_frame;
-        self.last_frame = now;
-        
-        // Add to history
-        self.frame_times.push_back(frame_time);
-        if self.frame_times.len() > self.history_size {
-            self.frame_times.pop_front();
-        }
-        
-        // Update metrics
-        self.update_metrics();
-    }
-    
-    /// Record fluid update time
-    pub fn record_update_time(&mut self, duration: Duration) {
-        self.update_times.push_back(duration);
-        if self.update_times.len() > self.history_size {
-            self.update_times.pop_front();
-        }
-    }
-    
-    /// Record pressure solver time
-    pub fn record_solver_time(&mut self, duration: Duration) {
-        self.solver_times.push_back(duration);
-        if self.solver_times.len() > self.history_size {
-            self.solver_times.pop_front();
-        }
-    }
-    
-    /// Record render time
-    pub fn record_render_time(&mut self, duration: Duration) {
-        self.render_times.push_back(duration);
-        if self.render_times.len() > self.history_size {
-            self.render_times.pop_front();
-        }
-    }
-    
-    /// Update active voxel count
-    pub fn set_active_voxels(&mut self, count: u32) {
-        self.current_metrics.active_voxels = count;
-    }
-    
-    /// Update memory usage
-    pub fn set_memory_usage(&mut self, bytes: usize) {
-        self.current_metrics.memory_usage_mb = bytes as f32 / (1024.0 * 1024.0);
-    }
-    
     /// Get current metrics
     pub fn get_metrics(&self) -> &FluidPerformanceMetrics {
         &self.current_metrics
@@ -175,34 +125,85 @@ impl FluidPerformanceMonitor {
         suggestions
     }
     
-    /// Update internal metrics
-    fn update_metrics(&mut self) {
-        // Calculate averages
-        if !self.frame_times.is_empty() {
-            let avg_frame_time: Duration = self.frame_times.iter().sum::<Duration>() / self.frame_times.len() as u32;
-            self.current_metrics.frame_time_ms = avg_frame_time.as_secs_f32() * 1000.0;
-            self.current_metrics.fps = 1000.0 / self.current_metrics.frame_time_ms;
-        }
-        
-        if !self.update_times.is_empty() {
-            let avg_update_time: Duration = self.update_times.iter().sum::<Duration>() / self.update_times.len() as u32;
-            self.current_metrics.fluid_update_ms = avg_update_time.as_secs_f32() * 1000.0;
-        }
-        
-        if !self.solver_times.is_empty() {
-            let avg_solver_time: Duration = self.solver_times.iter().sum::<Duration>() / self.solver_times.len() as u32;
-            self.current_metrics.pressure_solve_ms = avg_solver_time.as_secs_f32() * 1000.0;
-        }
-        
-        if !self.render_times.is_empty() {
-            let avg_render_time: Duration = self.render_times.iter().sum::<Duration>() / self.render_times.len() as u32;
-            self.current_metrics.render_time_ms = avg_render_time.as_secs_f32() * 1000.0;
-        }
-        
-        // Log warnings if enabled
-        if self.warnings_enabled && self.current_metrics.fps < 60.0 {
-            log::warn!("Fluid performance below target: {:.1} FPS", self.current_metrics.fps);
-        }
+}
+
+/// Start frame timing (DOP)
+pub fn begin_frame(monitor: &mut FluidPerformanceMonitor) {
+    let now = Instant::now();
+    let frame_time = now - monitor.last_frame;
+    monitor.last_frame = now;
+    
+    // Add to history
+    monitor.frame_times.push_back(frame_time);
+    if monitor.frame_times.len() > monitor.history_size {
+        monitor.frame_times.pop_front();
+    }
+    
+    // Update metrics
+    update_metrics(monitor);
+}
+
+/// Record fluid update time (DOP)
+pub fn record_update_time(monitor: &mut FluidPerformanceMonitor, duration: Duration) {
+    monitor.update_times.push_back(duration);
+    if monitor.update_times.len() > monitor.history_size {
+        monitor.update_times.pop_front();
+    }
+}
+
+/// Record pressure solver time (DOP)
+pub fn record_solver_time(monitor: &mut FluidPerformanceMonitor, duration: Duration) {
+    monitor.solver_times.push_back(duration);
+    if monitor.solver_times.len() > monitor.history_size {
+        monitor.solver_times.pop_front();
+    }
+}
+
+/// Record render time (DOP)
+pub fn record_render_time(monitor: &mut FluidPerformanceMonitor, duration: Duration) {
+    monitor.render_times.push_back(duration);
+    if monitor.render_times.len() > monitor.history_size {
+        monitor.render_times.pop_front();
+    }
+}
+
+/// Update active voxel count (DOP)
+pub fn set_active_voxels(monitor: &mut FluidPerformanceMonitor, count: u32) {
+    monitor.current_metrics.active_voxels = count;
+}
+
+/// Update memory usage (DOP)
+pub fn set_memory_usage(monitor: &mut FluidPerformanceMonitor, bytes: usize) {
+    monitor.current_metrics.memory_usage_mb = bytes as f32 / (1024.0 * 1024.0);
+}
+
+/// Update internal metrics (DOP)
+fn update_metrics(monitor: &mut FluidPerformanceMonitor) {
+    // Calculate averages
+    if !monitor.frame_times.is_empty() {
+        let avg_frame_time: Duration = monitor.frame_times.iter().sum::<Duration>() / monitor.frame_times.len() as u32;
+        monitor.current_metrics.frame_time_ms = avg_frame_time.as_secs_f32() * 1000.0;
+        monitor.current_metrics.fps = 1000.0 / monitor.current_metrics.frame_time_ms;
+    }
+    
+    if !monitor.update_times.is_empty() {
+        let avg_update_time: Duration = monitor.update_times.iter().sum::<Duration>() / monitor.update_times.len() as u32;
+        monitor.current_metrics.fluid_update_ms = avg_update_time.as_secs_f32() * 1000.0;
+    }
+    
+    if !monitor.solver_times.is_empty() {
+        let avg_solver_time: Duration = monitor.solver_times.iter().sum::<Duration>() / monitor.solver_times.len() as u32;
+        monitor.current_metrics.pressure_solve_ms = avg_solver_time.as_secs_f32() * 1000.0;
+    }
+    
+    if !monitor.render_times.is_empty() {
+        let avg_render_time: Duration = monitor.render_times.iter().sum::<Duration>() / monitor.render_times.len() as u32;
+        monitor.current_metrics.render_time_ms = avg_render_time.as_secs_f32() * 1000.0;
+    }
+    
+    // Log warnings if enabled
+    if monitor.warnings_enabled && monitor.current_metrics.fps < 60.0 {
+        log::warn!("Fluid performance below target: {:.1} FPS", monitor.current_metrics.fps);
     }
 }
 

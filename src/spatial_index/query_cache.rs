@@ -113,43 +113,6 @@ impl QueryCache {
         cache.stats.entry_count = cache.entries.len();
     }
     
-    /// Invalidate cache entries within a region
-    pub fn invalidate_region(&mut self, center: [f32; 3], radius: f32) {
-        let mut cache = self.cache.write();
-        let mut to_remove = Vec::new();
-        
-        // Find entries that might be affected by changes in this region
-        for (key, entry) in cache.entries.iter() {
-            if Self::query_overlaps_region(&entry.query, center, radius) {
-                to_remove.push(*key);
-            }
-        }
-        
-        // Remove invalidated entries
-        let mut size_removed = 0;
-        for key in to_remove {
-            if let Some(entry) = cache.entries.remove(&key) {
-                size_removed += entry.size_bytes;
-                cache.access_order.retain(|&k| k != key);
-            }
-        }
-        
-        // Update size
-        let mut current_size = self.current_size_bytes.write();
-        *current_size = current_size.saturating_sub(size_removed);
-        cache.stats.current_size_bytes = *current_size;
-        cache.stats.entry_count = cache.entries.len();
-    }
-    
-    /// Clear all cached entries
-    pub fn clear(&mut self) {
-        let mut cache = self.cache.write();
-        cache.entries.clear();
-        cache.access_order.clear();
-        *self.current_size_bytes.write() = 0;
-        cache.stats.current_size_bytes = 0;
-        cache.stats.entry_count = 0;
-    }
     
     /// Get cache statistics
     pub fn stats(&self) -> CacheStats {
@@ -240,6 +203,46 @@ fn distance_3d(a: [f32; 3], b: [f32; 3]) -> f32 {
     let dy = a[1] - b[1];
     let dz = a[2] - b[2];
     (dx * dx + dy * dy + dz * dz).sqrt()
+}
+
+/// Invalidate cache entries within a region
+/// Function - transforms query cache by removing entries affected by region changes
+pub fn invalidate_cache_region(cache: &mut QueryCache, center: [f32; 3], radius: f32) {
+    let mut cache_lock = cache.cache.write();
+    let mut to_remove = Vec::new();
+    
+    // Find entries that might be affected by changes in this region
+    for (key, entry) in cache_lock.entries.iter() {
+        if QueryCache::query_overlaps_region(&entry.query, center, radius) {
+            to_remove.push(*key);
+        }
+    }
+    
+    // Remove invalidated entries
+    let mut size_removed = 0;
+    for key in to_remove {
+        if let Some(entry) = cache_lock.entries.remove(&key) {
+            size_removed += entry.size_bytes;
+            cache_lock.access_order.retain(|&k| k != key);
+        }
+    }
+    
+    // Update size
+    let mut current_size = cache.current_size_bytes.write();
+    *current_size = current_size.saturating_sub(size_removed);
+    cache_lock.stats.current_size_bytes = *current_size;
+    cache_lock.stats.entry_count = cache_lock.entries.len();
+}
+
+/// Clear all cached entries
+/// Function - transforms query cache by clearing all entries
+pub fn clear_query_cache(cache: &mut QueryCache) {
+    let mut cache_lock = cache.cache.write();
+    cache_lock.entries.clear();
+    cache_lock.access_order.clear();
+    *cache.current_size_bytes.write() = 0;
+    cache_lock.stats.current_size_bytes = 0;
+    cache_lock.stats.entry_count = 0;
 }
 
 fn sphere_box_overlap(center: [f32; 3], radius: f32, box_min: [f32; 3], box_max: [f32; 3]) -> bool {

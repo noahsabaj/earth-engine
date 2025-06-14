@@ -13,6 +13,17 @@ pub use data_camera::{
     apply_transform_batch,
 };
 
+// Re-export transform functions as primary DOP interface
+pub use data_camera::transform::{
+    move_forward as camera_move_forward,
+    move_right as camera_move_right, 
+    move_up as camera_move_up,
+    rotate as camera_rotate,
+};
+
+// Export the DOP functions defined in this module
+// camera_resize is exported as update_aspect_ratio from data_camera
+
 // Export the standalone function
 // calculate_forward_vector is defined at the bottom of this file
 
@@ -56,9 +67,6 @@ impl Camera {
         }
     }
 
-    pub fn resize(&mut self, width: u32, height: u32) {
-        self.aspect = width as f32 / height as f32;
-    }
 
     pub fn build_view_matrix(&self) -> Matrix4<f32> {
         let (sin_yaw, cos_yaw) = cgmath::Rad::from(self.yaw).0.sin_cos();
@@ -97,31 +105,17 @@ impl Camera {
         forward.cross(Vector3::unit_y()).normalize()
     }
 
-    pub fn move_forward(&mut self, amount: f32) {
-        let forward = self.get_forward_vector();
-        self.position += forward * amount;
-    }
 
-    pub fn move_right(&mut self, amount: f32) {
-        let right = self.get_right_vector();
-        self.position += right * amount;
-    }
 
-    pub fn move_up(&mut self, amount: f32) {
-        self.position.y += amount;
-    }
 
-    pub fn rotate(&mut self, delta_yaw: f32, delta_pitch: f32) {
-        self.yaw += Deg(delta_yaw);
-        self.pitch += Deg(delta_pitch);
-        
-        // Clamp pitch to prevent camera flipping
-        if self.pitch < Deg(-89.0) {
-            self.pitch = Deg(-89.0);
-        } else if self.pitch > Deg(89.0) {
-            self.pitch = Deg(89.0);
-        }
-    }
+}
+
+// DOP Functions for Camera Operations
+// These are the primary interface for data-oriented camera operations
+
+/// Resize camera (update aspect ratio) - DOP function
+pub fn camera_resize(camera: &CameraData, width: u32, height: u32) -> CameraData {
+    update_aspect_ratio(camera, width, height)
 }
 
 /// Calculate forward vector from camera data

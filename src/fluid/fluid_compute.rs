@@ -171,33 +171,6 @@ impl FluidPipeline {
         }
     }
     
-    /// Initialize with fluid buffer
-    pub fn init(&mut self, device: &Device, fluid_buffer: &FluidBuffer) {
-        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("Fluid Bind Group"),
-            layout: self.fluid_compute.get_bind_group_layout(),
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: fluid_buffer.voxel_buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: fluid_buffer.temp_buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 2,
-                    resource: self.constants_buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 3,
-                    resource: self.boundaries_buffer.as_entire_binding(),
-                },
-            ],
-        });
-        
-        self.bind_group = Some(bind_group);
-    }
     
     /// Update constants
     pub fn update_constants(&self, queue: &wgpu::Queue, constants: &FluidConstants) {
@@ -227,6 +200,38 @@ impl FluidPipeline {
             );
         }
     }
+}
+
+/// Initialize fluid pipeline with fluid buffer (DOP function)
+pub fn fluid_pipeline_init(
+    fluid_pipeline: &mut FluidPipeline,
+    device: &Device,
+    fluid_buffer: &FluidBuffer,
+) {
+    let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+        label: Some("Fluid Bind Group"),
+        layout: fluid_pipeline.fluid_compute.get_bind_group_layout(),
+        entries: &[
+            wgpu::BindGroupEntry {
+                binding: 0,
+                resource: fluid_buffer.voxel_buffer.as_entire_binding(),
+            },
+            wgpu::BindGroupEntry {
+                binding: 1,
+                resource: fluid_buffer.temp_buffer.as_entire_binding(),
+            },
+            wgpu::BindGroupEntry {
+                binding: 2,
+                resource: fluid_pipeline.constants_buffer.as_entire_binding(),
+            },
+            wgpu::BindGroupEntry {
+                binding: 3,
+                resource: fluid_pipeline.boundaries_buffer.as_entire_binding(),
+            },
+        ],
+    });
+    
+    fluid_pipeline.bind_group = Some(bind_group);
 }
 
 /// Create bind group layout for fluid simulation

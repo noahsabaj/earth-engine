@@ -119,103 +119,113 @@ impl FinalProfiler {
             total_frames: 0,
         }
     }
-    
-    /// Start a frame
-    pub fn begin_frame(&mut self) -> FrameProfiler {
-        self.frame_allocation_count = 0;
-        FrameProfiler {
-            start: Instant::now(),
-            profiler: self as *mut Self,
-        }
+}
+
+/// DOP: Start a frame
+pub fn begin_frame(profiler: &mut FinalProfiler) -> FrameProfiler {
+    profiler.frame_allocation_count = 0;
+    FrameProfiler {
+        start: Instant::now(),
+        profiler: profiler as *mut FinalProfiler,
     }
+}
+
+/// DOP: Record an operation timing
+pub fn time_operation<F, R>(profiler: &mut FinalProfiler, name: &'static str, op: F) -> R
+where
+    F: FnOnce() -> R,
+{
+    let start = Instant::now();
+    let result = op();
+    let duration = start.elapsed();
     
-    /// Record an operation timing
-    pub fn time_operation<F, R>(&mut self, name: &'static str, op: F) -> R
-    where
-        F: FnOnce() -> R,
-    {
-        let start = Instant::now();
-        let result = op();
-        let duration = start.elapsed();
-        
-        self.operation_timings
-            .entry(name)
-            .or_insert_with(Vec::new)
-            .push(duration);
-        
-        result
-    }
+    profiler.operation_timings
+        .entry(name)
+        .or_insert_with(Vec::new)
+        .push(duration);
     
-    /// Track allocation (called by custom allocator)
-    pub fn record_allocation(&mut self, size: usize) {
-        self.allocation_count += 1;
-        self.frame_allocation_count += 1;
-    }
+    result
+}
+
+/// DOP: Track allocation (called by custom allocator)
+pub fn record_allocation(profiler: &mut FinalProfiler, _size: usize) {
+    profiler.allocation_count += 1;
+    profiler.frame_allocation_count += 1;
+}
+
+/// DOP: Calculate comprehensive metrics
+pub fn calculate_metrics(profiler: &mut FinalProfiler) -> PerformanceMetrics {
+    let _elapsed = profiler.start_time.elapsed().as_secs_f32();
     
-    /// Calculate comprehensive metrics
-    pub fn calculate_metrics(&mut self) -> PerformanceMetrics {
-        let elapsed = self.start_time.elapsed().as_secs_f32();
-        
-        // Frame timing analysis
-        let frame_times: Vec<f32> = self.frame_samples.iter()
-            .map(|d| d.as_secs_f32() * 1000.0)
-            .collect();
-        
-        let avg_frame_time = frame_times.iter().sum::<f32>() / frame_times.len() as f32;
-        let variance = frame_times.iter()
+    // Frame timing analysis
+    let frame_times: Vec<f32> = profiler.frame_samples.iter()
+        .map(|d| d.as_secs_f32() * 1000.0)
+        .collect();
+    
+    let avg_frame_time = if frame_times.is_empty() {
+        16.67 // Default 60 FPS
+    } else {
+        frame_times.iter().sum::<f32>() / frame_times.len() as f32
+    };
+    
+    let variance = if frame_times.is_empty() {
+        0.0
+    } else {
+        frame_times.iter()
             .map(|t| (t - avg_frame_time).powi(2))
-            .sum::<f32>() / frame_times.len() as f32;
-        
-        // Calculate percentiles
-        let mut sorted_fps: Vec<f32> = self.frame_history.clone();
-        sorted_fps.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-        
-        let p99_idx = (sorted_fps.len() as f32 * 0.01) as usize;
-        let p95_idx = (sorted_fps.len() as f32 * 0.05) as usize;
-        
-        // System throughput
-        let chunks_per_sec = self.get_operation_rate("chunk_generation");
-        let entities_per_sec = self.get_operation_rate("entity_update");
-        
-        // Comparison with OOP
-        let speedup = self.oop_baseline.frame_time_ms / avg_frame_time;
-        let allocation_reduction = 1.0 - (self.frame_allocation_count as f32 / 
-                                         self.oop_baseline.allocations_per_frame as f32);
-        
-        PerformanceMetrics {
-            frame_time_ms: avg_frame_time,
-            frame_time_variance: variance,
-            fps_average: 1000.0 / avg_frame_time,
-            fps_percentile_99: sorted_fps.get(p99_idx).copied().unwrap_or(0.0),
-            fps_percentile_95: sorted_fps.get(p95_idx).copied().unwrap_or(0.0),
-            fps_min: sorted_fps.first().copied().unwrap_or(0.0),
-            
-            total_allocations: self.allocation_count,
-            allocation_rate_per_frame: self.frame_allocation_count as f32,
-            memory_bandwidth_gb_s: self.estimate_bandwidth(),
-            cache_hit_rate: 0.95, // Measured externally
-            
-            gpu_utilization: 0.90, // From GPU profiler
-            compute_time_ms: self.get_avg_operation_time("gpu_compute"),
-            render_time_ms: self.get_avg_operation_time("gpu_render"),
-            memory_transfer_time_ms: self.get_avg_operation_time("gpu_transfer"),
-            
-            chunks_generated_per_sec: chunks_per_sec,
-            entities_processed_per_sec: entities_per_sec,
-            triangles_rendered_per_sec: self.estimate_triangles_per_sec(),
-            voxels_modified_per_sec: self.get_operation_rate("voxel_modify"),
-            
-            speedup_vs_oop: speedup,
-            memory_reduction_vs_oop: 0.80, // 80% less memory
-            allocation_reduction_vs_oop: allocation_reduction,
-        }
-    }
+            .sum::<f32>() / frame_times.len() as f32
+    };
     
-    /// Generate performance report
-    pub fn generate_report(&mut self) -> String {
-        let metrics = self.calculate_metrics();
+    // Calculate percentiles
+    let mut sorted_fps: Vec<f32> = profiler.frame_history.clone();
+    sorted_fps.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    
+    let p99_idx = (sorted_fps.len() as f32 * 0.01) as usize;
+    let p95_idx = (sorted_fps.len() as f32 * 0.05) as usize;
+    
+    // System throughput
+    let chunks_per_sec = get_operation_rate(profiler, "chunk_generation");
+    let entities_per_sec = get_operation_rate(profiler, "entity_update");
+    
+    // Comparison with OOP
+    let speedup = profiler.oop_baseline.frame_time_ms / avg_frame_time;
+    let allocation_reduction = 1.0 - (profiler.frame_allocation_count as f32 / 
+                                     profiler.oop_baseline.allocations_per_frame as f32);
+    
+    PerformanceMetrics {
+        frame_time_ms: avg_frame_time,
+        frame_time_variance: variance,
+        fps_average: 1000.0 / avg_frame_time,
+        fps_percentile_99: sorted_fps.get(p99_idx).copied().unwrap_or(0.0),
+        fps_percentile_95: sorted_fps.get(p95_idx).copied().unwrap_or(0.0),
+        fps_min: sorted_fps.first().copied().unwrap_or(0.0),
         
-        format!(r#"
+        total_allocations: profiler.allocation_count,
+        allocation_rate_per_frame: profiler.frame_allocation_count as f32,
+        memory_bandwidth_gb_s: estimate_bandwidth(profiler),
+        cache_hit_rate: 0.95, // Measured externally
+        
+        gpu_utilization: 0.90, // From GPU profiler
+        compute_time_ms: get_avg_operation_time(profiler, "gpu_compute"),
+        render_time_ms: get_avg_operation_time(profiler, "gpu_render"),
+        memory_transfer_time_ms: get_avg_operation_time(profiler, "gpu_transfer"),
+        
+        chunks_generated_per_sec: chunks_per_sec,
+        entities_processed_per_sec: entities_per_sec,
+        triangles_rendered_per_sec: estimate_triangles_per_sec(profiler),
+        voxels_modified_per_sec: get_operation_rate(profiler, "voxel_modify"),
+        
+        speedup_vs_oop: speedup,
+        memory_reduction_vs_oop: 0.80, // 80% less memory
+        allocation_reduction_vs_oop: allocation_reduction,
+    }
+}
+
+/// DOP: Generate performance report
+pub fn generate_report(profiler: &mut FinalProfiler) -> String {
+    let metrics = calculate_metrics(profiler);
+    
+    format!(r#"
 === EARTH ENGINE PERFORMANCE REPORT (Sprint 35) ===
 
 Frame Performance:
@@ -250,67 +260,66 @@ Overall Improvement vs OOP Architecture:
 
 === DATA-ORIENTED DESIGN VICTORY ===
 "#,
-            metrics.fps_average, metrics.frame_time_ms,
-            metrics.fps_percentile_99,
-            metrics.fps_percentile_95,
-            metrics.fps_min,
-            metrics.frame_time_variance,
-            
-            metrics.allocation_rate_per_frame,
-            metrics.allocation_reduction_vs_oop * 100.0,
-            metrics.total_allocations,
-            metrics.memory_bandwidth_gb_s,
-            metrics.cache_hit_rate * 100.0,
-            
-            metrics.gpu_utilization * 100.0,
-            metrics.compute_time_ms,
-            metrics.render_time_ms,
-            metrics.memory_transfer_time_ms,
-            
-            metrics.chunks_generated_per_sec,
-            metrics.chunks_generated_per_sec / self.oop_baseline.chunks_per_second,
-            metrics.entities_processed_per_sec,
-            metrics.triangles_rendered_per_sec / 1_000_000.0,
-            metrics.voxels_modified_per_sec,
-            
-            metrics.speedup_vs_oop,
-            metrics.memory_reduction_vs_oop * 100.0,
-            metrics.allocation_reduction_vs_oop * 100.0,
-        )
-    }
-    
-    // Helper methods
-    fn get_operation_rate(&self, op: &str) -> f32 {
-        self.operation_timings.get(op)
-            .map(|timings| timings.len() as f32 / self.start_time.elapsed().as_secs_f32())
-            .unwrap_or(0.0)
-    }
-    
-    fn get_avg_operation_time(&self, op: &str) -> f32 {
-        self.operation_timings.get(op)
-            .and_then(|timings| {
-                if timings.is_empty() {
-                    None
-                } else {
-                    Some(timings.iter().map(|d| d.as_secs_f32() * 1000.0).sum::<f32>() / timings.len() as f32)
-                }
-            })
-            .unwrap_or(0.0)
-    }
-    
-    fn estimate_bandwidth(&self) -> f32 {
-        // Estimate based on known buffer sizes and frame rate
-        let bytes_per_frame = 100_000_000; // 100MB typical
-        let fps = 1000.0 / self.frame_samples.last().map(|d| d.as_secs_f32() * 1000.0).unwrap_or(16.67);
-        (bytes_per_frame as f32 * fps) / 1_000_000_000.0
-    }
-    
-    fn estimate_triangles_per_sec(&self) -> f64 {
-        // Based on typical chunk mesh complexity
-        let triangles_per_chunk = 50_000.0;
-        let chunks_per_sec = self.get_operation_rate("chunk_generation") as f64;
-        triangles_per_chunk * chunks_per_sec * 60.0 // 60 FPS
-    }
+        metrics.fps_average, metrics.frame_time_ms,
+        metrics.fps_percentile_99,
+        metrics.fps_percentile_95,
+        metrics.fps_min,
+        metrics.frame_time_variance,
+        
+        metrics.allocation_rate_per_frame,
+        metrics.allocation_reduction_vs_oop * 100.0,
+        metrics.total_allocations,
+        metrics.memory_bandwidth_gb_s,
+        metrics.cache_hit_rate * 100.0,
+        
+        metrics.gpu_utilization * 100.0,
+        metrics.compute_time_ms,
+        metrics.render_time_ms,
+        metrics.memory_transfer_time_ms,
+        
+        metrics.chunks_generated_per_sec,
+        metrics.chunks_generated_per_sec / profiler.oop_baseline.chunks_per_second,
+        metrics.entities_processed_per_sec,
+        metrics.triangles_rendered_per_sec / 1_000_000.0,
+        metrics.voxels_modified_per_sec,
+        
+        metrics.speedup_vs_oop,
+        metrics.memory_reduction_vs_oop * 100.0,
+        metrics.allocation_reduction_vs_oop * 100.0,
+    )
+}
+
+// DOP Helper functions
+fn get_operation_rate(profiler: &FinalProfiler, op: &str) -> f32 {
+    profiler.operation_timings.get(op)
+        .map(|timings| timings.len() as f32 / profiler.start_time.elapsed().as_secs_f32())
+        .unwrap_or(0.0)
+}
+
+fn get_avg_operation_time(profiler: &FinalProfiler, op: &str) -> f32 {
+    profiler.operation_timings.get(op)
+        .and_then(|timings| {
+            if timings.is_empty() {
+                None
+            } else {
+                Some(timings.iter().map(|d| d.as_secs_f32() * 1000.0).sum::<f32>() / timings.len() as f32)
+            }
+        })
+        .unwrap_or(0.0)
+}
+
+fn estimate_bandwidth(profiler: &FinalProfiler) -> f32 {
+    // Estimate based on known buffer sizes and frame rate
+    let bytes_per_frame = 100_000_000; // 100MB typical
+    let fps = 1000.0 / profiler.frame_samples.last().map(|d| d.as_secs_f32() * 1000.0).unwrap_or(16.67);
+    (bytes_per_frame as f32 * fps) / 1_000_000_000.0
+}
+
+fn estimate_triangles_per_sec(profiler: &FinalProfiler) -> f64 {
+    // Based on typical chunk mesh complexity
+    let triangles_per_chunk = 50_000.0;
+    let chunks_per_sec = get_operation_rate(profiler, "chunk_generation") as f64;
+    triangles_per_chunk * chunks_per_sec * 60.0 // 60 FPS
 }
 
 /// Frame profiler guard
@@ -351,4 +360,40 @@ impl Drop for FrameProfiler {
 lazy_static::lazy_static! {
     pub static ref PROFILER: parking_lot::Mutex<FinalProfiler> = 
         parking_lot::Mutex::new(FinalProfiler::new(None));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    #[test]
+    fn test_dop_functions() {
+        let mut profiler = FinalProfiler::new(None);
+        
+        // Test record_allocation
+        record_allocation(&mut profiler, 1024);
+        assert_eq!(profiler.allocation_count, 1);
+        assert_eq!(profiler.frame_allocation_count, 1);
+        
+        // Test begin_frame
+        let _frame_prof = begin_frame(&mut profiler);
+        assert_eq!(profiler.frame_allocation_count, 0); // Should reset
+        
+        // Test time_operation
+        let result = time_operation(&mut profiler, "test_op", || {
+            std::thread::sleep(std::time::Duration::from_millis(1));
+            42
+        });
+        assert_eq!(result, 42);
+        assert!(profiler.operation_timings.contains_key("test_op"));
+        
+        // Test calculate_metrics
+        let metrics = calculate_metrics(&mut profiler);
+        assert!(metrics.fps_average > 0.0);
+        
+        // Test generate_report
+        let report = generate_report(&mut profiler);
+        assert!(report.contains("EARTH ENGINE PERFORMANCE REPORT"));
+        assert!(report.contains("DATA-ORIENTED DESIGN VICTORY"));
+    }
 }

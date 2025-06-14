@@ -1,5 +1,5 @@
 use crate::world::{BlockId, Chunk, ChunkPos, VoxelPos, WorldGenerator, WorldInterface};
-use crate::world::chunk_manager::{ChunkManagerData, ChunkManagerConfig, create_chunk_manager_data, update_loaded_chunks, get_chunk, get_chunk_mut, get_block, set_block, get_loaded_chunks, take_dirty_chunks, get_surface_height};
+use crate::world::chunk_manager::{ChunkManagerData, ChunkManagerConfig, create_chunk_manager_data, update_loaded_chunks, get_chunk, get_chunk_mut, get_block, set_block, get_loaded_chunks, take_dirty_chunks, get_surface_height, add_chunk_to_manager};
 use std::collections::HashSet;
 use cgmath::Point3;
 
@@ -60,8 +60,7 @@ impl World {
     
     pub fn set_chunk(&mut self, pos: ChunkPos, chunk: Chunk) {
         // Insert the chunk directly into loaded chunks and mark as dirty
-        self.chunk_manager.loaded_chunks.insert(pos, chunk);
-        self.chunk_manager.dirty_chunks.insert(pos);
+        add_chunk_to_manager(&mut self.chunk_manager, pos, chunk);
     }
     
     pub fn get_block(&self, pos: VoxelPos) -> BlockId {

@@ -30,15 +30,17 @@ impl CameraUniform {
             _padding: 0.0,
         }
     }
+}
 
-    fn update_view_proj(&mut self, camera: &CameraData) {
-        let view = build_view_matrix(camera);
-        let proj = build_projection_matrix(camera);
-        self.view = view.into();
-        self.projection = proj.into();
-        self.view_proj = (proj * view).into();
-        self.position = camera.position;
-    }
+/// Update camera uniform view projection data
+/// Function - transforms camera uniform data from camera data
+fn update_camera_uniform_view_proj(uniform: &mut CameraUniform, camera: &CameraData) {
+    let view = build_view_matrix(camera);
+    let proj = build_projection_matrix(camera);
+    uniform.view = view.into();
+    uniform.projection = proj.into();
+    uniform.view_proj = (proj * view).into();
+    uniform.position = camera.position;
 }
 
 fn main() {
@@ -117,7 +119,7 @@ async fn test_chunk_rendering() {
     
     // Create camera uniform buffer
     let mut camera_uniform = CameraUniform::new();
-    camera_uniform.update_view_proj(&camera);
+    update_camera_uniform_view_proj(&mut camera_uniform, &camera);
     
     let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("Camera Buffer"),

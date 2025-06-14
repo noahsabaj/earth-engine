@@ -3,7 +3,44 @@ use crate::camera::{CameraData, calculate_forward_vector};
 use crate::input::InputState;
 use cgmath::Point3;
 
-/// Main game trait that games must implement
+/// Game data structure (DOP - no methods)
+/// Pure data structure for game state
+pub trait GameData: Send + Sync {}
+
+/// Register blocks in the registry
+/// Function - transforms registry data by registering game blocks
+pub fn register_game_blocks<T: GameData>(game: &mut T, registry: &mut BlockRegistry) {
+    let _ = (game, registry); // Default implementation does nothing
+}
+
+/// Update game state
+/// Function - transforms game data based on context and time
+pub fn update_game<T: GameData>(game: &mut T, ctx: &mut GameContext, delta_time: f32) {
+    let _ = (game, ctx, delta_time); // Default implementation does nothing
+}
+
+/// Handle block break event
+/// Function - processes block break for game data
+pub fn handle_block_break<T: GameData>(game: &mut T, pos: VoxelPos, block: BlockId) {
+    let _ = (game, pos, block); // Default implementation does nothing
+}
+
+/// Handle block place event
+/// Function - processes block place for game data
+pub fn handle_block_place<T: GameData>(game: &mut T, pos: VoxelPos, block: BlockId) {
+    let _ = (game, pos, block); // Default implementation does nothing
+}
+
+/// Get the active block for placement
+/// Pure function - reads active block from game data
+pub fn get_active_block_from_game<T: GameData>(game: &T) -> BlockId {
+    let _ = game;
+    BlockId(1) // Default to first registered block
+}
+
+/// Legacy trait for backwards compatibility
+/// Will be removed in future sprints
+#[deprecated(note = "Use GameData trait and DOP functions instead")]
 pub trait Game: Send + Sync {
     /// Called once at startup to register blocks
     fn register_blocks(&mut self, registry: &mut BlockRegistry);
@@ -36,38 +73,61 @@ pub struct GameContext<'a> {
     pub selected_block: Option<RaycastHit>,
 }
 
+/// Cast a ray from the camera and find what block is being looked at
+/// Pure function - calculates raycast from camera data
+pub fn cast_camera_ray_from_context(ctx: &GameContext, max_distance: f32) -> Option<RaycastHit> {
+    let position = Point3::new(
+        ctx.camera.position[0], 
+        ctx.camera.position[1], 
+        ctx.camera.position[2]
+    );
+    let forward = calculate_forward_vector(ctx.camera);
+    let ray = Ray::new(position, forward);
+    cast_ray(&*ctx.world, ray, max_distance)
+}
+
+/// Break a block at the given position
+/// Function - transforms world data by breaking block
+pub fn break_block_in_context(ctx: &mut GameContext, pos: VoxelPos) -> bool {
+    let block = ctx.world.get_block(pos);
+    if block != BlockId::AIR {
+        ctx.world.set_block(pos, BlockId::AIR);
+        true
+    } else {
+        false
+    }
+}
+
+/// Place a block at the given position
+/// Function - transforms world data by placing block
+pub fn place_block_in_context(ctx: &mut GameContext, pos: VoxelPos, block_id: BlockId) -> bool {
+    let current = ctx.world.get_block(pos);
+    if current == BlockId::AIR {
+        ctx.world.set_block(pos, block_id);
+        true
+    } else {
+        false
+    }
+}
+
+/// Legacy implementation for backwards compatibility
+#[allow(deprecated)]
 impl<'a> GameContext<'a> {
     /// Cast a ray from the camera and find what block is being looked at
+    #[deprecated(note = "Use cast_camera_ray_from_context instead")]
     pub fn cast_camera_ray(&self, max_distance: f32) -> Option<RaycastHit> {
-        let position = Point3::new(
-            self.camera.position[0], 
-            self.camera.position[1], 
-            self.camera.position[2]
-        );
-        let forward = calculate_forward_vector(self.camera);
-        let ray = Ray::new(position, forward);
-        cast_ray(&*self.world, ray, max_distance)
+        cast_camera_ray_from_context(self, max_distance)
     }
     
     /// Break a block at the given position
+    #[deprecated(note = "Use break_block_in_context instead")]
     pub fn break_block(&mut self, pos: VoxelPos) -> bool {
-        let block = self.world.get_block(pos);
-        if block != BlockId::AIR {
-            self.world.set_block(pos, BlockId::AIR);
-            true
-        } else {
-            false
-        }
+        break_block_in_context(self, pos)
     }
     
     /// Place a block at the given position
+    #[deprecated(note = "Use place_block_in_context instead")]
     pub fn place_block(&mut self, pos: VoxelPos, block_id: BlockId) -> bool {
-        let current = self.world.get_block(pos);
-        if current == BlockId::AIR {
-            self.world.set_block(pos, block_id);
-            true
-        } else {
-            false
-        }
+        place_block_in_context(self, pos, block_id)
     }
 }

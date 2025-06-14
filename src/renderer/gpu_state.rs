@@ -6,7 +6,12 @@
 #![allow(deprecated)]
 
 use crate::{EngineConfig, Game, GameContext, BlockRegistry, BlockId, VoxelPos};
-use crate::camera::{Camera, camera_to_data};
+use crate::camera::{
+    Camera, CameraData,
+    update_aspect_ratio, camera_rotate, 
+    build_view_matrix, build_projection_matrix, calculate_forward_vector,
+    init_camera, init_camera_with_spawn,
+};
 use crate::input::InputState;
 use crate::physics::{PhysicsWorldData, EntityId, flags};
 use crate::renderer::{SelectionRenderer, GpuDiagnostics, GpuInitProgress, gpu_driven::GpuDrivenRenderer, screenshot};
@@ -164,6 +169,7 @@ impl CameraUniform {
         }
     }
 
+    #[deprecated(since="0.35.0", note="Use update_view_proj_data instead")]
     fn update_view_proj(&mut self, camera: &Camera) {
         let view = camera.build_view_matrix();
         let proj = camera.build_projection_matrix();
@@ -171,6 +177,21 @@ impl CameraUniform {
         self.projection = proj.into();
         self.view_proj = (proj * view).into();
         self.position = [camera.position.x, camera.position.y, camera.position.z];
+        
+        // Log camera matrices for debugging
+        log::debug!("[CameraUniform] Camera position: {:?}", camera.position);
+        log::debug!("[CameraUniform] View matrix: {:?}", view);
+        log::debug!("[CameraUniform] Projection matrix: {:?}", proj);
+        log::debug!("[CameraUniform] View-Proj matrix: {:?}", self.view_proj);
+    }
+
+    fn update_view_proj_data(&mut self, camera: &CameraData) {
+        let view = build_view_matrix(camera);
+        let proj = build_projection_matrix(camera);
+        self.view = view.into();
+        self.projection = proj.into();
+        self.view_proj = (proj * view).into();
+        self.position = camera.position;
         
         // Log camera matrices for debugging
         log::debug!("[CameraUniform] Camera position: {:?}", camera.position);
@@ -188,7 +209,7 @@ pub struct GpuState {
     config: wgpu::SurfaceConfiguration,
     size: winit::dpi::PhysicalSize<u32>,
     render_pipeline: wgpu::RenderPipeline,
-    camera: Camera,
+    camera: CameraData,
     camera_uniform: CameraUniform,
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
@@ -497,11 +518,11 @@ impl GpuState {
         
         // Create temporary camera for initial buffer creation
         // We'll update the position after we create the terrain generator
-        let temp_camera = Camera::new(config.width, config.height);
+        let temp_camera = init_camera(config.width, config.height);
         
         // Create camera uniform buffer
         let mut camera_uniform = CameraUniform::new();
-        camera_uniform.update_view_proj(&temp_camera);
+        camera_uniform.update_view_proj_data(&temp_camera);
         
         // Create buffer with full camera uniform size (used by voxel.wgsl)
         let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -626,11 +647,11 @@ impl GpuState {
         let temp_spawn_y = 80.0; // Temporary height above typical terrain
         
         // Create camera at temporary position
-        let mut camera = Camera::new_with_position(config.width, config.height, temp_spawn_x, temp_spawn_y, temp_spawn_z);
+        let mut camera = init_camera_with_spawn(config.width, config.height, temp_spawn_x, temp_spawn_y, temp_spawn_z);
         log::info!("[GpuState::new] Camera created at temporary position: {:?}", camera.position);
         
         // Update camera uniform with actual camera position
-        camera_uniform.update_view_proj(&camera);
+        camera_uniform.update_view_proj_data(&camera);
         queue.write_buffer(
             &camera_buffer,
             0,
@@ -678,11 +699,11 @@ impl GpuState {
         };
         
         // Update camera to safe spawn position
-        camera.position = safe_spawn_pos;
+        camera.position = [safe_spawn_pos.x, safe_spawn_pos.y, safe_spawn_pos.z];
         log::info!("[GpuState::new] Camera moved to safe spawn position: {:?}", camera.position);
         
         // Update camera uniform with new position
-        camera_uniform.update_view_proj(&camera);
+        camera_uniform.update_view_proj_data(&camera);
         queue.write_buffer(
             &camera_buffer,
             0,
@@ -692,7 +713,7 @@ impl GpuState {
         // Do one initial update to start chunk loading
         log::info!("[GpuState::new] Performing initial world update to queue chunk generation...");
         log::info!("[GpuState::new] Camera position for initial update: {:?}", camera.position);
-        world.update(camera.position);
+        world.update(Point3::new(camera.position[0], camera.position[1], camera.position[2]));
         log::info!("[GpuState::new] World initialization complete (chunk loading started)");
         
         // Create GPU-driven renderer
@@ -714,7 +735,7 @@ impl GpuState {
         log::info!("[GpuState::new] Creating physics world...");
         let mut physics_world = PhysicsWorldData::new();
         let player_entity = physics_world.add_entity(
-            camera.position,
+            Point3::new(camera.position[0], camera.position[1], camera.position[2]),
             Vector3::zero(),
             Vector3::new(0.8, 1.8, 0.8), // Player size
             80.0, // Mass in kg
@@ -899,12 +920,12 @@ impl GpuState {
             self.depth_texture = create_depth_texture(&self.device, &self.config);
             
             // Update camera with validated size
-            self.camera.resize(clamped_width, clamped_height);
+            self.camera = update_aspect_ratio(&self.camera, clamped_width, clamped_height);
         }
     }
 
     fn update_camera(&mut self) {
-        self.camera_uniform.update_view_proj(&self.camera);
+        self.camera_uniform.update_view_proj_data(&self.camera);
         
         // Write the full camera uniform to the buffer
         // This is required by voxel.wgsl which expects all camera data
@@ -920,8 +941,7 @@ impl GpuState {
     
     fn update_chunk_renderer(&mut self, _input: &InputState) {
         // Begin new frame for GPU-driven renderer
-        let camera_data = camera_to_data(&self.camera);
-        self.chunk_renderer.begin_frame(&camera_data);
+        self.chunk_renderer.begin_frame(&self.camera);
         
         // Get chunk size from config
         let chunk_size = self.world.config().chunk_size;
@@ -1232,7 +1252,7 @@ impl GpuState {
             log::debug!("[process_input] Body position before: [{:.2}, {:.2}, {:.2}]", body.position[0], body.position[1], body.position[2]);
             log::debug!("[process_input] Body velocity before: [{:.2}, {:.2}, {:.2}]", body.velocity[0], body.velocity[1], body.velocity[2]);
             // Calculate movement direction based on camera yaw
-            let yaw_rad = cgmath::Rad::from(self.camera.yaw).0;
+            let yaw_rad = self.camera.yaw_radians;
             let forward = Vector3::new(yaw_rad.cos(), 0.0, yaw_rad.sin());
             let right = Vector3::new(yaw_rad.sin(), 0.0, -yaw_rad.cos());
             
@@ -1340,7 +1360,7 @@ impl GpuState {
         if input.is_cursor_locked() {
             let (dx, dy) = input.get_mouse_delta();
             let sensitivity = 0.5;
-            self.camera.rotate(dx * sensitivity, -dy * sensitivity);
+            self.camera = camera_rotate(&self.camera, dx * sensitivity * std::f32::consts::PI / 180.0, -dy * sensitivity * std::f32::consts::PI / 180.0);
         } else {
             // Provide helpful feedback if cursor is not locked
             static mut CURSOR_WARNING_COOLDOWN: f32 = 0.0;
@@ -1360,8 +1380,8 @@ impl GpuState {
         
         // Ray casting for block selection
         let ray = Ray::new(
-            self.camera.position,
-            self.camera.get_forward_vector(),
+            Point3::new(self.camera.position[0], self.camera.position[1], self.camera.position[2]),
+            calculate_forward_vector(&self.camera),
         );
         // Cast ray using parallel world's chunk manager
         self.selected_block = self.cast_ray_parallel(ray, 10.0);
@@ -1528,18 +1548,19 @@ impl GpuState {
             log::info!("[GpuState::render] First chunks rendered after {} frames", self.frames_rendered);
             
             // Verify spawn position now that chunks are loaded
-            let adjusted_pos = SpawnFinder::verify_spawn_position(&self.world, self.camera.position);
-            if adjusted_pos != self.camera.position {
+            let camera_pos_point3 = Point3::new(self.camera.position[0], self.camera.position[1], self.camera.position[2]);
+            let adjusted_pos = SpawnFinder::verify_spawn_position(&self.world, camera_pos_point3);
+            if adjusted_pos != camera_pos_point3 {
                 log::info!("[GpuState::render] Adjusting spawn position from {:?} to {:?}", 
                          self.camera.position, adjusted_pos);
-                self.camera.position = adjusted_pos;
+                self.camera.position = [adjusted_pos.x, adjusted_pos.y, adjusted_pos.z];
                 
                 // Update physics entity position
                 self.physics_world.set_position(self.player_entity, adjusted_pos);
                 log::info!("[GpuState::render] Updated physics entity position");
                 
                 // Update camera uniform
-                self.camera_uniform.update_view_proj(&self.camera);
+                self.camera_uniform.update_view_proj_data(&self.camera);
                 self.queue.write_buffer(
                     &self.camera_buffer,
                     0,
@@ -1548,7 +1569,7 @@ impl GpuState {
             }
             
             // Debug what blocks are around spawn
-            SpawnFinder::debug_blocks_at_position(&self.world, self.camera.position);
+            SpawnFinder::debug_blocks_at_position(&self.world, Point3::new(self.camera.position[0], self.camera.position[1], self.camera.position[2]));
         } else if stats.objects_drawn == 0 {
             // Log more frequently in the first few seconds
             if self.frames_rendered <= 180 && self.frames_rendered % 20 == 0 {
@@ -1968,11 +1989,11 @@ pub async fn run_app<G: Game + 'static>(
                         if gpu_state.frames_rendered % 60 == 0 {
                             log::info!("[render loop] Frame {}: Camera pos: ({:.2}, {:.2}, {:.2}), yaw: {:.2}, pitch: {:.2}", 
                                 gpu_state.frames_rendered,
-                                gpu_state.camera.position.x, 
-                                gpu_state.camera.position.y, 
-                                gpu_state.camera.position.z,
-                                gpu_state.camera.yaw.0,
-                                gpu_state.camera.pitch.0);
+                                gpu_state.camera.position[0], 
+                                gpu_state.camera.position[1], 
+                                gpu_state.camera.position[2],
+                                gpu_state.camera.yaw_radians,
+                                gpu_state.camera.pitch_radians);
                         }
                         
                         // Update physics
@@ -1990,12 +2011,12 @@ pub async fn run_app<G: Game + 'static>(
                             );
                             
                             // Camera at eye level (0.72m offset from body center)
-                            gpu_state.camera.position = Point3::new(
+                            gpu_state.camera.position = [
                                 player_pos.x,
                                 player_pos.y + 0.72,
                                 player_pos.z
-                            );
-                            log::debug!("[render loop] Camera position updated to: [{:.2}, {:.2}, {:.2}]", gpu_state.camera.position.x, gpu_state.camera.position.y, gpu_state.camera.position.z);
+                            ];
+                            log::debug!("[render loop] Camera position updated to: [{:.2}, {:.2}, {:.2}]", gpu_state.camera.position[0], gpu_state.camera.position[1], gpu_state.camera.position[2]);
                         }
                         
                         // Update loaded chunks based on player position
@@ -2006,7 +2027,7 @@ pub async fn run_app<G: Game + 'static>(
                                      gpu_state.camera.position,
                                      gpu_state.world.chunk_manager().loaded_chunk_count());
                         }
-                        gpu_state.world.update(gpu_state.camera.position);
+                        gpu_state.world.update(Point3::new(gpu_state.camera.position[0], gpu_state.camera.position[1], gpu_state.camera.position[2]));
                         
                         // Periodic sync check
                         if gpu_state.frames_rendered % 300 == 0 && gpu_state.frames_rendered > 0 {
@@ -2089,11 +2110,10 @@ pub async fn run_app<G: Game + 'static>(
                         }
 
                         // Update game with context
-                        let camera_data = camera_to_data(&gpu_state.camera);
                         let mut ctx = GameContext {
                             world: &mut gpu_state.world,
                             registry: &gpu_state.block_registry,
-                            camera: &camera_data,
+                            camera: &gpu_state.camera,
                             input: &input_state,
                             selected_block: gpu_state.selected_block.clone(),
                         };

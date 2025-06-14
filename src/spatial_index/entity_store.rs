@@ -74,16 +74,9 @@ impl SpatialEntity {
         self.data.position
     }
     
-    pub fn set_position(&mut self, position: [f32; 3]) {
-        self.data.position = position;
-    }
     
     pub fn velocity(&self) -> [f32; 3] {
         self.data.velocity
-    }
-    
-    pub fn set_velocity(&mut self, velocity: [f32; 3]) {
-        self.data.velocity = velocity;
     }
     
     pub fn radius(&self) -> f32 {
@@ -98,9 +91,6 @@ impl SpatialEntity {
         &self.data.metadata
     }
     
-    pub fn metadata_mut(&mut self) -> &mut HashMap<String, String> {
-        &mut self.data.metadata
-    }
 }
 
 /// Thread-safe storage for entities
@@ -193,25 +183,52 @@ impl<'a> EntityRefMut<'a> {
         self.entity.position()
     }
     
-    pub fn set_position(&mut self, position: [f32; 3]) {
-        self.entity.set_position(position);
-    }
     
     pub fn velocity(&self) -> [f32; 3] {
         self.entity.velocity()
     }
     
-    pub fn set_velocity(&mut self, velocity: [f32; 3]) {
-        self.entity.set_velocity(velocity);
-    }
     
     pub fn radius(&self) -> f32 {
         self.entity.radius()
     }
     
-    pub fn metadata_mut(&mut self) -> &mut HashMap<String, String> {
-        self.entity.metadata_mut()
-    }
+}
+
+/// Set position for spatial entity
+/// Function - transforms spatial entity by updating position
+pub fn set_spatial_entity_position(entity: &mut SpatialEntity, position: [f32; 3]) {
+    entity.data.position = position;
+}
+
+/// Set velocity for spatial entity
+/// Function - transforms spatial entity by updating velocity
+pub fn set_spatial_entity_velocity(entity: &mut SpatialEntity, velocity: [f32; 3]) {
+    entity.data.velocity = velocity;
+}
+
+/// Get mutable metadata for spatial entity
+/// Function - returns mutable reference to spatial entity metadata
+pub fn get_spatial_entity_metadata_mut(entity: &mut SpatialEntity) -> &mut HashMap<String, String> {
+    &mut entity.data.metadata
+}
+
+/// Set position for entity ref mut
+/// Function - transforms entity ref by updating position
+pub fn set_entity_ref_mut_position(entity_ref: &mut EntityRefMut, position: [f32; 3]) {
+    set_spatial_entity_position(&mut entity_ref.entity, position);
+}
+
+/// Set velocity for entity ref mut
+/// Function - transforms entity ref by updating velocity
+pub fn set_entity_ref_mut_velocity(entity_ref: &mut EntityRefMut, velocity: [f32; 3]) {
+    set_spatial_entity_velocity(&mut entity_ref.entity, velocity);
+}
+
+/// Get mutable metadata for entity ref mut
+/// Function - returns mutable reference to entity ref metadata
+pub fn get_entity_ref_mut_metadata_mut<'a>(entity_ref: &'a mut EntityRefMut<'a>) -> &'a mut HashMap<String, String> {
+    get_spatial_entity_metadata_mut(&mut entity_ref.entity)
 }
 
 impl<'a> Drop for EntityRefMut<'a> {

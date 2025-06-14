@@ -1,27 +1,36 @@
 use earth_engine::{
-    Game, BlockRegistry, BlockId,
+    BlockRegistry, BlockId,
     renderer::{
         gpu_driven::gpu_driven_renderer::{GpuDrivenRenderer, RenderObject},
     },
     camera::data_camera::{CameraData, init_camera},
 };
+use earth_engine::game::{GameData, GameContext};
 use cgmath::Vector3;
 use std::sync::Arc;
 
-struct TestGame;
+/// Test game data for GPU instance fix test (DOP - no methods)
+#[derive(Default)]
+struct TestGameData;
 
-impl Game for TestGame {
-    fn register_blocks(&mut self, _registry: &mut BlockRegistry) {
-        // Use default blocks
-    }
-    
-    fn get_active_block(&self) -> BlockId {
-        BlockId::STONE
-    }
-    
-    fn update(&mut self, _context: &mut earth_engine::GameContext, _delta_time: f32) {
-        // No-op for test
-    }
+impl GameData for TestGameData {}
+
+/// Register blocks for test GPU instance fix game
+/// Function - transforms registry for test game
+fn register_test_gpu_instance_fix_blocks(_game: &mut TestGameData, _registry: &mut BlockRegistry) {
+    // Use default blocks
+}
+
+/// Get active block for test GPU instance fix game
+/// Pure function - returns active block for test game
+fn get_test_gpu_instance_fix_active_block(_game: &TestGameData) -> BlockId {
+    BlockId::STONE
+}
+
+/// Update test GPU instance fix game
+/// Function - no-op for test
+fn update_test_gpu_instance_fix_game(_game: &mut TestGameData, _context: &mut GameContext, _delta_time: f32) {
+    // No-op for test
 }
 
 fn main() {

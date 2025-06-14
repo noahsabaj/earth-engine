@@ -262,7 +262,7 @@ impl Frustum {
         
         // Normalize planes
         for plane in &mut planes {
-            plane.normalize();
+            normalize_plane(plane);
         }
         
         Self { planes }
@@ -291,15 +291,6 @@ impl Plane {
         Self { a, b, c, d }
     }
     
-    pub fn normalize(&mut self) {
-        let len = (self.a * self.a + self.b * self.b + self.c * self.c).sqrt();
-        if len > 0.0 {
-            self.a /= len;
-            self.b /= len;
-            self.c /= len;
-            self.d /= len;
-        }
-    }
     
     pub fn distance_to_point(&self, point: [f32; 3]) -> f32 {
         self.a * point[0] + self.b * point[1] + self.c * point[2] + self.d
@@ -403,5 +394,17 @@ impl BoxQuery {
         }
         
         hasher.finish()
+    }
+}
+
+/// Normalize plane
+/// Function - transforms plane by normalizing its coefficients
+pub fn normalize_plane(plane: &mut Plane) {
+    let len = (plane.a * plane.a + plane.b * plane.b + plane.c * plane.c).sqrt();
+    if len > 0.0 {
+        plane.a /= len;
+        plane.b /= len;
+        plane.c /= len;
+        plane.d /= len;
     }
 }

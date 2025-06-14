@@ -67,85 +67,14 @@ impl ClientPrediction {
         }
     }
     
-    /// Add a new input and predict the result
-    pub fn add_input(&mut self, input: PlayerInput) -> PredictedState {
-        // Add to buffer
-        self.input_buffer.push_back(input.clone());
-        
-        // Limit buffer size
-        while self.input_buffer.len() > MAX_INPUT_BUFFER {
-            self.input_buffer.pop_front();
-        }
-        
-        // Apply input to current state
-        self.current_state = self.physics.simulate_input(&self.current_state, &input);
-        
-        self.current_state.clone()
-    }
-    
-    /// Receive server state and reconcile
-    pub fn receive_server_state(&mut self, server_state: PredictedState) {
-        // Store server state
-        self.last_server_state = server_state.clone();
-        
-        // Remove acknowledged inputs
-        while let Some(input) = self.input_buffer.front() {
-            if input.sequence <= server_state.sequence {
-                self.input_buffer.pop_front();
-            } else {
-                break;
-            }
-        }
-        
-        // Calculate prediction error
-        let error = self.calculate_prediction_error(&server_state);
-        
-        // If error is significant, re-simulate from server state
-        if error > 0.1 {
-            self.reconcile_from_server(server_state);
-        } else {
-            // Small error - use smoothing
-            self.error_smoothing.add_error(
-                server_state.position - self.current_state.position
-            );
-        }
-    }
-    
     /// Calculate prediction error
     fn calculate_prediction_error(&self, server_state: &PredictedState) -> f32 {
         (server_state.position - self.current_state.position).length()
     }
     
-    /// Reconcile by re-simulating from server state
-    fn reconcile_from_server(&mut self, server_state: PredictedState) {
-        // Start from server state
-        self.current_state = server_state;
-        
-        // Re-apply all unacknowledged inputs
-        let inputs: Vec<PlayerInput> = self.input_buffer.iter().cloned().collect();
-        for input in inputs {
-            self.current_state = self.physics.simulate_input(&self.current_state, &input);
-        }
-    }
-    
-    /// Get current predicted position with smoothing applied
-    pub fn get_position(&mut self) -> Vec3 {
-        self.current_state.position + self.error_smoothing.get_correction()
-    }
-    
     /// Get current predicted state
     pub fn get_state(&self) -> &PredictedState {
         &self.current_state
-    }
-    
-    /// Clear all predictions
-    pub fn reset(&mut self, position: Vec3) {
-        self.input_buffer.clear();
-        self.current_state.position = position;
-        self.current_state.velocity = Vec3::ZERO;
-        self.current_state.sequence = 0;
-        self.last_server_state = self.current_state.clone();
-        self.error_smoothing.reset();
     }
 }
 
@@ -246,7 +175,7 @@ impl PhysicsSimulator {
 }
 
 /// Smooths out prediction errors
-struct ErrorSmoothing {
+pub struct ErrorSmoothing {
     error: Vec3,
     smoothing_rate: f32,
 }
@@ -257,23 +186,6 @@ impl ErrorSmoothing {
             error: Vec3::ZERO,
             smoothing_rate: 10.0, // Corrections per second
         }
-    }
-    
-    fn add_error(&mut self, error: Vec3) {
-        self.error = error;
-    }
-    
-    fn get_correction(&mut self) -> Vec3 {
-        // Exponentially decay the error
-        let correction = self.error;
-        self.error *= 0.9; // Decay factor
-        
-        // Return a portion of the error as correction
-        correction * 0.1
-    }
-    
-    fn reset(&mut self) {
-        self.error = Vec3::ZERO;
     }
 }
 
@@ -335,6 +247,98 @@ impl MoveValidator {
         
         Ok(new_position)
     }
+}
+
+/// Add a new input and predict the result
+pub fn client_prediction_add_input(prediction: &mut ClientPrediction, input: PlayerInput) -> PredictedState {
+    // Add to buffer
+    prediction.input_buffer.push_back(input.clone());
+    
+    // Limit buffer size
+    while prediction.input_buffer.len() > MAX_INPUT_BUFFER {
+        prediction.input_buffer.pop_front();
+    }
+    
+    // Apply input to current state
+    prediction.current_state = prediction.physics.simulate_input(&prediction.current_state, &input);
+    
+    prediction.current_state.clone()
+}
+
+/// Receive server state and reconcile
+pub fn client_prediction_receive_server_state(prediction: &mut ClientPrediction, server_state: PredictedState) {
+    // Store server state
+    prediction.last_server_state = server_state.clone();
+    
+    // Remove acknowledged inputs
+    while let Some(input) = prediction.input_buffer.front() {
+        if input.sequence <= server_state.sequence {
+            prediction.input_buffer.pop_front();
+        } else {
+            break;
+        }
+    }
+    
+    // Calculate prediction error
+    let error = prediction.calculate_prediction_error(&server_state);
+    
+    // If error is significant, re-simulate from server state
+    if error > 0.1 {
+        client_prediction_reconcile_from_server(prediction, server_state);
+    } else {
+        // Small error - use smoothing
+        error_smoothing_add_error(
+            &mut prediction.error_smoothing,
+            server_state.position - prediction.current_state.position
+        );
+    }
+}
+
+/// Reconcile by re-simulating from server state
+pub fn client_prediction_reconcile_from_server(prediction: &mut ClientPrediction, server_state: PredictedState) {
+    // Start from server state
+    prediction.current_state = server_state;
+    
+    // Re-apply all unacknowledged inputs
+    let inputs: Vec<PlayerInput> = prediction.input_buffer.iter().cloned().collect();
+    for input in inputs {
+        prediction.current_state = prediction.physics.simulate_input(&prediction.current_state, &input);
+    }
+}
+
+/// Get current predicted position with smoothing applied
+pub fn client_prediction_get_position(prediction: &mut ClientPrediction) -> Vec3 {
+    prediction.current_state.position + error_smoothing_get_correction(&mut prediction.error_smoothing)
+}
+
+/// Clear all predictions
+pub fn client_prediction_reset(prediction: &mut ClientPrediction, position: Vec3) {
+    prediction.input_buffer.clear();
+    prediction.current_state.position = position;
+    prediction.current_state.velocity = Vec3::ZERO;
+    prediction.current_state.sequence = 0;
+    prediction.last_server_state = prediction.current_state.clone();
+    error_smoothing_reset(&mut prediction.error_smoothing);
+}
+
+/// Add error to smoothing system
+pub fn error_smoothing_add_error(smoothing: &mut ErrorSmoothing, error: Vec3) {
+    smoothing.error = error;
+}
+
+/// Get correction from smoothing system
+pub fn error_smoothing_get_correction(smoothing: &mut ErrorSmoothing) -> Vec3 {
+    // Exponentially decay the error
+    let correction = smoothing.error;
+    smoothing.error *= 0.9; // Decay factor
+    
+    // Return a portion of the error as correction
+    correction * 0.1
+}
+
+/// Reset smoothing system
+pub fn error_smoothing_reset(smoothing: &mut ErrorSmoothing) {
+    smoothing.error = Vec3::ZERO;
 }
 
 /// Move validation error

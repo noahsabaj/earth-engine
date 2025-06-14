@@ -149,7 +149,7 @@ mod tests {
         let mut terrain_interaction = TerrainInteraction::new(device.clone());
         
         // Initialize sediment buffer
-        terrain_interaction.init_sediment_buffer((32, 16, 32));
+        init_sediment_buffer(&mut terrain_interaction, (32, 16, 32));
         
         // Update erosion parameters
         let erosion_params = ErosionParams {
@@ -193,16 +193,16 @@ mod tests {
         let mut monitor = FluidPerformanceMonitor::new();
         
         // Simulate frame
-        monitor.begin_frame();
+        crate::fluid::performance::begin_frame(&mut monitor);
         
         // Record timings
-        monitor.record_update_time(std::time::Duration::from_millis(5));
-        monitor.record_solver_time(std::time::Duration::from_millis(3));
-        monitor.record_render_time(std::time::Duration::from_millis(2));
+        crate::fluid::performance::record_update_time(&mut monitor, std::time::Duration::from_millis(5));
+        crate::fluid::performance::record_solver_time(&mut monitor, std::time::Duration::from_millis(3));
+        crate::fluid::performance::record_render_time(&mut monitor, std::time::Duration::from_millis(2));
         
         // Update stats
-        monitor.set_active_voxels(50000);
-        monitor.set_memory_usage(100 * 1024 * 1024); // 100 MB
+        crate::fluid::performance::set_active_voxels(&mut monitor, 50000);
+        crate::fluid::performance::set_memory_usage(&mut monitor, 100 * 1024 * 1024); // 100 MB
         
         // Check metrics
         let metrics = monitor.get_metrics();

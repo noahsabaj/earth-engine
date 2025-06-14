@@ -70,24 +70,6 @@ impl<T> ChunkSpatialHash<T> {
         }
     }
     
-    /// Insert or update a chunk
-    pub fn insert(&mut self, pos: ChunkPos, value: T) -> Option<T> {
-        if let Some(index) = chunk_pos_to_index(pos) {
-            let old_value = self.data[index].take();
-            
-            // If this is a new chunk, add to active list
-            if old_value.is_none() {
-                let active_pos = self.active_indices.len();
-                self.active_indices.push(index);
-                self.index_to_active[index] = Some(active_pos);
-            }
-            
-            self.data[index] = Some(value);
-            old_value
-        } else {
-            None
-        }
-    }
     
     /// Get a chunk
     pub fn get(&self, pos: ChunkPos) -> Option<&T> {
@@ -95,36 +77,7 @@ impl<T> ChunkSpatialHash<T> {
             .and_then(|index| self.data[index].as_ref())
     }
     
-    /// Get a mutable chunk
-    pub fn get_mut(&mut self, pos: ChunkPos) -> Option<&mut T> {
-        chunk_pos_to_index(pos)
-            .and_then(|index| self.data[index].as_mut())
-    }
     
-    /// Remove a chunk
-    pub fn remove(&mut self, pos: ChunkPos) -> Option<T> {
-        if let Some(index) = chunk_pos_to_index(pos) {
-            if let Some(value) = self.data[index].take() {
-                // Remove from active list
-                if let Some(active_pos) = self.index_to_active[index].take() {
-                    // Swap with last element for O(1) removal
-                    let last_index = self.active_indices.len() - 1;
-                    if active_pos < last_index {
-                        self.active_indices[active_pos] = self.active_indices[last_index];
-                        // Update the moved element's reverse lookup
-                        let moved_index = self.active_indices[active_pos];
-                        self.index_to_active[moved_index] = Some(active_pos);
-                    }
-                    self.active_indices.pop();
-                }
-                Some(value)
-            } else {
-                None
-            }
-        } else {
-            None
-        }
-    }
     
     /// Check if a chunk exists
     pub fn contains(&self, pos: ChunkPos) -> bool {
@@ -143,25 +96,6 @@ impl<T> ChunkSpatialHash<T> {
             })
     }
     
-    /// Iterate over all chunks mutably
-    pub fn iter_mut(&mut self) -> impl Iterator<Item = (ChunkPos, &mut T)> {
-        // Collect indices first to avoid closure capture issues
-        let indices: Vec<usize> = self.active_indices.clone();
-        let data_ptr = self.data.as_mut_ptr();
-        
-        // SAFETY: We're iterating over known valid indices from active_indices
-        // and each index is unique, so we're not creating multiple mutable references
-        // to the same data
-        indices.into_iter()
-            .filter_map(move |index| {
-                unsafe {
-                    let slot = &mut *data_ptr.add(index);
-                    slot.as_mut().map(|value| {
-                        (index_to_chunk_pos(index), value)
-                    })
-                }
-            })
-    }
     
     /// Get the number of active chunks
     pub fn len(&self) -> usize {
@@ -173,44 +107,7 @@ impl<T> ChunkSpatialHash<T> {
         self.active_indices.is_empty()
     }
     
-    /// Clear all chunks
-    pub fn clear(&mut self) {
-        for &index in &self.active_indices {
-            self.data[index] = None;
-            self.index_to_active[index] = None;
-        }
-        self.active_indices.clear();
-    }
     
-    /// Retain chunks based on a predicate
-    pub fn retain<F>(&mut self, mut f: F) 
-    where
-        F: FnMut(ChunkPos, &mut T) -> bool
-    {
-        let mut write_pos = 0;
-        
-        for read_pos in 0..self.active_indices.len() {
-            let index = self.active_indices[read_pos];
-            let pos = index_to_chunk_pos(index);
-            
-            if let Some(value) = &mut self.data[index] {
-                if f(pos, value) {
-                    // Keep this chunk
-                    if write_pos != read_pos {
-                        self.active_indices[write_pos] = index;
-                        self.index_to_active[index] = Some(write_pos);
-                    }
-                    write_pos += 1;
-                } else {
-                    // Remove this chunk
-                    self.data[index] = None;
-                    self.index_to_active[index] = None;
-                }
-            }
-        }
-        
-        self.active_indices.truncate(write_pos);
-    }
 }
 
 /// Specialized version for view distance culling
@@ -232,34 +129,9 @@ impl<T> ChunkDistanceHash<T> {
         }
     }
     
-    /// Update center position and cull distant chunks
-    pub fn update_center(&mut self, new_center: ChunkPos) {
-        self.center = new_center;
-        self.storage.retain(|pos, _| {
-            pos.distance_squared_to(self.center) <= self.max_distance_sq
-        });
-    }
-    
-    pub fn insert(&mut self, pos: ChunkPos, value: T) -> Option<T> {
-        // Only insert if within view distance
-        if pos.distance_squared_to(self.center) <= self.max_distance_sq {
-            self.storage.insert(pos, value)
-        } else {
-            None
-        }
-    }
-    
     // Delegate other methods to storage
     pub fn get(&self, pos: ChunkPos) -> Option<&T> {
         self.storage.get(pos)
-    }
-    
-    pub fn get_mut(&mut self, pos: ChunkPos) -> Option<&mut T> {
-        self.storage.get_mut(pos)
-    }
-    
-    pub fn remove(&mut self, pos: ChunkPos) -> Option<T> {
-        self.storage.remove(pos)
     }
     
     pub fn iter(&self) -> impl Iterator<Item = (ChunkPos, &T)> {
@@ -269,4 +141,134 @@ impl<T> ChunkDistanceHash<T> {
     pub fn len(&self) -> usize {
         self.storage.len()
     }
+}
+
+// ===== DOP Functions for ChunkSpatialHash =====
+
+/// Insert or update a chunk in the spatial hash
+/// Pure function - transforms spatial hash data
+pub fn spatial_hash_insert<T>(hash: &mut ChunkSpatialHash<T>, pos: ChunkPos, value: T) -> Option<T> {
+    if let Some(index) = chunk_pos_to_index(pos) {
+        let old_value = hash.data[index].take();
+        
+        // If this is a new chunk, add to active list
+        if old_value.is_none() {
+            let active_pos = hash.active_indices.len();
+            hash.active_indices.push(index);
+            hash.index_to_active[index] = Some(active_pos);
+        }
+        
+        hash.data[index] = Some(value);
+        old_value
+    } else {
+        None
+    }
+}
+
+/// Get a mutable reference to a chunk in the spatial hash
+/// Function - returns mutable reference to hash data
+pub fn spatial_hash_get_mut<T>(hash: &mut ChunkSpatialHash<T>, pos: ChunkPos) -> Option<&mut T> {
+    chunk_pos_to_index(pos)
+        .and_then(|index| hash.data[index].as_mut())
+}
+
+/// Remove a chunk from the spatial hash
+/// Pure function - transforms spatial hash data
+pub fn spatial_hash_remove<T>(hash: &mut ChunkSpatialHash<T>, pos: ChunkPos) -> Option<T> {
+    if let Some(index) = chunk_pos_to_index(pos) {
+        if let Some(value) = hash.data[index].take() {
+            // Remove from active list
+            if let Some(active_pos) = hash.index_to_active[index].take() {
+                // Swap with last element for O(1) removal
+                let last_index = hash.active_indices.len() - 1;
+                if active_pos < last_index {
+                    hash.active_indices[active_pos] = hash.active_indices[last_index];
+                    // Update the moved element's reverse lookup
+                    let moved_index = hash.active_indices[active_pos];
+                    hash.index_to_active[moved_index] = Some(active_pos);
+                }
+                hash.active_indices.pop();
+            }
+            Some(value)
+        } else {
+            None
+        }
+    } else {
+        None
+    }
+}
+
+/// Clear all chunks from the spatial hash
+/// Pure function - transforms spatial hash data
+pub fn spatial_hash_clear<T>(hash: &mut ChunkSpatialHash<T>) {
+    for &index in &hash.active_indices {
+        hash.data[index] = None;
+        hash.index_to_active[index] = None;
+    }
+    hash.active_indices.clear();
+}
+
+/// Retain chunks based on a predicate
+/// Pure function - transforms spatial hash data based on predicate
+pub fn spatial_hash_retain<T, F>(hash: &mut ChunkSpatialHash<T>, mut f: F) 
+where
+    F: FnMut(ChunkPos, &mut T) -> bool
+{
+    let mut write_pos = 0;
+    
+    for read_pos in 0..hash.active_indices.len() {
+        let index = hash.active_indices[read_pos];
+        let pos = index_to_chunk_pos(index);
+        
+        if let Some(value) = &mut hash.data[index] {
+            if f(pos, value) {
+                // Keep this chunk
+                if write_pos != read_pos {
+                    hash.active_indices[write_pos] = index;
+                    hash.index_to_active[index] = Some(write_pos);
+                }
+                write_pos += 1;
+            } else {
+                // Remove this chunk
+                hash.data[index] = None;
+                hash.index_to_active[index] = None;
+            }
+        }
+    }
+    
+    hash.active_indices.truncate(write_pos);
+}
+
+// ===== DOP Functions for ChunkDistanceHash =====
+
+/// Update center position and cull distant chunks
+/// Pure function - transforms distance hash data based on new center
+pub fn distance_hash_update_center<T>(hash: &mut ChunkDistanceHash<T>, new_center: ChunkPos) {
+    hash.center = new_center;
+    spatial_hash_retain(&mut hash.storage, |pos, _| {
+        pos.distance_squared_to(hash.center) <= hash.max_distance_sq
+    });
+}
+
+/// Insert chunk into distance hash if within view distance
+/// Pure function - transforms distance hash data
+pub fn distance_hash_insert<T>(hash: &mut ChunkDistanceHash<T>, pos: ChunkPos, value: T) -> Option<T> {
+    // Only insert if within view distance
+    if pos.distance_squared_to(hash.center) <= hash.max_distance_sq {
+        spatial_hash_insert(&mut hash.storage, pos, value)
+    } else {
+        None
+    }
+}
+
+/// Get mutable reference to chunk in distance hash
+/// Function - returns mutable reference to hash data
+pub fn distance_hash_get_mut<T>(hash: &mut ChunkDistanceHash<T>, pos: ChunkPos) -> Option<&mut T> {
+    spatial_hash_get_mut(&mut hash.storage, pos)
+}
+
+/// Remove chunk from distance hash
+/// Pure function - transforms distance hash data
+pub fn distance_hash_remove<T>(hash: &mut ChunkDistanceHash<T>, pos: ChunkPos) -> Option<T> {
+    spatial_hash_remove(&mut hash.storage, pos)
 }

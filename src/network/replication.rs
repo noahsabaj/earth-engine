@@ -48,11 +48,6 @@ impl NetworkEntity {
         }
     }
     
-    /// Set the owner of this entity
-    pub fn set_owner(&mut self, player_id: u32) {
-        self.owner_id = Some(player_id);
-    }
-    
     /// Check if position/rotation changed enough to replicate
     pub fn needs_replication(&self, position: Vec3, rotation: Quat) -> bool {
         let pos_delta = (position - self.last_position).length();
@@ -62,12 +57,6 @@ impl NetworkEntity {
                        (rotation.z - self.last_rotation.z).abs();
         
         pos_delta > self.position_threshold || rot_delta > self.rotation_threshold
-    }
-    
-    /// Update last replicated state
-    pub fn update_replicated_state(&mut self, position: Vec3, rotation: Quat) {
-        self.last_position = position;
-        self.last_rotation = rotation;
     }
 }
 
@@ -117,61 +106,6 @@ impl ChunkReplicationData {
         Instant::now().duration_since(self.last_sync) > max_sync_interval
     }
 
-    /// Mark chunk as needing save
-    pub fn mark_dirty(&mut self) {
-        self.save_state = ChunkSaveStatus::Dirty;
-        self.pending_save = true;
-        if self.sync_priority == ChunkSyncPriority::Low {
-            self.sync_priority = ChunkSyncPriority::Normal;
-        }
-    }
-
-    /// Mark save operation started
-    pub fn start_save(&mut self) {
-        self.save_state = ChunkSaveStatus::Saving;
-        self.pending_save = false;
-        self.last_sync = Instant::now();
-    }
-
-    /// Mark save operation completed
-    pub fn complete_save(&mut self, success: bool, error: Option<String>) {
-        if success {
-            self.save_state = ChunkSaveStatus::Saved;
-            self.error_count = 0;
-            self.last_error = None;
-        } else {
-            self.save_state = ChunkSaveStatus::SaveFailed;
-            self.error_count += 1;
-            self.last_error = error;
-            // Increase priority on failure
-            self.sync_priority = match self.sync_priority {
-                ChunkSyncPriority::Low => ChunkSyncPriority::Normal,
-                ChunkSyncPriority::Normal => ChunkSyncPriority::High,
-                ChunkSyncPriority::High => ChunkSyncPriority::Critical,
-                ChunkSyncPriority::Critical => ChunkSyncPriority::Critical,
-            };
-        }
-    }
-
-    /// Mark load operation started
-    pub fn start_load(&mut self) {
-        self.save_state = ChunkSaveStatus::Loading;
-        self.pending_load = false;
-        self.last_sync = Instant::now();
-    }
-
-    /// Mark load operation completed
-    pub fn complete_load(&mut self, success: bool, error: Option<String>) {
-        if success {
-            self.save_state = ChunkSaveStatus::Loaded;
-            self.error_count = 0;
-            self.last_error = None;
-        } else {
-            self.save_state = ChunkSaveStatus::LoadFailed;
-            self.error_count += 1;
-            self.last_error = error;
-        }
-    }
 }
 
 /// Manages entity replication between server and clients
@@ -221,6 +155,278 @@ impl Default for ReplicationConfig {
     }
 }
 
+// DOP Functions for NetworkEntity
+/// Set the owner of a network entity
+pub fn replication_set_network_entity_owner(entity: &mut NetworkEntity, player_id: u32) {
+    entity.owner_id = Some(player_id);
+}
+
+/// Update last replicated state for a network entity
+pub fn replication_update_replicated_state(entity: &mut NetworkEntity, position: Vec3, rotation: Quat) {
+    entity.last_position = position;
+    entity.last_rotation = rotation;
+}
+
+// DOP Functions for ChunkReplicationData
+/// Mark chunk as needing save
+pub fn replication_mark_chunk_dirty(chunk_data: &mut ChunkReplicationData) {
+    chunk_data.save_state = ChunkSaveStatus::Dirty;
+    chunk_data.pending_save = true;
+    if chunk_data.sync_priority == ChunkSyncPriority::Low {
+        chunk_data.sync_priority = ChunkSyncPriority::Normal;
+    }
+}
+
+/// Mark save operation started for chunk
+pub fn replication_start_chunk_save(chunk_data: &mut ChunkReplicationData) {
+    chunk_data.save_state = ChunkSaveStatus::Saving;
+    chunk_data.pending_save = false;
+    chunk_data.last_sync = Instant::now();
+}
+
+/// Mark save operation completed for chunk
+pub fn replication_complete_chunk_save(chunk_data: &mut ChunkReplicationData, success: bool, error: Option<String>) {
+    if success {
+        chunk_data.save_state = ChunkSaveStatus::Saved;
+        chunk_data.error_count = 0;
+        chunk_data.last_error = None;
+    } else {
+        chunk_data.save_state = ChunkSaveStatus::SaveFailed;
+        chunk_data.error_count += 1;
+        chunk_data.last_error = error;
+        // Increase priority on failure
+        chunk_data.sync_priority = match chunk_data.sync_priority {
+            ChunkSyncPriority::Low => ChunkSyncPriority::Normal,
+            ChunkSyncPriority::Normal => ChunkSyncPriority::High,
+            ChunkSyncPriority::High => ChunkSyncPriority::Critical,
+            ChunkSyncPriority::Critical => ChunkSyncPriority::Critical,
+        };
+    }
+}
+
+/// Mark load operation started for chunk
+pub fn replication_start_chunk_load(chunk_data: &mut ChunkReplicationData) {
+    chunk_data.save_state = ChunkSaveStatus::Loading;
+    chunk_data.pending_load = false;
+    chunk_data.last_sync = Instant::now();
+}
+
+/// Mark load operation completed for chunk
+pub fn replication_complete_chunk_load(chunk_data: &mut ChunkReplicationData, success: bool, error: Option<String>) {
+    if success {
+        chunk_data.save_state = ChunkSaveStatus::Loaded;
+        chunk_data.error_count = 0;
+        chunk_data.last_error = None;
+    } else {
+        chunk_data.save_state = ChunkSaveStatus::LoadFailed;
+        chunk_data.error_count += 1;
+        chunk_data.last_error = error;
+    }
+}
+
+// DOP Functions for ReplicationManager
+/// Set network validator for consistency checking
+pub fn replication_set_validator(manager: &mut ReplicationManager, validator: Arc<Mutex<NetworkValidator>>) {
+    manager.validator = Some(validator);
+}
+
+/// Register an entity for replication
+pub fn replication_register_entity(manager: &mut ReplicationManager, entity: EntityId, entity_type: EntityType) -> NetworkEntityId {
+    let network_id = NetworkEntityId(manager.next_network_id);
+    manager.next_network_id += 1;
+    
+    let network_entity = NetworkEntity::new(network_id, entity, entity_type);
+    manager.entities.insert(network_id, network_entity);
+    manager.entity_to_network.insert(entity, network_id);
+    manager.spawn_queue.push(network_id);
+    
+    network_id
+}
+
+/// Unregister an entity from replication
+pub fn replication_unregister_entity(manager: &mut ReplicationManager, entity: EntityId) {
+    if let Some(network_id) = manager.entity_to_network.remove(&entity) {
+        manager.entities.remove(&network_id);
+        manager.despawn_queue.push(network_id);
+    }
+}
+
+/// Get mutable network entity by ECS entity
+pub fn replication_get_network_entity_mut(manager: &mut ReplicationManager, entity: EntityId) -> Option<&mut NetworkEntity> {
+    if let Some(id) = manager.entity_to_network.get(&entity).copied() {
+        manager.entities.get_mut(&id)
+    } else {
+        None
+    }
+}
+
+/// Process replication for all entities
+pub fn replication_process_replication(manager: &mut ReplicationManager, ecs_world: &EcsWorldData) -> Vec<Packet> {
+    manager.process_replication_internal(ecs_world)
+}
+
+/// Register chunk for replication
+pub fn replication_register_chunk(manager: &mut ReplicationManager, chunk_pos: ChunkPos, checksum: u64) -> PersistenceResult<()> {
+    let chunk_data = ChunkReplicationData::new(chunk_pos, checksum);
+    manager.chunks.insert(chunk_pos, chunk_data);
+
+    // Register with validator if available
+    if let Some(validator) = &manager.validator {
+        if let Ok(validator) = validator.lock() {
+            validator.register_chunk(chunk_pos, checksum, ChunkSaveStatus::Clean)?;
+        }
+    }
+
+    Ok(())
+}
+
+/// Unregister chunk from replication
+pub fn replication_unregister_chunk(manager: &mut ReplicationManager, chunk_pos: ChunkPos) {
+    manager.chunks.remove(&chunk_pos);
+}
+
+/// Mark chunk as dirty (needs saving) in replication manager
+pub fn replication_mark_manager_chunk_dirty(manager: &mut ReplicationManager, chunk_pos: ChunkPos, new_checksum: u64) {
+    if let Some(chunk_data) = manager.chunks.get_mut(&chunk_pos) {
+        replication_mark_chunk_dirty(chunk_data);
+        chunk_data.checksum = new_checksum;
+    } else {
+        // Register new dirty chunk
+        let mut chunk_data = ChunkReplicationData::new(chunk_pos, new_checksum);
+        replication_mark_chunk_dirty(&mut chunk_data);
+        manager.chunks.insert(chunk_pos, chunk_data);
+    }
+}
+
+/// Process chunk synchronization
+pub fn replication_process_chunk_sync(manager: &mut ReplicationManager) -> PersistenceResult<Vec<Packet>> {
+    manager.process_chunk_sync_internal()
+}
+
+/// Handle save operation completion for a chunk
+pub fn replication_complete_manager_chunk_save(manager: &mut ReplicationManager, chunk_pos: ChunkPos, success: bool, error: Option<String>) -> PersistenceResult<()> {
+    if let Some(chunk_data) = manager.chunks.get_mut(&chunk_pos) {
+        replication_complete_chunk_save(chunk_data, success, error.clone());
+
+        // Validate save if successful and validator available
+        if success && manager.config.enable_chunk_validation {
+            if let Some(validator) = &manager.validator {
+                if let Ok(validator) = validator.lock() {
+                    let _ = validator.validate_chunk_save(chunk_pos, chunk_data.checksum, ChunkSaveStatus::Saved);
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/// Handle load operation completion for a chunk
+pub fn replication_complete_manager_chunk_load(manager: &mut ReplicationManager, chunk_pos: ChunkPos, success: bool, error: Option<String>, checksum: Option<u64>) -> PersistenceResult<()> {
+    if let Some(chunk_data) = manager.chunks.get_mut(&chunk_pos) {
+        replication_complete_chunk_load(chunk_data, success, error.clone());
+        
+        if success {
+            if let Some(new_checksum) = checksum {
+                chunk_data.checksum = new_checksum;
+            }
+
+            // Validate load if successful and validator available
+            if manager.config.enable_chunk_validation {
+                if let Some(validator) = &manager.validator {
+                    if let Ok(validator) = validator.lock() {
+                        let _ = validator.validate_chunk_load(chunk_pos, chunk_data.checksum);
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
+// DOP Functions for ReplicationReceiver
+/// Handle entity spawn packet
+pub fn replication_handle_entity_spawn(receiver: &mut ReplicationReceiver, ecs_world: &mut EcsWorldData, 
+                                      network_id: u32, entity_type: EntityType,
+                                      position: Vec3, rotation: Quat, velocity: Vec3) {
+    let network_id = NetworkEntityId(network_id);
+    
+    // Create entity
+    let entity = ecs_world.create_entity();
+    
+    // Add transform component
+    let euler = rotation.to_euler(glam::EulerRot::YXZ);
+    ecs_world.add_transform(entity, 
+        [position.x, position.y, position.z],
+        [euler.1, euler.0, euler.2],
+        [1.0, 1.0, 1.0]);
+    
+    // Add physics component if has velocity
+    if velocity != Vec3::ZERO {
+        ecs_world.add_physics(entity, 1.0, [-0.5, -0.5, -0.5], [0.5, 0.5, 0.5]);
+        if let Some(physics) = ecs_world.components.get_physics_mut(entity) {
+            physics.velocity = [velocity.x, velocity.y, velocity.z];
+        }
+    }
+    
+    // Add type-specific components
+    match entity_type {
+        EntityType::Item { item_id, count } => {
+            ecs_world.add_item(entity, item_id, count);
+        }
+        _ => {}
+    }
+    
+    receiver.network_to_entity.insert(network_id, entity);
+}
+
+/// Handle entity despawn packet
+pub fn replication_handle_entity_despawn(receiver: &mut ReplicationReceiver, ecs_world: &mut EcsWorldData, network_id: u32) {
+    let network_id = NetworkEntityId(network_id);
+    
+    if let Some(entity) = receiver.network_to_entity.remove(&network_id) {
+        ecs_world.destroy_entity(entity);
+    }
+}
+
+/// Handle entity update packet
+pub fn replication_handle_entity_update(receiver: &mut ReplicationReceiver, ecs_world: &mut EcsWorldData,
+                                       network_id: u32, position: Vec3, rotation: Quat, velocity: Vec3) {
+    let network_id = NetworkEntityId(network_id);
+    
+    if let Some(&entity) = receiver.network_to_entity.get(&network_id) {
+        // Update transform
+        if let Some(transform) = ecs_world.components.get_transform_mut(entity) {
+            transform.position = [position.x, position.y, position.z];
+            // Convert quaternion to euler angles
+            let euler = rotation.to_euler(glam::EulerRot::YXZ);
+            transform.rotation = [euler.1, euler.0, euler.2];
+        }
+        
+        // Update physics
+        if let Some(physics) = ecs_world.components.get_physics_mut(entity) {
+            physics.velocity = [velocity.x, velocity.y, velocity.z];
+        }
+    }
+}
+
+// DOP Functions for IntegratedReplicationSystem
+/// Process all replication for a tick
+pub fn replication_process_tick(system: &mut IntegratedReplicationSystem, ecs_world: &EcsWorldData) -> PersistenceResult<Vec<Packet>> {
+    let mut packets = Vec::new();
+
+    // Process entity replication
+    let entity_packets = replication_process_replication(&mut system.entity_manager, ecs_world);
+    packets.extend(entity_packets);
+
+    // Process chunk synchronization
+    let chunk_packets = replication_process_chunk_sync(&mut system.entity_manager)?;
+    packets.extend(chunk_packets);
+
+    Ok(packets)
+}
+
 impl ReplicationManager {
     pub fn new() -> Self {
         Self::with_config(ReplicationConfig::default())
@@ -239,31 +445,6 @@ impl ReplicationManager {
         }
     }
 
-    /// Set network validator for consistency checking
-    pub fn set_validator(&mut self, validator: Arc<Mutex<NetworkValidator>>) {
-        self.validator = Some(validator);
-    }
-    
-    /// Register an entity for replication
-    pub fn register_entity(&mut self, entity: EntityId, entity_type: EntityType) -> NetworkEntityId {
-        let network_id = NetworkEntityId(self.next_network_id);
-        self.next_network_id += 1;
-        
-        let network_entity = NetworkEntity::new(network_id, entity, entity_type);
-        self.entities.insert(network_id, network_entity);
-        self.entity_to_network.insert(entity, network_id);
-        self.spawn_queue.push(network_id);
-        
-        network_id
-    }
-    
-    /// Unregister an entity
-    pub fn unregister_entity(&mut self, entity: EntityId) {
-        if let Some(network_id) = self.entity_to_network.remove(&entity) {
-            self.entities.remove(&network_id);
-            self.despawn_queue.push(network_id);
-        }
-    }
     
     /// Get network entity by ECS entity
     pub fn get_network_entity(&self, entity: EntityId) -> Option<&NetworkEntity> {
@@ -271,17 +452,8 @@ impl ReplicationManager {
             .and_then(|id| self.entities.get(id))
     }
     
-    /// Get mutable network entity by ECS entity
-    pub fn get_network_entity_mut(&mut self, entity: EntityId) -> Option<&mut NetworkEntity> {
-        if let Some(id) = self.entity_to_network.get(&entity).copied() {
-            self.entities.get_mut(&id)
-        } else {
-            None
-        }
-    }
-    
     /// Process replication for all entities
-    pub fn process_replication(&mut self, ecs_world: &EcsWorldData) -> Vec<Packet> {
+    fn process_replication_internal(&mut self, ecs_world: &EcsWorldData) -> Vec<Packet> {
         let mut packets = Vec::new();
         
         // Process spawn queue
@@ -334,7 +506,7 @@ impl ReplicationManager {
                 
                 // Check if update needed
                 if network_entity.needs_replication(pos, rot) {
-                    network_entity.update_replicated_state(pos, rot);
+                    replication_update_replicated_state(network_entity, pos, rot);
                     
                     packets.push(Packet::Server(ServerPacket::EntityUpdate {
                         entity_id: network_entity.network_id.0,
@@ -349,41 +521,9 @@ impl ReplicationManager {
         packets
     }
 
-    /// Register chunk for replication
-    pub fn register_chunk(&mut self, chunk_pos: ChunkPos, checksum: u64) -> PersistenceResult<()> {
-        let chunk_data = ChunkReplicationData::new(chunk_pos, checksum);
-        self.chunks.insert(chunk_pos, chunk_data);
-
-        // Register with validator if available
-        if let Some(validator) = &self.validator {
-            if let Ok(validator) = validator.lock() {
-                validator.register_chunk(chunk_pos, checksum, ChunkSaveStatus::Clean)?;
-            }
-        }
-
-        Ok(())
-    }
-
-    /// Unregister chunk from replication
-    pub fn unregister_chunk(&mut self, chunk_pos: ChunkPos) {
-        self.chunks.remove(&chunk_pos);
-    }
-
-    /// Mark chunk as dirty (needs saving)
-    pub fn mark_chunk_dirty(&mut self, chunk_pos: ChunkPos, new_checksum: u64) {
-        if let Some(chunk_data) = self.chunks.get_mut(&chunk_pos) {
-            chunk_data.mark_dirty();
-            chunk_data.checksum = new_checksum;
-        } else {
-            // Register new dirty chunk
-            let mut chunk_data = ChunkReplicationData::new(chunk_pos, new_checksum);
-            chunk_data.mark_dirty();
-            self.chunks.insert(chunk_pos, chunk_data);
-        }
-    }
 
     /// Process chunk synchronization
-    pub fn process_chunk_sync(&mut self) -> PersistenceResult<Vec<Packet>> {
+    fn process_chunk_sync_internal(&mut self) -> PersistenceResult<Vec<Packet>> {
         let mut packets = Vec::new();
         let mut chunk_states = Vec::new();
 
@@ -461,49 +601,6 @@ impl ReplicationManager {
         Ok(packets)
     }
 
-    /// Handle save operation completion for a chunk
-    pub fn complete_chunk_save(&mut self, chunk_pos: ChunkPos, success: bool, 
-                              error: Option<String>) -> PersistenceResult<()> {
-        if let Some(chunk_data) = self.chunks.get_mut(&chunk_pos) {
-            chunk_data.complete_save(success, error.clone());
-
-            // Validate save if successful and validator available
-            if success && self.config.enable_chunk_validation {
-                if let Some(validator) = &self.validator {
-                    if let Ok(validator) = validator.lock() {
-                        let _ = validator.validate_chunk_save(chunk_pos, chunk_data.checksum, ChunkSaveStatus::Saved);
-                    }
-                }
-            }
-        }
-
-        Ok(())
-    }
-
-    /// Handle load operation completion for a chunk
-    pub fn complete_chunk_load(&mut self, chunk_pos: ChunkPos, success: bool, 
-                              error: Option<String>, checksum: Option<u64>) -> PersistenceResult<()> {
-        if let Some(chunk_data) = self.chunks.get_mut(&chunk_pos) {
-            chunk_data.complete_load(success, error.clone());
-            
-            if success {
-                if let Some(new_checksum) = checksum {
-                    chunk_data.checksum = new_checksum;
-                }
-
-                // Validate load if successful and validator available
-                if self.config.enable_chunk_validation {
-                    if let Some(validator) = &self.validator {
-                        if let Ok(validator) = validator.lock() {
-                            let _ = validator.validate_chunk_load(chunk_pos, chunk_data.checksum);
-                        }
-                    }
-                }
-            }
-        }
-
-        Ok(())
-    }
 
     /// Get chunks that need saving
     pub fn get_chunks_needing_save(&self) -> Vec<ChunkPos> {
@@ -602,70 +699,6 @@ impl ReplicationReceiver {
         }
     }
     
-    /// Handle entity spawn packet
-    pub fn handle_entity_spawn(&mut self, ecs_world: &mut EcsWorldData, 
-                              network_id: u32, entity_type: EntityType,
-                              position: Vec3, rotation: Quat, velocity: Vec3) {
-        let network_id = NetworkEntityId(network_id);
-        
-        // Create entity
-        let entity = ecs_world.create_entity();
-        
-        // Add transform component
-        let euler = rotation.to_euler(glam::EulerRot::YXZ);
-        ecs_world.add_transform(entity, 
-            [position.x, position.y, position.z],
-            [euler.1, euler.0, euler.2],
-            [1.0, 1.0, 1.0]);
-        
-        // Add physics component if has velocity
-        if velocity != Vec3::ZERO {
-            ecs_world.add_physics(entity, 1.0, [-0.5, -0.5, -0.5], [0.5, 0.5, 0.5]);
-            if let Some(physics) = ecs_world.components.get_physics_mut(entity) {
-                physics.velocity = [velocity.x, velocity.y, velocity.z];
-            }
-        }
-        
-        // Add type-specific components
-        match entity_type {
-            EntityType::Item { item_id, count } => {
-                ecs_world.add_item(entity, item_id, count);
-            }
-            _ => {}
-        }
-        
-        self.network_to_entity.insert(network_id, entity);
-    }
-    
-    /// Handle entity despawn packet
-    pub fn handle_entity_despawn(&mut self, ecs_world: &mut EcsWorldData, network_id: u32) {
-        let network_id = NetworkEntityId(network_id);
-        
-        if let Some(entity) = self.network_to_entity.remove(&network_id) {
-            ecs_world.destroy_entity(entity);
-        }
-    }
-    
-    /// Handle entity update packet
-    pub fn handle_entity_update(&mut self, ecs_world: &mut EcsWorldData,
-                               network_id: u32, position: Vec3, rotation: Quat, velocity: Vec3) {
-        let network_id = NetworkEntityId(network_id);
-        
-        if let Some(&entity) = self.network_to_entity.get(&network_id) {
-            // Update transform
-            if let Some(transform) = ecs_world.components.get_transform_mut(entity) {
-                transform.position = [position.x, position.y, position.z];
-                // Convert quaternion to euler angles
-                let euler = rotation.to_euler(glam::EulerRot::YXZ);
-                transform.rotation = [euler.1, euler.0, euler.2];
-            }
-            
-            // Update physics
-            if let Some(physics) = ecs_world.components.get_physics_mut(entity) {
-                physics.velocity = [velocity.x, velocity.y, velocity.z];
-            }
-        }
-    }
 }
 
 /// Statistics for chunk synchronization
@@ -701,20 +734,6 @@ impl IntegratedReplicationSystem {
         }
     }
 
-    /// Process all replication for a tick
-    pub fn process_tick(&mut self, ecs_world: &EcsWorldData) -> PersistenceResult<Vec<Packet>> {
-        let mut packets = Vec::new();
-
-        // Process entity replication
-        let entity_packets = self.entity_manager.process_replication(ecs_world);
-        packets.extend(entity_packets);
-
-        // Process chunk synchronization
-        let chunk_packets = self.entity_manager.process_chunk_sync()?;
-        packets.extend(chunk_packets);
-
-        Ok(packets)
-    }
 
     /// Get comprehensive replication statistics
     pub fn get_stats(&self) -> ReplicationStats {
@@ -752,17 +771,17 @@ mod tests {
         assert!(!chunk_data.pending_load);
         
         // Mark dirty
-        chunk_data.mark_dirty();
+        replication_mark_chunk_dirty(&mut chunk_data);
         assert_eq!(chunk_data.save_state, ChunkSaveStatus::Dirty);
         assert!(chunk_data.pending_save);
         
         // Start save
-        chunk_data.start_save();
+        replication_start_chunk_save(&mut chunk_data);
         assert_eq!(chunk_data.save_state, ChunkSaveStatus::Saving);
         assert!(!chunk_data.pending_save);
         
         // Complete save successfully
-        chunk_data.complete_save(true, None);
+        replication_complete_chunk_save(&mut chunk_data, true, None);
         assert_eq!(chunk_data.save_state, ChunkSaveStatus::Saved);
         assert_eq!(chunk_data.error_count, 0);
     }
@@ -775,10 +794,10 @@ mod tests {
         let chunk_pos = ChunkPos { x: 0, y: 0, z: 0 };
         
         // Register chunk
-        manager.register_chunk(chunk_pos, 12345).expect("Failed to register chunk");
+        replication_register_chunk(&mut manager, chunk_pos, 12345).expect("Failed to register chunk");
         
         // Mark chunk dirty
-        manager.mark_chunk_dirty(chunk_pos, 54321);
+        replication_mark_manager_chunk_dirty(&mut manager, chunk_pos, 54321);
         
         // Check stats
         let stats = manager.get_chunk_sync_stats();

@@ -20,9 +20,9 @@ pub use spatial_query::{
     SpatialQuery, QueryType, QueryResult, 
     RangeQuery, KNearestQuery, FrustumQuery, BoxQuery
 };
-pub use entity_store::{SpatialEntity, EntityType, EntityData};
+pub use entity_store::{SpatialEntity, EntityType, EntityData, set_spatial_entity_position};
 pub use density_analyzer::{DensityAnalyzer, DensityMap};
-pub use query_cache::{QueryCache, CacheStats};
+pub use query_cache::{QueryCache, CacheStats, invalidate_cache_region, clear_query_cache};
 pub use parallel_query::{ParallelQueryExecutor, QueryBatch};
 
 use std::sync::Arc;
@@ -113,87 +113,6 @@ impl SpatialIndex {
         }
     }
     
-    /// Insert an entity into the spatial index
-    pub fn insert(&mut self, entity: SpatialEntity) -> Result<(), &'static str> {
-        // Validate bounds
-        if !self.is_in_bounds(entity.position()) {
-            return Err("Entity position out of world bounds");
-        }
-        
-        // Store entity data
-        self.entity_store.insert(entity.id(), entity.clone());
-        
-        // Insert into grid
-        self.grid.insert(entity.id(), entity.position(), entity.radius());
-        
-        // Update density information
-        self.density_analyzer.record_insertion(entity.position());
-        
-        // Invalidate relevant cache entries
-        if let Some(cache) = &mut self.query_cache {
-            cache.invalidate_region(entity.position(), entity.radius());
-        }
-        
-        Ok(())
-    }
-    
-    /// Remove an entity from the spatial index
-    pub fn remove(&mut self, entity_id: u64) -> Result<(), &'static str> {
-        // Get entity data
-        let entity = self.entity_store.get(entity_id)
-            .ok_or("Entity not found")?;
-        
-        let position = entity.position();
-        let radius = entity.radius();
-        
-        // Remove from grid
-        self.grid.remove(entity_id);
-        
-        // Remove from store
-        self.entity_store.remove(entity_id);
-        
-        // Update density
-        self.density_analyzer.record_removal(position);
-        
-        // Invalidate cache
-        if let Some(cache) = &mut self.query_cache {
-            cache.invalidate_region(position, radius);
-        }
-        
-        Ok(())
-    }
-    
-    /// Update an entity's position
-    pub fn update(&mut self, entity_id: u64, new_position: [f32; 3]) -> Result<(), &'static str> {
-        // Validate bounds
-        if !self.is_in_bounds(new_position) {
-            return Err("New position out of world bounds");
-        }
-        
-        // Get entity
-        let mut entity = self.entity_store.get_mut(entity_id)
-            .ok_or("Entity not found")?;
-        
-        let old_position = entity.position();
-        let radius = entity.radius();
-        
-        // Update position
-        entity.set_position(new_position);
-        
-        // Update grid
-        self.grid.update(entity_id, old_position, new_position, radius);
-        
-        // Update density
-        self.density_analyzer.record_movement(old_position, new_position);
-        
-        // Invalidate cache for both old and new regions
-        if let Some(cache) = &mut self.query_cache {
-            cache.invalidate_region(old_position, radius);
-            cache.invalidate_region(new_position, radius);
-        }
-        
-        Ok(())
-    }
     
     /// Execute a spatial query
     pub fn query(&self, query: &SpatialQuery) -> Vec<QueryResult> {
@@ -233,30 +152,6 @@ impl SpatialIndex {
         self.query_executor.execute_batch(queries, &self.grid, &self.entity_store)
     }
     
-    /// Rebalance the spatial index based on current density
-    pub fn rebalance(&mut self) {
-        let density_map = self.density_analyzer.analyze(&self.grid);
-        
-        // Identify cells that need splitting or merging
-        let operations = self.grid.plan_rebalance(&density_map, &self.config);
-        
-        // Apply operations
-        for operation in operations {
-            match operation {
-                hierarchical_grid::RebalanceOp::Split(cell_id) => {
-                    self.grid.split_cell(cell_id);
-                }
-                hierarchical_grid::RebalanceOp::Merge(cell_ids) => {
-                    self.grid.merge_cells(cell_ids);
-                }
-            }
-        }
-        
-        // Clear cache after rebalancing
-        if let Some(cache) = &mut self.query_cache {
-            cache.clear();
-        }
-    }
     
     /// Get statistics about the spatial index
     pub fn stats(&self) -> SpatialIndexStats {
@@ -351,6 +246,117 @@ pub struct SpatialIndexStats {
     pub grid_stats: hierarchical_grid::GridStats,
     pub density_stats: density_analyzer::DensityStats,
     pub cache_stats: Option<CacheStats>,
+}
+
+/// Insert an entity into the spatial index
+/// Function - transforms spatial index by adding entity to grid and stores
+pub fn insert_entity_into_spatial_index(index: &mut SpatialIndex, entity: SpatialEntity) -> Result<(), &'static str> {
+    // Validate bounds
+    if !index.is_in_bounds(entity.position()) {
+        return Err("Entity position out of world bounds");
+    }
+    
+    // Store entity data
+    index.entity_store.insert(entity.id(), entity.clone());
+    
+    // Insert into grid
+    index.grid.insert(entity.id(), entity.position(), entity.radius());
+    
+    // Update density information
+    index.density_analyzer.record_insertion(entity.position());
+    
+    // Invalidate relevant cache entries
+    if let Some(cache) = &mut index.query_cache {
+        invalidate_cache_region(cache, entity.position(), entity.radius());
+    }
+    
+    Ok(())
+}
+
+/// Remove an entity from the spatial index
+/// Function - transforms spatial index by removing entity from grid and stores
+pub fn remove_entity_from_spatial_index(index: &mut SpatialIndex, entity_id: u64) -> Result<(), &'static str> {
+    // Get entity data
+    let entity = index.entity_store.get(entity_id)
+        .ok_or("Entity not found")?;
+    
+    let position = entity.position();
+    let radius = entity.radius();
+    
+    // Remove from grid
+    index.grid.remove(entity_id);
+    
+    // Remove from store
+    index.entity_store.remove(entity_id);
+    
+    // Update density
+    index.density_analyzer.record_removal(position);
+    
+    // Invalidate cache
+    if let Some(cache) = &mut index.query_cache {
+        invalidate_cache_region(cache, position, radius);
+    }
+    
+    Ok(())
+}
+
+/// Update an entity's position in the spatial index
+/// Function - transforms spatial index by updating entity position in grid and stores
+pub fn update_entity_in_spatial_index(index: &mut SpatialIndex, entity_id: u64, new_position: [f32; 3]) -> Result<(), &'static str> {
+    // Validate bounds
+    if !index.is_in_bounds(new_position) {
+        return Err("New position out of world bounds");
+    }
+    
+    // Get entity
+    let mut entity = index.entity_store.get_mut(entity_id)
+        .ok_or("Entity not found")?;
+    
+    let old_position = entity.position();
+    let radius = entity.radius();
+    
+    // Update position
+    crate::spatial_index::entity_store::set_entity_ref_mut_position(&mut entity, new_position);
+    
+    // Update grid
+    index.grid.update(entity_id, old_position, new_position, radius);
+    
+    // Update density
+    index.density_analyzer.record_movement(old_position, new_position);
+    
+    // Invalidate cache for both old and new regions
+    if let Some(cache) = &mut index.query_cache {
+        invalidate_cache_region(cache, old_position, radius);
+        invalidate_cache_region(cache, new_position, radius);
+    }
+    
+    Ok(())
+}
+
+/// Rebalance the spatial index based on current density
+/// Function - transforms spatial index by rebalancing grid cells
+pub fn rebalance_spatial_index(index: &mut SpatialIndex) {
+    let density_map = index.density_analyzer.analyze(&index.grid);
+    
+    // Identify cells that need splitting or merging
+    let operations = index.grid.plan_rebalance(&density_map, &index.config);
+    
+    // Apply operations
+    for operation in operations {
+        match operation {
+            hierarchical_grid::RebalanceOp::Split(cell_id) => {
+                index.grid.split_cell(cell_id);
+            }
+            hierarchical_grid::RebalanceOp::Merge(cell_ids) => {
+                index.grid.merge_cells(cell_ids);
+            }
+        }
+    }
+    
+    // Clear cache after rebalancing
+    if let Some(cache) = &mut index.query_cache {
+        clear_query_cache(cache);
+    }
 }
 
 fn distance_3d(a: [f32; 3], b: [f32; 3]) -> f32 {

@@ -94,49 +94,6 @@ impl GridCell {
         }
     }
     
-    fn clear(&mut self) {
-        self.entity_count = 0;
-        self.entities.clear();
-        self.bounds_min = [f32::MAX; 3];
-        self.bounds_max = [f32::MIN; 3];
-        self.active = false;
-    }
-    
-    fn add_entity(&mut self, entity_id: u32, min: [f32; 3], max: [f32; 3]) {
-        if self.entity_count < self.entities.capacity() {
-            if self.entity_count < self.entities.len() {
-                self.entities[self.entity_count] = entity_id;
-            } else {
-                self.entities.push(entity_id);
-            }
-            self.entity_count += 1;
-            
-            // Update bounds
-            for i in 0..3 {
-                self.bounds_min[i] = self.bounds_min[i].min(min[i]);
-                self.bounds_max[i] = self.bounds_max[i].max(max[i]);
-            }
-            
-            self.active = true;
-        }
-    }
-    
-    fn remove_entity(&mut self, entity_id: u32) -> bool {
-        if let Some(pos) = self.entities[..self.entity_count].iter().position(|&e| e == entity_id) {
-            self.entity_count -= 1;
-            if pos < self.entity_count {
-                self.entities[pos] = self.entities[self.entity_count];
-            }
-            
-            if self.entity_count == 0 {
-                self.clear();
-            }
-            
-            true
-        } else {
-            false
-        }
-    }
 }
 
 /// Grid level containing all cells at that level
@@ -185,12 +142,6 @@ impl GridLevel {
         self.cells.get(index)
     }
     
-    fn get_cell_mut(&mut self, x: u16, y: u16, z: u16) -> Option<&mut GridCell> {
-        let index = x as usize + 
-                   y as usize * self.size + 
-                   z as usize * self.size * self.size;
-        self.cells.get_mut(index)
-    }
 }
 
 /// Entity tracking data
@@ -260,8 +211,8 @@ impl PreallocatedHierarchicalGrid {
         if entity_data.active {
             for (level_idx, cell_id) in entity_data.cells.iter().enumerate() {
                 if let Some(cell_id) = cell_id {
-                    if let Some(cell) = levels[level_idx].get_cell_mut(cell_id.x, cell_id.y, cell_id.z) {
-                        cell.remove_entity(entity_id);
+                    if let Some(cell) = get_cell_mut_from_grid_level(&mut levels[level_idx], cell_id.x, cell_id.y, cell_id.z) {
+                        remove_entity_from_grid_cell(cell, entity_id);
                     }
                 }
             }
@@ -289,8 +240,8 @@ impl PreallocatedHierarchicalGrid {
                 let cell_id = CellId::new(level_idx as u8, x, y, z);
                 entity_data.cells[level_idx] = Some(cell_id);
                 
-                if let Some(cell) = level.get_cell_mut(x, y, z) {
-                    cell.add_entity(entity_id, min, max);
+                if let Some(cell) = get_cell_mut_from_grid_level(level, x, y, z) {
+                    add_entity_to_grid_cell(cell, entity_id, min, max);
                 }
             } else {
                 entity_data.cells[level_idx] = None;
@@ -316,8 +267,8 @@ impl PreallocatedHierarchicalGrid {
         // Remove from all cells
         for (level_idx, cell_id) in entity_data.cells.iter().enumerate() {
             if let Some(cell_id) = cell_id {
-                if let Some(cell) = levels[level_idx].get_cell_mut(cell_id.x, cell_id.y, cell_id.z) {
-                    cell.remove_entity(entity_id);
+                if let Some(cell) = get_cell_mut_from_grid_level(&mut levels[level_idx], cell_id.x, cell_id.y, cell_id.z) {
+                    remove_entity_from_grid_cell(cell, entity_id);
                 }
             }
         }
@@ -425,4 +376,63 @@ pub struct HierarchicalGridStats {
     pub active_entities: usize,
     pub max_entities: usize,
     pub levels: Vec<LevelStats>,
+}
+
+/// Clear grid cell
+/// Function - transforms grid cell by clearing entities and bounds
+pub fn clear_grid_cell(cell: &mut GridCell) {
+    cell.entity_count = 0;
+    cell.entities.clear();
+    cell.bounds_min = [f32::MAX; 3];
+    cell.bounds_max = [f32::MIN; 3];
+    cell.active = false;
+}
+
+/// Add entity to grid cell
+/// Function - transforms grid cell by adding entity and updating bounds
+pub fn add_entity_to_grid_cell(cell: &mut GridCell, entity_id: u32, min: [f32; 3], max: [f32; 3]) {
+    if cell.entity_count < cell.entities.capacity() {
+        if cell.entity_count < cell.entities.len() {
+            cell.entities[cell.entity_count] = entity_id;
+        } else {
+            cell.entities.push(entity_id);
+        }
+        cell.entity_count += 1;
+        
+        // Update bounds
+        for i in 0..3 {
+            cell.bounds_min[i] = cell.bounds_min[i].min(min[i]);
+            cell.bounds_max[i] = cell.bounds_max[i].max(max[i]);
+        }
+        
+        cell.active = true;
+    }
+}
+
+/// Remove entity from grid cell
+/// Function - transforms grid cell by removing entity and updating state
+pub fn remove_entity_from_grid_cell(cell: &mut GridCell, entity_id: u32) -> bool {
+    if let Some(pos) = cell.entities[..cell.entity_count].iter().position(|&e| e == entity_id) {
+        cell.entity_count -= 1;
+        if pos < cell.entity_count {
+            cell.entities[pos] = cell.entities[cell.entity_count];
+        }
+        
+        if cell.entity_count == 0 {
+            clear_grid_cell(cell);
+        }
+        
+        true
+    } else {
+        false
+    }
+}
+
+/// Get mutable cell from grid level
+/// Function - returns mutable reference to cell in grid level
+pub fn get_cell_mut_from_grid_level(level: &mut GridLevel, x: u16, y: u16, z: u16) -> Option<&mut GridCell> {
+    let index = x as usize + 
+               y as usize * level.size + 
+               z as usize * level.size * level.size;
+    level.cells.get_mut(index)
 }

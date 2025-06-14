@@ -35,17 +35,6 @@ impl CellDensity {
         }
     }
     
-    fn update(&mut self, count: usize) {
-        self.current_count = count;
-        self.peak_count = self.peak_count.max(count);
-        
-        // Update moving average
-        self.sample_count += 1;
-        let weight = 1.0 / self.sample_count as f32;
-        self.average_count = self.average_count * (1.0 - weight) + count as f32 * weight;
-        
-        self.last_update = std::time::Instant::now();
-    }
     
     fn density_score(&self) -> f32 {
         // Combine current and average for stability
@@ -206,4 +195,18 @@ impl DensityAnalyzer {
             now.duration_since(density.last_update) < max_age
         });
     }
+}
+
+/// Update cell density data
+/// Function - transforms cell density by updating count and statistics
+pub fn update_cell_density(density: &mut CellDensity, count: usize) {
+    density.current_count = count;
+    density.peak_count = density.peak_count.max(count);
+    
+    // Update moving average
+    density.sample_count += 1;
+    let weight = 1.0 / density.sample_count as f32;
+    density.average_count = density.average_count * (1.0 - weight) + count as f32 * weight;
+    
+    density.last_update = std::time::Instant::now();
 }

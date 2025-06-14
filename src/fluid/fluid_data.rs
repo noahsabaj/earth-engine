@@ -114,10 +114,6 @@ impl FluidVoxel {
         ((self.packed_data >> 8) & 0xFF) as u8
     }
     
-    /// Set fluid level
-    pub fn set_level(&mut self, level: u8) {
-        self.packed_data = (self.packed_data & !0xFF00) | ((level as u32) << 8);
-    }
     
     /// Get temperature offset (-128 to 127)
     pub fn temperature_offset(&self) -> i8 {
@@ -190,10 +186,6 @@ impl FluidBuffer {
         x + y * self.size.0 + z * self.size.0 * self.size.1
     }
     
-    /// Swap buffers for double buffering
-    pub fn swap_buffers(&mut self) {
-        std::mem::swap(&mut self.voxel_buffer, &mut self.temp_buffer);
-    }
 }
 
 /// Fluid simulation constants for GPU
@@ -305,4 +297,16 @@ pub struct FluidSource {
     
     /// Padding
     pub _padding: [u32; 3],
+}
+
+// DOP functions for FluidVoxel
+/// Set fluid level (DOP version)
+pub fn set_fluid_voxel_level(voxel: &mut FluidVoxel, level: u8) {
+    voxel.packed_data = (voxel.packed_data & !0xFF00) | ((level as u32) << 8);
+}
+
+// DOP functions for FluidBuffer
+/// Swap buffers for double buffering (DOP version)
+pub fn swap_fluid_buffers(buffer: &mut FluidBuffer) {
+    std::mem::swap(&mut buffer.voxel_buffer, &mut buffer.temp_buffer);
 }

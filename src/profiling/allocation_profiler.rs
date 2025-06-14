@@ -200,228 +200,228 @@ impl AllocationBenchmark {
             profiler: AllocationProfiler::new(),
         }
     }
+}
 
-    /// Compare allocation patterns between DOP and OOP approaches
-    pub fn compare_allocation_patterns(&mut self) -> EngineResult<()> {
-        println!("🔍 Comparing Allocation Patterns: DOP vs OOP");
-        println!("===========================================");
+/// Compare allocation patterns between DOP and OOP approaches
+pub fn compare_allocation_patterns(benchmark: &mut AllocationBenchmark) -> EngineResult<()> {
+    println!("🔍 Comparing Allocation Patterns: DOP vs OOP");
+    println!("===========================================");
 
-        const ITERATIONS: usize = 1000;
-        const ELEMENTS: usize = 1000;
+    const ITERATIONS: usize = 1000;
+    const ELEMENTS: usize = 1000;
 
-        // Test DOP approach (pre-allocated, no runtime allocations)
-        println!("\n1. DOP Approach (Pre-allocated SOA):");
-        self.profiler.reset();
+    // Test DOP approach (pre-allocated, no runtime allocations)
+    println!("\n1. DOP Approach (Pre-allocated SOA):");
+    benchmark.profiler.reset();
+    
+    // Pre-allocate all data
+    let mut positions_x = Vec::with_capacity(ELEMENTS);
+    let mut positions_y = Vec::with_capacity(ELEMENTS);
+    let mut positions_z = Vec::with_capacity(ELEMENTS);
+    
+    // Fill initial data (one-time allocation cost)
+    for i in 0..ELEMENTS {
+        positions_x.push(i as f32);
+        positions_y.push(i as f32);
+        positions_z.push(i as f32);
+    }
+
+    // Simulate frame processing with no allocations
+    for _frame in 0..ITERATIONS {
+        benchmark.profiler.start_frame();
         
-        // Pre-allocate all data
-        let mut positions_x = Vec::with_capacity(ELEMENTS);
-        let mut positions_y = Vec::with_capacity(ELEMENTS);
-        let mut positions_z = Vec::with_capacity(ELEMENTS);
-        
-        // Fill initial data (one-time allocation cost)
+        // Process data without allocations
         for i in 0..ELEMENTS {
-            positions_x.push(i as f32);
-            positions_y.push(i as f32);
-            positions_z.push(i as f32);
+            positions_x[i] += 1.0;
+            positions_y[i] += 1.0;
+            positions_z[i] += 1.0;
         }
+    }
+    
+    let dop_stats = benchmark.profiler.get_stats();
+    println!("   Frames processed: {}", dop_stats.frame_number);
+    println!("   Total allocations: {}", dop_stats.total_allocations);
+    println!("   Allocations per frame: {:.2}", 
+        dop_stats.total_allocations as f64 / dop_stats.frame_number as f64);
 
-        // Simulate frame processing with no allocations
-        for frame in 0..ITERATIONS {
-            self.profiler.start_frame();
-            
-            // Process data without allocations
-            for i in 0..ELEMENTS {
-                positions_x[i] += 1.0;
-                positions_y[i] += 1.0;
-                positions_z[i] += 1.0;
-            }
-        }
-        
-        let dop_stats = self.profiler.get_stats();
-        println!("   Frames processed: {}", dop_stats.frame_number);
-        println!("   Total allocations: {}", dop_stats.total_allocations);
-        println!("   Allocations per frame: {:.2}", 
-            dop_stats.total_allocations as f64 / dop_stats.frame_number as f64);
+    // Test OOP approach (dynamic allocations)
+    println!("\n2. OOP Approach (Dynamic Vector of Structs):");
+    benchmark.profiler.reset();
 
-        // Test OOP approach (dynamic allocations)
-        println!("\n2. OOP Approach (Dynamic Vector of Structs):");
-        self.profiler.reset();
-
-        #[derive(Clone)]
-        struct Position {
-            x: f32,
-            y: f32, 
-            z: f32,
-        }
-
-        for frame in 0..ITERATIONS {
-            self.profiler.start_frame();
-            
-            // Simulate dynamic object creation (typical OOP pattern)
-            let mut objects: Vec<Position> = Vec::new();
-            self.profiler.record_allocation(ELEMENTS * std::mem::size_of::<Position>());
-            
-            for i in 0..ELEMENTS {
-                objects.push(Position {
-                    x: i as f32,
-                    y: i as f32,
-                    z: i as f32,
-                });
-            }
-            
-            // Process objects
-            for obj in &mut objects {
-                obj.x += 1.0;
-                obj.y += 1.0;
-                obj.z += 1.0;
-            }
-            
-            // Objects drop here, simulating frame cleanup
-        }
-        
-        let oop_stats = self.profiler.get_stats();
-        println!("   Frames processed: {}", oop_stats.frame_number);
-        println!("   Total allocations: {}", oop_stats.total_allocations);
-        println!("   Allocations per frame: {:.2}", 
-            oop_stats.total_allocations as f64 / oop_stats.frame_number as f64);
-
-        // Performance comparison
-        println!("\n📊 Allocation Performance Comparison:");
-        let alloc_reduction = (oop_stats.total_allocations as f64 - dop_stats.total_allocations as f64) 
-            / oop_stats.total_allocations as f64 * 100.0;
-        
-        println!("   DOP total allocations: {}", dop_stats.total_allocations);
-        println!("   OOP total allocations: {}", oop_stats.total_allocations);
-        println!("   Allocation reduction: {:.1}%", alloc_reduction);
-        
-        if dop_stats.total_allocations == 0 {
-            println!("   🎯 DOP achieves ZERO runtime allocations!");
-        } else {
-            println!("   Allocation improvement: {:.2}x fewer allocations", 
-                oop_stats.total_allocations as f64 / dop_stats.total_allocations as f64);
-        }
-
-        Ok(())
+    #[derive(Clone)]
+    struct Position {
+        x: f32,
+        y: f32, 
+        z: f32,
     }
 
-    /// Test memory pool vs dynamic allocation
-    pub fn test_memory_pools(&mut self) -> EngineResult<()> {
-        println!("\n💾 Memory Pool vs Dynamic Allocation");
-        println!("===================================");
-
-        const PARTICLE_COUNT: usize = 10000;
-        const FRAMES: usize = 100;
-
-        // Test memory pool approach (DOP)
-        println!("\n1. Memory Pool Approach:");
-        self.profiler.reset();
-
-        // Pre-allocate particle pool
-        let pool_capacity = PARTICLE_COUNT * 2; // Generous capacity
-        let mut particle_pool: Vec<Option<[f32; 6]>> = vec![None; pool_capacity]; // pos + vel
-        let mut next_free = 0;
-
-        for frame in 0..FRAMES {
-            self.profiler.start_frame();
-            
-            // Spawn particles using pool (no allocation)
-            let spawn_count = 100;
-            for _ in 0..spawn_count.min(pool_capacity - next_free) {
-                particle_pool[next_free] = Some([0.0, 0.0, 0.0, 1.0, 1.0, 1.0]);
-                next_free += 1;
-            }
-            
-            // Update existing particles
-            for particle in &mut particle_pool[0..next_free] {
-                if let Some(data) = particle {
-                    data[0] += data[3] * 0.016; // Update position
-                    data[1] += data[4] * 0.016;
-                    data[2] += data[5] * 0.016;
-                }
-            }
-            
-            // Remove some particles (no deallocation, just mark as free)
-            if frame % 10 == 0 && next_free > 50 {
-                for i in 0..50 {
-                    particle_pool[i] = None;
-                }
-                // Compact pool (still no allocation)
-                let mut write_index = 0;
-                for read_index in 0..next_free {
-                    if particle_pool[read_index].is_some() {
-                        particle_pool[write_index] = particle_pool[read_index];
-                        write_index += 1;
-                    }
-                }
-                next_free = write_index;
-            }
+    for _frame in 0..ITERATIONS {
+        benchmark.profiler.start_frame();
+        
+        // Simulate dynamic object creation (typical OOP pattern)
+        let mut objects: Vec<Position> = Vec::new();
+        benchmark.profiler.record_allocation(ELEMENTS * std::mem::size_of::<Position>());
+        
+        for i in 0..ELEMENTS {
+            objects.push(Position {
+                x: i as f32,
+                y: i as f32,
+                z: i as f32,
+            });
         }
-
-        let pool_stats = self.profiler.get_stats();
-        println!("   Pool allocations: {}", pool_stats.total_allocations);
-        println!("   Allocations per frame: {:.2}", 
-            pool_stats.total_allocations as f64 / pool_stats.frame_number as f64);
-
-        // Test dynamic allocation approach (OOP)
-        println!("\n2. Dynamic Allocation Approach:");
-        self.profiler.reset();
-
-        #[derive(Clone)]
-        struct Particle {
-            position: [f32; 3],
-            velocity: [f32; 3],
+        
+        // Process objects
+        for obj in &mut objects {
+            obj.x += 1.0;
+            obj.y += 1.0;
+            obj.z += 1.0;
         }
-
-        for frame in 0..FRAMES {
-            self.profiler.start_frame();
-            
-            // Dynamic particle vector (allocates every frame)
-            let mut particles: Vec<Particle> = Vec::new();
-            self.profiler.record_allocation(std::mem::size_of::<Vec<Particle>>());
-            
-            // Spawn particles (dynamic allocation)
-            let spawn_count = 100;
-            for i in 0..spawn_count {
-                self.profiler.record_allocation(std::mem::size_of::<Particle>());
-                particles.push(Particle {
-                    position: [i as f32, 0.0, 0.0],
-                    velocity: [1.0, 1.0, 1.0],
-                });
-            }
-            
-            // Update particles
-            for particle in &mut particles {
-                particle.position[0] += particle.velocity[0] * 0.016;
-                particle.position[1] += particle.velocity[1] * 0.016;
-                particle.position[2] += particle.velocity[2] * 0.016;
-            }
-            
-            // Remove particles (deallocate)
-            if frame % 10 == 0 && particles.len() > 50 {
-                particles.truncate(particles.len() - 50);
-                particles.shrink_to_fit(); // Force deallocation
-                self.profiler.record_allocation(particles.capacity() * std::mem::size_of::<Particle>());
-            }
-            
-            // Particles are deallocated when vector drops
-        }
-
-        let dynamic_stats = self.profiler.get_stats();
-        println!("   Dynamic allocations: {}", dynamic_stats.total_allocations);
-        println!("   Allocations per frame: {:.2}", 
-            dynamic_stats.total_allocations as f64 / dynamic_stats.frame_number as f64);
-
-        // Comparison
-        println!("\n🏆 Memory Management Comparison:");
-        if pool_stats.total_allocations == 0 {
-            println!("   Memory pool: ZERO allocations (perfect!)");
-            println!("   Dynamic allocation: {} allocations", dynamic_stats.total_allocations);
-            println!("   Improvement: ∞x (eliminated all allocations)");
-        } else {
-            let improvement = dynamic_stats.total_allocations as f64 / pool_stats.total_allocations as f64;
-            println!("   Memory pool improvement: {:.2}x fewer allocations", improvement);
-        }
-
-        Ok(())
+        
+        // Objects drop here, simulating frame cleanup
     }
+    
+    let oop_stats = benchmark.profiler.get_stats();
+    println!("   Frames processed: {}", oop_stats.frame_number);
+    println!("   Total allocations: {}", oop_stats.total_allocations);
+    println!("   Allocations per frame: {:.2}", 
+        oop_stats.total_allocations as f64 / oop_stats.frame_number as f64);
+
+    // Performance comparison
+    println!("\n📊 Allocation Performance Comparison:");
+    let alloc_reduction = (oop_stats.total_allocations as f64 - dop_stats.total_allocations as f64) 
+        / oop_stats.total_allocations as f64 * 100.0;
+    
+    println!("   DOP total allocations: {}", dop_stats.total_allocations);
+    println!("   OOP total allocations: {}", oop_stats.total_allocations);
+    println!("   Allocation reduction: {:.1}%", alloc_reduction);
+    
+    if dop_stats.total_allocations == 0 {
+        println!("   🎯 DOP achieves ZERO runtime allocations!");
+    } else {
+        println!("   Allocation improvement: {:.2}x fewer allocations", 
+            oop_stats.total_allocations as f64 / dop_stats.total_allocations as f64);
+    }
+
+    Ok(())
+}
+
+/// Test memory pool vs dynamic allocation
+pub fn test_memory_pools(benchmark: &mut AllocationBenchmark) -> EngineResult<()> {
+    println!("\n💾 Memory Pool vs Dynamic Allocation");
+    println!("===================================");
+
+    const PARTICLE_COUNT: usize = 10000;
+    const FRAMES: usize = 100;
+
+    // Test memory pool approach (DOP)
+    println!("\n1. Memory Pool Approach:");
+    benchmark.profiler.reset();
+
+    // Pre-allocate particle pool
+    let pool_capacity = PARTICLE_COUNT * 2; // Generous capacity
+    let mut particle_pool: Vec<Option<[f32; 6]>> = vec![None; pool_capacity]; // pos + vel
+    let mut next_free = 0;
+
+    for frame in 0..FRAMES {
+        benchmark.profiler.start_frame();
+        
+        // Spawn particles using pool (no allocation)
+        let spawn_count = 100;
+        for _ in 0..spawn_count.min(pool_capacity - next_free) {
+            particle_pool[next_free] = Some([0.0, 0.0, 0.0, 1.0, 1.0, 1.0]);
+            next_free += 1;
+        }
+        
+        // Update existing particles
+        for particle in &mut particle_pool[0..next_free] {
+            if let Some(data) = particle {
+                data[0] += data[3] * 0.016; // Update position
+                data[1] += data[4] * 0.016;
+                data[2] += data[5] * 0.016;
+            }
+        }
+        
+        // Remove some particles (no deallocation, just mark as free)
+        if frame % 10 == 0 && next_free > 50 {
+            for i in 0..50 {
+                particle_pool[i] = None;
+            }
+            // Compact pool (still no allocation)
+            let mut write_index = 0;
+            for read_index in 0..next_free {
+                if particle_pool[read_index].is_some() {
+                    particle_pool[write_index] = particle_pool[read_index];
+                    write_index += 1;
+                }
+            }
+            next_free = write_index;
+        }
+    }
+
+    let pool_stats = benchmark.profiler.get_stats();
+    println!("   Pool allocations: {}", pool_stats.total_allocations);
+    println!("   Allocations per frame: {:.2}", 
+        pool_stats.total_allocations as f64 / pool_stats.frame_number as f64);
+
+    // Test dynamic allocation approach (OOP)
+    println!("\n2. Dynamic Allocation Approach:");
+    benchmark.profiler.reset();
+
+    #[derive(Clone)]
+    struct Particle {
+        position: [f32; 3],
+        velocity: [f32; 3],
+    }
+
+    for frame in 0..FRAMES {
+        benchmark.profiler.start_frame();
+        
+        // Dynamic particle vector (allocates every frame)
+        let mut particles: Vec<Particle> = Vec::new();
+        benchmark.profiler.record_allocation(std::mem::size_of::<Vec<Particle>>());
+        
+        // Spawn particles (dynamic allocation)
+        let spawn_count = 100;
+        for i in 0..spawn_count {
+            benchmark.profiler.record_allocation(std::mem::size_of::<Particle>());
+            particles.push(Particle {
+                position: [i as f32, 0.0, 0.0],
+                velocity: [1.0, 1.0, 1.0],
+            });
+        }
+        
+        // Update particles
+        for particle in &mut particles {
+            particle.position[0] += particle.velocity[0] * 0.016;
+            particle.position[1] += particle.velocity[1] * 0.016;
+            particle.position[2] += particle.velocity[2] * 0.016;
+        }
+        
+        // Remove particles (deallocate)
+        if frame % 10 == 0 && particles.len() > 50 {
+            particles.truncate(particles.len() - 50);
+            particles.shrink_to_fit(); // Force deallocation
+            benchmark.profiler.record_allocation(particles.capacity() * std::mem::size_of::<Particle>());
+        }
+        
+        // Particles are deallocated when vector drops
+    }
+
+    let dynamic_stats = benchmark.profiler.get_stats();
+    println!("   Dynamic allocations: {}", dynamic_stats.total_allocations);
+    println!("   Allocations per frame: {:.2}", 
+        dynamic_stats.total_allocations as f64 / dynamic_stats.frame_number as f64);
+
+    // Comparison
+    println!("\n🏆 Memory Management Comparison:");
+    if pool_stats.total_allocations == 0 {
+        println!("   Memory pool: ZERO allocations (perfect!)");
+        println!("   Dynamic allocation: {} allocations", dynamic_stats.total_allocations);
+        println!("   Improvement: ∞x (eliminated all allocations)");
+    } else {
+        let improvement = dynamic_stats.total_allocations as f64 / pool_stats.total_allocations as f64;
+        println!("   Memory pool improvement: {:.2}x fewer allocations", improvement);
+    }
+
+    Ok(())
 }

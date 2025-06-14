@@ -7,6 +7,14 @@ use crate::network::{
     EntityState, InterpolationManager, PositionSnapshot,
     PlayerStateSnapshot, MovementState, ServerPacket,
     PacketOptimizer,
+    interpolation_manager_auto_adjust_delay, 
+    interpolation_manager_add_snapshot,
+    interpolation_manager_get_interpolated,
+    lag_compensation_add_player_snapshot,
+    lag_compensation_update_time,
+    lag_compensation_cleanup_old_history,
+    interest_update_player_position, interest_update_all_interests,
+    interest_update_entity_position, interest_add_player, interest_remove_player,
 };
 
 /// Network synchronization manager
@@ -62,27 +70,7 @@ impl NetworkSync {
         }
     }
     
-    /// Add a new player to sync
-    pub fn add_player(&mut self, player_id: u32, position: Vec3) {
-        self.interest_manager.add_player(player_id, position);
-        self.player_sync_states.insert(player_id, PlayerSyncState {
-            last_ack_sequence: 0,
-            pending_reliable: Vec::new(),
-            last_entity_snapshot: HashMap::new(),
-            average_ping: 50.0,
-            ping_jitter: 5.0,
-            connection_quality: 1.0,
-        });
-        self.client_interpolators.insert(player_id, InterpolationManager::new());
-    }
     
-    /// Remove a player
-    pub fn remove_player(&mut self, player_id: u32) {
-        self.interest_manager.remove_player(player_id);
-        self.player_sync_states.remove(&player_id);
-        self.client_interpolators.remove(&player_id);
-        self.anti_cheat.reset_player(player_id);
-    }
     
     /// Process incoming player update
     pub fn process_player_update(
@@ -124,7 +112,7 @@ impl NetworkSync {
         }
         
         // Update interest management
-        self.interest_manager.update_player_position(player_id, new_pos);
+        interest_update_player_position(&mut self.interest_manager, player_id, new_pos);
         
         // Add to lag compensation history
         let snapshot = PlayerStateSnapshot {
@@ -137,7 +125,7 @@ impl NetworkSync {
             hitbox_min: Vec3::new(-0.3, 0.0, -0.3),
             hitbox_max: Vec3::new(0.3, 1.8, 0.3),
         };
-        self.lag_compensation.add_player_snapshot(snapshot);
+        lag_compensation_add_player_snapshot(&mut self.lag_compensation, snapshot);
         
         Ok(new_pos)
     }
@@ -151,7 +139,7 @@ impl NetworkSync {
         let mut packets_by_player = HashMap::new();
         
         // Update all interests
-        self.interest_manager.update_all_interests();
+        interest_update_all_interests(&mut self.interest_manager);
         
         for (player_id, sync_state) in &mut self.player_sync_states {
             let mut packets = Vec::new();
@@ -212,7 +200,8 @@ impl NetworkSync {
             
             // Auto-adjust interpolation delay based on connection quality
             if let Some(interpolator) = self.client_interpolators.get_mut(player_id) {
-                interpolator.auto_adjust_delay(
+                interpolation_manager_auto_adjust_delay(
+                    interpolator,
                     sync_state.average_ping as u32,
                     sync_state.ping_jitter as u32,
                 );
@@ -243,11 +232,11 @@ impl NetworkSync {
         
         // Update all client interpolators
         for interpolator in self.client_interpolators.values_mut() {
-            interpolator.add_snapshot(entity_id, snapshot.clone());
+            interpolation_manager_add_snapshot(interpolator, entity_id, snapshot.clone());
         }
         
         // Update interest manager
-        self.interest_manager.update_entity_position(entity_id, position);
+        interest_update_entity_position(&mut self.interest_manager, entity_id, position);
     }
     
     /// Get interpolated position for rendering
@@ -257,8 +246,8 @@ impl NetworkSync {
         entity_id: u32,
         render_time: Instant,
     ) -> Option<(Vec3, glam::Quat)> {
-        self.client_interpolators.get_mut(&player_id)?
-            .get_interpolated(entity_id, render_time)
+        let interpolator = self.client_interpolators.get_mut(&player_id)?;
+        interpolation_manager_get_interpolated(interpolator, entity_id, render_time)
     }
     
     /// Update player connection stats
@@ -353,17 +342,40 @@ impl NetworkSync {
         }
     }
     
-    /// Periodic maintenance
-    pub fn tick(&mut self) {
-        // Clean up old violations
-        self.anti_cheat.cleanup_old_violations();
-        
-        // Update lag compensation time
-        self.lag_compensation.update_time(Instant::now());
-        self.lag_compensation.cleanup_old_history();
-        
-        self.last_sync = Instant::now();
-    }
+}
+
+/// Add a new player to sync (DOP function)
+pub fn network_sync_add_player(sync: &mut NetworkSync, player_id: u32, position: Vec3) {
+    interest_add_player(&mut sync.interest_manager, player_id, position);
+    sync.player_sync_states.insert(player_id, PlayerSyncState {
+        last_ack_sequence: 0,
+        pending_reliable: Vec::new(),
+        last_entity_snapshot: HashMap::new(),
+        average_ping: 50.0,
+        ping_jitter: 5.0,
+        connection_quality: 1.0,
+    });
+    sync.client_interpolators.insert(player_id, InterpolationManager::new());
+}
+
+/// Remove a player (DOP function)
+pub fn network_sync_remove_player(sync: &mut NetworkSync, player_id: u32) {
+    interest_remove_player(&mut sync.interest_manager, player_id);
+    sync.player_sync_states.remove(&player_id);
+    sync.client_interpolators.remove(&player_id);
+    sync.anti_cheat.reset_player(player_id);
+}
+
+/// Periodic maintenance (DOP function)
+pub fn network_sync_tick(sync: &mut NetworkSync) {
+    // Clean up old violations
+    sync.anti_cheat.cleanup_old_violations();
+    
+    // Update lag compensation time
+    lag_compensation_update_time(&mut sync.lag_compensation, Instant::now());
+    lag_compensation_cleanup_old_history(&mut sync.lag_compensation);
+    
+    sync.last_sync = Instant::now();
 }
 
 /// Synchronization statistics
