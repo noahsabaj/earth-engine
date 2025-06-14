@@ -97,21 +97,66 @@ impl GpuDefaultWorldGenerator {
     /// Extract generated chunk data from GPU WorldBuffer
     /// This bridges GPU generation -> CPU Chunk format for compatibility
     fn extract_chunk_from_gpu(&self, chunk_pos: ChunkPos) -> Chunk {
-        log::debug!("[GpuDefaultWorldGenerator] Extracting chunk {:?} from GPU", chunk_pos);
+        log::info!("[GpuDefaultWorldGenerator] Extracting chunk {:?} from GPU using REAL GPU readback", chunk_pos);
         
-        // For now, generate a CPU-equivalent chunk while we work on GPU readback
-        // TODO: Implement actual GPU buffer readback to extract generated voxels
+        // Read actual GPU-generated voxel data from WorldBuffer
+        let gpu_voxels = {
+            let mut world_buffer = self.world_buffer.lock().unwrap();
+            match world_buffer.read_chunk_blocking(&self.device, &self.queue, chunk_pos) {
+                Ok(voxels) => {
+                    log::info!("[GpuDefaultWorldGenerator] Successfully read {} voxels from GPU for chunk {:?}", 
+                              voxels.len(), chunk_pos);
+                    voxels
+                }
+                Err(e) => {
+                    log::error!("[GpuDefaultWorldGenerator] GPU readback failed for chunk {:?}: {}. Using CPU fallback.", 
+                               chunk_pos, e);
+                    // Fall back to CPU generation if GPU readback fails
+                    return self.generate_cpu_fallback_chunk(chunk_pos);
+                }
+            }
+        };
         
-        // Generate chunk using same logic as original DefaultWorldGenerator
-        // but mark it as GPU-generated for metrics
+        // Convert GPU VoxelData format to CPU Chunk format
+        let mut chunk = Chunk::new(chunk_pos, self.chunk_size);
+        
+        for (voxel_index, gpu_voxel) in gpu_voxels.iter().enumerate() {
+            // Convert linear index to 3D coordinates
+            let x = (voxel_index as u32) % self.chunk_size;
+            let y = ((voxel_index as u32) / self.chunk_size) % self.chunk_size;
+            let z = (voxel_index as u32) / (self.chunk_size * self.chunk_size);
+            
+            // Extract block data from GPU voxel format
+            let block_id = BlockId(gpu_voxel.block_id());
+            let light_level = gpu_voxel.light_level();
+            let sky_light = gpu_voxel.sky_light_level();
+            
+            // Set block data in CPU chunk
+            if block_id != BlockId::AIR {
+                chunk.set_block(x, y, z, block_id);
+            }
+            chunk.set_block_light(x, y, z, light_level);
+            chunk.set_sky_light(x, y, z, sky_light);
+        }
+        
+        log::debug!("[GpuDefaultWorldGenerator] Converted {} GPU voxels to CPU chunk format for {:?}", 
+                   gpu_voxels.len(), chunk_pos);
+        
+        chunk
+    }
+    
+    /// CPU fallback for when GPU readback fails
+    /// This generates simple terrain using the CPU terrain generator
+    fn generate_cpu_fallback_chunk(&self, chunk_pos: ChunkPos) -> Chunk {
+        log::warn!("[GpuDefaultWorldGenerator] Using CPU fallback for chunk {:?}", chunk_pos);
+        
         let mut chunk = Chunk::new(chunk_pos, self.chunk_size);
         
         let world_x_start = chunk_pos.x * self.chunk_size as i32;
         let world_y_start = chunk_pos.y * self.chunk_size as i32;
         let world_z_start = chunk_pos.z * self.chunk_size as i32;
         
-        // Generate terrain using CPU terrain generator (temporarily)
-        // In production, this would read from GPU WorldBuffer
+        // Generate basic terrain using CPU terrain generator
         for x in 0..self.chunk_size {
             for z in 0..self.chunk_size {
                 let world_x = world_x_start + x as i32;

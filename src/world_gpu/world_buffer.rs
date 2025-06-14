@@ -305,4 +305,86 @@ impl WorldBuffer {
     pub fn buffer_size(&self) -> u64 {
         self.total_voxels * std::mem::size_of::<VoxelData>() as u64
     }
+    
+    /// Read chunk data from GPU buffer
+    /// This is the critical missing piece for GPU→CPU data extraction
+    pub fn read_chunk(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        chunk_pos: ChunkPos,
+    ) -> Result<Vec<VoxelData>, Box<dyn std::error::Error>> {
+        // Check staging buffer exists
+        if self.staging_buffer.is_none() {
+            return Err("WorldBuffer readback not enabled - missing staging buffer".into());
+        }
+        
+        // Get chunk slot and calculate source offset
+        let slot = self.get_chunk_slot(chunk_pos);
+        let source_offset = self.slot_offset(slot);
+        let chunk_size_bytes = VOXELS_PER_CHUNK as u64 * std::mem::size_of::<VoxelData>() as u64;
+        
+        // Get staging buffer reference after mutable operations
+        let staging_buffer = self.staging_buffer.as_ref().unwrap();
+        
+        log::debug!("[WorldBuffer] Reading chunk {:?} from slot {} at offset {}", 
+                   chunk_pos, slot, source_offset);
+        
+        // Create command encoder for copy operation
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("WorldBuffer Readback"),
+        });
+        
+        // Copy GPU buffer data to staging buffer
+        encoder.copy_buffer_to_buffer(
+            &self.voxel_buffer,    // source: main GPU buffer
+            source_offset,         // source offset for this chunk
+            staging_buffer,        // destination: CPU-readable staging buffer
+            0,                     // staging buffer offset (always 0 for single chunk)
+            chunk_size_bytes,      // size: one chunk worth of voxel data
+        );
+        
+        // Submit copy command and wait for completion
+        queue.submit(std::iter::once(encoder.finish()));
+        
+        // Map staging buffer for reading
+        let buffer_slice = staging_buffer.slice(..);
+        let (sender, receiver) = std::sync::mpsc::channel();
+        buffer_slice.map_async(wgpu::MapMode::Read, move |result| {
+            let _ = sender.send(result);
+        });
+        
+        // Poll device until mapping completes
+        device.poll(wgpu::Maintain::Wait);
+        let map_result = receiver.recv()
+            .map_err(|_| "Failed to receive mapping result")?
+            .map_err(|e| format!("Buffer mapping failed: {:?}", e))?;
+        
+        // Read the mapped data
+        let mapped_data = buffer_slice.get_mapped_range();
+        let voxel_data: &[VoxelData] = bytemuck::cast_slice(&mapped_data);
+        
+        // Copy data out before unmapping
+        let result: Vec<VoxelData> = voxel_data.to_vec();
+        
+        // Unmap the buffer
+        drop(mapped_data);
+        staging_buffer.unmap();
+        
+        log::debug!("[WorldBuffer] Successfully read {} voxels from GPU for chunk {:?}", 
+                   result.len(), chunk_pos);
+        
+        Ok(result)
+    }
+    
+    /// Read chunk data from GPU buffer (blocking)
+    /// This is an alias for read_chunk for backward compatibility
+    pub fn read_chunk_blocking(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        chunk_pos: ChunkPos,
+    ) -> Result<Vec<VoxelData>, Box<dyn std::error::Error>> {
+        self.read_chunk(device, queue, chunk_pos)
+    }
 }
