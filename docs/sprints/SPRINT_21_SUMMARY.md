@@ -65,7 +65,7 @@ Operation               | CPU Baseline | GPU Optimized | Speedup
 Terrain Generation      | 50 chunks/s  | 5,000 chunks/s| 100x
 Block Modifications     | 10K ops/s    | 1M ops/s      | 100x
 Ambient Occlusion       | 20 chunks/s  | 2,000 chunks/s| 100x
-Memory Bandwidth        | 16 GB/s      | 500+ GB/s     | 30x
+Memory Bandwidth        | 16 GB/s      | Up to 500+ GB/s (GPU internal) | 30x
 ```
 
 ## Files Created/Modified

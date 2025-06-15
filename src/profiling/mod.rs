@@ -4,6 +4,7 @@ pub mod performance_metrics;
 pub mod final_profiler;
 pub mod dop_benchmarks;
 pub mod allocation_profiler;
+pub mod reality_check_profiler;
 
 pub use cache_profiler::CacheProfiler;
 pub use memory_profiler::{MemoryProfiler, AccessPattern};
@@ -26,6 +27,14 @@ pub use dop_benchmarks::{
     dop_benchmarks_benchmark_prefetch_patterns,
 };
 pub use allocation_profiler::{AllocationProfiler, AllocationReport, AllocationBenchmark};
+pub use reality_check_profiler::{
+    RealityCheckProfiler, FrameMetrics, BlockingOperation, BlockingType, SystemMetrics,
+    TrackingAllocator, GpuTimestamps,
+    begin_frame as reality_begin_frame,
+    end_frame as reality_end_frame,
+    time_cpu_operation, record_draw_call, record_compute_dispatch,
+    write_gpu_timestamp, generate_reality_report,
+};
 
 /// Macro for timing code blocks
 #[macro_export]

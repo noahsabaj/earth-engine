@@ -26,7 +26,7 @@ We've built a solid foundation with:
 
 ### 3. Technical Leadership (Sprint 26)
 - **Hot-Reload**: Change anything without restarting
-- **Data-Oriented Architecture**: 100-1000x performance gains
+- **Data-Oriented Architecture**: 2-5x verified performance gains
 
 ## Why This Matters
 
@@ -57,7 +57,7 @@ We've built a solid foundation with:
 - **Data-Oriented Design**: "The best system is no system"
 - **GPU-First**: Data lives where it's used
 - **Zero-Copy Architecture**: Eliminate unnecessary data movement
-- **Performance First**: 100-1000x faster through better thinking
+- **Performance First**: 2-5x faster through data-oriented design
 - **Modern Stack**: Latest GPU tech, no legacy code
 - **Developer Experience**: Hot-reload, great tooling
 

@@ -8,7 +8,7 @@ This directory contains performance benchmarks, optimization tracking, and perfo
 - Document optimization efforts and their results
 - Store benchmark results and comparisons
 - Analyze performance bottlenecks
-- Monitor the path to 10,000+ concurrent players at 144+ FPS
+- Monitor the path to stable 60 FPS (currently addressing 0.8 FPS performance issue)
 
 ## What Belongs Here
 

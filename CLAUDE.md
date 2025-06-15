@@ -16,29 +16,30 @@ This is **Earth Engine** - a frontier SOTA voxel game engine. We are building in
 3. **FRAMEWORK** (Final Phase) - Tools enabling others to build ANY voxel game
 
 ### Earth MMO Vision (Future Game)
-- **Physical information economy** - no copy/paste, all information must be hand-copied
-- **Stone age → space age progression** - intuitive discovery, no recipe books
+**Core Foundation: Emergent Gameplay from Physics Simulation**
+- **1dcm³ voxels** (10cm cubes) - perfect scale for realistic destruction and structural physics
+- **Everything transformable** - Every voxel can be destroyed/built/changed with realistic physics
+- **Full voxel physics simulation** - Thermal, fluid, sound, structural integrity per voxel
+- **Stone age → space age progression** - intuitive discovery through experimentation
 - **Planetary servers** - each region is its own planet that develops unique culture
-- **1m³ voxels** - uniform, perfect for realistic physics and material properties
-- **Everything transformable** - Every voxel can be destroyed/built/changed
-- **Local communication only** - Voice carries 50m, no global chat, messages travel physically
-- **Player expression** - Dye/sew fabric for flags, write signs, create visual identity
-- **Technology matters** - Radio enables long-distance comms (late game)
-- **Player-created civilizations** - Cities with smithies, taverns, mayors, kings
-- **Or complete anarchy** - Roaming bandits, isolated hermits, anything goes
-- **Full physics simulation** - Thermal, fluid, sound, structural per voxel
-- **"Real life but fun"** - Complex emergence from simple physics laws
+- **"Real life but fun"** - Complex emergent behavior from simple physics laws
 - **Target**: 10,000+ concurrent players per planet at 144+ FPS
 
-Think "Minecraft Civilization videos" but that's just ONE way to play. The engine enables:
-- Rust-like survival and raiding
-- Garry's Mod sandbox creativity  
-- DayZ & Arma Combat and Realism
-- EVE Online emergent politics
-- SimCity player-made cities
-- All in one persistent world
+**Emergent Possibilities** (not forced, but enabled by the physics):
+- **Physical information economy** - knowledge could spread through hand-copied books
+- **Local communication** - voice could carry realistically through physics simulation  
+- **Player-created civilizations** - cities with realistic construction and collapse
+- **Technology discovery** - radio, printing, metallurgy discovered through experimentation
+- **Complete sandbox freedom** - roaming bandits, isolated hermits, anything emergent
 
-The engine provides the canvas. Players paint civilizations... or chaos.
+Think "Teardown" destruction physics meets "Minecraft" building meets "Garry's Mod" emergent creativity:
+- Rust-like survival and realistic raiding (walls actually collapse)
+- SimCity urban planning with structural engineering constraints
+- DayZ realism with physics-based sound propagation
+- EVE Online emergent politics from resource scarcity
+- All possible simultaneously in one persistent world
+
+The engine provides realistic physics. Players discover what's possible.
 
 ## CRITICAL PHILOSOPHY
 **DATA-ORIENTED PROGRAMMING ONLY** - This codebase follows strict DOP principles:
@@ -175,7 +176,7 @@ Before considering ANY task complete:
 - Today's requirements only (but done right)
 
 #### Principle of Least Surprise
-- Voxels are always 1m³ (no exceptions)
+- Voxels are always 1dcm³ = 10cm cubes (no exceptions)
 - Errors always bubble up (no silent failures)
 - Data flows one direction (no backchannels)
 - Names mean exactly what they say

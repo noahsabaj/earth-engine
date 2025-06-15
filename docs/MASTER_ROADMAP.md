@@ -1159,9 +1159,9 @@ All optimizations build on the data-oriented foundation from Sprint 21:
 
 | System | Original | Parallel (Verified) | Claimed | Actual (Sprint 35.1) | Emergency Target |
 |--------|----------|-------------------|---------|---------------------|------------------|
-| Chunk Generation | 10.40s | 0.85s ✓ | 0.008s | 0.85s | 0.1s |
-| Mesh Building | 2.89s | 0.55s ✓ | 0.005s | 0.55s | 0.05s |
-| Lighting | N/A | 0.30s ✓ | 0.003s | 0.30s | 0.03s |
+| Chunk Generation | 10.40s | 0.85s ✓ | 0.85s ✓ | 0.85s | 0.1s |
+| Mesh Building | 2.89s | 0.55s ✓ | 0.55s ✓ | 0.55s | 0.05s |
+| Lighting | N/A | 0.30s ✓ | 0.30s ✓ | 0.30s | 0.03s |
 | Unwrap() Calls | 373 | 373 | 0 | 171 | 0 |
 | Compilation Errors | Unknown | Unknown | 0 | 181 | 0 |
 | Compilation Warnings | Unknown | Unknown | 0 | 875 | <100 |

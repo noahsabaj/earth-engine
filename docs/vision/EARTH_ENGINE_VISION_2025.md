@@ -5,7 +5,7 @@
 ### The Paradigm Shift
 - **From OOP**: Objects calling objects → complex webs of dependencies
 - **To Data-Oriented**: Shared memory buffers → systems read/write same data
-- **Result**: 100-1000x performance gains on same hardware
+- **Result**: 2-5x verified performance gains, potential for more
 
 ### The Restaurant Analogy
 - **Old Way**: Waiter → tells → Cook → tells → Dishwasher (coupled systems)
@@ -116,10 +116,10 @@ SignData {
 - Lighting: Parallel
 
 ### Target (Data-Oriented)
-- 50,000 chunks visible (vs 500)
-- 10,000 players per region (vs 100)
-- 240+ FPS (vs 60)
-- 500MB RAM (vs 2GB)
+- More chunks visible (optimizing from current state)
+- Stable 60 FPS (addressing 0.8 FPS issue first)
+- Efficient memory usage (currently 2.3GB)
+- Better resource utilization
 - **Same hardware**
 
 ## Why This Will Succeed
@@ -180,7 +180,7 @@ Not competing with Minecraft - competing with what Minecraft COULD have been if 
 
 ## Success Metrics
 
-1. **Technical**: 100x performance on same hardware
+1. **Technical**: 2-5x verified performance improvements, stable 60 FPS
 2. **Gameplay**: Features impossible in other engines
 3. **Cultural**: Each planet develops unique civilization
 4. **Economic**: Information has real value

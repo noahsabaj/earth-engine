@@ -55,7 +55,7 @@ struct InstanceData {
 
 - **Persistent storage**: Data stays on GPU
 - **Efficient updates**: Only changed instances uploaded
-- **Massive counts**: 100K+ instances easily
+- **Massive counts**: Designed for 100K+ instances (performance varies by hardware)
 
 ### 3. GPU Culling (`culling_pipeline.rs`)
 
@@ -182,7 +182,7 @@ renderer.render(&mut encoder, &mut render_pass, camera_bind_group);
 
 ## Advantages
 
-1. **Scalability**: 100K+ objects with minimal CPU usage
+1. **Scalability**: Architecture supports many objects with reduced CPU usage
 2. **Efficiency**: GPU decides what to draw
 3. **Flexibility**: Easy to add new object types
 4. **Future-proof**: Ready for mesh shaders
