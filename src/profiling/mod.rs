@@ -5,6 +5,7 @@ pub mod final_profiler;
 pub mod dop_benchmarks;
 pub mod allocation_profiler;
 pub mod reality_check_profiler;
+pub mod gpu_workload_profiler;
 
 pub use cache_profiler::CacheProfiler;
 pub use memory_profiler::{MemoryProfiler, AccessPattern};
@@ -34,6 +35,15 @@ pub use reality_check_profiler::{
     end_frame as reality_end_frame,
     time_cpu_operation, record_draw_call, record_compute_dispatch,
     write_gpu_timestamp, generate_reality_report,
+};
+pub use gpu_workload_profiler::{
+    GpuWorkloadProfiler, WorkloadAnalysis, SystemWorkload, FrameBreakdown,
+    GpuOperationScope,
+};
+
+// Re-export from analysis module
+pub use crate::analysis::gpu_architecture_reality::{
+    GpuArchitectureReality, GpuOperationAnalyzer,
 };
 
 /// Macro for timing code blocks
