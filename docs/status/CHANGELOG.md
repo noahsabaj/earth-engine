@@ -221,12 +221,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-[Unreleased]: https://github.com/noahsabaj/earth-engine/compare/v0.35.0...HEAD
-[0.35.0]: https://github.com/noahsabaj/earth-engine/compare/v0.28.0...v0.35.0
-[0.26.0]: https://github.com/noahsabaj/earth-engine/compare/v0.25.0...v0.26.0
-[0.25.0]: https://github.com/noahsabaj/earth-engine/compare/v0.24.0...v0.25.0
-[0.24.0]: https://github.com/noahsabaj/earth-engine/compare/v0.23.0...v0.24.0
-[0.23.0]: https://github.com/noahsabaj/earth-engine/compare/v0.21.0...v0.23.0
-[0.21.0]: https://github.com/noahsabaj/earth-engine/compare/v0.16.0...v0.21.0
-[0.16.0]: https://github.com/noahsabaj/earth-engine/compare/v0.1.0...v0.16.0
-[0.1.0]: https://github.com/noahsabaj/earth-engine/releases/tag/v0.1.0
+[Unreleased]: https://github.com/noahsabaj/hearth-engine/compare/v0.35.0...HEAD
+[0.35.0]: https://github.com/noahsabaj/hearth-engine/compare/v0.28.0...v0.35.0
+[0.26.0]: https://github.com/noahsabaj/hearth-engine/compare/v0.25.0...v0.26.0
+[0.25.0]: https://github.com/noahsabaj/hearth-engine/compare/v0.24.0...v0.25.0
+[0.24.0]: https://github.com/noahsabaj/hearth-engine/compare/v0.23.0...v0.24.0
+[0.23.0]: https://github.com/noahsabaj/hearth-engine/compare/v0.21.0...v0.23.0
+[0.21.0]: https://github.com/noahsabaj/hearth-engine/compare/v0.16.0...v0.21.0
+[0.16.0]: https://github.com/noahsabaj/hearth-engine/compare/v0.1.0...v0.16.0
+[0.1.0]: https://github.com/noahsabaj/hearth-engine/releases/tag/v0.1.0

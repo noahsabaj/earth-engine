@@ -6,7 +6,7 @@ This guide ensures documentation coherence and prevents redundancy as the projec
 ## Documentation Structure
 
 ```
-earth-engine/
+hearth-engine/
 ├── README.md                           # Project overview and quick start
 ├── MASTER_ROADMAP.md                  # Complete sprint timeline (source of truth)
 ├── ENGINE_VISION.md                   # High-level vision and USPs

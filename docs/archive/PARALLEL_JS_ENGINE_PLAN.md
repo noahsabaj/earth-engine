@@ -270,14 +270,14 @@ Since GPU does 99% of the work:
 ## Project Structure
 
 ```
-earth-engine-workspace/
-├── earth-engine/          # Rust engine (unchanged)
+hearth-engine-workspace/
+├── hearth-engine/          # Rust engine (unchanged)
 │   ├── src/
 │   ├── shaders/          # Shared GPU code
 │   └── Cargo.toml
-├── earth-engine-js/      # JavaScript engine (new)
+├── hearth-engine-js/      # JavaScript engine (new)
 │   ├── src/
-│   ├── shaders/          # Symlink to ../earth-engine/shaders/
+│   ├── shaders/          # Symlink to ../hearth-engine/shaders/
 │   ├── package.json
 │   └── index.html
 └── docs/

@@ -68,7 +68,7 @@ See:
 
 ## 🏗️ Architecture
 
-Earth Engine uses a revolutionary data-oriented architecture where:
+Hearth Engine uses a revolutionary data-oriented architecture where:
 - Systems don't know about each other - they read/write shared memory
 - GPU computes stay on GPU - no unnecessary transfers
 - "The best system is no system" philosophy
@@ -81,9 +81,9 @@ Building the first voxel engine that truly uses modern hardware. Not competing w
 
 See [docs/EARTH_ENGINE_VISION_2025.md](docs/EARTH_ENGINE_VISION_2025.md) for the revolutionary game design.
 
-## 🛠️ Using Earth Engine
+## 🛠️ Using Hearth Engine
 
-Earth Engine is designed as a **pure library**, not a standalone application. This promotes:
+Hearth Engine is designed as a **pure library**, not a standalone application. This promotes:
 - **Reusability**: Use the engine in your own projects without modification
 - **Professional Structure**: Clean API with comprehensive examples
 - **Better Testing**: Library code is easier to test and validate
@@ -142,7 +142,7 @@ cargo test
 ### Examples and Testbeds
 
 #### 🔧 **Engine Testbed** (`cargo run --example engine_testbed`)
-**The primary development platform for Earth Engine**
+**The primary development platform for Hearth Engine**
 - **Comprehensive Debug UI**: F1-F12 hotkeys for all debug functions
 - **Real-time Metrics**: FPS, frame times, memory usage, GPU diagnostics
 - **Visual Debugging**: Chunk boundaries, wireframe mode, profiling overlay
@@ -161,7 +161,7 @@ cargo test
 
 #### 🎯 **Minimal Engine** (`cargo run --example minimal_engine`)
 **Clean, simple library usage demonstration**
-- **Basic API Usage**: Shows minimal code needed to use Earth Engine
+- **Basic API Usage**: Shows minimal code needed to use Hearth Engine
 - **Learning Tool**: Perfect for understanding engine initialization
 - **Starting Point**: Clean template for new projects
 - **No Complexity**: Focus on core engine concepts only
