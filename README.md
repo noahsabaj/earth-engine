@@ -93,7 +93,7 @@ Earth Engine is designed as a **pure library**, not a standalone application. Th
 ```toml
 # Add to your Cargo.toml
 [dependencies]
-earth-engine = { path = "../earth-engine" }  # or from crates.io when published
+earth-engine = { path = "../hearth-engine" }  # or from crates.io when published
 ```
 
 ```rust
@@ -119,8 +119,8 @@ fn main() {
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/earth-engine.git
-cd earth-engine
+git clone https://github.com/yourusername/hearth-engine.git
+cd hearth-engine
 
 # Build the library
 cargo build --release

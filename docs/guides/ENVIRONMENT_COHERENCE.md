@@ -38,7 +38,7 @@ C:\earth-engine-project\
 
 ### 1. ALWAYS Develop in Linux/WSL
 ```bash
-cd /home/nsabaj/earth-engine-workspace/earth-engine
+cd /home/nsabaj/hearth-engine-workspace/hearth-engine
 # Do all development here
 cargo build
 cargo test
@@ -50,16 +50,16 @@ After ANY development work in Linux, run this sync script:
 ```bash
 # Full sync from Linux to Windows (overwrites everything)
 rsync -av --delete \
-    /home/nsabaj/earth-engine-workspace/earth-engine/src/ \
-    /mnt/c/earth-engine-project/earth-engine/src/
+    /home/nsabaj/hearth-engine-workspace/hearth-engine/src/ \
+    /mnt/c/hearth-engine-project/hearth-engine/src/
 
 # Copy Cargo files
-cp /home/nsabaj/earth-engine-workspace/earth-engine/Cargo.toml \
-   /mnt/c/earth-engine-project/Cargo.toml
+cp /home/nsabaj/hearth-engine-workspace/hearth-engine/Cargo.toml \
+   /mnt/c/hearth-engine-project/Cargo.toml
 
 # Copy documentation
-cp /home/nsabaj/earth-engine-workspace/earth-engine/*.md \
-   /mnt/c/earth-engine-project/
+cp /home/nsabaj/hearth-engine-workspace/hearth-engine/*.md \
+   /mnt/c/hearth-engine-project/
 ```
 
 ### 3. Windows Testing
@@ -178,7 +178,7 @@ bash sync_to_windows.sh
 
 1. **Start Sprint in Linux**
    ```bash
-   cd /home/nsabaj/earth-engine-workspace/earth-engine
+   cd /home/nsabaj/hearth-engine-workspace/hearth-engine
    # Create new features/files
    ```
 
@@ -220,10 +220,10 @@ bash sync_to_windows.sh
 
 ```bash
 # In Linux - Check file count
-find /home/nsabaj/earth-engine-workspace/earth-engine/src -name "*.rs" | wc -l
+find /home/nsabaj/hearth-engine-workspace/hearth-engine/src -name "*.rs" | wc -l
 
 # In Linux - Full sync to Windows
-rsync -av --delete /home/nsabaj/earth-engine-workspace/earth-engine/src/ /mnt/c/earth-engine-project/earth-engine/src/
+rsync -av --delete /home/nsabaj/hearth-engine-workspace/hearth-engine/src/ /mnt/c/hearth-engine-project/hearth-engine/src/
 
 # In Windows - GPU test
 cd C:\earth-engine-project && cargo run --bin gpu_test

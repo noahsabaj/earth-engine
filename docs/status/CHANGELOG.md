@@ -86,7 +86,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Honest metrics prevent technical debt accumulation
 
 ### Removed
-- Entire web implementation (earth-engine/web/)
+- Entire web implementation (hearth-engine/web/)
 - False performance claims
 - Pretense of being production-ready
 

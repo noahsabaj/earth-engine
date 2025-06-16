@@ -63,7 +63,7 @@ It's almost a 1:1 translation!
 
 1. **Project Setup**
 ```bash
-earth-engine-js/
+hearth-engine-js/
 ├── src/
 │   ├── core/
 │   │   ├── gpu-context.js      # WebGPU setup
@@ -76,7 +76,7 @@ earth-engine-js/
 │   └── renderer/
 │       ├── mesh-builder.js     # Mesh generation
 │       └── gpu-renderer.js     # Render loop
-├── shaders/ -> ../earth-engine/shaders/  # Symlink!
+├── shaders/ -> ../hearth-engine/shaders/  # Symlink!
 └── index.html
 ```
 
