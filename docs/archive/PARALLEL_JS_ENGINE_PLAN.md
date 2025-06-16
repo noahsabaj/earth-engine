@@ -63,7 +63,7 @@ It's almost a 1:1 translation!
 
 1. **Project Setup**
 ```bash
-earth-engine-js/
+hearth-engine-js/
 ├── src/
 │   ├── core/
 │   │   ├── gpu-context.js      # WebGPU setup
@@ -76,7 +76,7 @@ earth-engine-js/
 │   └── renderer/
 │       ├── mesh-builder.js     # Mesh generation
 │       └── gpu-renderer.js     # Render loop
-├── shaders/ -> ../earth-engine/shaders/  # Symlink!
+├── shaders/ -> ../hearth-engine/shaders/  # Symlink!
 └── index.html
 ```
 
@@ -270,14 +270,14 @@ Since GPU does 99% of the work:
 ## Project Structure
 
 ```
-earth-engine-workspace/
-├── earth-engine/          # Rust engine (unchanged)
+hearth-engine-workspace/
+├── hearth-engine/          # Rust engine (unchanged)
 │   ├── src/
 │   ├── shaders/          # Shared GPU code
 │   └── Cargo.toml
-├── earth-engine-js/      # JavaScript engine (new)
+├── hearth-engine-js/      # JavaScript engine (new)
 │   ├── src/
-│   ├── shaders/          # Symlink to ../earth-engine/shaders/
+│   ├── shaders/          # Symlink to ../hearth-engine/shaders/
 │   ├── package.json
 │   └── index.html
 └── docs/

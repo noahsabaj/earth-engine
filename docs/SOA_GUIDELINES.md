@@ -1,8 +1,8 @@
-# Structure-of-Arrays (SOA) Guidelines for Earth Engine
+# Structure-of-Arrays (SOA) Guidelines for Hearth Engine
 
 ## Overview
 
-This document establishes the guidelines for implementing Structure-of-Arrays patterns in Earth Engine to achieve optimal cache efficiency and performance as part of Sprint 37: DOP Reality Check.
+This document establishes the guidelines for implementing Structure-of-Arrays patterns in Hearth Engine to achieve optimal cache efficiency and performance as part of Sprint 37: DOP Reality Check.
 
 ## Core Principles
 
@@ -445,4 +445,4 @@ By the end of Sprint 37, we should achieve:
 5. **✅ Zero Compilation Errors**: All SOA systems compile cleanly
 6. **✅ Performance Benchmarks**: Documented improvements with evidence
 
-This document serves as the definitive guide for implementing data-oriented, cache-efficient SOA patterns throughout Earth Engine.
+This document serves as the definitive guide for implementing data-oriented, cache-efficient SOA patterns throughout Hearth Engine.

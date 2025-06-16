@@ -8,7 +8,7 @@ use std::hint::black_box;
 /// Object-Oriented Programming, without depending on earth-engine library components.
 
 fn main() {
-    println!("🚀 Earth Engine Sprint 37: DOP Reality Check");
+    println!("🚀 Hearth Engine Sprint 37: DOP Reality Check");
     println!("==============================================");
     println!("Comprehensive performance analysis demonstrating measurable");
     println!("cache efficiency improvements in Data-Oriented Programming");

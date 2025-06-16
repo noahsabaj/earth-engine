@@ -9,13 +9,13 @@
 
 ### Step 1: Create GitHub/GitLab/Bitbucket Repository
 1. Create a new repository on your preferred platform
-2. Name it `earth-engine` or similar
+2. Name it `hearth-engine` or similar
 3. Do NOT initialize with README, .gitignore, or license (we already have these)
 
 ### Step 2: Connect Local to Remote (Run in WSL)
 ```bash
 # Add remote origin (replace URL with your repository URL)
-git remote add origin https://github.com/YOUR_USERNAME/earth-engine.git
+git remote add origin https://github.com/YOUR_USERNAME/hearth-engine.git
 
 # Verify remote was added
 git remote -v
@@ -29,11 +29,11 @@ git push -u origin master
 ### On Windows (Initial Setup)
 ```bash
 # Clone the repository
-cd C:\earth-engine-workspace
-git clone https://github.com/YOUR_USERNAME/earth-engine.git
+cd C:\hearth-engine-workspace
+git clone https://github.com/YOUR_USERNAME/hearth-engine.git
 
 # Enter the directory
-cd earth-engine
+cd hearth-engine
 
 # You're ready to work!
 ```

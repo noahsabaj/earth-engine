@@ -9,7 +9,7 @@ This document ensures we maintain **full coherence** between the Linux (WSL) dev
 
 ### Linux/WSL (PRIMARY - Development Environment)
 ```
-/home/nsabaj/earth-engine-workspace/earth-engine/
+/home/nsabaj/hearth-workspace/hearth-engine/
 ├── Cargo.toml
 ├── Cargo.lock
 ├── src/
@@ -26,10 +26,10 @@ This document ensures we maintain **full coherence** between the Linux (WSL) dev
 
 ### Windows (SECONDARY - Testing Only)
 ```
-C:\earth-engine-project\
+C:\hearth-workspace\
 ├── Cargo.toml
 ├── Cargo.lock  
-├── earth-engine\      # Source code directory
+├── hearth-engine\      # Source code directory
 │   └── src/          # Mirror of Linux src/
 └── target/           # Windows build artifacts
 ```
@@ -38,7 +38,7 @@ C:\earth-engine-project\
 
 ### 1. ALWAYS Develop in Linux/WSL
 ```bash
-cd /home/nsabaj/earth-engine-workspace/earth-engine
+cd /home/nsabaj/hearth-workspace/hearth-engine
 # Do all development here
 cargo build
 cargo test
@@ -50,21 +50,21 @@ After ANY development work in Linux, run this sync script:
 ```bash
 # Full sync from Linux to Windows (overwrites everything)
 rsync -av --delete \
-    /home/nsabaj/earth-engine-workspace/earth-engine/src/ \
-    /mnt/c/earth-engine-project/earth-engine/src/
+    /home/nsabaj/hearth-workspace/hearth-engine/src/ \
+    /mnt/c/hearth-workspace/hearth-engine/src/
 
 # Copy Cargo files
-cp /home/nsabaj/earth-engine-workspace/earth-engine/Cargo.toml \
-   /mnt/c/earth-engine-project/Cargo.toml
+cp /home/nsabaj/hearth-workspace/hearth-engine/Cargo.toml \
+   /mnt/c/hearth-workspace/Cargo.toml
 
 # Copy documentation
-cp /home/nsabaj/earth-engine-workspace/earth-engine/*.md \
-   /mnt/c/earth-engine-project/
+cp /home/nsabaj/hearth-workspace/hearth-engine/*.md \
+   /mnt/c/hearth-workspace/
 ```
 
 ### 3. Windows Testing
 ```powershell
-cd C:\earth-engine-project
+cd C:\hearth-workspace
 cargo run --bin gpu_test       # Test GPU detection
 cargo run --release            # Test with optimizations
 ```
@@ -96,11 +96,11 @@ GPU #4: NVIDIA GeForce RTX 4060 Ti/PCIe/SSE2
 
 ## Sync Script
 
-Create this as `/home/nsabaj/earth-engine-workspace/earth-engine/sync_to_windows.sh`:
+Create this as `/home/nsabaj/hearth-workspace/hearth-engine/sync_to_windows.sh`:
 
 ```bash
 #!/bin/bash
-echo "=== Syncing Earth Engine to Windows ==="
+echo "=== Syncing Hearth Engine to Windows ==="
 
 # Colors for output
 GREEN='\033[0;32m'
@@ -108,15 +108,15 @@ RED='\033[0;31m'
 NC='\033[0m' # No Color
 
 # Source and destination paths
-SRC_ROOT="/home/nsabaj/earth-engine-workspace/earth-engine"
-DEST_ROOT="/mnt/c/earth-engine-project"
+SRC_ROOT="/home/nsabaj/hearth-workspace/hearth-engine"
+DEST_ROOT="/mnt/c/hearth-workspace"
 
 # Ensure destination exists
-mkdir -p "$DEST_ROOT/earth-engine/src"
+mkdir -p "$DEST_ROOT/hearth-engine/src"
 
 # Sync source files (with delete to ensure exact mirror)
 echo "Syncing source files..."
-if rsync -av --delete "$SRC_ROOT/src/" "$DEST_ROOT/earth-engine/src/"; then
+if rsync -av --delete "$SRC_ROOT/src/" "$DEST_ROOT/hearth-engine/src/"; then
     echo -e "${GREEN}✓ Source files synced${NC}"
 else
     echo -e "${RED}✗ Failed to sync source files${NC}"
@@ -138,7 +138,7 @@ echo -e "${GREEN}✓ Documentation synced${NC}"
 
 # List what was synced
 echo -e "\n${GREEN}=== Sync Complete ===${NC}"
-echo "Windows project ready at: C:\\earth-engine-project"
+echo "Windows project ready at: C:\\hearth-workspace"
 echo "Run GPU tests with: cargo run --bin gpu_test"
 ```
 
@@ -178,7 +178,7 @@ bash sync_to_windows.sh
 
 1. **Start Sprint in Linux**
    ```bash
-   cd /home/nsabaj/earth-engine-workspace/earth-engine
+   cd /home/nsabaj/hearth-workspace/hearth-engine
    # Create new features/files
    ```
 
@@ -220,16 +220,16 @@ bash sync_to_windows.sh
 
 ```bash
 # In Linux - Check file count
-find /home/nsabaj/earth-engine-workspace/earth-engine/src -name "*.rs" | wc -l
+find /home/nsabaj/hearth-workspace/hearth-engine/src -name "*.rs" | wc -l
 
 # In Linux - Full sync to Windows
-rsync -av --delete /home/nsabaj/earth-engine-workspace/earth-engine/src/ /mnt/c/earth-engine-project/earth-engine/src/
+rsync -av --delete /home/nsabaj/hearth-workspace/hearth-engine/src/ /mnt/c/hearth-workspace/hearth-engine/src/
 
 # In Windows - GPU test
-cd C:\earth-engine-project && cargo run --bin gpu_test
+cd C:\hearth-workspace && cargo run --bin gpu_test
 
 # In Windows - Release build test
-cd C:\earth-engine-project && cargo run --release
+cd C:\hearth-workspace && cargo run --release
 ```
 
 ---

@@ -57,7 +57,7 @@
 
 ### Current Structure (GOOD):
 ```
-earth-engine/
+hearth-engine/
 ├── src/                    # Unit tests embedded with code (#[cfg(test)])
 ├── tests/                  # Integration tests (✅ Rust best practice)
 ├── examples/               # Example code that can be tested
