@@ -1,21 +1,21 @@
-# Earth Engine - Claude Instructions
+# Hearth Engine - Claude Instructions
 
 **PURPOSE**: This document contains TIMELESS instructions that don't change with sprints.
 **For current sprint/priorities**: See CURRENT.md
 **For sprint planning**: See MASTER_ROADMAP.md
 
 ## ENVIRONMENT SETUP
-- **Claude (AI)**: Working in WSL Ubuntu at `/home/nsabaj/earth-engine-workspace/earth-engine`
+- **Claude (AI)**: Working in WSL Ubuntu at `/home/nsabaj/hearth-workspace/hearth-engine`
 - **Human User**: Working in Windows, pulls changes from main branch
 - **Workflow**: Claude makes changes in WSL → pushes to main → User pulls in Windows
 
 ## PROJECT OVERVIEW
-This is **Earth Engine** - a frontier SOTA voxel game engine. We are building in this order:
+This is **Hearth Engine** - a frontier SOTA voxel game engine. We are building in this order:
 1. **ENGINE** (Current Phase) - Game-agnostic voxel engine with cutting-edge performance
-2. **GAME** (Next Phase) - Earth MMO implementation using the engine
+2. **GAME** (Next Phase) - Game implementation using the engine
 3. **FRAMEWORK** (Final Phase) - Tools enabling others to build ANY voxel game
 
-### Earth MMO Vision (Future Game)
+### Game Vision (Future Implementation)
 **Core Foundation: Emergent Gameplay from Physics Simulation**
 - **1dcm³ voxels** (10cm cubes) - perfect scale for realistic destruction and structural physics
 - **Everything transformable** - Every voxel can be destroyed/built/changed with realistic physics
@@ -266,7 +266,7 @@ fn generate_chunk(data: &mut ChunkData, gen_params: &GenParams) {
 - Benchmark everything - we need 1000x performance
 
 ## 🚨 CRITICAL: CLAIMS VS REALITY PREVENTION 🚨
-**Earth Engine Specific**: This project has experienced severe "claims vs reality" gaps where agents report success without verification.
+**Hearth Engine Specific**: This project has experienced severe "claims vs reality" gaps where agents report success without verification.
 
 ### Four Root Causes of False Claims (Identified in Sprint 36):
 1. **Overconfidence Bias** - Assuming unwrap() elimination worked without checking rg counts
@@ -274,7 +274,7 @@ fn generate_chunk(data: &mut ChunkData, gen_params: &GenParams) {
 3. **Text Generation vs Reality** - Generating "mission accomplished" text without evidence
 4. **Speed over Accuracy** - Rushing to claim sprint completion rather than verify
 
-### Earth Engine Verification Requirements:
+### Hearth Engine Verification Requirements:
 **MANDATORY FOR ALL WORK:**
 - `cargo check --lib` MUST pass before claiming compilation success
 - `cargo test --lib` MUST be attempted before claiming functionality
@@ -288,23 +288,23 @@ fn generate_chunk(data: &mut ChunkData, gen_params: &GenParams) {
 - **Every deliverable requires independent verification with actual commands**
 - **"Attempted" vs "Accomplished" language until verified**
 
-### Earth Engine Specific Checks:
+### Hearth Engine Specific Checks:
 - **Player Movement**: Verify WASD keys work with actual testing
 - **Spawn System**: Verify safe spawn with actual gameplay
 - **Save/Load**: Verify no corruption with actual save/load cycles
 - **Performance**: Verify claims with actual benchmarks
 - **DOP Conversion**: Verify allocation counts with profiling
 
-### Language for Earth Engine:
+### Language for Hearth Engine:
 - ❌ "Zero unwraps achieved" → ✅ "Targeted unwraps, running rg count..."
 - ❌ "Sprint 36 complete" → ✅ "Sprint 36 changes made, running QA..."
 - ❌ "Player movement fixed" → ✅ "Modified movement code, testing WASD..."
 - ❌ "Engine ready for production" → ✅ "Engine compiles, testing functionality..."
 
-**Earth Engine Principle**: Show, don't tell. Prove, don't claim.
+**Hearth Engine Principle**: Show, don't tell. Prove, don't claim.
 
 ## VISION REMINDERS
-This engine enables the ultimate MMO - Earth:
+This engine enables the ultimate voxel-based games:
 - **"Real life but fun"** - Complex societies emerge from simple physics
 - **Every voxel transformable** - Build cities, destroy mountains, redirect rivers
 - **No forced gameplay** - Those "1000 players simulate civilization" videos? Just ONE way to play

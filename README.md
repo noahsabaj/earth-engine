@@ -1,4 +1,4 @@
-# Earth Engine
+# Hearth Engine
 
 **Version: 0.35.0** ([Versioning Strategy](docs/VERSIONING.md))
 
