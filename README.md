@@ -1,6 +1,10 @@
-# Hearth Engine
+<div align="center">
+  <img src="logo.png" alt="Hearth Engine Logo" width="200"/>
+  
+  # Hearth Engine
 
-**Version: 0.35.0** ([Versioning Strategy](docs/VERSIONING.md))
+  **Version: 0.35.0** ([Versioning Strategy](docs/VERSIONING.md))
+</div>
 
 A state-of-the-art voxel game engine built with Rust, designed to push the boundaries of what's possible with voxel technology through data-oriented design and GPU-first architecture.
 
