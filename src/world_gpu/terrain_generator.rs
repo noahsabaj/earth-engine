@@ -21,8 +21,8 @@ pub struct BlockDistribution {
     /// Used for clustering - higher values create more sparse placement
     pub noise_threshold: f32,
     /// Reserved for future use (ensures proper GPU alignment)
-    /// Note: vec3<f32> in WGSL is padded to 16 bytes, so we need 4 floats
-    pub _reserved: [f32; 4],
+    /// Note: vec4<f32> in WGSL is 16 bytes, we need 7 floats total for 48-byte alignment
+    pub _reserved: [f32; 7],
 }
 
 impl Default for BlockDistribution {
@@ -33,7 +33,7 @@ impl Default for BlockDistribution {
             max_height: i32::MAX,
             probability: 0.0,
             noise_threshold: 0.5,
-            _reserved: [0.0; 4],
+            _reserved: [0.0; 7],
         }
     }
 }
@@ -127,9 +127,10 @@ impl TerrainGenerator {
         log::debug!("[TerrainGenerator] Device features: {:?}", device.features());
         
         // Debug: Print actual sizes
-        log::info!("[TerrainGenerator] Size of BlockDistribution: {} bytes", std::mem::size_of::<BlockDistribution>());
+        log::info!("[TerrainGenerator] Size of BlockDistribution: {} bytes (should be 48 for GPU alignment)", std::mem::size_of::<BlockDistribution>());
         log::info!("[TerrainGenerator] Size of TerrainParams: {} bytes", std::mem::size_of::<TerrainParams>());
         log::info!("[TerrainGenerator] Expected distributions array size: {} bytes", std::mem::size_of::<[BlockDistribution; MAX_BLOCK_DISTRIBUTIONS]>());
+        log::info!("[TerrainGenerator] Total expected uniform buffer size: {} bytes", std::mem::size_of::<TerrainParams>());
         
         let limits = device.limits();
         log::info!("[TerrainGenerator] Device compute limits: workgroup_size=({}, {}, {}), workgroups=({}, {}, {})",
@@ -253,7 +254,8 @@ impl TerrainGenerator {
         
         // Create parameters buffer
         let default_params = TerrainParams::default();
-        let params_bytes = bytemuck::cast_slice(&[default_params]);
+        let params_array = [default_params]; // Store in variable to extend lifetime
+        let params_bytes = bytemuck::cast_slice(&params_array);
         log::info!("[TerrainGenerator] Creating parameters buffer: {} bytes (shader will validate actual requirements)", params_bytes.len());
         
         let params_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
