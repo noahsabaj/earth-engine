@@ -100,7 +100,7 @@ mod tests {
         });
         
         // Create terrain generator
-        let terrain_gen = TerrainGenerator::new(device.clone());
+        let terrain_gen = TerrainGenerator::new(device.clone(), std::sync::Arc::new(queue.clone()));
         
         // Update parameters
         let params = TerrainParams {
@@ -113,7 +113,8 @@ mod tests {
             _padding: [0; 2],
             distributions: [BlockDistribution::default(); MAX_BLOCK_DISTRIBUTIONS],
         };
-        terrain_gen.update_params(&queue, &params);
+        terrain_gen.update_params(&params)
+            .expect("Failed to update terrain parameters");
         
         // Generate some chunks
         let chunks_to_generate = vec![

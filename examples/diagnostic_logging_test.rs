@@ -152,7 +152,7 @@ async fn test_gpu_operations() -> Result<(), Box<dyn std::error::Error>> {
     
     // Test terrain generator logging
     println!("Testing TerrainGenerator diagnostic logging...");
-    let terrain_generator = TerrainGenerator::new(device.clone());
+    let terrain_generator = TerrainGenerator::new(device.clone(), queue.clone());
     
     // Create command encoder for GPU operations
     let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {

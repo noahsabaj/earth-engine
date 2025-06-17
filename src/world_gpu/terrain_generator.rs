@@ -1,127 +1,36 @@
 use std::sync::Arc;
 use std::time::Instant;
 use wgpu::util::DeviceExt;
-use bytemuck::{Pod, Zeroable};
 use crate::world::ChunkPos;
+use crate::gpu::{GpuBufferManager, TypedGpuBuffer, GpuError};
 use super::world_buffer::WorldBuffer;
 
-/// Generic block distribution rule
-#[repr(C)]
-#[derive(Copy, Clone, Debug, Pod, Zeroable)]
-pub struct BlockDistribution {
-    /// Block ID to place
-    pub block_id: u32,
-    /// Minimum Y coordinate (inclusive)
-    pub min_height: i32,
-    /// Maximum Y coordinate (inclusive)
-    pub max_height: i32,
-    /// Base probability (0.0-1.0)
-    pub probability: f32,
-    /// Noise threshold for placement (0.0-1.0)
-    /// Used for clustering - higher values create more sparse placement
-    pub noise_threshold: f32,
-    /// Reserved for future use (ensures proper GPU alignment)
-    /// Note: vec4<f32> in WGSL is 16 bytes, we need 7 floats total for 48-byte alignment
-    pub _reserved: [f32; 7],
-}
+// Re-export GPU types for backward compatibility
+pub use crate::gpu::types::terrain::{BlockDistribution, TerrainParams, MAX_BLOCK_DISTRIBUTIONS};
 
-impl Default for BlockDistribution {
-    fn default() -> Self {
-        Self {
-            block_id: 0,
-            min_height: i32::MIN,
-            max_height: i32::MAX,
-            probability: 0.0,
-            noise_threshold: 0.5,
-            _reserved: [0.0; 7],
-        }
-    }
-}
-
-/// Maximum number of custom block distributions
-/// This is a GPU limitation - we need fixed-size arrays in shaders
-pub const MAX_BLOCK_DISTRIBUTIONS: usize = 16;
-
-/// Parameters for terrain generation
-#[repr(C)]
-#[derive(Copy, Clone, Debug, Pod, Zeroable)]
-pub struct TerrainParams {
-    /// World seed for deterministic generation
-    pub seed: u32,
-    /// Sea level height
-    pub sea_level: f32,
-    /// Base terrain scale
-    pub terrain_scale: f32,
-    /// Mountain threshold
-    pub mountain_threshold: f32,
-    /// Cave density threshold
-    pub cave_threshold: f32,
-    /// Number of active block distributions (0 to MAX_BLOCK_DISTRIBUTIONS)
-    pub num_distributions: u32,
-    /// Padding for alignment
-    pub _padding: [u32; 2],
-    /// Custom block distributions
-    /// Games can specify up to MAX_BLOCK_DISTRIBUTIONS custom blocks
-    pub distributions: [BlockDistribution; MAX_BLOCK_DISTRIBUTIONS],
-}
-
-impl Default for TerrainParams {
-    fn default() -> Self {
-        Self {
-            seed: 12345,
-            sea_level: 64.0,
-            terrain_scale: 0.01,
-            mountain_threshold: 0.6,
-            cave_threshold: 0.3,
-            num_distributions: 0,
-            _padding: [0; 2],
-            distributions: [BlockDistribution::default(); MAX_BLOCK_DISTRIBUTIONS],
-        }
-    }
-}
-
-impl TerrainParams {
-    /// Add a block distribution rule
-    /// Returns true if added, false if at capacity
-    pub fn add_distribution(&mut self, distribution: BlockDistribution) -> bool {
-        if self.num_distributions as usize >= MAX_BLOCK_DISTRIBUTIONS {
-            log::warn!("[TerrainParams] Cannot add distribution - at maximum capacity ({} distributions)", MAX_BLOCK_DISTRIBUTIONS);
-            return false;
-        }
-        
-        let index = self.num_distributions as usize;
-        self.distributions[index] = distribution;
-        self.num_distributions += 1;
-        
-        log::debug!("[TerrainParams] Added distribution for block {} at index {} (total: {})", 
-                   distribution.block_id, index, self.num_distributions);
-        true
-    }
-    
-    /// Clear all distributions
-    pub fn clear_distributions(&mut self) {
-        self.num_distributions = 0;
-        // Zero out for safety
-        self.distributions = [BlockDistribution::default(); MAX_BLOCK_DISTRIBUTIONS];
-    }
-}
+// BlockDistribution and TerrainParams are now imported from gpu::types::terrain
+// The old definitions have been removed to use the centralized GPU type system
 
 /// GPU-based terrain generator
 pub struct TerrainGenerator {
     device: Arc<wgpu::Device>,
     
+    /// GPU buffer manager for type-safe buffer management
+    buffer_manager: Arc<GpuBufferManager>,
+    
     /// Compute pipeline for terrain generation
     generate_pipeline: wgpu::ComputePipeline,
     
-    /// Parameters buffer
-    params_buffer: wgpu::Buffer,
+    /// Parameters buffer with automatic alignment
+    params_buffer: TypedGpuBuffer<TerrainParams>,
     
     /// Bind group layout for terrain generation
     bind_group_layout: wgpu::BindGroupLayout,
 }
 
 impl TerrainGenerator {
-    pub fn new(device: Arc<wgpu::Device>) -> Self {
+    /// Create a new terrain generator with an existing buffer manager
+    pub fn new_with_manager(device: Arc<wgpu::Device>, buffer_manager: Arc<GpuBufferManager>) -> Self {
         // Log device capabilities
         log::info!("[TerrainGenerator] Initializing GPU terrain generator");
         log::debug!("[TerrainGenerator] Device features: {:?}", device.features());
@@ -252,36 +161,42 @@ impl TerrainGenerator {
         log::info!("[TerrainGenerator] Terrain generation compute pipeline created successfully!");
         log::info!("[TerrainGenerator] GPU terrain generation is ready");
         
-        // Create parameters buffer
+        // Create parameters buffer with automatic alignment
         let default_params = TerrainParams::default();
-        let params_array = [default_params]; // Store in variable to extend lifetime
-        let params_bytes = bytemuck::cast_slice(&params_array);
-        log::info!("[TerrainGenerator] Creating parameters buffer: {} bytes (shader will validate actual requirements)", params_bytes.len());
+        log::info!("[TerrainGenerator] Creating parameters buffer with automatic GPU alignment");
         
-        let params_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Terrain Parameters Buffer"),
-            contents: params_bytes,
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        });
+        let params_buffer = buffer_manager.create_uniform(&default_params)
+            .expect("Failed to create terrain parameters buffer");
+        
+        log::info!("[TerrainGenerator] Parameters buffer created: {} bytes", params_buffer.size());
         
         Self {
             device,
+            buffer_manager,
             generate_pipeline,
             params_buffer,
             bind_group_layout,
         }
     }
     
+    /// Create a new terrain generator with a queue (creates its own buffer manager)
+    /// For backward compatibility with existing code
+    pub fn new(device: Arc<wgpu::Device>, queue: Arc<wgpu::Queue>) -> Self {
+        let buffer_manager = Arc::new(GpuBufferManager::new(device.clone(), queue));
+        Self::new_with_manager(device, buffer_manager)
+    }
+    
     /// Update terrain generation parameters
-    pub fn update_params(&self, queue: &wgpu::Queue, params: &TerrainParams) {
+    pub fn update_params(&self, params: &TerrainParams) -> Result<(), GpuError> {
         let start = Instant::now();
         log::debug!("[GPU_TERRAIN] Updating terrain parameters: seed={}, sea_level={}, scale={}", 
                    params.seed, params.sea_level, params.terrain_scale);
         
-        queue.write_buffer(&self.params_buffer, 0, bytemuck::cast_slice(&[*params]));
+        self.buffer_manager.update_uniform(&self.params_buffer, params)?;
         
         let duration = start.elapsed();
         log::debug!("[GPU_TERRAIN] Parameter update completed in {:.2}μs", duration.as_micros());
+        Ok(())
     }
     
     /// Generate multiple chunks on the GPU
@@ -366,7 +281,7 @@ impl TerrainGenerator {
                 },
                 wgpu::BindGroupEntry {
                     binding: 2,
-                    resource: self.params_buffer.as_entire_binding(),
+                    resource: self.params_buffer.raw().as_entire_binding(),
                 },
                 wgpu::BindGroupEntry {
                     binding: 3,

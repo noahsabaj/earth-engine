@@ -41,6 +41,7 @@ pub mod world_state;
 pub mod system_monitor;
 pub mod event_system;
 pub mod analysis;
+pub mod gpu;
 
 // Web module removed - no longer supporting browser builds
 

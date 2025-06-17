@@ -58,7 +58,7 @@ impl GpuDefaultWorldGenerator {
         let world_buffer = WorldBuffer::new(device.clone(), &world_buffer_desc);
         
         // Create GPU terrain generator
-        let terrain_generator = TerrainGenerator::new(device.clone());
+        let terrain_generator = TerrainGenerator::new(device.clone(), queue.clone());
         
         // Set up terrain parameters to match DefaultWorldGenerator behavior
         let terrain_params = TerrainParams {
@@ -71,7 +71,8 @@ impl GpuDefaultWorldGenerator {
             _padding: [0; 2],
             distributions: [BlockDistribution::default(); MAX_BLOCK_DISTRIBUTIONS],
         };
-        terrain_generator.update_params(&queue, &terrain_params);
+        terrain_generator.update_params(&terrain_params)
+            .expect("Failed to update terrain parameters");
         
         // Keep CPU terrain generator for surface height queries
         let cpu_terrain_gen = CpuTerrainGenerator::new(seed);

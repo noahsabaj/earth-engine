@@ -11,11 +11,11 @@ use super::{
 /// Performance benchmarking for GPU world system
 pub struct GpuWorldBenchmarks {
     device: Arc<wgpu::Device>,
-    queue: wgpu::Queue,
+    queue: Arc<wgpu::Queue>,
 }
 
 impl GpuWorldBenchmarks {
-    pub fn new(device: Arc<wgpu::Device>, queue: wgpu::Queue) -> Self {
+    pub fn new(device: Arc<wgpu::Device>, queue: Arc<wgpu::Queue>) -> Self {
         Self { device, queue }
     }
     
@@ -41,8 +41,8 @@ impl GpuWorldBenchmarks {
             enable_readback: false,
         });
         
-        let terrain_gen = TerrainGenerator::new(self.device.clone());
-        terrain_gen.update_params(&self.queue, &TerrainParams::default());
+        let terrain_gen = TerrainGenerator::new(self.device.clone(), self.queue.clone());
+        terrain_gen.update_params(&TerrainParams::default()).unwrap();
         
         // Test different batch sizes
         let batch_sizes = [1, 10, 50, 100, 500, 1000];

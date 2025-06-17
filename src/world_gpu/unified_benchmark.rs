@@ -147,7 +147,7 @@ impl UnifiedKernelBenchmark {
         let mut total_dispatches = 0u32;
         
         // Create individual systems
-        let terrain_gen = super::TerrainGenerator::new(self.device.clone());
+        let terrain_gen = super::TerrainGenerator::new(self.device.clone(), self.queue.clone());
         let lighting = super::GpuLighting::new(self.device.clone());
         let modifier = super::ChunkModifier::new(self.device.clone());
         

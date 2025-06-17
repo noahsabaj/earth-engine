@@ -24,6 +24,10 @@ noise = "0.8"
 
 # Serialization
 bytemuck = { version = "1.14", features = ["derive"] }
+encase = { version = "0.7", features = ["glam"] }
+
+# Compile-time validation
+static_assertions = "1.1"
 
 # Logging
 log = "0.4"
@@ -95,6 +99,12 @@ lazy_static = "1.4"
 
 # System interface
 libc = "0.2"
+
+[build-dependencies]
+encase = "0.7"
+syn = "2.0"
+quote = "1.0"
+proc-macro2 = "1.0"
 
 [dev-dependencies]
 tempfile = "3.10"
