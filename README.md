@@ -246,17 +246,3 @@ This is currently a personal project, but contributions are welcome! Please read
 ---
 
 Built with ❤️ and a commitment to **honest engineering**.
-
----
-
-## 📢 Our Commitment
-
-**"From Pretense to Performance"**
-
-We choose:
-- Tests over talk
-- Proof over promises  
-- Stability over speed
-- Honesty over hype
-
-Follow our journey from D-grade to B-grade execution in [docs/EMERGENCY_PROGRESS.md](docs/EMERGENCY_PROGRESS.md).
