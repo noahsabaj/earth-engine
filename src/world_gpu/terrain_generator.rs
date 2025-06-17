@@ -199,7 +199,7 @@ impl TerrainGenerator {
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size: Some(std::num::NonZeroU64::new(std::mem::size_of::<TerrainParams>() as u64).unwrap()),
+                        min_binding_size: None, // Let WGPU infer size from shader
                     },
                     count: None,
                 },
@@ -252,9 +252,13 @@ impl TerrainGenerator {
         log::info!("[TerrainGenerator] GPU terrain generation is ready");
         
         // Create parameters buffer
+        let default_params = TerrainParams::default();
+        let params_bytes = bytemuck::cast_slice(&[default_params]);
+        log::info!("[TerrainGenerator] Creating parameters buffer: {} bytes (shader will validate actual requirements)", params_bytes.len());
+        
         let params_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Terrain Parameters Buffer"),
-            contents: bytemuck::cast_slice(&[TerrainParams::default()]),
+            contents: params_bytes,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
         
