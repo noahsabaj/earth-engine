@@ -7,8 +7,9 @@ use crate::gpu::types::{terrain, GpuData};
 /// 
 /// This function logs the actual sizes of all GPU types and verifies
 /// they meet alignment requirements.
-#[cfg(debug_assertions)]
 pub fn validate_all_gpu_types() {
+    #[cfg(debug_assertions)]
+    {
     log::info!("[GPU Validation] Starting GPU type validation...");
     
     // Validate terrain types
@@ -20,6 +21,7 @@ pub fn validate_all_gpu_types() {
     // particles::validate_particle_sizes();
     
     log::info!("[GPU Validation] All GPU types validated successfully!");
+    }
 }
 
 /// Compile-time validation macro for GPU types
