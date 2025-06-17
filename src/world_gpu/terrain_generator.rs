@@ -20,8 +20,9 @@ pub struct BlockDistribution {
     /// Noise threshold for placement (0.0-1.0)
     /// Used for clustering - higher values create more sparse placement
     pub noise_threshold: f32,
-    /// Reserved for future use (ensures 32-byte alignment)
-    pub _reserved: [f32; 3],
+    /// Reserved for future use (ensures proper GPU alignment)
+    /// Note: vec3<f32> in WGSL is padded to 16 bytes, so we need 4 floats
+    pub _reserved: [f32; 4],
 }
 
 impl Default for BlockDistribution {
@@ -32,7 +33,7 @@ impl Default for BlockDistribution {
             max_height: i32::MAX,
             probability: 0.0,
             noise_threshold: 0.5,
-            _reserved: [0.0; 3],
+            _reserved: [0.0; 4],
         }
     }
 }
@@ -124,6 +125,11 @@ impl TerrainGenerator {
         // Log device capabilities
         log::info!("[TerrainGenerator] Initializing GPU terrain generator");
         log::debug!("[TerrainGenerator] Device features: {:?}", device.features());
+        
+        // Debug: Print actual sizes
+        log::info!("[TerrainGenerator] Size of BlockDistribution: {} bytes", std::mem::size_of::<BlockDistribution>());
+        log::info!("[TerrainGenerator] Size of TerrainParams: {} bytes", std::mem::size_of::<TerrainParams>());
+        log::info!("[TerrainGenerator] Expected distributions array size: {} bytes", std::mem::size_of::<[BlockDistribution; MAX_BLOCK_DISTRIBUTIONS]>());
         
         let limits = device.limits();
         log::info!("[TerrainGenerator] Device compute limits: workgroup_size=({}, {}, {}), workgroups=({}, {}, {})",
