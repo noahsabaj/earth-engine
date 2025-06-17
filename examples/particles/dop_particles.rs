@@ -1,8 +1,8 @@
-use earth_engine::particles::{DOPParticleSystem, ParticleType};
-use earth_engine::particles::system::{
+use hearth_engine::particles::{DOPParticleSystem, ParticleType};
+use hearth_engine::particles::system::{
     create_fire_effect, create_rain_effect, create_explosion_effect
 };
-use earth_engine::world::World;
+use hearth_engine::world::World;
 use glam::Vec3;
 use std::time::Duration;
 

@@ -134,7 +134,7 @@ fn test_chunk_generation_speedup() -> TestResult {
     println!("Testing with {} chunks ({} warmup, {} test runs)", CHUNK_COUNT, WARMUP_RUNS, TEST_RUNS);
     
     // Import what we need
-    use earth_engine::world::{ChunkPos, World};
+    use hearth_engine::world::{ChunkPos, World};
     use rayon::prelude::*;
     
     // Generate chunk positions

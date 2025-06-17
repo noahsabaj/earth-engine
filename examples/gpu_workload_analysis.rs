@@ -3,7 +3,7 @@
 //! This example profiles the actual GPU vs CPU workload distribution to validate
 //! the claimed "80-85% GPU compute" architecture.
 
-use earth_engine::{
+use hearth_engine::{
     profiling::{GpuWorkloadProfiler, GpuArchitectureReality},
     renderer::Renderer,
     world::World,
@@ -204,8 +204,8 @@ fn run_simplified_analysis() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 /// Calculate average workload from samples
-fn calculate_average_workload(samples: &[earth_engine::profiling::WorkloadAnalysis]) -> earth_engine::profiling::WorkloadAnalysis {
-    use earth_engine::profiling::{SystemWorkload, FrameBreakdown};
+fn calculate_average_workload(samples: &[hearth_engine::profiling::WorkloadAnalysis]) -> hearth_engine::profiling::WorkloadAnalysis {
+    use hearth_engine::profiling::{SystemWorkload, FrameBreakdown};
     use std::collections::HashMap;
     
     let count = samples.len() as f32;
@@ -251,7 +251,7 @@ fn calculate_average_workload(samples: &[earth_engine::profiling::WorkloadAnalys
         other_ms: samples.iter().map(|s| s.frame_breakdown.other_ms).sum::<f32>() / count,
     };
     
-    earth_engine::profiling::WorkloadAnalysis {
+    hearth_engine::profiling::WorkloadAnalysis {
         gpu_compute_percentage: avg_gpu_compute,
         cpu_compute_percentage: avg_cpu_compute,
         sync_overhead_percentage: avg_sync_overhead,

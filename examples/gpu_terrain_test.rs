@@ -16,12 +16,12 @@
 /// - Chunks per second should exceed 20 for 60+ FPS target
 /// - Both CPU and GPU should generate same number of chunks
 
-use earth_engine::world::{
+use hearth_engine::world::{
     ChunkManagerConfig, create_chunk_manager_data, create_gpu_chunk_manager_data,
     ChunkPos, WorldGenerator, DefaultWorldGenerator,
     chunk_manager::{update_loaded_chunks, get_loading_stats}
 };
-use earth_engine::BlockId;
+use hearth_engine::BlockId;
 use cgmath::Point3;
 use std::time::Instant;
 use std::sync::Arc;
@@ -158,7 +158,7 @@ async fn test_performance_comparison() -> Result<(), Box<dyn std::error::Error>>
         update_loaded_chunks(&mut cpu_chunk_manager, player_pos);
         
         // Break if no more chunks are loading
-        if !earth_engine::world::chunk_manager::is_loading(&cpu_chunk_manager) {
+        if !hearth_engine::world::chunk_manager::is_loading(&cpu_chunk_manager) {
             break;
         }
     }
@@ -187,7 +187,7 @@ async fn test_performance_comparison() -> Result<(), Box<dyn std::error::Error>>
         update_loaded_chunks(&mut gpu_chunk_manager, player_pos);
         
         // Break if no more chunks are loading
-        if !earth_engine::world::chunk_manager::is_loading(&gpu_chunk_manager) {
+        if !hearth_engine::world::chunk_manager::is_loading(&gpu_chunk_manager) {
             break;
         }
     }

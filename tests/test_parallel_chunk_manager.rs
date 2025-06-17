@@ -1,4 +1,4 @@
-use earth_engine::world::{ParallelChunkManager, WorldGenerator, Chunk, ChunkPos};
+use hearth_engine::world::{ParallelChunkManager, WorldGenerator, Chunk, ChunkPos};
 use cgmath::Point3;
 use std::thread;
 use std::time::Duration;
@@ -18,7 +18,7 @@ impl WorldGenerator for TestGenerator {
         // Generate simple flat terrain at y=64
         for x in 0..chunk_size {
             for z in 0..chunk_size {
-                chunk.set_block(x, 64, z, earth_engine::world::BlockId(1)); // Stone
+                chunk.set_block(x, 64, z, hearth_engine::world::BlockId(1)); // Stone
             }
         }
         chunk

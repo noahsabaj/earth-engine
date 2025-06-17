@@ -3,13 +3,13 @@
 /// This benchmark demonstrates the cache efficiency improvements
 /// achieved by converting from Array-of-Structures to Structure-of-Arrays.
 
-use earth_engine::ecs::{
+use hearth_engine::ecs::{
     SoAWorld, 
     add_transform_component, 
     add_physics_component,
     soa_update_physics_system,
 };
-use earth_engine::particles::{ParticleData, MAX_PARTICLES};
+use hearth_engine::particles::{ParticleData, MAX_PARTICLES};
 use std::time::Instant;
 use rand::Rng;
 

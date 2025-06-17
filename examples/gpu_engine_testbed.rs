@@ -11,7 +11,7 @@
 ///
 /// This demonstrates the complete integration of GPU terrain generation into the engine.
 
-use earth_engine::{
+use hearth_engine::{
     EngineConfig, Engine, Game, GameContext,
     BlockId, VoxelPos, ChunkPos,
     input::{InputState, KeyCode},

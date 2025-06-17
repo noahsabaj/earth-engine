@@ -7,14 +7,14 @@
 /// 4. Physics integration
 /// 5. Camera synchronization
 
-use earth_engine::input::{InputState, KeyCode};
-use earth_engine::physics::data_physics::{PhysicsWorldData, flags};
-use earth_engine::camera::data_camera::{CameraData, init_camera};
-use earth_engine::world::{ParallelWorld, ParallelWorldConfig, SpawnFinder};
-use earth_engine::world::generation::{DefaultWorldGenerator, WorldGenerator};
-use earth_engine::persistence::{SaveManager, SaveConfig};
-use earth_engine::persistence::player_data::{PlayerSaveData, PlayerData, InventoryData, GameMode, PlayerStats};
-use earth_engine::{BlockId};
+use hearth_engine::input::{InputState, KeyCode};
+use hearth_engine::physics::data_physics::{PhysicsWorldData, flags};
+use hearth_engine::camera::data_camera::{CameraData, init_camera};
+use hearth_engine::world::{ParallelWorld, ParallelWorldConfig, SpawnFinder};
+use hearth_engine::world::generation::{DefaultWorldGenerator, WorldGenerator};
+use hearth_engine::persistence::{SaveManager, SaveConfig};
+use hearth_engine::persistence::player_data::{PlayerSaveData, PlayerData, InventoryData, GameMode, PlayerStats};
+use hearth_engine::{BlockId};
 use cgmath::{Point3, Vector3, InnerSpace};
 use glam::{Vec3, Quat};
 use std::time::Instant;
@@ -410,7 +410,7 @@ fn test_save_load_integration() -> Result<(), String> {
     println!("  ✓ Save statistics accessible (dirty chunks: {})", stats.dirty_chunk_count);
     
     // Test chunk marking system
-    use earth_engine::world::ChunkPos;
+    use hearth_engine::world::ChunkPos;
     save_manager.mark_chunk_dirty(ChunkPos { x: 1, y: 0, z: 1 })
         .map_err(|e| format!("Failed to mark chunk dirty: {}", e))?;
     

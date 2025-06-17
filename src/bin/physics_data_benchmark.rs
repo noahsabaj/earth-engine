@@ -1,8 +1,8 @@
-use earth_engine::physics_data::{
+use hearth_engine::physics_data::{
     PhysicsData, CollisionData, SpatialHash, SpatialHashConfig,
     ParallelPhysicsSolver, SolverConfig, PhysicsIntegrator, PhysicsConfig
 };
-use earth_engine::profiling::{CacheProfiler, PerformanceMetrics};
+use hearth_engine::profiling::{CacheProfiler, PerformanceMetrics};
 use std::time::Instant;
 
 fn main() {
@@ -150,14 +150,14 @@ mod tests {
         let config = SpatialHashConfig::default();
         let spatial_hash = SpatialHash::new(config);
         
-        let entity = earth_engine::physics_data::EntityId(0);
-        let aabb = earth_engine::physics_data::physics_tables::AABB::new(
+        let entity = hearth_engine::physics_data::EntityId(0);
+        let aabb = hearth_engine::physics_data::physics_tables::AABB::new(
             [-1.0, -1.0, -1.0],
             [1.0, 1.0, 1.0],
         );
         
         spatial_hash.insert(entity, &aabb);
-        let query_region = earth_engine::physics_data::physics_tables::AABB::new(
+        let query_region = hearth_engine::physics_data::physics_tables::AABB::new(
             [-2.0, -2.0, -2.0],
             [2.0, 2.0, 2.0],
         );

@@ -16,9 +16,9 @@
 /// 
 /// For simple engine usage examples, see examples/minimal_engine.rs
 
-use earth_engine::{Engine, EngineConfig, Game, GameContext};
-use earth_engine::world::{BlockId, BlockRegistry};
-use earth_engine::input::KeyCode;
+use hearth_engine::{Engine, EngineConfig, Game, GameContext};
+use hearth_engine::world::{BlockId, BlockRegistry};
+use hearth_engine::input::KeyCode;
 use std::time::Instant;
 
 /// Comprehensive game implementation with debug features for engine testing

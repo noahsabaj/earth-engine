@@ -6,7 +6,7 @@
 /// - Batch processing multiple chunks
 /// - Proper neighbor handling for face culling
 
-use earth_engine::{
+use hearth_engine::{
     ChunkPos, BlockId, BlockRegistry,
     world::ChunkSoA,
     renderer::{
@@ -23,8 +23,8 @@ fn main() {
     
     // Create block registry
     let mut registry = BlockRegistry::new();
-    let _stone_id = registry.register("earth:stone", earth_engine::world::StoneBlock);
-    let _grass_id = registry.register("earth:grass", earth_engine::world::GrassBlock);
+    let _stone_id = registry.register("earth:stone", hearth_engine::world::StoneBlock);
+    let _grass_id = registry.register("earth:grass", hearth_engine::world::GrassBlock);
     let registry = Arc::new(registry);
     
     // Note: In a real implementation, you would use a world generator here

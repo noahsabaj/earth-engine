@@ -1,7 +1,7 @@
 // Test for cursor lock behavior after window focus loss/regain
 // This test verifies that clicking back into the window re-locks the cursor
 
-use earth_engine::input::InputState;
+use hearth_engine::input::InputState;
 use winit::event::{ElementState, MouseButton};
 
 #[test]

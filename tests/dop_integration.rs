@@ -8,12 +8,12 @@ use std::sync::Arc;
 use glam::Vec3;
 
 // Import existing DOP implementations
-use earth_engine::particles::particle_data::ParticleData;
-use earth_engine::particles::update::update_particles;
-use earth_engine::physics_data::{PhysicsData, EntityId};
-use earth_engine::physics_data::integration::parallel::{apply_gravity, integrate_positions};
-use earth_engine::world::World;
-use earth_engine::physics::GRAVITY;
+use hearth_engine::particles::particle_data::ParticleData;
+use hearth_engine::particles::update::update_particles;
+use hearth_engine::physics_data::{PhysicsData, EntityId};
+use hearth_engine::physics_data::integration::parallel::{apply_gravity, integrate_positions};
+use hearth_engine::world::World;
+use hearth_engine::physics::GRAVITY;
 
 #[test]
 fn test_particle_system_dop_integration() {

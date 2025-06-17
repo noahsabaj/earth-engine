@@ -1,11 +1,11 @@
-use earth_engine::{
+use hearth_engine::{
     BlockRegistry, BlockId,
     renderer::{
         gpu_driven::gpu_driven_renderer::{GpuDrivenRenderer, RenderObject},
     },
     camera::data_camera::{CameraData, init_camera},
 };
-use earth_engine::game::{GameData, GameContext};
+use hearth_engine::game::{GameData, GameContext};
 use cgmath::Vector3;
 use std::sync::Arc;
 

@@ -1,14 +1,14 @@
 /// Integration test for GPU-driven rendering pipeline
 /// Tests the complete Sprint 20 implementation
 
-use earth_engine::renderer::gpu_driven::{
+use hearth_engine::renderer::gpu_driven::{
     RenderStats,
     indirect_commands::{IndirectCommandManager, DrawMetadata},
     instance_buffer::{InstanceManager, InstanceData},
     culling_pipeline::CullingPipeline,
     lod_system::{LodSystem, LodConfig, LodLevel},
 };
-use earth_engine::camera::data_camera::init_camera_with_spawn;
+use hearth_engine::camera::data_camera::init_camera_with_spawn;
 use cgmath::{Vector3, Point3, Deg};
 use std::sync::Arc;
 

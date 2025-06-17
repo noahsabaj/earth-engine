@@ -9,12 +9,12 @@
 use std::sync::Arc;
 use tempfile::TempDir;
 
-use earth_engine::world::World;
-use earth_engine::persistence::{
+use hearth_engine::world::World;
+use hearth_engine::persistence::{
     atomic_save::{AtomicSaveManager, AtomicSaveConfig, SaveOperation, SavePriority},
     state_validator::{StateValidator, ValidationConfig},
 };
-use earth_engine::network::disconnect_handler::{DisconnectHandler, DisconnectConfig};
+use hearth_engine::network::disconnect_handler::{DisconnectHandler, DisconnectConfig};
 
 fn main() {
     println!("Hearth Engine Save/Load Integration Demo");
@@ -60,7 +60,7 @@ fn demo_atomic_saves(temp_dir: &TempDir) {
     
     // Queue some save operations
     atomic_manager.queue_operation(SaveOperation::Chunk {
-        pos: earth_engine::world::ChunkPos { x: 0, y: 0, z: 0 },
+        pos: hearth_engine::world::ChunkPos { x: 0, y: 0, z: 0 },
         priority: SavePriority::Normal,
     }).expect("Failed to queue chunk save");
     

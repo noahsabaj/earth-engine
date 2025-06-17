@@ -1,4 +1,4 @@
-use earth_engine::{
+use hearth_engine::{
     world::{ParallelWorld, ParallelWorldConfig, World, DefaultWorldGenerator},
     BlockId,
 };

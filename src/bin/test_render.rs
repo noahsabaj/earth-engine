@@ -1,8 +1,8 @@
-use earth_engine::{
+use hearth_engine::{
     Engine, EngineConfig, BlockId, VoxelPos,
     BlockRegistry, Block, RenderData, PhysicsProperties,
 };
-use earth_engine::game::{GameData, GameContext, register_game_blocks, update_game, handle_block_break, handle_block_place, get_active_block_from_game};
+use hearth_engine::game::{GameData, GameContext, register_game_blocks, update_game, handle_block_break, handle_block_place, get_active_block_from_game};
 
 // Define some basic blocks for the test - DOP style
 struct TestGrassBlockData;
@@ -159,7 +159,7 @@ fn handle_test_game_block_place(_game: &mut TestGameData, pos: VoxelPos, block_i
 
 fn main() -> anyhow::Result<()> {
     // Initialize logger with debug level
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info,earth_engine=debug"))
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info,hearth_engine=debug"))
         .init();
     
     log::info!("[test_render] Starting render test...");

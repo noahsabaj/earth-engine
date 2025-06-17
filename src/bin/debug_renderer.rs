@@ -1,7 +1,7 @@
-use earth_engine::{
+use hearth_engine::{
     Engine, EngineConfig, BlockId, VoxelPos,
 };
-use earth_engine::game::{GameData, GameContext};
+use hearth_engine::game::{GameData, GameContext};
 use anyhow::Result;
 
 /// Debug game data structure (DOP - no methods)
@@ -21,7 +21,7 @@ fn create_debug_game_data() -> DebugGameData {
 
 /// Register blocks for debug game
 /// Function - no-op since blocks already registered in gpu_state
-fn register_debug_game_blocks(_game: &mut DebugGameData, _registry: &mut earth_engine::BlockRegistry) {
+fn register_debug_game_blocks(_game: &mut DebugGameData, _registry: &mut hearth_engine::BlockRegistry) {
     // Blocks already registered in gpu_state
 }
 
@@ -50,7 +50,7 @@ fn handle_debug_game_block_place(_game: &mut DebugGameData, pos: VoxelPos, block
 }
 
 fn main() -> Result<()> {
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info,earth_engine=debug"))
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info,hearth_engine=debug"))
         .init();
 
     log::info!("Starting debug renderer...");

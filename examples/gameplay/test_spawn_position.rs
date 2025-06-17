@@ -1,4 +1,4 @@
-use earth_engine::world::{WorldGenerator, DefaultWorldGenerator, BlockId};
+use hearth_engine::world::{WorldGenerator, DefaultWorldGenerator, BlockId};
 
 fn main() {
     println!("Testing spawn position calculation...\n");

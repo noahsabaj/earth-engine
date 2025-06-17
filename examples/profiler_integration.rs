@@ -3,7 +3,7 @@
 //! This demonstrates the minimal changes needed to add reality profiling
 //! to an existing Hearth Engine application.
 
-use earth_engine::profiling::{
+use hearth_engine::profiling::{
     RealityCheckProfiler, BlockingType, SystemMetrics,
     time_cpu_operation, write_gpu_timestamp,
 };
@@ -29,7 +29,7 @@ impl ProfiledRenderer {
     
     /// Example render frame with profiling
     pub async fn render_frame(&mut self) {
-        use earth_engine::profiling::{
+        use hearth_engine::profiling::{
             reality_begin_frame, reality_end_frame,
             record_draw_call, record_compute_dispatch,
             generate_reality_report,

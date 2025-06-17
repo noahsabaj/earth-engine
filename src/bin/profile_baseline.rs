@@ -1,14 +1,14 @@
 #![allow(unused_variables, dead_code, unused_imports)]
-use earth_engine::profiling::{CacheProfiler, MemoryProfiler, PerformanceMetrics};
-use earth_engine::world::{
+use hearth_engine::profiling::{CacheProfiler, MemoryProfiler, PerformanceMetrics};
+use hearth_engine::world::{
     Block, BlockId, Chunk, ChunkPos, VoxelPos, World,
     ParallelWorld, ParallelChunkManager, ParallelWorldConfig,
     BlockRegistry, DefaultWorldGenerator,
 };
 // Removed old renderer imports - need to update to use GPU-driven pipeline
-use earth_engine::lighting::parallel_propagator::{ParallelLightPropagator, BlockProvider};
-use earth_engine::lighting::LightType;
-use earth_engine::lighting::concurrent_provider::ParallelBlockProvider;
+use hearth_engine::lighting::parallel_propagator::{ParallelLightPropagator, BlockProvider};
+use hearth_engine::lighting::LightType;
+use hearth_engine::lighting::concurrent_provider::ParallelBlockProvider;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -88,7 +88,7 @@ fn profile_chunk_generation(
     }
     
     // Profile memory access during generation
-    let scope = earth_engine::profiling::memory_profiler::ProfileScope::new(memory_profiler, "chunk_generation");
+    let scope = hearth_engine::profiling::memory_profiler::ProfileScope::new(memory_profiler, "chunk_generation");
     
     // Use pregenerate_chunks to trigger generation
     // This generates chunks in a radius around a center point
@@ -163,7 +163,7 @@ fn profile_mesh_building(
     let mesh_builder = AsyncMeshBuilder::new(registry, 32, Some(4));
     let start = Instant::now();
     
-    let scope = earth_engine::profiling::memory_profiler::ProfileScope::new(memory_profiler, "mesh_building");
+    let scope = hearth_engine::profiling::memory_profiler::ProfileScope::new(memory_profiler, "mesh_building");
     
     // Build meshes
     for pos in &chunk_positions {
@@ -231,7 +231,7 @@ fn profile_lighting(
     std::thread::sleep(std::time::Duration::from_millis(200));
     
     let start = Instant::now();
-    let scope = earth_engine::profiling::memory_profiler::ProfileScope::new(memory_profiler, "lighting_propagation");
+    let scope = hearth_engine::profiling::memory_profiler::ProfileScope::new(memory_profiler, "lighting_propagation");
     
     // Add some light sources
     let light_sources = vec![
@@ -243,7 +243,7 @@ fn profile_lighting(
     // Profile light propagation memory access
     for source in &light_sources {
         memory_profiler.record_access_pattern("lighting_propagation", 
-            earth_engine::profiling::AccessPattern::Random);
+            hearth_engine::profiling::AccessPattern::Random);
     }
     
     perf_metrics.record_light_update(light_sources.len() as u64);

@@ -1,5 +1,5 @@
 /// Integration test for the Reality Check Profiler
-use earth_engine::profiling::{
+use hearth_engine::profiling::{
     RealityCheckProfiler, BlockingType,
     reality_begin_frame, reality_end_frame, time_cpu_operation,
     record_draw_call, record_compute_dispatch, generate_reality_report,

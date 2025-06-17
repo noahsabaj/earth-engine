@@ -30,7 +30,7 @@ fn main() {
     
     // Test what happens with actual world coordinates
     println!("\nTesting actual terrain height calculation:");
-    let terrain_gen = earth_engine::world::generation::terrain::TerrainGenerator::new(12345);
+    let terrain_gen = hearth_engine::world::generation::terrain::TerrainGenerator::new(12345);
     
     for x in -10..=10 {
         for z in -10..=10 {

@@ -1,4 +1,4 @@
-use earth_engine::spatial_index::*;
+use hearth_engine::spatial_index::*;
 use std::time::Instant;
 use rand::Rng;
 

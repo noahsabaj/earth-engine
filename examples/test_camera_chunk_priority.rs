@@ -3,7 +3,7 @@
 /// This test verifies that chunks around the camera position are always loaded
 /// and prioritized for generation.
 
-use earth_engine::{
+use hearth_engine::{
     world::{World, ChunkPos, DefaultWorldGenerator},
     BlockId,
 };

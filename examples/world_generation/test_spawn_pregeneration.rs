@@ -1,5 +1,5 @@
-use earth_engine::world::{ParallelWorld, ParallelWorldConfig};
-use earth_engine::world::generation::TerrainGenerator;
+use hearth_engine::world::{ParallelWorld, ParallelWorldConfig};
+use hearth_engine::world::generation::TerrainGenerator;
 use cgmath::Point3;
 use std::time::Instant;
 

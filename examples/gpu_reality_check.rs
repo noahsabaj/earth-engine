@@ -4,7 +4,7 @@
 /// for typical voxel engine operations, showing why the 0.8 FPS is
 /// likely due to architectural issues, not lack of GPU power.
 
-use earth_engine::{
+use hearth_engine::{
     BlockId, Chunk, ChunkPos,
     world::chunk::CHUNK_SIZE,
 };

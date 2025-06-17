@@ -6,8 +6,8 @@
 /// - Type-safe value storage
 /// - Basic operations
 
-use earth_engine::attributes::*;
-use earth_engine::instance::{InstanceId, InstanceIdGenerator};
+use hearth_engine::attributes::*;
+use hearth_engine::instance::{InstanceId, InstanceIdGenerator};
 use std::time::Instant;
 
 // Simple instance manager for testing - DOP style

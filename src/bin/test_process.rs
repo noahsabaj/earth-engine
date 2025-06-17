@@ -2,8 +2,8 @@
 /// Test binary for process system
 /// Run with: cargo run --bin test_process
 
-use earth_engine::process::*;
-use earth_engine::instance::InstanceId;
+use hearth_engine::process::*;
+use hearth_engine::instance::InstanceId;
 
 fn main() {
     println!("Testing Process & Transform System...\n");

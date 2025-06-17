@@ -3,16 +3,16 @@
 //! This example shows how to use the RealityCheckProfiler to measure
 //! ACTUAL performance, not marketing claims.
 
-use earth_engine::profiling::{
+use hearth_engine::profiling::{
     RealityCheckProfiler, BlockingType, SystemMetrics,
     reality_begin_frame, reality_end_frame, time_cpu_operation,
     record_draw_call, record_compute_dispatch, write_gpu_timestamp,
     generate_reality_report, TrackingAllocator,
 };
-use earth_engine::renderer::gpu_driven::GpuDrivenRenderer;
-use earth_engine::world::{ParallelWorld, ParallelWorldConfig};
-use earth_engine::camera::{Camera, CameraData, init_camera};
-use earth_engine::EngineConfig;
+use hearth_engine::renderer::gpu_driven::GpuDrivenRenderer;
+use hearth_engine::world::{ParallelWorld, ParallelWorldConfig};
+use hearth_engine::camera::{Camera, CameraData, init_camera};
+use hearth_engine::EngineConfig;
 
 use winit::{
     event::{Event, WindowEvent},

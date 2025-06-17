@@ -3,7 +3,7 @@
 /// Verifies that GPU compute shaders produce correct results,
 /// handle synchronization properly, and don't corrupt data.
 
-use earth_engine::{
+use hearth_engine::{
     BlockId, Chunk, ChunkPos,
     world::chunk::CHUNK_SIZE,
     world::generation::terrain::TerrainGenerator as CpuTerrainGenerator,

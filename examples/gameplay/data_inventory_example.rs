@@ -3,8 +3,8 @@
 /// This shows how to use the pure data structures and free functions
 /// instead of OOP-style methods.
 
-use earth_engine::inventory::*;
-use earth_engine::item::ItemId;
+use hearth_engine::inventory::*;
+use hearth_engine::item::ItemId;
 
 fn inventory_example() {
     println!("=== Data-Oriented Inventory System Example ===\n");
@@ -113,7 +113,7 @@ fn inventory_example() {
 
 /// Example of how to use the inventory UI
 fn ui_example() {
-    use earth_engine::ui::*;
+    use hearth_engine::ui::*;
     
     println!("\n\n=== Inventory UI Example ===\n");
     

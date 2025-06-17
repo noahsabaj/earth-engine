@@ -4,7 +4,7 @@
 /// Tests the GPU-driven frustum and occlusion culling system.
 /// Demonstrates massive reduction in draw calls and CPU overhead.
 
-use earth_engine::renderer::gpu_culling::{
+use hearth_engine::renderer::gpu_culling::{
     GpuCullingSystem, GpuCamera, ChunkInstance, CullingStats, GpuCullingMetrics
 };
 use cgmath::{Matrix4, Vector3, Point3, Deg, perspective, EuclideanSpace};

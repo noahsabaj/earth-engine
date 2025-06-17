@@ -7,7 +7,7 @@
 use std::sync::Arc;
 use std::collections::HashMap;
 use glam::Vec3;
-use earth_engine::{
+use hearth_engine::{
     network::{Packet, ClientPacket, ServerPacket},
     persistence::{WorldSave, PlayerData, SaveManager, SaveConfig, GameMode, PlayerStats},
     world::{World, BlockId, VoxelPos, ChunkPos},

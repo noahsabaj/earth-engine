@@ -1,10 +1,10 @@
-use earth_engine::{
+use hearth_engine::{
     Engine, EngineConfig, BlockRegistry,
     world::{ParallelWorld, ParallelWorldConfig, DefaultWorldGenerator, VoxelPos, ChunkPos},
     lighting::{ParallelLightPropagator, ParallelBlockProvider, LightType, MAX_LIGHT_LEVEL},
     BlockId, Block, RenderData, PhysicsProperties,
 };
-use earth_engine::game::{GameData, GameContext};
+use hearth_engine::game::{GameData, GameContext};
 use cgmath::Point3;
 use std::sync::Arc;
 use parking_lot::RwLock;

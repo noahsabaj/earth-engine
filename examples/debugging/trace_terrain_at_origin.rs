@@ -1,4 +1,4 @@
-use earth_engine::world::{WorldGenerator, DefaultWorldGenerator, BlockId, ChunkPos};
+use hearth_engine::world::{WorldGenerator, DefaultWorldGenerator, BlockId, ChunkPos};
 use noise::{NoiseFn, Perlin};
 
 fn main() {

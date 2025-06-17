@@ -4,7 +4,7 @@
 /// This benchmark showcases the massive performance improvements
 /// achieved through the complete architectural transformation.
 
-use earth_engine::*;
+use hearth_engine::*;
 use std::time::{Instant, Duration};
 use cgmath::Point3;
 use bytemuck::Zeroable;

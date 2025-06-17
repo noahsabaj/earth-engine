@@ -103,7 +103,7 @@ pub struct ModLoader {
 impl ModLoader {
     /// Create new mod loader
     pub fn new() -> Result<Self, ModError> {
-        let temp_dir = std::env::temp_dir().join("earth_engine_mods");
+        let temp_dir = std::env::temp_dir().join("hearth_engine_mods");
         std::fs::create_dir_all(&temp_dir)
             .map_err(|e| ModError::IoError(e))?;
         

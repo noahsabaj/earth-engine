@@ -3,9 +3,9 @@
 /// This test validates that the player movement system correctly processes
 /// WASD input and updates the physics body accordingly.
 
-use earth_engine::input::{InputState, KeyCode};
-use earth_engine::physics::data_physics::{PhysicsWorldData, flags};
-use earth_engine::camera::data_camera::{CameraData, init_camera};
+use hearth_engine::input::{InputState, KeyCode};
+use hearth_engine::physics::data_physics::{PhysicsWorldData, flags};
+use hearth_engine::camera::data_camera::{CameraData, init_camera};
 use cgmath::{Point3, Vector3, InnerSpace};
 
 fn main() {

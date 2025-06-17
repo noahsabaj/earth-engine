@@ -13,13 +13,13 @@ use std::thread;
 use std::time::{Duration, Instant};
 use tempfile::TempDir;
 
-use earth_engine::persistence::{
+use hearth_engine::persistence::{
     PersistenceResult, SaveManager, SaveConfig, AutoSaveConfig,
     atomic_save::{AtomicSaveManager, AtomicSaveConfig, SaveOperation, SavePriority},
     state_validator::{StateValidator, ValidationConfig, ValidationType},
 };
-use earth_engine::world::{World, ChunkPos};
-use earth_engine::network::disconnect_handler::{DisconnectHandler, DisconnectConfig};
+use hearth_engine::world::{World, ChunkPos};
+use hearth_engine::network::disconnect_handler::{DisconnectHandler, DisconnectConfig};
 
 /// Test configuration for stress tests
 #[derive(Debug, Clone)]
@@ -504,14 +504,14 @@ fn save_world_atomic(manager: &AtomicSaveManager, world: &World) -> PersistenceR
                 Ok(())
             } else {
                 Err(result.error.unwrap_or_else(|| {
-                    earth_engine::persistence::PersistenceError::IoError(
+                    hearth_engine::persistence::PersistenceError::IoError(
                         std::io::Error::new(std::io::ErrorKind::Other, "Save operation failed")
                     )
                 }))
             }
         }
         None => {
-            Err(earth_engine::persistence::PersistenceError::IoError(
+            Err(hearth_engine::persistence::PersistenceError::IoError(
                 std::io::Error::new(std::io::ErrorKind::Other, "No save operation to process")
             ))
         }

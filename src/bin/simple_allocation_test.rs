@@ -83,7 +83,7 @@ fn test_loop_allocations() {
 fn test_object_pool() {
     println!("\n=== Object Pool Test ===");
     
-    use earth_engine::renderer::ObjectPool;
+    use hearth_engine::renderer::ObjectPool;
     
     // Create a pool of vectors
     let pool = ObjectPool::new(10, || Vec::<i32>::with_capacity(100));
@@ -106,7 +106,7 @@ fn test_object_pool() {
 fn test_mesh_buffers() {
     println!("\n=== Mesh Buffer Test ===");
     
-    use earth_engine::renderer::{with_meshing_buffers, Vertex};
+    use hearth_engine::renderer::{with_meshing_buffers, Vertex};
     
     ALLOCATOR.reset();
     

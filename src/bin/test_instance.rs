@@ -1,10 +1,10 @@
 /// Test binary for instance module
 /// Run with: cargo run --bin test_instance
 
-use earth_engine::instance::*;
-use earth_engine::instance::history::HistoryBuilder;
-use earth_engine::instance::query::QueryExecutor;
-use earth_engine::instance::network_sync::InstanceSnapshot;
+use hearth_engine::instance::*;
+use hearth_engine::instance::history::HistoryBuilder;
+use hearth_engine::instance::query::QueryExecutor;
+use hearth_engine::instance::network_sync::InstanceSnapshot;
 
 fn main() {
     println!("Testing Instance Module...\n");

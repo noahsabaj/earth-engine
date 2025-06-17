@@ -1,4 +1,4 @@
-use earth_engine::world::{WorldGenerator, DefaultWorldGenerator, BlockId, ChunkPos};
+use hearth_engine::world::{WorldGenerator, DefaultWorldGenerator, BlockId, ChunkPos};
 
 fn main() {
     println!("Testing multiple Y-level chunk generation for floating blocks...\n");

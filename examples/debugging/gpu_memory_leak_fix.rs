@@ -1,6 +1,6 @@
 // Example demonstrating the GPU memory leak fix for async renderer
 
-use earth_engine::{
+use hearth_engine::{
     ChunkPos, BlockId, BlockRegistry,
     renderer::SimpleAsyncRenderer,
     world::{ParallelWorld, ParallelWorldConfig, generation::DefaultWorldGenerator},
@@ -105,16 +105,16 @@ fn main() {
 // Simple test block
 struct TestStoneBlock;
 
-impl earth_engine::world::Block for TestStoneBlock {
+impl hearth_engine::world::Block for TestStoneBlock {
     fn get_id(&self) -> BlockId { BlockId::STONE }
-    fn get_render_data(&self) -> earth_engine::world::RenderData {
-        earth_engine::world::RenderData {
+    fn get_render_data(&self) -> hearth_engine::world::RenderData {
+        hearth_engine::world::RenderData {
             color: [0.6, 0.6, 0.6],
             texture_id: 0,
         }
     }
-    fn get_physics_properties(&self) -> earth_engine::world::PhysicsProperties {
-        earth_engine::world::PhysicsProperties {
+    fn get_physics_properties(&self) -> hearth_engine::world::PhysicsProperties {
+        hearth_engine::world::PhysicsProperties {
             solid: true,
             density: 2500.0,
         }

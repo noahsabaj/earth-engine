@@ -1,4 +1,4 @@
-use earth_engine::{
+use hearth_engine::{
     BlockId, BlockRegistry,
     world::{DefaultWorldGenerator, ParallelWorld, ParallelWorldConfig, SpawnFinder, WorldInterface},
 };
@@ -84,16 +84,16 @@ fn main() {
 
 // Test block implementations
 struct TestGrassBlock;
-impl earth_engine::Block for TestGrassBlock {
+impl hearth_engine::Block for TestGrassBlock {
     fn get_id(&self) -> BlockId { BlockId(1) }
-    fn get_render_data(&self) -> earth_engine::RenderData {
-        earth_engine::RenderData {
+    fn get_render_data(&self) -> hearth_engine::RenderData {
+        hearth_engine::RenderData {
             color: [0.3, 0.7, 0.2],
             texture_id: 0,
         }
     }
-    fn get_physics_properties(&self) -> earth_engine::PhysicsProperties {
-        earth_engine::PhysicsProperties {
+    fn get_physics_properties(&self) -> hearth_engine::PhysicsProperties {
+        hearth_engine::PhysicsProperties {
             solid: true,
             density: 1200.0,
         }
@@ -102,16 +102,16 @@ impl earth_engine::Block for TestGrassBlock {
 }
 
 struct TestDirtBlock;
-impl earth_engine::Block for TestDirtBlock {
+impl hearth_engine::Block for TestDirtBlock {
     fn get_id(&self) -> BlockId { BlockId(2) }
-    fn get_render_data(&self) -> earth_engine::RenderData {
-        earth_engine::RenderData {
+    fn get_render_data(&self) -> hearth_engine::RenderData {
+        hearth_engine::RenderData {
             color: [0.5, 0.3, 0.1],
             texture_id: 0,
         }
     }
-    fn get_physics_properties(&self) -> earth_engine::PhysicsProperties {
-        earth_engine::PhysicsProperties {
+    fn get_physics_properties(&self) -> hearth_engine::PhysicsProperties {
+        hearth_engine::PhysicsProperties {
             solid: true,
             density: 1500.0,
         }
@@ -120,16 +120,16 @@ impl earth_engine::Block for TestDirtBlock {
 }
 
 struct TestStoneBlock;
-impl earth_engine::Block for TestStoneBlock {
+impl hearth_engine::Block for TestStoneBlock {
     fn get_id(&self) -> BlockId { BlockId(3) }
-    fn get_render_data(&self) -> earth_engine::RenderData {
-        earth_engine::RenderData {
+    fn get_render_data(&self) -> hearth_engine::RenderData {
+        hearth_engine::RenderData {
             color: [0.6, 0.6, 0.6],
             texture_id: 0,
         }
     }
-    fn get_physics_properties(&self) -> earth_engine::PhysicsProperties {
-        earth_engine::PhysicsProperties {
+    fn get_physics_properties(&self) -> hearth_engine::PhysicsProperties {
+        hearth_engine::PhysicsProperties {
             solid: true,
             density: 2500.0,
         }
@@ -138,16 +138,16 @@ impl earth_engine::Block for TestStoneBlock {
 }
 
 struct TestWaterBlock;
-impl earth_engine::Block for TestWaterBlock {
+impl hearth_engine::Block for TestWaterBlock {
     fn get_id(&self) -> BlockId { BlockId(6) }
-    fn get_render_data(&self) -> earth_engine::RenderData {
-        earth_engine::RenderData {
+    fn get_render_data(&self) -> hearth_engine::RenderData {
+        hearth_engine::RenderData {
             color: [0.1, 0.4, 0.8],
             texture_id: 0,
         }
     }
-    fn get_physics_properties(&self) -> earth_engine::PhysicsProperties {
-        earth_engine::PhysicsProperties {
+    fn get_physics_properties(&self) -> hearth_engine::PhysicsProperties {
+        hearth_engine::PhysicsProperties {
             solid: false,
             density: 1000.0,
         }
@@ -156,16 +156,16 @@ impl earth_engine::Block for TestWaterBlock {
 }
 
 struct TestSandBlock;
-impl earth_engine::Block for TestSandBlock {
+impl hearth_engine::Block for TestSandBlock {
     fn get_id(&self) -> BlockId { BlockId(5) }
-    fn get_render_data(&self) -> earth_engine::RenderData {
-        earth_engine::RenderData {
+    fn get_render_data(&self) -> hearth_engine::RenderData {
+        hearth_engine::RenderData {
             color: [0.9, 0.8, 0.6],
             texture_id: 0,
         }
     }
-    fn get_physics_properties(&self) -> earth_engine::PhysicsProperties {
-        earth_engine::PhysicsProperties {
+    fn get_physics_properties(&self) -> hearth_engine::PhysicsProperties {
+        hearth_engine::PhysicsProperties {
             solid: true,
             density: 1600.0,
         }

@@ -9,7 +9,7 @@
 /// 4. GPU-CPU Data Transfer logging
 /// 5. Camera Spatial Context logging
 
-use earth_engine::{
+use hearth_engine::{
     world_gpu::{terrain_generator::TerrainGenerator, world_buffer::{WorldBuffer, WorldBufferDescriptor}},
     renderer::data_mesh_builder::{MESH_BUFFER_POOL, operations::build_chunk_mesh},
     camera::data_camera::{init_camera_with_spawn, diagnostics},

@@ -1,5 +1,5 @@
-use earth_engine::profiling::{DOPBenchmarks, CacheProfiler, MemoryProfiler};
-use earth_engine::particles::{ParticleData, DOPParticleSystem, ParticleType};
+use hearth_engine::profiling::{DOPBenchmarks, CacheProfiler, MemoryProfiler};
+use hearth_engine::particles::{ParticleData, DOPParticleSystem, ParticleType};
 use std::time::{Duration, Instant};
 use glam::Vec3;
 
@@ -73,7 +73,7 @@ fn demonstrate_particle_system_performance() -> Result<(), Box<dyn std::error::E
     );
     
     // Create a simple world for collision testing
-    let world = earth_engine::world::World::new(64);
+    let world = hearth_engine::world::World::new(64);
     
     // Simulate performance test
     let start_time = Instant::now();

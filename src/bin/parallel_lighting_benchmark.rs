@@ -1,4 +1,4 @@
-use earth_engine::{
+use hearth_engine::{
     lighting::{
         ParallelLightPropagator, TestBlockProvider,
         LightType, BatchLightCalculator,

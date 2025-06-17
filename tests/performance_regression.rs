@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use std::time::{Duration, Instant};
 use serde::{Serialize, Deserialize};
 use glam::Vec3;
-use earth_engine::{
+use hearth_engine::{
     world::{World, BlockId, VoxelPos, ChunkPos, Chunk},
     physics_data::PhysicsData,
     particles::particle_data::ParticleData,
@@ -310,15 +310,15 @@ fn test_physics_simulation_performance() {
         let entity_count = physics_data.entity_count();
         
         // Apply gravity
-        earth_engine::physics_data::integration::parallel::apply_gravity(
+        hearth_engine::physics_data::integration::parallel::apply_gravity(
             &mut physics_data.velocities[..entity_count],
             &physics_data.flags[..entity_count],
-            earth_engine::physics::GRAVITY,
+            hearth_engine::physics::GRAVITY,
             0.016,
         );
         
         // Integrate positions
-        earth_engine::physics_data::integration::parallel::integrate_positions(
+        hearth_engine::physics_data::integration::parallel::integrate_positions(
             &mut physics_data.positions[..entity_count],
             &physics_data.velocities[..entity_count],
             &physics_data.flags[..entity_count],
@@ -380,7 +380,7 @@ fn test_particle_system_performance() {
     let start_time = Instant::now();
     
     for _frame in 0..update_frames {
-        earth_engine::particles::update::update_particles(
+        hearth_engine::particles::update::update_particles(
             &mut particles,
             &world,
             0.016,
@@ -548,14 +548,14 @@ fn test_system_integration_performance() {
     for frame in 0..simulation_frames {
         // Physics update
         let entity_count = physics_data.entity_count();
-        earth_engine::physics_data::integration::parallel::apply_gravity(
+        hearth_engine::physics_data::integration::parallel::apply_gravity(
             &mut physics_data.velocities[..entity_count],
             &physics_data.flags[..entity_count],
-            earth_engine::physics::GRAVITY,
+            hearth_engine::physics::GRAVITY,
             0.033, // 30 FPS
         );
         
-        earth_engine::physics_data::integration::parallel::integrate_positions(
+        hearth_engine::physics_data::integration::parallel::integrate_positions(
             &mut physics_data.positions[..entity_count],
             &physics_data.velocities[..entity_count],
             &physics_data.flags[..entity_count],
@@ -563,7 +563,7 @@ fn test_system_integration_performance() {
         );
         
         // Particle update
-        earth_engine::particles::update::update_particles(
+        hearth_engine::particles::update::update_particles(
             &mut particles,
             &world,
             0.033,

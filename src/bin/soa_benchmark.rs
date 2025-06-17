@@ -1,5 +1,5 @@
-use earth_engine::renderer::{Vertex, VertexBufferSoA, create_vertex_with_lighting};
-use earth_engine::profiling::{CacheProfiler, PerformanceMetrics};
+use hearth_engine::renderer::{Vertex, VertexBufferSoA, create_vertex_with_lighting};
+use hearth_engine::profiling::{CacheProfiler, PerformanceMetrics};
 use std::time::Instant;
 
 const VERTEX_COUNT: usize = 1_000_000;

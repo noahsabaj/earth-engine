@@ -1,4 +1,4 @@
-use earth_engine::world::{Chunk, ChunkPos};
+use hearth_engine::world::{Chunk, ChunkPos};
 use std::mem;
 
 fn main() {

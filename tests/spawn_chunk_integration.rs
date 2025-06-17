@@ -7,7 +7,7 @@
 use std::sync::Arc;
 use glam::Vec3;
 use cgmath::Point3;
-use earth_engine::{
+use hearth_engine::{
     world::{World, BlockId, VoxelPos, ChunkPos, Chunk},
     world::generation::{TerrainGenerator, CaveGenerator, OreGenerator},
     world::{SpawnFinder},

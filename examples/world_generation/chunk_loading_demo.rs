@@ -1,4 +1,4 @@
-use earth_engine::{
+use hearth_engine::{
     BlockId, BlockRegistry, DefaultWorldGenerator, ChunkManager, ChunkLoadingStats,
 };
 use cgmath::Point3;
@@ -12,11 +12,11 @@ fn main() {
     
     // Create a simple block registry
     let mut registry = BlockRegistry::new();
-    let grass_id = registry.register_block("grass", earth_engine::Block::default());
-    let dirt_id = registry.register_block("dirt", earth_engine::Block::default());
-    let stone_id = registry.register_block("stone", earth_engine::Block::default());
-    let water_id = registry.register_block("water", earth_engine::Block::default());
-    let sand_id = registry.register_block("sand", earth_engine::Block::default());
+    let grass_id = registry.register_block("grass", hearth_engine::Block::default());
+    let dirt_id = registry.register_block("dirt", hearth_engine::Block::default());
+    let stone_id = registry.register_block("stone", hearth_engine::Block::default());
+    let water_id = registry.register_block("water", hearth_engine::Block::default());
+    let sand_id = registry.register_block("sand", hearth_engine::Block::default());
     
     // Create world generator
     let generator = Box::new(DefaultWorldGenerator::new(
@@ -51,7 +51,7 @@ fn test_chunk_loading(
     test_name: &str,
     view_distance: i32,
     chunk_size: u32,
-    generator: Box<dyn earth_engine::WorldGenerator>,
+    generator: Box<dyn hearth_engine::WorldGenerator>,
     max_chunks_per_frame: Option<usize>,
     adaptive: bool,
 ) {

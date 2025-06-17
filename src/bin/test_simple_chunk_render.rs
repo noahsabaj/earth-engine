@@ -1,5 +1,5 @@
 #![allow(unused_variables, dead_code, unused_imports)]
-use earth_engine::{
+use hearth_engine::{
     ChunkPos, Chunk, BlockId, BlockRegistry,
     world::{AirBlock, StoneBlock},
     renderer::SimpleAsyncRenderer,

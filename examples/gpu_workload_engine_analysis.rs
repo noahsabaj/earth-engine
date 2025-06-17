@@ -3,7 +3,7 @@
 //! This example integrates GPU workload profiling into the actual Hearth Engine
 //! to measure REAL GPU vs CPU distribution during gameplay.
 
-use earth_engine::{
+use hearth_engine::{
     EngineBuilder, EngineConfig,
     profiling::{GpuWorkloadProfiler, GpuArchitectureReality, GpuOperationAnalyzer},
     renderer::Renderer,
@@ -21,7 +21,7 @@ struct ProfilingGame {
     operation_analyzer: Arc<Mutex<GpuOperationAnalyzer>>,
     frame_count: u64,
     start_time: Instant,
-    workload_samples: Vec<earth_engine::profiling::WorkloadAnalysis>,
+    workload_samples: Vec<hearth_engine::profiling::WorkloadAnalysis>,
     profiling_duration: Duration,
 }
 

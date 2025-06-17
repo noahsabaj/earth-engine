@@ -6,7 +6,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
 
-use earth_engine::{
+use hearth_engine::{
     renderer::{ObjectPool, with_meshing_buffers, Vertex},
     physics::PhysicsWorldData,
     lighting::optimized_propagation::{
@@ -253,7 +253,7 @@ fn benchmark_lighting() {
     
     // Warmup
     for _ in 0..10 {
-        add_light(&mut propagator_data, VoxelPos::new(16, 12, 16), earth_engine::lighting::LightType::Block, 15);
+        add_light(&mut propagator_data, VoxelPos::new(16, 12, 16), hearth_engine::lighting::LightType::Block, 15);
         propagate_light(&mut propagator_data, &mut world);
         clear_propagation_buffers(&mut propagator_data.buffers);
     }
@@ -268,13 +268,13 @@ fn benchmark_lighting() {
         // Add a light source
         let x = (i % 30) as i32 + 1;
         let z = ((i / 30) % 30) as i32 + 1;
-        add_light(&mut propagator_data, VoxelPos::new(x, 12, z), earth_engine::lighting::LightType::Block, 15);
+        add_light(&mut propagator_data, VoxelPos::new(x, 12, z), hearth_engine::lighting::LightType::Block, 15);
         
         // Remove another light
         if i > 30 {
             let rx = ((i - 30) % 30) as i32 + 1;
             let rz = (((i - 30) / 30) % 30) as i32 + 1;
-            remove_light(&mut propagator_data, VoxelPos::new(rx, 12, rz), earth_engine::lighting::LightType::Block, 15);
+            remove_light(&mut propagator_data, VoxelPos::new(rx, 12, rz), hearth_engine::lighting::LightType::Block, 15);
         }
         
         propagate_light(&mut propagator_data, &mut world);

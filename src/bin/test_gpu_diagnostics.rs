@@ -1,4 +1,4 @@
-use earth_engine::renderer::GpuDiagnostics;
+use hearth_engine::renderer::GpuDiagnostics;
 use env_logger;
 use log;
 

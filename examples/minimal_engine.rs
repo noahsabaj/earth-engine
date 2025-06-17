@@ -9,8 +9,8 @@
 /// 
 /// For comprehensive testing and debugging, see examples/engine_testbed.rs
 
-use earth_engine::{Engine, EngineConfig, Game, GameContext};
-use earth_engine::world::{BlockId, BlockRegistry};
+use hearth_engine::{Engine, EngineConfig, Game, GameContext};
+use hearth_engine::world::{BlockId, BlockRegistry};
 
 /// Minimal game implementation demonstrating basic engine usage
 struct MinimalGame {
@@ -33,13 +33,13 @@ impl Game for MinimalGame {
     
     fn update(&mut self, ctx: &mut GameContext, _delta_time: f32) {
         // Simple block switching with number keys
-        if ctx.input.is_key_pressed(earth_engine::input::KeyCode::Digit1) {
+        if ctx.input.is_key_pressed(hearth_engine::input::KeyCode::Digit1) {
             self.selected_block = BlockId(1); // Stone
             println!("Selected: Stone");
-        } else if ctx.input.is_key_pressed(earth_engine::input::KeyCode::Digit2) {
+        } else if ctx.input.is_key_pressed(hearth_engine::input::KeyCode::Digit2) {
             self.selected_block = BlockId(2); // Dirt
             println!("Selected: Dirt");
-        } else if ctx.input.is_key_pressed(earth_engine::input::KeyCode::Digit3) {
+        } else if ctx.input.is_key_pressed(hearth_engine::input::KeyCode::Digit3) {
             self.selected_block = BlockId(3); // Grass
             println!("Selected: Grass");
         }
@@ -75,7 +75,7 @@ impl Game for MinimalGame {
 }
 
 fn main() {
-    println!("=== MINIMAL EARTH ENGINE EXAMPLE ===");
+    println!("=== MINIMAL HEARTH ENGINE EXAMPLE ===");
     println!("Demonstrating basic engine usage");
     println!();
     println!("Controls:");

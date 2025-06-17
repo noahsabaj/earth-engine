@@ -1,5 +1,5 @@
-use earth_engine::world::{WorldGenerator, DefaultWorldGenerator, SpawnFinder, World, WorldConfig};
-use earth_engine::BlockId;
+use hearth_engine::world::{WorldGenerator, DefaultWorldGenerator, SpawnFinder, World, WorldConfig};
+use hearth_engine::BlockId;
 
 fn main() {
     println!("Testing new spawn finder logic...\n");

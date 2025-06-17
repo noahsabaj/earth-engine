@@ -1,5 +1,5 @@
 use anyhow::Result;
-use earth_engine::renderer::screenshot;
+use hearth_engine::renderer::screenshot;
 use wgpu::{Device, Queue, TextureFormat};
 
 async fn test_screenshot_functions(device: &Device, queue: &Queue) -> Result<()> {

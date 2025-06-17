@@ -3,7 +3,7 @@
 /// Demonstrates the new integrated physics system with improved collision detection,
 /// sliding mechanics, and proper timing integration.
 
-use earth_engine::{
+use hearth_engine::{
     physics_data::{PhysicsData, PhysicsIntegrator, WorldInterface, WorldAdapter},
     ecs::systems_data::{IntegratedPhysicsSystem, process_movement_input},
     input::{InputState, KeyCode},
@@ -57,11 +57,11 @@ impl WorldTrait for DemoWorld {
     
     fn set_block_light(&mut self, _pos: VoxelPos, _level: u8) {}
     
-    fn is_chunk_loaded(&self, _pos: earth_engine::ChunkPos) -> bool {
+    fn is_chunk_loaded(&self, _pos: hearth_engine::ChunkPos) -> bool {
         true // Everything is always loaded
     }
     
-    fn take_dirty_chunks(&mut self) -> std::collections::HashSet<earth_engine::ChunkPos> {
+    fn take_dirty_chunks(&mut self) -> std::collections::HashSet<hearth_engine::ChunkPos> {
         std::collections::HashSet::new()
     }
     
@@ -88,7 +88,7 @@ fn main() -> anyhow::Result<()> {
     let mut physics_system = IntegratedPhysicsSystem::new();
     
     // Create a player entity
-    let player_entity = earth_engine::ecs::entity_data::EntityId {
+    let player_entity = hearth_engine::ecs::entity_data::EntityId {
         index: 0,
         generation: 1,
     };
@@ -144,7 +144,7 @@ fn main() -> anyhow::Result<()> {
     for step in 0..30 {
         // Process movement input
         process_movement_input(
-            &mut earth_engine::ecs::world_data::EcsWorldData::new(),
+            &mut hearth_engine::ecs::world_data::EcsWorldData::new(),
             &mut physics_system,
             &world_adapter,
             &input_state,

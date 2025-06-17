@@ -1,5 +1,5 @@
-use earth_engine::world::{WorldGenerator, DefaultWorldGenerator, BlockId, ChunkPos};
-use earth_engine::world::generation::terrain::TerrainGenerator;
+use hearth_engine::world::{WorldGenerator, DefaultWorldGenerator, BlockId, ChunkPos};
+use hearth_engine::world::generation::terrain::TerrainGenerator;
 
 fn main() {
     println!("Testing terrain generation at spawn position...\n");

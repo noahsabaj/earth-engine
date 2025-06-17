@@ -1,10 +1,10 @@
-use earth_engine::{
+use hearth_engine::{
     BlockRegistry, BlockId, VoxelPos,
     Block, RenderData, PhysicsProperties,
     world::{ParallelWorld, ParallelWorldConfig, DefaultWorldGenerator},
     camera::data_camera::{CameraData, init_camera}, input::InputState,
 };
-use earth_engine::game::{GameData, GameContext, cast_camera_ray_from_context, break_block_in_context, place_block_in_context};
+use hearth_engine::game::{GameData, GameContext, cast_camera_ray_from_context, break_block_in_context, place_block_in_context};
 use std::sync::Arc;
 use cgmath::Point3;
 

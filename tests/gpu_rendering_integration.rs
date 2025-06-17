@@ -6,7 +6,7 @@
 
 use std::sync::Arc;
 use glam::{Vec3, Mat4};
-use earth_engine::{
+use hearth_engine::{
     renderer::{Renderer},
     renderer::gpu_driven::{CullingPipeline, InstanceBuffer, GpuDrivenRenderer},
     world::{World, BlockId, VoxelPos, ChunkPos, Chunk},

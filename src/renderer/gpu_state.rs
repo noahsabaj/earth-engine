@@ -540,12 +540,16 @@ impl GpuState {
             });
         log::info!("[GpuState::new] Selected surface format: {:?}", surface_format);
         
-        // Choose present mode with fallback
-        let present_mode = if surface_caps.present_modes.contains(&wgpu::PresentMode::Fifo) {
+        // Choose present mode with fallback - prioritize Immediate for performance
+        let present_mode = if surface_caps.present_modes.contains(&wgpu::PresentMode::Immediate) {
+            log::info!("[GpuState::new] Using Immediate mode for maximum performance");
+            wgpu::PresentMode::Immediate
+        } else if surface_caps.present_modes.contains(&wgpu::PresentMode::Mailbox) {
+            log::info!("[GpuState::new] Immediate not available, using Mailbox (good performance)");
+            wgpu::PresentMode::Mailbox
+        } else if surface_caps.present_modes.contains(&wgpu::PresentMode::Fifo) {
+            log::warn!("[GpuState::new] Only Fifo available - may cause vsync blocking");
             wgpu::PresentMode::Fifo
-        } else if surface_caps.present_modes.contains(&wgpu::PresentMode::AutoVsync) {
-            log::warn!("[GpuState::new] Fifo not available, using AutoVsync");
-            wgpu::PresentMode::AutoVsync
         } else {
             log::warn!("[GpuState::new] Using first available present mode: {:?}", surface_caps.present_modes[0]);
             surface_caps.present_modes[0]

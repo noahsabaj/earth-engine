@@ -1,4 +1,4 @@
-use earth_engine::renderer::gpu_driven::*;
+use hearth_engine::renderer::gpu_driven::*;
 use std::sync::Arc;
 use std::time::Instant;
 use cgmath::Vector3;
@@ -139,7 +139,7 @@ async fn run() {
     
     if culling_pipeline.is_available() {
         // Create test camera
-        let mut camera = earth_engine::camera::data_camera::init_camera(1920, 1080);
+        let mut camera = hearth_engine::camera::data_camera::init_camera(1920, 1080);
         camera.position = [0.0, 100.0, 0.0];
         
         for &count in &object_counts {

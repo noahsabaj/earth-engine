@@ -3,9 +3,9 @@
 /// Use this for debugging engine initialization issues
 /// For full game functionality, use the main executable instead
 
-use earth_engine::{Engine, EngineConfig};
-use earth_engine::world::BlockRegistry;
-use earth_engine::game::{GameData, GameContext, register_game_blocks, update_game};
+use hearth_engine::{Engine, EngineConfig};
+use hearth_engine::world::BlockRegistry;
+use hearth_engine::game::{GameData, GameContext, register_game_blocks, update_game};
 
 /// Minimal game data for testing engine startup
 #[derive(Default)]

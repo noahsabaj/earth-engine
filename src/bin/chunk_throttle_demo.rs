@@ -1,5 +1,5 @@
 #![allow(unused_variables, dead_code, unused_imports)]
-use earth_engine::{
+use hearth_engine::{
     BlockId,
     world::generation::DefaultWorldGenerator,
     world::chunk_manager::{
@@ -17,20 +17,20 @@ struct DemoBlock {
     name: String,
 }
 
-impl earth_engine::world::Block for DemoBlock {
+impl hearth_engine::world::Block for DemoBlock {
     fn get_id(&self) -> BlockId {
         self.id
     }
     
-    fn get_render_data(&self) -> earth_engine::world::RenderData {
-        earth_engine::world::RenderData {
+    fn get_render_data(&self) -> hearth_engine::world::RenderData {
+        hearth_engine::world::RenderData {
             color: [0.5, 0.8, 0.3], // Green-ish color
             texture_id: 0,
         }
     }
     
-    fn get_physics_properties(&self) -> earth_engine::world::PhysicsProperties {
-        earth_engine::world::PhysicsProperties {
+    fn get_physics_properties(&self) -> hearth_engine::world::PhysicsProperties {
+        hearth_engine::world::PhysicsProperties {
             solid: true,
             density: 1.0,
         }

@@ -3,7 +3,7 @@
 /// Run comprehensive GPU vs CPU benchmarks to validate whether GPU compute
 /// actually provides performance benefits for the Hearth Engine.
 
-use earth_engine::benchmarks::{GpuVsCpuBenchmark, analyze_results};
+use hearth_engine::benchmarks::{GpuVsCpuBenchmark, analyze_results};
 
 fn main() {
     println!("Hearth Engine GPU Compute Validation");
@@ -30,7 +30,7 @@ fn main() {
     println!("\nBenchmark complete. Results saved to gpu_benchmark_results.txt");
 }
 
-fn save_results_to_file(results: &[earth_engine::benchmarks::BenchmarkResult]) {
+fn save_results_to_file(results: &[hearth_engine::benchmarks::BenchmarkResult]) {
     use std::fs::File;
     use std::io::Write;
     

@@ -1,4 +1,4 @@
-use earth_engine::renderer::gpu_driven::culling_pipeline::CameraData;
+use hearth_engine::renderer::gpu_driven::culling_pipeline::CameraData;
 
 fn main() {
     println!("Size of CameraData: {} bytes", std::mem::size_of::<CameraData>());
