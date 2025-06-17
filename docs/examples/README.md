@@ -1,6 +1,6 @@
 # Examples Documentation
 
-This directory contains code examples demonstrating correct Data-Oriented Programming patterns in the Earth Engine.
+This directory contains code examples demonstrating correct Data-Oriented Programming patterns in the Hearth Engine.
 
 ## Purpose
 

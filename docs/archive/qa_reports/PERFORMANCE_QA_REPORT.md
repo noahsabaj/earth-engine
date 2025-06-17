@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-This report validates the performance improvements implemented in the Earth Engine codebase, verifying that all optimization systems are working correctly and calculating expected performance gains.
+This report validates the performance improvements implemented in the Hearth Engine codebase, verifying that all optimization systems are working correctly and calculating expected performance gains.
 
 ## 1. Chunk Throttling System ✅
 

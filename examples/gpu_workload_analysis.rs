@@ -24,7 +24,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
     
     println!("=== GPU WORKLOAD ANALYSIS ===");
-    println!("Running Earth Engine for 60 seconds to profile GPU vs CPU workload distribution...");
+    println!("Running Hearth Engine for 60 seconds to profile GPU vs CPU workload distribution...");
     println!("This will reveal the TRUTH about whether this is actually a GPU-first engine.\n");
     
     // Create event loop

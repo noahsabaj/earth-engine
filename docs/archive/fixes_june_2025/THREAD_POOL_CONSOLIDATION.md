@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document describes the thread pool consolidation performed to prevent thread exhaustion and improve resource utilization across the Earth Engine.
+This document describes the thread pool consolidation performed to prevent thread exhaustion and improve resource utilization across the Hearth Engine.
 
 ## Problem
 

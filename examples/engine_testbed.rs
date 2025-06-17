@@ -1,6 +1,6 @@
-/// Engine Testbed - Comprehensive Earth Engine Development Platform
+/// Engine Testbed - Comprehensive Hearth Engine Development Platform
 /// 
-/// This is the primary testbed for Earth Engine development, featuring:
+/// This is the primary testbed for Hearth Engine development, featuring:
 /// - Full game implementation with complete gameplay features
 /// - Comprehensive debug UI with real-time metrics
 /// - Performance monitoring and profiling tools
@@ -259,8 +259,8 @@ impl Game for EngineTestbed {
 
 /// Print usage instructions for the engine testbed
 fn print_usage_instructions() {
-    println!("=== EARTH ENGINE TESTBED ===");
-    println!("A comprehensive development platform for Earth Engine");
+    println!("=== HEARTH ENGINE TESTBED ===");
+    println!("A comprehensive development platform for Hearth Engine");
     println!();
     println!("CONTROLS:");
     println!("  WASD     - Move camera");
@@ -291,7 +291,7 @@ fn print_usage_instructions() {
 }
 
 fn main() {
-    println!("[ENGINE TESTBED] Starting comprehensive Earth Engine testbed...");
+    println!("[ENGINE TESTBED] Starting comprehensive Hearth Engine testbed...");
     
     // Print usage instructions
     print_usage_instructions();
@@ -305,13 +305,13 @@ fn main() {
     
     // Install panic handler for telemetry
     log::info!("[ENGINE TESTBED] Installing panic handler...");
-    earth_engine::panic_handler::install_panic_handler();
+    hearth_engine::panic_handler::install_panic_handler();
     log::info!("[ENGINE TESTBED] Panic handler installed");
     
     // Create enhanced engine config for testbed
     log::info!("[ENGINE TESTBED] Creating enhanced engine configuration...");
     let config = EngineConfig {
-        window_title: "Earth Engine Testbed - Development Platform".to_string(),
+        window_title: "Hearth Engine Testbed - Development Platform".to_string(),
         window_width: 1600, // Larger window for debug UI
         window_height: 900,
         chunk_size: 32,
@@ -342,5 +342,5 @@ fn main() {
     }
     
     log::info!("[ENGINE TESTBED] Application exiting normally");
-    println!("[ENGINE TESTBED] Thank you for using Earth Engine Testbed!");
+    println!("[ENGINE TESTBED] Thank you for using Hearth Engine Testbed!");
 }

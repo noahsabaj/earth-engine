@@ -1,6 +1,6 @@
 # API Documentation
 
-This directory contains API reference documentation for all Earth Engine modules.
+This directory contains API reference documentation for all Hearth Engine modules.
 
 ## Purpose
 

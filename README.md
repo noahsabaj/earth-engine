@@ -79,7 +79,7 @@ See [docs/DATA_ORIENTED_TRANSITION_PLAN.md](docs/DATA_ORIENTED_TRANSITION_PLAN.m
 
 Building the first voxel engine that truly uses modern hardware. Not competing with Minecraft - competing with what Minecraft COULD have been if built in 2025.
 
-See [docs/EARTH_ENGINE_VISION_2025.md](docs/EARTH_ENGINE_VISION_2025.md) for the revolutionary game design.
+See [docs/HEARTH_ENGINE_VISION_2025.md](docs/HEARTH_ENGINE_VISION_2025.md) for the revolutionary game design.
 
 ## 🛠️ Using Hearth Engine
 
@@ -93,13 +93,13 @@ Hearth Engine is designed as a **pure library**, not a standalone application. T
 ```toml
 # Add to your Cargo.toml
 [dependencies]
-earth-engine = { path = "../earth-engine" }  # or from crates.io when published
+hearth-engine = { path = "../hearth-engine" }  # or from crates.io when published
 ```
 
 ```rust
 // Basic usage in your project
-use earth_engine::{Engine, EngineConfig, Game, GameContext};
-use earth_engine::world::{BlockId, BlockRegistry};
+use hearth_engine::{Engine, EngineConfig, Game, GameContext};
+use hearth_engine::world::{BlockId, BlockRegistry};
 
 struct MyGame;
 impl Game for MyGame {
@@ -119,8 +119,8 @@ fn main() {
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/earth-engine.git
-cd earth-engine
+git clone https://github.com/yourusername/hearth-engine.git
+cd hearth-engine
 
 # Build the library
 cargo build --release
@@ -186,7 +186,7 @@ cargo test
 
 - [docs/MASTER_ROADMAP.md](docs/MASTER_ROADMAP.md) - Complete development roadmap (Sprints 1-40)
 - [docs/ENGINE_VISION.md](docs/ENGINE_VISION.md) - High-level vision and unique selling points
-- [docs/EARTH_ENGINE_VISION_2025.md](docs/EARTH_ENGINE_VISION_2025.md) - Revolutionary game design vision
+- [docs/HEARTH_ENGINE_VISION_2025.md](docs/HEARTH_ENGINE_VISION_2025.md) - Revolutionary game design vision
 - [docs/DATA_ORIENTED_TRANSITION_PLAN.md](docs/DATA_ORIENTED_TRANSITION_PLAN.md) - Architecture transition strategy
 - [docs/GPU_DRIVEN_ARCHITECTURE.md](docs/GPU_DRIVEN_ARCHITECTURE.md) - GPU-first design principles
 

@@ -1,8 +1,8 @@
-# Earth Engine Vision
+# Hearth Engine Vision
 
 ## What We're Building
 
-Earth Engine is a **state-of-the-art voxel game engine** designed to push the boundaries of what's possible with voxel technology.
+Hearth Engine is a **state-of-the-art voxel game engine** designed to push the boundaries of what's possible with voxel technology.
 
 ## Current State (Sprints 1-16) ✅
 
@@ -72,4 +72,4 @@ Create the **Unreal Engine of voxel games** - a professional-grade engine that e
 - **Sprints 22-29**: Build on Pure Data-Oriented Base (Q2-Q3 2025)
 - **Sprints 30-32**: Legacy Migration (Q3 2025)
 - **Sprints 33-34**: Polish & Ship 1.0 (Q4 2025)
-- **2026**: First commercial games ship on Earth Engine
+- **2026**: First commercial games ship on Hearth Engine

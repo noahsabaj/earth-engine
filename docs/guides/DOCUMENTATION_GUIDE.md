@@ -1,4 +1,4 @@
-# Earth Engine Documentation Guide
+# Hearth Engine Documentation Guide
 
 ## Purpose
 This guide ensures documentation coherence and prevents redundancy as the project evolves.
@@ -10,7 +10,7 @@ hearth-engine/
 ├── README.md                           # Project overview and quick start
 ├── MASTER_ROADMAP.md                  # Complete sprint timeline (source of truth)
 ├── ENGINE_VISION.md                   # High-level vision and USPs
-├── EARTH_ENGINE_VISION_2025.md        # Revolutionary game design vision
+├── HEARTH_ENGINE_VISION_2025.md        # Revolutionary game design vision
 ├── DATA_ORIENTED_TRANSITION_PLAN.md   # Architecture transition strategy
 ├── ENVIRONMENT_COHERENCE.md           # Dev/test environment guide
 ├── DUPLICATE_FILES_ANALYSIS.md        # Code cleanup tracking
@@ -144,4 +144,4 @@ When the project grows, consider:
 
 ---
 
-By following this guide, Earth Engine documentation will remain coherent, up-to-date, and useful throughout the project's evolution.
+By following this guide, Hearth Engine documentation will remain coherent, up-to-date, and useful throughout the project's evolution.

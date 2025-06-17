@@ -1,4 +1,4 @@
-// Earth Engine GPU + Rendering Integration Tests
+// Hearth Engine GPU + Rendering Integration Tests
 // Sprint 38: System Integration
 //
 // Integration tests for GPU-driven rendering coordinated with game systems.

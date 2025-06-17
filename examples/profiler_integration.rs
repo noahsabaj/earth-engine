@@ -1,7 +1,7 @@
 //! Example showing how to integrate RealityCheckProfiler into existing code
 //! 
 //! This demonstrates the minimal changes needed to add reality profiling
-//! to an existing Earth Engine application.
+//! to an existing Hearth Engine application.
 
 use earth_engine::profiling::{
     RealityCheckProfiler, BlockingType, SystemMetrics,

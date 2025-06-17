@@ -6,7 +6,7 @@ use cgmath::Point3;
 use std::time::Instant;
 
 fn main() {
-    println!("Earth Engine - Parallel Chunk Generation Benchmark");
+    println!("Hearth Engine - Parallel Chunk Generation Benchmark");
     println!("=================================================");
     
     let chunk_size = 32;

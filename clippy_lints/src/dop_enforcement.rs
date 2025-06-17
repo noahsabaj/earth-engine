@@ -1,4 +1,4 @@
-// Earth Engine Custom Clippy Lints for DOP Enforcement
+// Hearth Engine Custom Clippy Lints for DOP Enforcement
 // Sprint 37: DOP Reality Check
 
 use clippy_utils::diagnostics::span_lint_and_help;
@@ -13,7 +13,7 @@ declare_tool_lint! {
     /// Detects methods with `&self` or `&mut self` parameters on data structures.
     /// 
     /// **Why is this bad?**
-    /// Earth Engine follows strict data-oriented programming (DOP) principles.
+    /// Hearth Engine follows strict data-oriented programming (DOP) principles.
     /// Methods violate DOP by coupling behavior with data, preventing GPU compatibility
     /// and SIMD optimization.
     /// 

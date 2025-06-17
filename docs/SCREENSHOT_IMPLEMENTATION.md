@@ -1,7 +1,7 @@
 # Screenshot Implementation Documentation
 
 ## Overview
-This document describes the screenshot capture functionality integrated into the Earth Engine's render loop.
+This document describes the screenshot capture functionality integrated into the Hearth Engine's render loop.
 
 ## Implementation Details
 

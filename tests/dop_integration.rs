@@ -1,4 +1,4 @@
-// Earth Engine DOP Integration Tests
+// Hearth Engine DOP Integration Tests
 // Sprint 37: DOP Reality Check
 // 
 // Integration tests to verify that data-oriented programming patterns
@@ -511,7 +511,7 @@ fn test_dop_integration_summary() {
     println!("✅ DOP compliance metrics acceptable");
     println!("✅ Cross-system integration working");
     
-    println!("\n🎯 Earth Engine DOP Integration: ALL TESTS PASSED");
+    println!("\n🎯 Hearth Engine DOP Integration: ALL TESTS PASSED");
     println!("The codebase successfully implements data-oriented programming");
     println!("patterns that deliver the promised performance and maintainability benefits.");
 }

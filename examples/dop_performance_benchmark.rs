@@ -4,10 +4,10 @@ use std::time::{Duration, Instant};
 use glam::Vec3;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("🚀 Earth Engine Sprint 37: DOP Reality Check");
+    println!("🚀 Hearth Engine Sprint 37: DOP Reality Check");
     println!("============================================");
     println!("Comprehensive performance analysis of Data-Oriented Programming");
-    println!("vs Object-Oriented Programming in Earth Engine");
+    println!("vs Object-Oriented Programming in Hearth Engine");
     
     // Create benchmarking suite
     let mut benchmarks = DOPBenchmarks::new();

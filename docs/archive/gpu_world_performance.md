@@ -161,4 +161,4 @@ The GPU world architecture delivers:
 - **5x power efficiency** improvement
 - **Zero-copy rendering** pipeline
 
-This architecture positions Earth Engine as the most performant voxel engine available, capable of massive worlds with real-time generation and modification.
+This architecture positions Hearth Engine as the most performant voxel engine available, capable of massive worlds with real-time generation and modification.

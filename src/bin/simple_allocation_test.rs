@@ -135,7 +135,7 @@ fn test_mesh_buffers() {
 }
 
 fn main() {
-    println!("Earth Engine Allocation Counter");
+    println!("Hearth Engine Allocation Counter");
     println!("==============================");
     
     test_basic_operations();

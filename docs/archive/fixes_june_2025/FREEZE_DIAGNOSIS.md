@@ -1,4 +1,4 @@
-# Earth Engine Freeze Diagnosis
+# Hearth Engine Freeze Diagnosis
 
 ## Changes Made
 

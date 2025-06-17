@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 /// GPU Architecture Reality Analysis
 /// 
-/// This module documents the ACTUAL GPU vs CPU architecture of Earth Engine,
+/// This module documents the ACTUAL GPU vs CPU architecture of Hearth Engine,
 /// based on empirical profiling data rather than marketing claims.
 #[derive(Debug)]
 pub struct GpuArchitectureReality {

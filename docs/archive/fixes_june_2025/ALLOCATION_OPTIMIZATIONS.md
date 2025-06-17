@@ -1,7 +1,7 @@
-# Earth Engine Zero-Allocation Optimizations
+# Hearth Engine Zero-Allocation Optimizations
 
 ## Overview
-This document describes the optimizations implemented to achieve zero allocations per frame in the Earth Engine's hot paths.
+This document describes the optimizations implemented to achieve zero allocations per frame in the Hearth Engine's hot paths.
 
 ## Key Optimizations
 

@@ -13,7 +13,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 fn main() {
-    println!("=== Earth Engine Baseline Performance Profile ===\n");
+    println!("=== Hearth Engine Baseline Performance Profile ===\n");
     
     let cache_profiler = CacheProfiler::new();
     let memory_profiler = MemoryProfiler::new();

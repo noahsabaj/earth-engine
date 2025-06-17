@@ -1,4 +1,4 @@
-// Earth Engine DOP vs OOP Performance Benchmarks
+// Hearth Engine DOP vs OOP Performance Benchmarks
 // Sprint 37: DOP Reality Check
 // 
 // This benchmark compares data-oriented programming patterns
@@ -448,4 +448,4 @@ criterion_main!(benches);
 //    - Shows why data layout matters more than algorithmic complexity
 // 
 // These benchmarks validate the DOP approach and provide concrete
-// evidence for why Earth Engine adopts these patterns.
+// evidence for why Hearth Engine adopts these patterns.

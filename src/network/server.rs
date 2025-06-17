@@ -41,8 +41,8 @@ pub struct ServerConfig {
 impl Default for ServerConfig {
     fn default() -> Self {
         Self {
-            name: "Earth Engine Server".to_string(),
-            motd: "Welcome to Earth Engine!".to_string(),
+            name: "Hearth Engine Server".to_string(),
+            motd: "Welcome to Hearth Engine!".to_string(),
             max_players: 20,
             tcp_port: DEFAULT_TCP_PORT,
             udp_port: DEFAULT_UDP_PORT,

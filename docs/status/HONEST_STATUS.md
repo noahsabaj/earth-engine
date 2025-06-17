@@ -1,4 +1,4 @@
-# Earth Engine - Honest Status Report
+# Hearth Engine - Honest Status Report
 
 **Date**: June 11, 2025  
 **Version**: 0.35.0  

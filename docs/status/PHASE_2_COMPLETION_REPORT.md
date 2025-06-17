@@ -135,7 +135,7 @@ Phase 6: Scale Testing               📊 Final validation (Week 7-8)
 
 ## Conclusion
 
-Phase 2 has revealed that the Earth Engine's GPU architecture is mostly aspirational marketing. The catastrophic 0.8 FPS is caused by a trivial vsync configuration issue, not lack of GPU compute. The good news is this can be fixed immediately. The bad news is the entire GPU compute architecture provides little benefit and significant complexity.
+Phase 2 has revealed that the Hearth Engine's GPU architecture is mostly aspirational marketing. The catastrophic 0.8 FPS is caused by a trivial vsync configuration issue, not lack of GPU compute. The good news is this can be fixed immediately. The bad news is the entire GPU compute architecture provides little benefit and significant complexity.
 
 **The path forward is clear**:
 1. Fix the vsync issue (immediate 75x speedup)

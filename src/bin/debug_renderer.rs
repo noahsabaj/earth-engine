@@ -56,7 +56,7 @@ fn main() -> Result<()> {
     log::info!("Starting debug renderer...");
 
     let config = EngineConfig {
-        window_title: "Earth Engine Debug Renderer".to_string(),
+        window_title: "Hearth Engine Debug Renderer".to_string(),
         window_width: 1280,
         window_height: 720,
         chunk_size: 32,

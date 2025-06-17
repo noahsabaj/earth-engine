@@ -1,6 +1,6 @@
 //! GPU Workload Engine Analysis
 //! 
-//! This example integrates GPU workload profiling into the actual Earth Engine
+//! This example integrates GPU workload profiling into the actual Hearth Engine
 //! to measure REAL GPU vs CPU distribution during gameplay.
 
 use earth_engine::{
@@ -55,12 +55,12 @@ fn main() -> anyhow::Result<()> {
     env_logger::init();
     
     println!("=== GPU WORKLOAD ENGINE ANALYSIS ===");
-    println!("This will run the actual Earth Engine and profile GPU vs CPU workload.");
+    println!("This will run the actual Hearth Engine and profile GPU vs CPU workload.");
     println!("The analysis will reveal the TRUTH about the '80-85% GPU compute' claim.\n");
     
     // Create custom config
     let config = EngineConfig {
-        window_title: "GPU Workload Analysis - Earth Engine Reality Check".to_string(),
+        window_title: "GPU Workload Analysis - Hearth Engine Reality Check".to_string(),
         window_width: 1280,
         window_height: 720,
         target_fps: 60,
@@ -74,7 +74,7 @@ fn main() -> anyhow::Result<()> {
     let gpu_profiler_ref = game.gpu_profiler.clone();
     let operation_analyzer_ref = game.operation_analyzer.clone();
     
-    println!("Starting Earth Engine with GPU profiling...");
+    println!("Starting Hearth Engine with GPU profiling...");
     println!("The engine will run for {} seconds.\n", profiling_duration.as_secs());
     
     // Spawn analysis thread

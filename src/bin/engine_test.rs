@@ -28,7 +28,7 @@ fn update_minimal_game(game: &mut MinimalGameData, ctx: &mut GameContext, delta_
 }
 
 fn main() {
-    println!("Starting minimal Earth Engine test...");
+    println!("Starting minimal Hearth Engine test...");
     
     // Create engine with minimal config
     let config = EngineConfig::default();

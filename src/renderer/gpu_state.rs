@@ -453,7 +453,7 @@ impl GpuState {
         // Select appropriate limits based on GPU tier and actual capabilities
         let mut limits = select_limits_for_tier(gpu_tier, &adapter_limits);
         
-        // For Earth Engine voxel rendering, optimize specific limits
+        // For Hearth Engine voxel rendering, optimize specific limits
         optimize_limits_for_voxel_engine(&mut limits, &adapter_limits, gpu_tier);
         
         log::info!("[GpuState::new] Final requested limits:");
@@ -473,7 +473,7 @@ impl GpuState {
             &wgpu::DeviceDescriptor {
                 required_features: wgpu::Features::empty(),
                 required_limits: limits,
-                label: Some("Earth Engine Device"),
+                label: Some("Hearth Engine Device"),
             },
             None,
         );
@@ -2500,7 +2500,7 @@ fn select_limits_for_tier(tier: GpuTier, hardware_limits: &wgpu::Limits) -> wgpu
             // Use downlevel defaults
             let mut limits = wgpu::Limits::downlevel_defaults();
             
-            // Ensure minimum texture size for Earth Engine
+            // Ensure minimum texture size for Hearth Engine
             if hardware_limits.max_texture_dimension_2d >= 4096 {
                 limits.max_texture_dimension_2d = 4096;
             }

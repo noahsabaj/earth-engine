@@ -58,7 +58,7 @@ impl GpuTerrainGame {
 impl Game for GpuTerrainGame {
     fn init(&mut self, context: &mut GameContext) -> Result<()> {
         println!("=== GPU TERRAIN GENERATION TESTBED ===");
-        println!("Initializing Earth Engine with GPU terrain generation...");
+        println!("Initializing Hearth Engine with GPU terrain generation...");
         println!("This testbed demonstrates the performance improvement from CPU to GPU generation.");
         println!();
         

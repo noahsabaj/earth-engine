@@ -180,7 +180,7 @@ This report documents the comprehensive integration test suite created for Sprin
 
 ### Integration with Existing Systems
 
-The integration tests build upon and validate the existing Earth Engine systems:
+The integration tests build upon and validate the existing Hearth Engine systems:
 
 - **DOP Compliance:** Tests validate data-oriented programming patterns
 - **Memory Efficiency:** Validates zero-allocation hot paths
@@ -214,7 +214,7 @@ The test framework is designed for easy extension:
 
 ### Conclusion
 
-The Sprint 38 System Integration test suite represents a comprehensive approach to validating multi-system coordination in the Earth Engine. With 31 test cases across 6 integration test files and a robust CI/CD pipeline, the system ensures:
+The Sprint 38 System Integration test suite represents a comprehensive approach to validating multi-system coordination in the Hearth Engine. With 31 test cases across 6 integration test files and a robust CI/CD pipeline, the system ensures:
 
 1. **System Reliability** - All critical system interactions are tested
 2. **Performance Monitoring** - Automated detection of performance regressions

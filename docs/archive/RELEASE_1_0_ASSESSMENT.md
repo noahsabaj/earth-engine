@@ -1,4 +1,4 @@
-# Earth Engine 1.0 Release Assessment
+# Hearth Engine 1.0 Release Assessment
 
 **Date**: June 2025  
 **Current Sprint**: 26 Complete  
@@ -6,7 +6,7 @@
 
 ## Executive Summary
 
-Earth Engine has made impressive technical progress but is **6-12 months away** from a honest 1.0 release. The engine demonstrates revolutionary architecture concepts but lacks the completeness and polish expected of a 1.0 product.
+Hearth Engine has made impressive technical progress but is **6-12 months away** from a honest 1.0 release. The engine demonstrates revolutionary architecture concepts but lacks the completeness and polish expected of a 1.0 product.
 
 ## Critical Issues Blocking 1.0
 
@@ -94,7 +94,7 @@ Includes above plus:
 
 ## Technical Achievements Worth Celebrating
 
-Despite gaps, Earth Engine has achieved:
+Despite gaps, Hearth Engine has achieved:
 - ✅ True data-oriented architecture foundation
 - ✅ GPU-first design that works
 - ✅ 100x speedup in key areas
@@ -105,7 +105,7 @@ Despite gaps, Earth Engine has achieved:
 
 ## The Brutal Truth
 
-Earth Engine is a **technical masterpiece in progress** but not a complete product. The vision is revolutionary, the architecture is sound, but the implementation is 30-40% complete.
+Hearth Engine is a **technical masterpiece in progress** but not a complete product. The vision is revolutionary, the architecture is sound, but the implementation is 30-40% complete.
 
 **For 1.0 credibility**, either:
 1. Reduce scope and timeline claims

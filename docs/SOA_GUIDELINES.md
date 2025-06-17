@@ -247,7 +247,7 @@ fn add_transform_components_batch(
 ### Cache Profiling
 ```bash
 # Use valgrind to profile cache behavior
-valgrind --tool=cachegrind --cachegrind-out-file=profile.out ./target/debug/earth-engine
+valgrind --tool=cachegrind --cachegrind-out-file=profile.out ./target/debug/hearth-engine
 
 # Analyze cache misses
 cg_annotate profile.out

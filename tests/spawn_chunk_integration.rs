@@ -1,4 +1,4 @@
-// Earth Engine Spawn System + Chunk Generation Integration Tests
+// Hearth Engine Spawn System + Chunk Generation Integration Tests
 // Sprint 38: System Integration
 //
 // Integration tests for player spawning coordinated with chunk generation.

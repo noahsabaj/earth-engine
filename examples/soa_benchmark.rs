@@ -376,7 +376,7 @@ fn benchmark_memory_locality(count: usize) {
 }
 
 fn main() {
-    println!("Earth Engine SOA Performance Benchmarks");
+    println!("Hearth Engine SOA Performance Benchmarks");
     println!("=======================================");
     
     // Position-only access benchmarks

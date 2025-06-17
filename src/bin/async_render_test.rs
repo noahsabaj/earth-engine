@@ -222,7 +222,7 @@ fn get_async_render_game_active_block(game: &AsyncRenderGameData) -> BlockId {
 }
 
 fn main() {
-    println!("Earth Engine - Async Mesh Building Test");
+    println!("Hearth Engine - Async Mesh Building Test");
     println!("======================================");
     println!("Controls:");
     println!("  WASD - Move");
@@ -240,7 +240,7 @@ fn main() {
     println!();
     
     let config = EngineConfig {
-        window_title: "Earth Engine - Async Mesh Building".to_string(),
+        window_title: "Hearth Engine - Async Mesh Building".to_string(),
         window_width: 1280,
         window_height: 720,
         chunk_size: 32,

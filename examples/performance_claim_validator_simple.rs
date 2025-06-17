@@ -1,4 +1,4 @@
-/// Simplified Performance Claim Validator for Earth Engine
+/// Simplified Performance Claim Validator for Hearth Engine
 /// Tests the main performance claims with minimal overhead
 
 use std::time::{Duration, Instant};
@@ -6,7 +6,7 @@ use std::hint::black_box;
 use rayon::prelude::*;
 
 fn main() {
-    println!("🔬 Earth Engine Performance Claim Validator (Simplified)");
+    println!("🔬 Hearth Engine Performance Claim Validator (Simplified)");
     println!("=======================================================\n");
     
     // Test 1: Parallel speedup

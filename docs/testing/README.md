@@ -1,6 +1,6 @@
 # Testing Documentation
 
-This directory contains testing strategies, guidelines, and methodologies for the Earth Engine project.
+This directory contains testing strategies, guidelines, and methodologies for the Hearth Engine project.
 
 ## Purpose
 

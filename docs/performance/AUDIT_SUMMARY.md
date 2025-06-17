@@ -5,7 +5,7 @@
 
 ## Audit Overview
 
-A comprehensive audit of Earth Engine's performance claims was conducted following the discovery that:
+A comprehensive audit of Hearth Engine's performance claims was conducted following the discovery that:
 1. Some performance claims are hardware-specific but presented as universal
 2. The 0.8 FPS issue contradicts many performance claims
 3. 1dcm³ voxels are architecturally impossible with current design (though no such claims were found in documentation)
@@ -86,7 +86,7 @@ Every performance claim must include:
 
 ## Conclusion
 
-The audit revealed that Earth Engine has made real performance improvements (2-5x in specific areas) but drastically overclaimed its capabilities. The most egregious false claims have been corrected in documentation. The 0.8 FPS performance crisis must be resolved before any new performance claims are made.
+The audit revealed that Hearth Engine has made real performance improvements (2-5x in specific areas) but drastically overclaimed its capabilities. The most egregious false claims have been corrected in documentation. The 0.8 FPS performance crisis must be resolved before any new performance claims are made.
 
 The foundation for good performance exists, but honest benchmarks and realistic expectations are needed to restore credibility and guide development priorities.
 

@@ -1,4 +1,4 @@
-/// Integration Test Suite - Earth Engine System Integration Validation
+/// Integration Test Suite - Hearth Engine System Integration Validation
 /// 
 /// This test verifies that all core systems work together properly:
 /// 1. Player movement system (WASD + mouse)
@@ -22,7 +22,7 @@ use tempfile::TempDir;
 
 fn main() {
     println!("==================== INTEGRATION TEST SUITE ====================");
-    println!("Testing Earth Engine system integration...");
+    println!("Testing Hearth Engine system integration...");
     println!("This validates that core systems work together reliably\n");
     
     let mut test_results = IntegrationResults::new();

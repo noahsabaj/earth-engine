@@ -1,4 +1,4 @@
-# Earth Engine Integration Tests
+# Hearth Engine Integration Tests
 
 This directory contains integration tests that verify the behavior of multiple modules working together.
 

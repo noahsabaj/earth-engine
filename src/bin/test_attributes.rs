@@ -30,7 +30,7 @@ fn create_instance_from_manager(manager: &mut InstanceManagerData) -> InstanceId
 }
 
 fn main() {
-    println!("=== Earth Engine: Dynamic Attribute System Test ===\n");
+    println!("=== Hearth Engine: Dynamic Attribute System Test ===\n");
     
     // Create managers
     let mut instance_mgr = create_instance_manager_data();

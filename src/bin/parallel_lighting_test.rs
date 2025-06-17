@@ -268,7 +268,7 @@ fn get_parallel_lighting_game_active_block(game: &ParallelLightingGameData) -> B
 }
 
 fn main() {
-    println!("Earth Engine - Parallel Lighting Test");
+    println!("Hearth Engine - Parallel Lighting Test");
     println!("====================================");
     println!("Controls:");
     println!("  WASD - Move");
@@ -288,7 +288,7 @@ fn main() {
     println!();
     
     let config = EngineConfig {
-        window_title: "Earth Engine - Parallel Lighting".to_string(),
+        window_title: "Hearth Engine - Parallel Lighting".to_string(),
         window_width: 1280,
         window_height: 720,
         chunk_size: 32,

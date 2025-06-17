@@ -11,7 +11,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 fn main() {
-    println!("Earth Engine - Parallel Lighting Benchmark");
+    println!("Hearth Engine - Parallel Lighting Benchmark");
     println!("=========================================");
     
     let chunk_size = 32;

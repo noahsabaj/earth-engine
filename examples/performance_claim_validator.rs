@@ -1,4 +1,4 @@
-/// Performance Claim Validator for Earth Engine
+/// Performance Claim Validator for Hearth Engine
 /// 
 /// This test suite validates (or disproves) all performance claims made in the documentation.
 /// It measures ACTUAL performance using the real engine code and reports results with brutal honesty.
@@ -86,7 +86,7 @@ impl TestResult {
 }
 
 fn main() {
-    println!("🔬 Earth Engine Performance Claim Validator");
+    println!("🔬 Hearth Engine Performance Claim Validator");
     println!("==========================================");
     println!("Testing all claimed performance improvements with ACTUAL measurements\n");
     

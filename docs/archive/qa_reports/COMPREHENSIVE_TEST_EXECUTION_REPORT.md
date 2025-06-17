@@ -1,8 +1,8 @@
-# Comprehensive Test Execution Report - Earth Engine
+# Comprehensive Test Execution Report - Hearth Engine
 
 **Test Execution Agent 3 Report**
 **Date**: June 13, 2025
-**Project**: Earth Engine - Voxel Game Engine
+**Project**: Hearth Engine - Voxel Game Engine
 
 ## Executive Summary
 
@@ -182,7 +182,7 @@ free -h                              # 15GB available memory
 
 **Overall Test Suite Health: CRITICAL**
 
-The Earth Engine test suite is currently in a critical state with fundamental execution blockers. While the core library compiles successfully, memory allocation failures and API mismatches prevent meaningful test execution. This aligns with the "Claims vs Reality" prevention principles in CLAUDE.md - the test failures reveal real issues that need immediate attention.
+The Hearth Engine test suite is currently in a critical state with fundamental execution blockers. While the core library compiles successfully, memory allocation failures and API mismatches prevent meaningful test execution. This aligns with the "Claims vs Reality" prevention principles in CLAUDE.md - the test failures reveal real issues that need immediate attention.
 
 **Next Steps**: Deploy investigator agents to identify memory allocation sources and developer agents to fix API compatibility issues.
 

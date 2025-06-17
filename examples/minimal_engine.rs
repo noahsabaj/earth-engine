@@ -1,6 +1,6 @@
 /// Minimal Engine Example
 /// 
-/// This example demonstrates the simplest possible usage of Earth Engine as a library.
+/// This example demonstrates the simplest possible usage of Hearth Engine as a library.
 /// Perfect for:
 /// - Learning the basic API
 /// - Quick prototyping
@@ -91,7 +91,7 @@ fn main() {
     
     // Create simple engine configuration
     let config = EngineConfig {
-        window_title: "Minimal Earth Engine Example".to_string(),
+        window_title: "Minimal Hearth Engine Example".to_string(),
         window_width: 1280,
         window_height: 720,
         chunk_size: 32,

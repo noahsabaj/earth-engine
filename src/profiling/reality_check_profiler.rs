@@ -1,4 +1,4 @@
-//! Reality Check Profiler - Brutal honesty about Earth Engine's actual performance
+//! Reality Check Profiler - Brutal honesty about Hearth Engine's actual performance
 //! 
 //! This profiler exposes the TRUTH about performance, not marketing claims.
 //! Current reality: 0.8 FPS is TERRIBLE. Let's measure why.

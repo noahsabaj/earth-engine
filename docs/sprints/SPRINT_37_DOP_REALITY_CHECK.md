@@ -7,7 +7,7 @@
 
 ## Executive Summary
 
-Sprint 37 successfully established comprehensive data-oriented programming (DOP) guidelines and enforcement infrastructure for Earth Engine. This sprint created the foundation for maintaining Earth Engine's "NO OBJECTS, EVER" philosophy with automated detection, code review standards, and performance validation.
+Sprint 37 successfully established comprehensive data-oriented programming (DOP) guidelines and enforcement infrastructure for Hearth Engine. This sprint created the foundation for maintaining Hearth Engine's "NO OBJECTS, EVER" philosophy with automated detection, code review standards, and performance validation.
 
 ## Core Deliverables ✅
 
@@ -188,7 +188,7 @@ Based on DOP principles and similar optimizations:
 - **Memory bandwidth testing**: Real-world data access patterns
 - **GPU compatibility verification**: Actual GPU buffer uploads
 
-## Integration with Earth Engine Vision
+## Integration with Hearth Engine Vision
 
 ### Alignment with CLAUDE.md Philosophy ✅
 
@@ -198,7 +198,7 @@ This sprint directly implements the core CLAUDE.md mandate:
 > **✅ Data lives in shared buffers (WorldBuffer, RenderBuffer, etc.)**  
 > **✅ Systems are stateless kernels that read/write buffers**
 
-### Support for Earth Engine Goals ✅
+### Support for Hearth Engine Goals ✅
 
 1. **GPU-First Architecture**: DOP patterns enable seamless GPU integration
 2. **Performance Targets**: 10-100x improvements through cache efficiency
@@ -250,20 +250,20 @@ This sprint directly implements the core CLAUDE.md mandate:
 
 1. **100% DOP Compliance**: Zero methods with self across codebase
 2. **Performance Leadership**: Documented 10-100x improvements
-3. **Industry Example**: Earth Engine as DOP case study
+3. **Industry Example**: Hearth Engine as DOP case study
 4. **Framework Extension**: DOP patterns in final framework phase
 
 ## Conclusion
 
-Sprint 37 successfully established Earth Engine's data-oriented programming foundation. The comprehensive guidelines, automated enforcement, and performance validation create a sustainable framework for maintaining DOP principles as the codebase evolves.
+Sprint 37 successfully established Hearth Engine's data-oriented programming foundation. The comprehensive guidelines, automated enforcement, and performance validation create a sustainable framework for maintaining DOP principles as the codebase evolves.
 
-**Key Achievement**: Earth Engine now has the infrastructure to enforce "NO OBJECTS, EVER" at scale.
+**Key Achievement**: Hearth Engine now has the infrastructure to enforce "NO OBJECTS, EVER" at scale.
 
 **Impact**: Every future PR will be automatically checked for DOP compliance, ensuring consistent architecture quality.
 
 **Validation**: Performance benchmarks provide concrete evidence that DOP delivers the promised improvements.
 
-Sprint 37 represents a pivotal moment in Earth Engine's development, transitioning from aspirational DOP goals to enforced DOP reality.
+Sprint 37 represents a pivotal moment in Hearth Engine's development, transitioning from aspirational DOP goals to enforced DOP reality.
 
 ---
 
@@ -290,4 +290,4 @@ Sprint 37 represents a pivotal moment in Earth Engine's development, transitioni
 
 ## Sprint 37 Status: ✅ COMPLETED
 
-All deliverables achieved. Earth Engine's data-oriented programming enforcement is now operational.
+All deliverables achieved. Hearth Engine's data-oriented programming enforcement is now operational.

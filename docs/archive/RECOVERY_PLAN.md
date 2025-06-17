@@ -1,4 +1,4 @@
-# Earth Engine Recovery Plan
+# Hearth Engine Recovery Plan
 
 ## The Situation
 

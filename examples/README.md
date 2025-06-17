@@ -1,11 +1,11 @@
-# Earth Engine Examples
+# Hearth Engine Examples
 
-This directory contains runnable examples demonstrating how to use Earth Engine as a library.
+This directory contains runnable examples demonstrating how to use Hearth Engine as a library.
 
 ## Main Examples
 
 ### `engine_testbed.rs` - Comprehensive Development Platform
-The primary testbed for Earth Engine development featuring:
+The primary testbed for Hearth Engine development featuring:
 - Full game implementation with complete gameplay features
 - Comprehensive debug UI with real-time metrics
 - Performance monitoring and profiling tools
@@ -16,7 +16,7 @@ The primary testbed for Earth Engine development featuring:
 **Usage**: `cargo run --example engine_testbed`
 
 ### `minimal_engine.rs` - Simple Library Usage
-Demonstrates the simplest possible usage of Earth Engine as a library:
+Demonstrates the simplest possible usage of Hearth Engine as a library:
 - Basic engine initialization
 - Simple game implementation
 - Clean API usage patterns

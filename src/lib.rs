@@ -68,7 +68,7 @@ pub struct EngineConfig {
 impl Default for EngineConfig {
     fn default() -> Self {
         Self {
-            window_title: "Earth Engine".to_string(),
+            window_title: "Hearth Engine".to_string(),
             window_width: 1280,
             window_height: 720,
             chunk_size: 32,

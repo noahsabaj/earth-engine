@@ -6,7 +6,7 @@
 
 ## Executive Summary
 
-Phase 1 of the Earth Engine GPU Reality Check has been completed with brutal honesty. We have established the ground truth about the engine's actual performance, validated (or invalidated) all performance claims, and analyzed the catastrophic impact of 1dcm³ voxels. The results are sobering but necessary for honest progress.
+Phase 1 of the Hearth Engine GPU Reality Check has been completed with brutal honesty. We have established the ground truth about the engine's actual performance, validated (or invalidated) all performance claims, and analyzed the catastrophic impact of 1dcm³ voxels. The results are sobering but necessary for honest progress.
 
 ## Key Deliverables
 
@@ -119,7 +119,7 @@ Phase 1 of the Earth Engine GPU Reality Check has been completed with brutal hon
 
 ## Conclusion
 
-Phase 1 has established the brutal truth about Earth Engine's current state. While the vision is ambitious and some architectural decisions are sound, the engine is currently in a performance crisis that contradicts most claims. The path forward requires:
+Phase 1 has established the brutal truth about Hearth Engine's current state. While the vision is ambitious and some architectural decisions are sound, the engine is currently in a performance crisis that contradicts most claims. The path forward requires:
 
 1. Honest acknowledgment of current limitations
 2. Focus on fixing fundamental performance issues

@@ -89,7 +89,7 @@ Sprint 35.1 is now 100% complete with verified evidence. The zero-panic architec
 - Comprehensive bounds checking
 - Library compiles with 0 errors
 
-The Earth Engine now has a solid foundation of engineering discipline, ready for Sprint 35.2.
+The Hearth Engine now has a solid foundation of engineering discipline, ready for Sprint 35.2.
 
 ---
 Verified: June 11, 2025

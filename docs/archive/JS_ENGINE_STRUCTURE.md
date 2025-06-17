@@ -1,6 +1,6 @@
 # JavaScript Engine Structure
 
-The parallel JavaScript implementation of Earth Engine should be created as a separate repository or folder at the same level as the Rust engine:
+The parallel JavaScript implementation of Hearth Engine should be created as a separate repository or folder at the same level as the Rust engine:
 
 ```
 hearth-engine-workspace/
@@ -30,7 +30,7 @@ hearth-engine-js/
 - Type: module (ES6 imports)
 
 ### src/index.js
-- Main EarthEngine class
+- Main HearthEngine class
 - WebGPU initialization
 - Game loop
 - Subsystem coordination

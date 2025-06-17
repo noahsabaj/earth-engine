@@ -211,7 +211,7 @@ This sprint significantly improves the engine's ability to handle large, detaile
 - Improves frame rate stability
 - Provides professional-quality LOD system
 
-The mesh optimization pipeline is now production-ready and will be a key differentiator for the Earth Engine's rendering capabilities.
+The mesh optimization pipeline is now production-ready and will be a key differentiator for the Hearth Engine's rendering capabilities.
 
 ## Code Metrics
 

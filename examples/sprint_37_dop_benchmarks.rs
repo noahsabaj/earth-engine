@@ -7,10 +7,10 @@ use glam::Vec3;
 /// 
 /// This example demonstrates measurable cache efficiency improvements and
 /// documents the performance benefits of Data-Oriented Programming over
-/// Object-Oriented Programming in Earth Engine.
+/// Object-Oriented Programming in Hearth Engine.
 
 fn main() {
-    println!("🚀 Earth Engine Sprint 37: DOP Reality Check");
+    println!("🚀 Hearth Engine Sprint 37: DOP Reality Check");
     println!("==============================================");
     println!("Comprehensive performance analysis demonstrating measurable");
     println!("cache efficiency improvements in Data-Oriented Programming");

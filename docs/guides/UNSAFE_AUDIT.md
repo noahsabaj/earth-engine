@@ -1,4 +1,4 @@
-# Unsafe Code Audit - Earth Engine
+# Unsafe Code Audit - Hearth Engine
 
 **Sprint**: 35.1 Emergency  
 **Date**: June 11, 2025  

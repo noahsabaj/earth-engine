@@ -1,4 +1,4 @@
-# Earth Engine Vision 2025: The Data-Oriented Revolution
+# Hearth Engine Vision 2025: The Data-Oriented Revolution
 
 ## Core Philosophy: "The Best System is No System"
 

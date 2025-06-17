@@ -17,7 +17,7 @@ use earth_engine::persistence::{
 use earth_engine::network::disconnect_handler::{DisconnectHandler, DisconnectConfig};
 
 fn main() {
-    println!("Earth Engine Save/Load Integration Demo");
+    println!("Hearth Engine Save/Load Integration Demo");
     println!("======================================");
     
     // Create temporary directory for saves

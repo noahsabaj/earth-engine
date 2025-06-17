@@ -266,7 +266,7 @@ fn get_parallel_game_active_block(game: &ParallelGameData) -> BlockId {
 }
 
 fn main() {
-    println!("Earth Engine - Parallel World Test");
+    println!("Hearth Engine - Parallel World Test");
     println!("==================================");
     println!("Controls:");
     println!("  WASD - Move");
@@ -279,7 +279,7 @@ fn main() {
     println!();
     
     let config = EngineConfig {
-        window_title: "Earth Engine - Parallel World Test".to_string(),
+        window_title: "Hearth Engine - Parallel World Test".to_string(),
         window_width: 1280,
         window_height: 720,
         chunk_size: 32,

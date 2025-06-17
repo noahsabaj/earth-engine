@@ -1,8 +1,8 @@
 [package]
-name = "earth_engine_clippy_lints"
+name = "hearth_engine_clippy_lints"
 version = "0.37.0"
 edition = "2021"
-description = "Custom Clippy lints for Earth Engine DOP enforcement"
+description = "Custom Clippy lints for Hearth Engine DOP enforcement"
 
 [lib]
 crate-type = ["cdylib"]

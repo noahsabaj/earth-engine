@@ -3,7 +3,7 @@
 ## Status: ABANDONED ❌
 
 ### Overview
-Sprint 22 attempted to create a WebGPU/WASM version of Earth Engine. The web implementation was later completely removed after determining it provided no value to the project. The implementation was not truly GPU-first, didn't use any Rust engine code, and never achieved a working state.
+Sprint 22 attempted to create a WebGPU/WASM version of Hearth Engine. The web implementation was later completely removed after determining it provided no value to the project. The implementation was not truly GPU-first, didn't use any Rust engine code, and never achieved a working state.
 
 ### Completed Tasks
 

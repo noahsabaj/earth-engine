@@ -4,7 +4,7 @@
 
 **Overall Readiness: 85% READY**
 
-The Earth Engine codebase has strong foundations for Sprint 21's GPU World Architecture. The prerequisite infrastructure from Sprints 17-20 is in place, including GPU compute pipelines, data-oriented patterns, and GPU-driven rendering. The main work needed is implementing GPU-based world generation algorithms and the unified WorldBuffer architecture.
+The Hearth Engine codebase has strong foundations for Sprint 21's GPU World Architecture. The prerequisite infrastructure from Sprints 17-20 is in place, including GPU compute pipelines, data-oriented patterns, and GPU-driven rendering. The main work needed is implementing GPU-based world generation algorithms and the unified WorldBuffer architecture.
 
 ## What's Already in Place ✅
 

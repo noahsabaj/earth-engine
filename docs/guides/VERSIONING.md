@@ -1,4 +1,4 @@
-# Earth Engine Versioning Strategy
+# Hearth Engine Versioning Strategy
 
 ## Current Version: 0.34.0
 

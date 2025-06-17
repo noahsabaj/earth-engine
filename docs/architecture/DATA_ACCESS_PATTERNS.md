@@ -1,4 +1,4 @@
-# Earth Engine Data Access Patterns
+# Hearth Engine Data Access Patterns
 
 ## Overview
 This document captures the data access patterns discovered during Sprint 17's performance profiling and optimization work. Understanding these patterns is crucial for maintaining high performance as we transition to a data-oriented architecture.

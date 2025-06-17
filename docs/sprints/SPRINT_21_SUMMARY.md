@@ -2,7 +2,7 @@
 
 ## Overview
 
-Sprint 21 marks the architectural pivot point for Earth Engine, introducing a revolutionary GPU-resident world system where all world data permanently lives on the GPU. This sprint achieved 100x performance improvements across all major operations.
+Sprint 21 marks the architectural pivot point for Hearth Engine, introducing a revolutionary GPU-resident world system where all world data permanently lives on the GPU. This sprint achieved 100x performance improvements across all major operations.
 
 ## Key Achievements
 
@@ -120,4 +120,4 @@ Memory Bandwidth        | 16 GB/s      | Up to 500+ GB/s (GPU internal) | 30x
 
 ## Conclusion
 
-Sprint 21 successfully transformed Earth Engine into a GPU-first, data-oriented voxel engine. The 100x performance improvements demonstrate the power of keeping data where it's processed. This architecture positions Earth Engine as the most performant voxel engine available, ready for massive worlds and advanced simulations.
+Sprint 21 successfully transformed Hearth Engine into a GPU-first, data-oriented voxel engine. The 100x performance improvements demonstrate the power of keeping data where it's processed. This architecture positions Hearth Engine as the most performant voxel engine available, ready for massive worlds and advanced simulations.

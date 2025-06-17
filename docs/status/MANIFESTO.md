@@ -1,4 +1,4 @@
-# The Earth Engine Manifesto: From Pretense to Performance
+# The Hearth Engine Manifesto: From Pretense to Performance
 
 ## Our North Star 🌟
 
@@ -127,7 +127,7 @@ If you believe in:
 - Proving before proclaiming
 - Working code over working titles
 
-Then help us build Earth Engine the right way.
+Then help us build Hearth Engine the right way.
 
 ---
 
@@ -135,4 +135,4 @@ Then help us build Earth Engine the right way.
 
 **Together, we will build something real.**
 
-#OperationReality #FromPretenseToPerformance #EarthEngine
+#OperationReality #FromPretenseToPerformance #HearthEngine

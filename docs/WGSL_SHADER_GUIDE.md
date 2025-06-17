@@ -1,4 +1,4 @@
-# WGSL Shader Guide - Earth Engine
+# WGSL Shader Guide - Hearth Engine
 
 ## What is WGSL?
 
@@ -13,7 +13,7 @@ For voxel rendering, this means:
 - CPU: Loop through each voxel one by one
 - GPU: Process thousands of voxels at once
 
-## Earth Engine Shader Architecture
+## Hearth Engine Shader Architecture
 
 ### 1. Rendering Pipeline (Active)
 

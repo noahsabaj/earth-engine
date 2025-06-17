@@ -165,7 +165,7 @@ fn main() -> anyhow::Result<()> {
     log::info!("[test_render] Starting render test...");
     
     let config = EngineConfig {
-        window_title: "Earth Engine - Render Test".to_string(),
+        window_title: "Hearth Engine - Render Test".to_string(),
         window_width: 1280,
         window_height: 720,
         chunk_size: 32,

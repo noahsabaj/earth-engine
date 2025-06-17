@@ -1,4 +1,4 @@
-// Earth Engine Network + Persistence Integration Tests
+// Hearth Engine Network + Persistence Integration Tests
 // Sprint 38: System Integration
 //
 // Integration tests for networked multiplayer coordination with persistent world state.

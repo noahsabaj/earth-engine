@@ -1,4 +1,4 @@
-// Earth Engine Movement + Physics Integration Tests
+// Hearth Engine Movement + Physics Integration Tests
 // Sprint 38: System Integration
 //
 // Comprehensive integration tests for player movement coordinated with physics simulation.

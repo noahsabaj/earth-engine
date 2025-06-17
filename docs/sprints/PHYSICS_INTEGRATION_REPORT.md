@@ -2,7 +2,7 @@
 
 ## Summary
 
-This report documents the successful consolidation and improvement of the physics system integration in the Earth Engine, completing all deliverables for Sprint 38 - System Integration.
+This report documents the successful consolidation and improvement of the physics system integration in the Hearth Engine, completing all deliverables for Sprint 38 - System Integration.
 
 ## Issues Addressed
 

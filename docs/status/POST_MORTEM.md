@@ -1,4 +1,4 @@
-# Post-Mortem: How Earth Engine Lost Its Way
+# Post-Mortem: How Hearth Engine Lost Its Way
 
 **Date**: June 11, 2025  
 **Author**: Emergency Sprint 35.1 Team  
@@ -6,7 +6,7 @@
 
 ## Executive Summary
 
-After 35 sprints of development, Earth Engine reached a crisis point. A comprehensive code audit revealed that most of our performance claims were false, our architecture was incomplete, and basic engineering discipline was abandoned. This post-mortem examines how we got here and what we must do differently.
+After 35 sprints of development, Hearth Engine reached a crisis point. A comprehensive code audit revealed that most of our performance claims were false, our architecture was incomplete, and basic engineering discipline was abandoned. This post-mortem examines how we got here and what we must do differently.
 
 ## Timeline of Descent
 
@@ -298,7 +298,7 @@ The good news: The vision is still valid. The architecture (where implemented) s
 
 The requirement: Engineering discipline. Honesty. Tests. Error handling. Making things work.
 
-Earth Engine can still be revolutionary. But first, it must be functional.
+Hearth Engine can still be revolutionary. But first, it must be functional.
 
 ---
 

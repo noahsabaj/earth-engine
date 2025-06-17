@@ -1,6 +1,6 @@
 # Performance Documentation
 
-This directory contains performance benchmarks, optimization tracking, and performance analysis for the Earth Engine project.
+This directory contains performance benchmarks, optimization tracking, and performance analysis for the Hearth Engine project.
 
 ## Purpose
 

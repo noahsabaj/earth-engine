@@ -1,6 +1,6 @@
 # Technical Documentation
 
-This directory contains technical implementation documentation for the Earth Engine project.
+This directory contains technical implementation documentation for the Hearth Engine project.
 
 ## Purpose
 

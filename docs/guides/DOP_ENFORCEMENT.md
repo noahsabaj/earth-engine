@@ -18,7 +18,7 @@
 
 ## Philosophy: NO OBJECTS, EVER
 
-Earth Engine follows strict Data-Oriented Programming (DOP) principles as mandated by `CLAUDE.md`:
+Hearth Engine follows strict Data-Oriented Programming (DOP) principles as mandated by `CLAUDE.md`:
 
 > **❌ NO classes, objects, or OOP patterns**  
 > **❌ NO methods - only functions that transform data**  
@@ -29,7 +29,7 @@ Earth Engine follows strict Data-Oriented Programming (DOP) principles as mandat
 
 ### Core Principle: Data + Kernels
 
-Every system in Earth Engine follows this pattern:
+Every system in Hearth Engine follows this pattern:
 - **Data**: Stored in buffers (preferably GPU-accessible)
 - **Kernels**: Pure functions that transform data
 - **No State**: Functions don't own data, they operate on it
@@ -45,7 +45,7 @@ Every system in Earth Engine follows this pattern:
 | **Cache** | Scattered access | Sequential access |
 | **GPU** | Incompatible | Native |
 
-### Why DOP Matters for Earth Engine
+### Why DOP Matters for Hearth Engine
 
 1. **Performance**: 10-100x faster due to cache efficiency
 2. **GPU Compatibility**: Data lives where it's processed
@@ -1061,7 +1061,7 @@ fn bench_particle_update_baseline(b: &mut Bencher) {
 
 ## Summary
 
-This guide establishes the foundation for maintaining Earth Engine's data-oriented architecture. By following these patterns and using the provided tools, we ensure:
+This guide establishes the foundation for maintaining Hearth Engine's data-oriented architecture. By following these patterns and using the provided tools, we ensure:
 
 1. **Consistent Performance**: All code follows cache-friendly patterns
 2. **GPU Compatibility**: Data layouts work seamlessly with compute shaders
@@ -1070,4 +1070,4 @@ This guide establishes the foundation for maintaining Earth Engine's data-orient
 
 Remember: **NO OBJECTS, EVER**. If you're writing `self.method()`, you're doing it wrong.
 
-The future of game engines is data-oriented. Earth Engine leads that future.
+The future of game engines is data-oriented. Hearth Engine leads that future.

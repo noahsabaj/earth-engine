@@ -1,4 +1,4 @@
-# Earth Engine Environment Coherence Guide
+# Hearth Engine Environment Coherence Guide
 
 ## Overview
 This document ensures we maintain **full coherence** between the Linux (WSL) development environment and the Windows testing environment. 

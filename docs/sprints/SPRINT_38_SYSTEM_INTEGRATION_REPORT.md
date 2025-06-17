@@ -2,7 +2,7 @@
 
 ## Overview
 
-Implemented comprehensive system coordination and integration optimizations to eliminate bottlenecks and improve performance across the Earth Engine. This sprint focused on reducing contention, improving resource utilization, and enhancing system observability.
+Implemented comprehensive system coordination and integration optimizations to eliminate bottlenecks and improve performance across the Hearth Engine. This sprint focused on reducing contention, improving resource utilization, and enhancing system observability.
 
 ## Key Components Implemented
 

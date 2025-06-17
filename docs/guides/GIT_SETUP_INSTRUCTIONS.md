@@ -1,4 +1,4 @@
-# Git Setup Instructions for Earth Engine
+# Git Setup Instructions for Hearth Engine
 
 ## Current Status
 - Git repository initialized locally in WSL (Linux)

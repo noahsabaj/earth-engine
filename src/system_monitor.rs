@@ -1,6 +1,6 @@
 /// System Monitor
 /// 
-/// Comprehensive system health monitoring and diagnostics for the Earth Engine.
+/// Comprehensive system health monitoring and diagnostics for the Hearth Engine.
 /// Tracks performance metrics, resource usage, error rates, and system coordination.
 /// 
 /// This provides observability into system integration bottlenecks and helps

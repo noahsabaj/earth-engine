@@ -1,4 +1,4 @@
-# Earth Engine WASM Status
+# Hearth Engine WASM Status
 
 ## Current State (Sprint 22 - Abandoned)
 
@@ -65,7 +65,7 @@ wasm-pack build --target web --features web --no-default-features
 
 ### 🏗️ Architecture Challenges
 
-The Earth Engine was designed as a native application with assumptions about:
+The Hearth Engine was designed as a native application with assumptions about:
 - Multi-threading (not available in WASM)
 - File system access
 - Network I/O

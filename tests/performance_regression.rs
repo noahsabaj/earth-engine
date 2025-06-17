@@ -1,4 +1,4 @@
-// Earth Engine Performance Regression Testing Framework
+// Hearth Engine Performance Regression Testing Framework
 // Sprint 38: System Integration
 //
 // Automated performance regression detection for critical engine systems.

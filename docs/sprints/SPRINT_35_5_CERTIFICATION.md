@@ -72,7 +72,7 @@ pub fn update_players(
 ### Honest Performance Report
 
 ```markdown
-# Earth Engine Performance Report v0.35.5
+# Hearth Engine Performance Report v0.35.5
 
 ## Measured Performance (not claimed)
 
@@ -127,4 +127,4 @@ pub fn update_players(
 
 ### The Moment of Truth
 After Sprint 35.5, we can honestly say:
-"Earth Engine is a solid B-grade voxel engine. It works, it's documented, and while it doesn't hit our original ambitious targets, it's a real foundation to build on."
+"Hearth Engine is a solid B-grade voxel engine. It works, it's documented, and while it doesn't hit our original ambitious targets, it's a real foundation to build on."

@@ -352,7 +352,7 @@ fn benchmark_object_pools() {
 }
 
 fn main() {
-    println!("Earth Engine Zero-Allocation Benchmark");
+    println!("Hearth Engine Zero-Allocation Benchmark");
     println!("=====================================");
     
     // Run benchmarks

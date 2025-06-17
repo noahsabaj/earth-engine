@@ -1,4 +1,4 @@
-# Earth Engine Documentation
+# Hearth Engine Documentation
 
 ## Quick Links
 

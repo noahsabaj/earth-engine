@@ -1,4 +1,4 @@
-//! Panic handler with telemetry for Earth Engine
+//! Panic handler with telemetry for Hearth Engine
 //! 
 //! This module provides a custom panic handler that logs panic information
 //! before the process terminates, helping with debugging and stability monitoring.
@@ -104,7 +104,7 @@ pub fn install_panic_handler() {
         telemetry.send_to_monitoring();
 
         // Print to stderr for immediate visibility
-        eprintln!("\n💥 Earth Engine Panic! 💥");
+        eprintln!("\n💥 Hearth Engine Panic! 💥");
         eprintln!("This should never happen in production!");
         eprintln!("Please report this issue with the panic log.");
         eprintln!("Log location: {}", log_path.display());

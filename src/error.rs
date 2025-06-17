@@ -1,4 +1,4 @@
-//! Comprehensive error handling for Earth Engine
+//! Comprehensive error handling for Hearth Engine
 //! 
 //! This module provides a unified error type that replaces all unwrap() calls
 //! with proper error handling, ensuring the engine never panics in production.
@@ -7,7 +7,7 @@ use std::fmt;
 use std::error::Error as StdError;
 use std::sync::{MutexGuard, RwLockReadGuard, RwLockWriteGuard, PoisonError};
 
-/// Main error type for Earth Engine
+/// Main error type for Hearth Engine
 #[derive(Debug)]
 pub enum EngineError {
     // Resource Errors
@@ -193,7 +193,7 @@ impl fmt::Display for EngineError {
 
 impl StdError for EngineError {}
 
-/// Type alias for Results in Earth Engine
+/// Type alias for Results in Hearth Engine
 pub type EngineResult<T> = Result<T, EngineError>;
 
 // Conversion traits for common error types

@@ -1,4 +1,4 @@
-// Earth Engine Custom Clippy Lints
+// Hearth Engine Custom Clippy Lints
 // Sprint 37: DOP Reality Check
 
 #![feature(rustc_private)]

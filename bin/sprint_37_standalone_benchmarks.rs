@@ -5,7 +5,7 @@ use std::hint::black_box;
 /// 
 /// This standalone binary demonstrates measurable cache efficiency improvements and
 /// documents the performance benefits of Data-Oriented Programming over
-/// Object-Oriented Programming, without depending on earth-engine library components.
+/// Object-Oriented Programming, without depending on hearth-engine library components.
 
 fn main() {
     println!("🚀 Hearth Engine Sprint 37: DOP Reality Check");

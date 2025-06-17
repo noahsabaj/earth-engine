@@ -146,4 +146,4 @@ Test: High altitude
 
 ## Conclusion
 
-Sprint 28 successfully eliminated the CPU as a bottleneck in rendering. With GPU-driven culling and a single indirect draw call, Earth Engine can now handle millions of chunks with minimal CPU overhead. This forms the perfect foundation for Sprint 29's mesh optimization work, as the GPU can now generate optimized meshes without CPU involvement.
+Sprint 28 successfully eliminated the CPU as a bottleneck in rendering. With GPU-driven culling and a single indirect draw call, Hearth Engine can now handle millions of chunks with minimal CPU overhead. This forms the perfect foundation for Sprint 29's mesh optimization work, as the GPU can now generate optimized meshes without CPU involvement.

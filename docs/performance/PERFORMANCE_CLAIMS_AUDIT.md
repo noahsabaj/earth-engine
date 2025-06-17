@@ -1,4 +1,4 @@
-# Earth Engine Performance Claims Audit
+# Hearth Engine Performance Claims Audit
 
 **Date**: June 15, 2025  
 **Auditor**: Documentation Auditor  
@@ -6,7 +6,7 @@
 
 ## Executive Summary
 
-This audit catalogs all performance claims found in Earth Engine documentation and categorizes them based on verification status. The audit was triggered by the discovery that some performance claims are hardware-specific but presented as universal, and that the 0.8 FPS issue contradicts many performance claims.
+This audit catalogs all performance claims found in Hearth Engine documentation and categorizes them based on verification status. The audit was triggered by the discovery that some performance claims are hardware-specific but presented as universal, and that the 0.8 FPS issue contradicts many performance claims.
 
 ## Claim Categories
 
@@ -260,7 +260,7 @@ The 0.8 FPS issue indicates a fundamental performance problem that invalidates m
 
 ## Conclusion
 
-Earth Engine has made real performance improvements (2-5x in specific areas) but has drastically overclaimed its capabilities. The documentation contains a mix of verified improvements, hardware-specific results presented as universal, and aspirational goals presented as current reality. A comprehensive documentation update is needed to restore credibility and set realistic expectations.
+Hearth Engine has made real performance improvements (2-5x in specific areas) but has drastically overclaimed its capabilities. The documentation contains a mix of verified improvements, hardware-specific results presented as universal, and aspirational goals presented as current reality. A comprehensive documentation update is needed to restore credibility and set realistic expectations.
 
 ---
 

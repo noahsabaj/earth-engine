@@ -5,13 +5,13 @@ use winit::{
 };
 
 fn main() {
-    println!("Earth Engine - GPU Detection Test");
+    println!("Hearth Engine - GPU Detection Test");
     println!("=================================");
     
     // Create event loop and window
     let event_loop = EventLoop::new().expect("Failed to create event loop");
     let window = WindowBuilder::new()
-        .with_title("Earth Engine - GPU Test")
+        .with_title("Hearth Engine - GPU Test")
         .with_inner_size(winit::dpi::LogicalSize::new(800, 600))
         .build(&event_loop)
         .expect("Failed to create window");

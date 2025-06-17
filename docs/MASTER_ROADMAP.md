@@ -1,4 +1,4 @@
-# Earth Engine Master Roadmap
+# Hearth Engine Master Roadmap
 
 ## 🚨 Engineering Discipline Phase (Sprints 36-40)
 After completing Sprint 35, a comprehensive code audit revealed significant gaps between our claims and reality. Sprints 36-40 focus on engineering discipline and making things actually work rather than adding new features.
@@ -1182,7 +1182,7 @@ All optimizations build on the data-oriented foundation from Sprint 21:
 ## Frontier Features Summary
 
 ### Core Performance Tier (Sprints 21-23) ✅
-These sprints established Earth Engine's data-oriented foundation:
+These sprints established Hearth Engine's data-oriented foundation:
 - **GPU Compute**: 100x+ faster terrain generation
 - **WebGPU**: Same performance in browser and native
 - **Infinite Worlds**: Planet-scale with efficient streaming

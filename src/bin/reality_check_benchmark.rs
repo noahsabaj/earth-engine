@@ -1,4 +1,4 @@
-//! Reality Check Benchmark - Exposing the truth about Earth Engine performance
+//! Reality Check Benchmark - Exposing the truth about Hearth Engine performance
 //! 
 //! Run with: cargo run --release --bin reality_check_benchmark
 

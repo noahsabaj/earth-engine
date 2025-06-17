@@ -6,7 +6,7 @@
 
 ## Overview
 
-Sprint 35 marks the completion of Earth Engine's transformation from Object-Oriented Programming to pure Data-Oriented Design. This sprint removed all remaining OOP patterns, eliminated heap allocations in hot paths, and created the final unified architecture where all game state exists as GPU buffers.
+Sprint 35 marks the completion of Hearth Engine's transformation from Object-Oriented Programming to pure Data-Oriented Design. This sprint removed all remaining OOP patterns, eliminated heap allocations in hot paths, and created the final unified architecture where all game state exists as GPU buffers.
 
 ## Objectives
 
@@ -251,9 +251,9 @@ With the architecture finalized:
 
 ## Conclusion
 
-Sprint 35 completes the most radical architectural transformation in Earth Engine's history. We've gone from a traditional OOP game engine struggling at 60 FPS to a data-oriented powerhouse achieving 1000+ FPS with 100x more entities.
+Sprint 35 completes the most radical architectural transformation in Hearth Engine's history. We've gone from a traditional OOP game engine struggling at 60 FPS to a data-oriented powerhouse achieving 1000+ FPS with 100x more entities.
 
-The journey from objects to buffers, from methods to functions, from heap to stack, is complete. Earth Engine now stands as a testament to the power of data-oriented design in the age of massive parallelism.
+The journey from objects to buffers, from methods to functions, from heap to stack, is complete. Hearth Engine now stands as a testament to the power of data-oriented design in the age of massive parallelism.
 
 *"The best optimization is a better architecture."*
 

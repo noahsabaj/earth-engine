@@ -42,7 +42,7 @@ impl earth_engine::world::Block for DemoBlock {
 }
 
 fn main() {
-    println!("Earth Engine - Chunk Loading Throttling Demo");
+    println!("Hearth Engine - Chunk Loading Throttling Demo");
     println!("===========================================\n");
     
     // Use predefined BlockIds from the system

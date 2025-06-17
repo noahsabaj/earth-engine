@@ -94,7 +94,7 @@ Every commit during these emergency sprints should ask:
 
 ## 🚀 THE PROMISE
 
-After these emergency sprints, Earth Engine will be:
+After these emergency sprints, Hearth Engine will be:
 - **Stable**: No panics, no crashes
 - **Honest**: Claims match reality
 - **Functional**: Core features actually work

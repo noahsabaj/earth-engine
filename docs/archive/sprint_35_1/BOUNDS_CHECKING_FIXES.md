@@ -1,6 +1,6 @@
 # Bounds Checking Fixes Summary
 
-This document summarizes the bounds checking fixes applied to prevent array and buffer access panics in the Earth Engine codebase.
+This document summarizes the bounds checking fixes applied to prevent array and buffer access panics in the Hearth Engine codebase.
 
 ## Fixed Modules
 

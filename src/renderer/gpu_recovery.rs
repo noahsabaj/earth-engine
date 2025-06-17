@@ -83,7 +83,7 @@ impl GpuRecovery {
         match adapter
             .request_device(
                 &wgpu::DeviceDescriptor {
-                    label: Some("Earth Engine Device (Recovery)"),
+                    label: Some("Hearth Engine Device (Recovery)"),
                     required_features: wgpu::Features::empty(),
                     required_limits: minimal_limits,
                 },
@@ -105,7 +105,7 @@ impl GpuRecovery {
         match adapter
             .request_device(
                 &wgpu::DeviceDescriptor {
-                    label: Some("Earth Engine Device (WebGL2)"),
+                    label: Some("Hearth Engine Device (WebGL2)"),
                     required_features: wgpu::Features::empty(),
                     required_limits: wgpu::Limits::downlevel_webgl2_defaults(),
                 },

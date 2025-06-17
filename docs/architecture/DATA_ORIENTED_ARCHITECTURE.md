@@ -1,8 +1,8 @@
-# Earth Engine: Data-Oriented Architecture
+# Hearth Engine: Data-Oriented Architecture
 
 ## Overview
 
-Earth Engine has completed its transformation from traditional Object-Oriented Programming (OOP) to a pure Data-Oriented Design (DOD). This document describes the final architecture achieved in Sprint 35.
+Hearth Engine has completed its transformation from traditional Object-Oriented Programming (OOP) to a pure Data-Oriented Design (DOD). This document describes the final architecture achieved in Sprint 35.
 
 ## Core Principles
 
@@ -320,4 +320,4 @@ This is not just an optimization - it's a fundamental rethinking of how game eng
 
 *"The best object is no object. The best method is a pure function. The best allocation is no allocation."*
 
-Earth Engine Team, Sprint 35
+Hearth Engine Team, Sprint 35

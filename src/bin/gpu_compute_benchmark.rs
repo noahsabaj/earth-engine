@@ -1,12 +1,12 @@
 /// GPU Compute Benchmark Binary
 /// 
 /// Run comprehensive GPU vs CPU benchmarks to validate whether GPU compute
-/// actually provides performance benefits for the Earth Engine.
+/// actually provides performance benefits for the Hearth Engine.
 
 use earth_engine::benchmarks::{GpuVsCpuBenchmark, analyze_results};
 
 fn main() {
-    println!("Earth Engine GPU Compute Validation");
+    println!("Hearth Engine GPU Compute Validation");
     println!("===================================\n");
     
     // Initialize benchmark runner
@@ -42,7 +42,7 @@ fn save_results_to_file(results: &[earth_engine::benchmarks::BenchmarkResult]) {
         }
     };
     
-    writeln!(file, "Earth Engine GPU vs CPU Benchmark Results").unwrap();
+    writeln!(file, "Hearth Engine GPU vs CPU Benchmark Results").unwrap();
     writeln!(file, "=========================================\n").unwrap();
     writeln!(file, "Date: {}", chrono::Local::now().format("%Y-%m-%d %H:%M:%S")).unwrap();
     writeln!(file, "\nDetailed Results:\n").unwrap();

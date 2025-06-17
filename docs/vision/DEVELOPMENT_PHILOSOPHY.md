@@ -1,4 +1,4 @@
-# Earth Engine Development Philosophy
+# Hearth Engine Development Philosophy
 
 ## The Three-Stage Architecture
 

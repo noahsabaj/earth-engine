@@ -2,7 +2,7 @@
 
 ## Version 1.0 - Sprint 37: DOP Reality Check
 **Last Updated**: June 13, 2025  
-**Purpose**: Ensure all code reviews enforce Earth Engine's data-oriented programming standards
+**Purpose**: Ensure all code reviews enforce Hearth Engine's data-oriented programming standards
 
 ## Critical Review Standards
 

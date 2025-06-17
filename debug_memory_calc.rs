@@ -13,7 +13,7 @@ fn calculate_buffer_size(world_size: u32) -> (u64, u64, u64) {
 }
 
 fn main() {
-    println!("Debugging Earth Engine WorldBuffer memory calculations...");
+    println!("Debugging Hearth Engine WorldBuffer memory calculations...");
     println!();
     
     let test_sizes = [8, 16, 32, 64, 128, 256, 512, 1024];

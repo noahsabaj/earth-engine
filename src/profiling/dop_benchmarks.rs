@@ -548,7 +548,7 @@ impl DOPBenchmarks {
 // DOP functions for DOPBenchmarks
 /// Run all benchmarks and generate comprehensive performance report
 pub fn dop_benchmarks_run_all_benchmarks(benchmarks: &mut DOPBenchmarks) -> EngineResult<()> {
-    println!("🔥 Starting Earth Engine DOP Reality Check Benchmarks");
+    println!("🔥 Starting Hearth Engine DOP Reality Check Benchmarks");
     println!("=====================================================");
 
     // Particle system benchmarks

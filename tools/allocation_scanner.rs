@@ -6,7 +6,7 @@ use std::path::Path;
 use std::collections::HashMap;
 
 fn main() {
-    println!("Earth Engine Allocation Hotspot Finder");
+    println!("Hearth Engine Allocation Hotspot Finder");
     println!("=====================================");
     
     let mut hotspots = HashMap::new();

@@ -1,4 +1,4 @@
-# Earth Engine Test Status Report
+# Hearth Engine Test Status Report
 
 ## Summary of Comprehensive Test Review
 
@@ -126,7 +126,7 @@ The current test organization follows Rust best practices:
 
 ## Final Status: ✅ TEST INFRASTRUCTURE SIGNIFICANTLY IMPROVED
 
-The Earth Engine test suite is now in excellent condition with:
+The Hearth Engine test suite is now in excellent condition with:
 - Zero compilation errors across all test types
 - Critical bugs fixed (Morton encoding, API compatibility)
 - Comprehensive test inventory completed

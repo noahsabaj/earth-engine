@@ -1,4 +1,4 @@
-# Earth Engine Integration Specialist #4 - Final Report
+# Hearth Engine Integration Specialist #4 - Final Report
 
 ## Mission Summary
 **INTEGRATION SPECIALIST #4** - Ensure all systems work together after fixes.
