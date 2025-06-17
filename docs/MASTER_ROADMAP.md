@@ -745,8 +745,8 @@ See `docs/sprints/SPRINT_37_DOP_REALITY_CHECK.md` for complete details.
 
 See `docs/sprints/SPRINT_38_SYSTEM_INTEGRATION_REPORT.md` for complete details.
 
-### Sprint 39: Core Systems Stabilization 🔜
-**Status**: PLANNED (Next Sprint)
+### Sprint 39: Core Systems Stabilization 🔧
+**Status**: IN PROGRESS
 **Duration**: 3 weeks
 **Objective**: Fix the 0.8 FPS performance crisis and achieve stable core functionality
 
@@ -897,6 +897,36 @@ The focus will shift from claiming features to delivering working systems.
 - [ ] Profile actual vs claimed performance 
 - [ ] Reproducible benchmark suite
 - [ ] Focus on proven 2-5x improvements (not 100x claims)
+
+### Sprint 41: TODO Cleanup & Missing Functionality
+**Status**: Planning  
+**Duration**: 6 weeks
+**Objective**: Implement critical missing functionality found in codebase audit
+
+#### High Priority Deliverables:
+- [ ] **SPATIAL-001**: Implement k-nearest neighbor queries (spatial_index/mod.rs:204)
+- [ ] **SPATIAL-002**: Implement frustum culling queries (spatial_index/mod.rs:209)
+- [ ] **NET-001**: Complete anti-cheat validation logic (17+ TODOs in network/)
+- [ ] **NET-002**: Implement world update synchronization (network/server.rs:264)
+- [ ] **NET-003**: Block breaking/placement validation (network/server.rs:431,447)
+
+#### Medium Priority Deliverables:
+- [ ] **FLUID-001**: Implement multigrid pressure solver (fluid/pressure_solver.rs:233)
+- [ ] **RENDER-002**: Complete mesh simplification algorithm (renderer/mesh_simplifier.rs:197)
+- [ ] **PERSIST-001**: Fix player tracking in save system (persistence/save_manager.rs:339)
+- [ ] **UI-001**: Actual UI rendering implementation (renderer/ui/mod.rs:119)
+
+#### Low Priority Deliverables:
+- [ ] **MONITOR-001**: GPU usage monitoring (system_monitor.rs:595)
+- [ ] **SDF-001**: GPU surface extraction (sdf/surface_extractor.rs:140+)
+- [ ] **PARTICLE-001**: Burst pattern implementation (particles/emitter.rs:176)
+- [ ] **LIGHT-001**: Block transparency registry (lighting/concurrent_provider.rs:30,54)
+
+#### Success Metrics:
+- Zero `todo!()` macros in critical paths
+- Zero `unimplemented!()` in claimed features
+- All "completed" sprint features actually work
+- Documentation matches implementation
 - [ ] GPU optimizations that actually use GPU
 - [ ] Honest performance documentation
 

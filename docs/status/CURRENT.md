@@ -1,9 +1,9 @@
 # Current Status
 
-**Version**: 0.39.0  
-**Sprint**: Phase 1 Engine Testing Framework - COMPLETED
+**Version**: 0.35.0  
+**Sprint**: 39 - Core Systems Stabilization
 **Last Updated**: 2025-06-17
-**Current Focus**: Design minimal test game for engine validation
+**Current Focus**: Addressing the 0.8 FPS performance crisis
 
 ## Phase 1: Engine Testing Framework - COMPLETED ✅
 
