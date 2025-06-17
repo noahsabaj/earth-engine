@@ -19,8 +19,12 @@ pub struct TerrainParams {
     pub mountain_threshold: f32,
     /// Cave density threshold
     pub cave_threshold: f32,
-    /// Ore generation chances (0.0-1.0)
-    pub ore_chances: [f32; 4],
+    /// Ore generation chances (0.0-1.0) - Coal, Iron, Gold, Diamond
+    /// Using explicit padding for WGSL vec4<f32> alignment
+    pub ore_chance_coal: f32,
+    pub ore_chance_iron: f32,
+    pub ore_chance_gold: f32,
+    pub ore_chance_diamond: f32,
 }
 
 impl Default for TerrainParams {
@@ -31,7 +35,10 @@ impl Default for TerrainParams {
             terrain_scale: 0.01,
             mountain_threshold: 0.6,
             cave_threshold: 0.3,
-            ore_chances: [0.1, 0.05, 0.02, 0.01], // Coal, Iron, Gold, Diamond
+            ore_chance_coal: 0.1,
+            ore_chance_iron: 0.05,
+            ore_chance_gold: 0.02,
+            ore_chance_diamond: 0.01,
         }
     }
 }
@@ -52,18 +59,44 @@ pub struct TerrainGenerator {
 
 impl TerrainGenerator {
     pub fn new(device: Arc<wgpu::Device>) -> Self {
+        // Log device capabilities
+        log::info!("[TerrainGenerator] Initializing GPU terrain generator");
+        log::debug!("[TerrainGenerator] Device features: {:?}", device.features());
+        
+        let limits = device.limits();
+        log::info!("[TerrainGenerator] Device compute limits: workgroup_size=({}, {}, {}), workgroups=({}, {}, {})",
+                  limits.max_compute_workgroup_size_x, limits.max_compute_workgroup_size_y, limits.max_compute_workgroup_size_z,
+                  limits.max_compute_workgroups_per_dimension, limits.max_compute_workgroups_per_dimension, limits.max_compute_workgroups_per_dimension);
+        
+        // Validate our workgroup size (8, 4, 4) against device limits
+        if limits.max_compute_workgroup_size_x < 8 || limits.max_compute_workgroup_size_y < 4 || limits.max_compute_workgroup_size_z < 4 {
+            panic!("[TerrainGenerator] Device doesn't support required workgroup size (8, 4, 4)!");
+        }
+        
         // Use the proper terrain generation shader with Perlin noise
         let shader_source = include_str!("shaders/terrain_generation.wgsl");
         
-        log::info!("[TerrainGenerator] Using full terrain generation shader with Perlin noise: {} characters", shader_source.len());
+        log::info!("[TerrainGenerator] Loading terrain generation shader ({} characters)", shader_source.len());
         
-        // Create shader module with error handling
+        // Validate shader source
+        if shader_source.is_empty() {
+            panic!("[TerrainGenerator] Shader source is empty!");
+        }
+        
+        // Log first few lines for debugging
+        let shader_lines: Vec<&str> = shader_source.lines().take(5).collect();
+        log::debug!("[TerrainGenerator] Shader preview: {:?}", shader_lines);
+        
+        // Create shader module with validation
+        log::info!("[TerrainGenerator] Creating shader module...");
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Terrain Generation Shader"),
             source: wgpu::ShaderSource::Wgsl(shader_source.into()),
         });
         
-        log::info!("[TerrainGenerator] Terrain generation shader module created successfully");
+        // Note: create_shader_module doesn't return Result in wgpu 0.17+
+        // Errors will be caught when creating the pipeline
+        log::info!("[TerrainGenerator] Shader module created");
         
         // Create bind group layout for full terrain generation shader
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -123,15 +156,32 @@ impl TerrainGenerator {
             push_constant_ranges: &[],
         });
         
-        // Create compute pipeline for terrain generation
-        log::info!("[TerrainGenerator] Creating terrain generation compute pipeline on NVIDIA GPU...");
+        // Create compute pipeline for terrain generation with validation
+        log::info!("[TerrainGenerator] Creating terrain generation compute pipeline...");
+        
+        // Validate entry point exists
+        let entry_point = "generate_chunk";
+        if !shader_source.contains(&format!("fn {}", entry_point)) {
+            panic!("[TerrainGenerator] Entry point '{}' not found in shader!", entry_point);
+        }
+        
+        // Push error scope to catch pipeline creation errors
+        device.push_error_scope(wgpu::ErrorFilter::Validation);
+        
         let generate_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
             label: Some("Terrain Generation Pipeline"),
             layout: Some(&pipeline_layout),
             module: &shader,
-            entry_point: "generate_chunk",
+            entry_point,
         });
+        
+        // Check for errors
+        if let Some(error) = futures::executor::block_on(device.pop_error_scope()) {
+            panic!("[TerrainGenerator] Failed to create compute pipeline: {:?}", error);
+        }
+        
         log::info!("[TerrainGenerator] Terrain generation compute pipeline created successfully!");
+        log::info!("[TerrainGenerator] GPU terrain generation is ready");
         
         // Create parameters buffer
         let params_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {

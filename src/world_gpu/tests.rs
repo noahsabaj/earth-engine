@@ -108,7 +108,10 @@ mod tests {
             terrain_scale: 0.02,
             mountain_threshold: 0.7,
             cave_threshold: 0.3,
-            ore_chances: [0.1, 0.05, 0.02, 0.01],
+            ore_chance_coal: 0.1,
+            ore_chance_iron: 0.05,
+            ore_chance_gold: 0.02,
+            ore_chance_diamond: 0.01,
         };
         terrain_gen.update_params(&queue, &params);
         
@@ -269,7 +272,10 @@ mod tests {
         assert_eq!(default_params.terrain_scale, 0.01);
         assert_eq!(default_params.mountain_threshold, 0.6);
         assert_eq!(default_params.cave_threshold, 0.3);
-        assert_eq!(default_params.ore_chances, [0.1, 0.05, 0.02, 0.01]);
+        assert_eq!(default_params.ore_chance_coal, 0.1);
+        assert_eq!(default_params.ore_chance_iron, 0.05);
+        assert_eq!(default_params.ore_chance_gold, 0.02);
+        assert_eq!(default_params.ore_chance_diamond, 0.01);
     }
     
     #[test]

@@ -7,7 +7,10 @@ struct TerrainParams {
     terrain_scale: f32,
     mountain_threshold: f32,
     cave_threshold: f32,
-    ore_chances: vec4<f32>, // Coal, Iron, Gold, Diamond
+    ore_chance_coal: f32,
+    ore_chance_iron: f32,
+    ore_chance_gold: f32,
+    ore_chance_diamond: f32,
 }
 
 struct ChunkMetadata {

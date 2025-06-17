@@ -56,7 +56,10 @@ impl GpuWorldGenerator {
             terrain_scale: 0.01,
             mountain_threshold: 0.6,
             cave_threshold: 0.3,
-            ore_chances: [0.1, 0.05, 0.02, 0.01], // Coal, Iron, Gold, Diamond
+            ore_chance_coal: 0.1,
+            ore_chance_iron: 0.05,
+            ore_chance_gold: 0.02,
+            ore_chance_diamond: 0.01,
         };
         terrain_generator.update_params(&queue, &terrain_params);
         

@@ -31,21 +31,26 @@ impl SpawnFinder {
         log::info!("[SpawnFinder] Spawning player with feet at y={}, body center at y={}", feet_y, body_center_y);
         log::info!("[SpawnFinder] Player will be standing {} blocks above surface", feet_y - surface_height);
         
-        // Try to verify the spawn is safe by checking actual blocks if chunks are loaded
-        if let Some(verified_height) = Self::find_safe_height_at(world, start_x, start_z) {
-            let verified_center_y = verified_height + 0.9; // Body center 0.9m above feet
-            log::info!("[SpawnFinder] Verified spawn height: feet at y={}, body center at y={}", verified_height, verified_center_y);
-            
-            // If the verified height is significantly different, use it instead
-            if (verified_center_y - body_center_y).abs() > 5.0 {
-                log::warn!("[SpawnFinder] Using verified spawn height instead of surface estimate");
-                return Ok(Point3::new(start_x, verified_center_y.clamp(20.0, 250.0), start_z));
+        // ALWAYS verify the spawn is safe by checking actual blocks
+        // This is critical to avoid spawning inside blocks when GPU generation fails
+        match Self::find_safe_height_at(world, start_x, start_z) {
+            Some(verified_height) => {
+                let verified_center_y = verified_height + 0.9; // Body center 0.9m above feet
+                log::info!("[SpawnFinder] Verified spawn height: feet at y={}, body center at y={}", verified_height, verified_center_y);
+                
+                // Always use the verified height to avoid spawning in blocks
+                Ok(Point3::new(start_x, verified_center_y.clamp(20.0, 250.0), start_z))
+            }
+            None => {
+                log::error!("[SpawnFinder] CRITICAL: Could not verify safe spawn position!");
+                log::error!("[SpawnFinder] GPU terrain generation may have failed - using emergency spawn");
+                
+                // Emergency spawn: high in the air to avoid being stuck
+                let emergency_y = 100.0;
+                log::warn!("[SpawnFinder] Using emergency spawn at y={} to avoid being stuck in terrain", emergency_y);
+                Ok(Point3::new(start_x, emergency_y, start_z))
             }
         }
-        
-        log::info!("[SpawnFinder] Selected spawn position at {:?}", spawn_pos);
-        
-        Ok(spawn_pos)
     }
     
     /// Find safe height at a specific x,z position by checking actual blocks
@@ -57,54 +62,83 @@ impl SpawnFinder {
         // Get estimated height to check the right chunk
         let estimated_y = world.get_surface_height(x as f64, z as f64);
         
-        // Try to get blocks anyway - the world might generate them on demand
-        log::debug!("[SpawnFinder] Checking column at ({}, {}) with estimated height {}", x, z, estimated_y);
+        log::info!("[SpawnFinder] Verifying spawn safety at ({}, {}) with estimated height {}", x, z, estimated_y);
         
-        // Start from estimated height and search both up and down
-        let mut last_solid_y = None;
+        // Check blocks around the estimated height first
+        let search_start = (estimated_y as i32 - 10).max(1);
+        let search_end = (estimated_y as i32 + 20).min(254);
         
-        for y in 1..255 {
+        // First pass: look for the topmost solid block
+        let mut highest_solid_y = None;
+        
+        for y in (search_start..search_end).rev() {
             let pos = VoxelPos::new(block_x, y, block_z);
             let block = world.get_block(pos);
             
             // Check if this is a solid block
             let is_solid = block != BlockId::AIR && block != BlockId(6); // Not air or water
             
-            if is_solid {
-                last_solid_y = Some(y);
-            } else if let Some(solid_y) = last_solid_y {
-                // We found air above solid ground
-                // Check if there's enough space for the player (2 blocks high)
-                let above_pos = VoxelPos::new(block_x, y + 1, block_z);
-                let above_block = world.get_block(above_pos);
+            if is_solid && highest_solid_y.is_none() {
+                // Found the highest solid block in the search range
+                highest_solid_y = Some(y);
                 
-                if above_block == BlockId::AIR || above_block == BlockId(6) {
-                    // Safe spawn: standing on solid_y, with 2 air blocks above
-                    // Return the position where feet are (on top of the solid block)
-                    let spawn_y = solid_y as f32 + 1.0;
+                // Check if we have 2 blocks of air above for player height
+                let above1_pos = VoxelPos::new(block_x, y + 1, block_z);
+                let above2_pos = VoxelPos::new(block_x, y + 2, block_z);
+                let above1_block = world.get_block(above1_pos);
+                let above2_block = world.get_block(above2_pos);
+                
+                let is_air_above1 = above1_block == BlockId::AIR || above1_block == BlockId(6);
+                let is_air_above2 = above2_block == BlockId::AIR || above2_block == BlockId(6);
+                
+                if is_air_above1 && is_air_above2 {
+                    // Safe spawn: standing on y, with 2 air blocks above
+                    let spawn_y = y as f32 + 1.0; // Feet position on top of block
                     
-                    log::debug!(
-                        "[SpawnFinder] Found safe spawn at ({}, {}, {}): solid at y={}, air at y={} and y={}",
-                        x, spawn_y, z, solid_y, y, y + 1
+                    log::info!(
+                        "[SpawnFinder] Found safe spawn at ({}, {}, {}): solid at y={}, clear air above",
+                        x, spawn_y, z, y
                     );
                     
+                    return Some(spawn_y);
+                } else {
+                    log::warn!(
+                        "[SpawnFinder] Found solid at y={} but no clearance above (blocks: {:?}, {:?})",
+                        y, above1_block, above2_block
+                    );
+                }
+            }
+        }
+        
+        // If we couldn't find a safe spot in the initial range, do a full search
+        log::warn!("[SpawnFinder] No safe spawn found in range {}..{}, doing full search", search_start, search_end);
+        
+        // Full search from top to bottom
+        for y in (1..255).rev() {
+            let pos = VoxelPos::new(block_x, y, block_z);
+            let block = world.get_block(pos);
+            
+            // Check if this is a solid block
+            let is_solid = block != BlockId::AIR && block != BlockId(6);
+            
+            if is_solid {
+                // Check clearance above
+                let above1_pos = VoxelPos::new(block_x, y + 1, block_z);
+                let above2_pos = VoxelPos::new(block_x, y + 2, block_z);
+                let above1_block = world.get_block(above1_pos);
+                let above2_block = world.get_block(above2_pos);
+                
+                if (above1_block == BlockId::AIR || above1_block == BlockId(6)) &&
+                   (above2_block == BlockId::AIR || above2_block == BlockId(6)) {
+                    let spawn_y = y as f32 + 1.0;
+                    log::info!("[SpawnFinder] Found safe spawn in full search at y={}", spawn_y);
                     return Some(spawn_y);
                 }
             }
         }
         
-        // If we couldn't find a safe spot, check if we at least found solid ground
-        if let Some(solid_y) = last_solid_y {
-            log::warn!(
-                "[SpawnFinder] No safe spawn with clearance at ({}, {}), but found solid at y={}",
-                x, z, solid_y
-            );
-            // Return position above the highest solid block + safety margin
-            Some(solid_y as f32 + 3.0)
-        } else {
-            log::warn!("[SpawnFinder] No solid ground found at ({}, {})", x, z);
-            None
-        }
+        log::error!("[SpawnFinder] CRITICAL: No safe spawn found at ({}, {}) after full search!", x, z);
+        None
     }
     
     /// Verify spawn position after chunks are loaded and adjust if needed
