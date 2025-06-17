@@ -35,7 +35,7 @@ fn pack_gradient_mag(mag: f32) -> u32 {
     return u32(normalized * 65535.0);
 }
 
-@compute @workgroup_size(8, 8, 8)
+@compute @workgroup_size(8, 8, 4)
 fn calculate_gradient(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let grid_size = get_grid_size();
     

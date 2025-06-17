@@ -68,7 +68,7 @@ fn get_neighbor_velocity(x: i32, y: i32, z: i32) -> vec3<f32> {
     return vec3<f32>(0.0);
 }
 
-@compute @workgroup_size(8, 8, 8)
+@compute @workgroup_size(8, 8, 4)
 fn viscosity_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     // Check bounds
     if (global_id.x >= constants.world_size_x ||

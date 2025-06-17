@@ -90,7 +90,7 @@ fn is_neighbor_fluid(x: i32, y: i32, z: i32) -> bool {
     return get_fluid_type(voxel.packed_data) > 0u && get_fluid_level(voxel.packed_data) > 0.01;
 }
 
-@compute @workgroup_size(8, 8, 8)
+@compute @workgroup_size(8, 8, 4)
 fn projection_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     // Check bounds
     if (global_id.x >= constants.world_size_x ||

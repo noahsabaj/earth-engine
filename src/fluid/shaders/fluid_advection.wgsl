@@ -121,7 +121,7 @@ fn sample_fluid(pos: vec3<f32>) -> FluidVoxel {
     return fluid_in[idx];
 }
 
-@compute @workgroup_size(8, 8, 8)
+@compute @workgroup_size(8, 8, 4)
 fn advection_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     // Check bounds
     if (global_id.x >= constants.world_size_x ||

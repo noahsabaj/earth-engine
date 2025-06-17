@@ -119,7 +119,7 @@ fn sample_velocity_shared(local_pos: vec3<f32>) -> vec3<f32> {
     return mix(v0, v1, f.z);
 }
 
-@compute @workgroup_size(8, 8, 8)
+@compute @workgroup_size(8, 8, 4)
 fn advection_main(
     @builtin(global_invocation_id) global_id: vec3<u32>,
     @builtin(local_invocation_id) local_id: vec3<u32>,

@@ -18,6 +18,8 @@ pub struct IndirectRenderer {
 
 impl IndirectRenderer {
     pub fn new(device: &Device, max_instances: usize) -> Self {
+        // Check if device supports VERTEX_WRITABLE_STORAGE
+        let supports_vertex_storage = device.features().contains(wgpu::Features::VERTEX_WRITABLE_STORAGE);
         // Create vertex buffer for a cube (shared by all chunks)
         let vertices = create_cube_vertices();
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -41,10 +43,17 @@ impl IndirectRenderer {
             mapped_at_creation: false,
         });
         
-        // Create shader
+        // Create shader - use fallback if VERTEX_WRITABLE_STORAGE is not supported
+        let shader_source = if supports_vertex_storage {
+            include_str!("indirect_chunk.wgsl")
+        } else {
+            log::warn!("Using fallback indirect chunk shader - VERTEX_WRITABLE_STORAGE not supported");
+            include_str!("indirect_chunk_fallback.wgsl")
+        };
+        
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Indirect Chunk Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("indirect_chunk.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(shader_source.into()),
         });
         
         // Create render pipeline

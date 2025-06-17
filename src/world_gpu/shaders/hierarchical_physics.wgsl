@@ -168,11 +168,11 @@ fn octree_traverse(
     max_distance: f32,
 ) -> bool {
     var stack: array<u32, 32>;
-    var stack_ptr = 0;
+    var stack_ptr = 0u;
     
     // Start with root
     stack[0] = 0u;
-    stack_ptr = 1;
+    stack_ptr = 1u;
     
     while stack_ptr > 0u {
         stack_ptr -= 1u;

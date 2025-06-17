@@ -101,7 +101,7 @@ fn modify_blocks(@builtin(global_invocation_id) global_id: vec3<u32>) {
 }
 
 // Explosion effect kernel
-@compute @workgroup_size(8, 8, 8)
+@compute @workgroup_size(8, 8, 4)
 fn explode_blocks(
     @builtin(global_invocation_id) global_id: vec3<u32>,
     @builtin(workgroup_id) workgroup_id: vec3<u32>
@@ -151,7 +151,7 @@ fn explode_blocks(
 }
 
 // Bulk fill operation (for editor tools)
-@compute @workgroup_size(8, 8, 8)
+@compute @workgroup_size(8, 8, 4)
 fn fill_region(
     @builtin(global_invocation_id) global_id: vec3<u32>,
     @builtin(num_workgroups) num_workgroups: vec3<u32>

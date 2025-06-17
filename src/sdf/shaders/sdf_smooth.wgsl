@@ -43,7 +43,7 @@ fn sample_sdf(pos: vec3<i32>, size: vec3<u32>) -> SdfValue {
     return sdf[idx];
 }
 
-@compute @workgroup_size(8, 8, 8)
+@compute @workgroup_size(8, 8, 4)
 fn smooth_sdf(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let grid_size = get_grid_size();
     

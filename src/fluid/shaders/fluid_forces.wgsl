@@ -120,7 +120,7 @@ fn calculate_buoyancy(fluid_type: u32, y: u32) -> f32 {
     return 0.0;
 }
 
-@compute @workgroup_size(8, 8, 8)
+@compute @workgroup_size(8, 8, 4)
 fn forces_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     // Check bounds
     if (global_id.x >= constants.world_size_x ||

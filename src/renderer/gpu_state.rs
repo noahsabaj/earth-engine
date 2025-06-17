@@ -208,6 +208,7 @@ pub struct GpuState {
     queue: Arc<wgpu::Queue>,
     config: wgpu::SurfaceConfiguration,
     size: winit::dpi::PhysicalSize<u32>,
+    features: wgpu::Features,
     render_pipeline: wgpu::RenderPipeline,
     camera: CameraData,
     camera_uniform: CameraUniform,
@@ -254,6 +255,11 @@ pub struct GpuState {
 }
 
 impl GpuState {
+    /// Get the supported GPU features
+    pub fn features(&self) -> wgpu::Features {
+        self.features
+    }
+    
     async fn new(window: Arc<Window>) -> Result<Self> {
         log::info!("[GpuState::new] Starting GPU initialization");
         let init_start = std::time::Instant::now();
@@ -469,9 +475,23 @@ impl GpuState {
         log::info!("[GpuState::new]   max_uniform_buffer_binding_size: {} KB", 
                   limits.max_uniform_buffer_binding_size / 1024);
         
+        // Check for required features
+        let adapter_features = adapter.features();
+        log::info!("[GpuState::new] Checking GPU features...");
+        
+        let mut required_features = wgpu::Features::empty();
+        
+        // Check if VERTEX_WRITABLE_STORAGE is supported
+        if adapter_features.contains(wgpu::Features::VERTEX_WRITABLE_STORAGE) {
+            log::info!("[GpuState::new]   ✓ VERTEX_WRITABLE_STORAGE supported");
+            required_features |= wgpu::Features::VERTEX_WRITABLE_STORAGE;
+        } else {
+            log::warn!("[GpuState::new]   ✗ VERTEX_WRITABLE_STORAGE not supported - GPU culling may be limited");
+        }
+        
         let device_future = adapter.request_device(
             &wgpu::DeviceDescriptor {
-                required_features: wgpu::Features::empty(),
+                required_features,
                 required_limits: limits,
                 label: Some("Hearth Engine Device"),
             },
@@ -894,6 +914,7 @@ impl GpuState {
             queue,
             config,
             size,
+            features: required_features,
             render_pipeline,
             camera,
             camera_uniform,

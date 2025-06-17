@@ -22,7 +22,7 @@ struct BlockHeader {
 @group(0) @binding(3) var<storage, read> block_headers: array<BlockHeader>;
 
 // Workgroup size matches typical block size (8x8x8 = 512 voxels)
-@compute @workgroup_size(8, 8, 8)
+@compute @workgroup_size(8, 8, 4)
 fn decompress_hybrid(
     @builtin(global_invocation_id) global_id: vec3<u32>,
     @builtin(local_invocation_id) local_id: vec3<u32>,

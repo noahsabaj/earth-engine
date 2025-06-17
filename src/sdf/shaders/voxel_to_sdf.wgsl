@@ -67,7 +67,7 @@ fn calculate_voxel_distance(world_pos: vec3<f32>) -> f32 {
     return min_face_dist;
 }
 
-@compute @workgroup_size(8, 8, 8)
+@compute @workgroup_size(8, 8, 4)
 fn voxel_to_sdf(@builtin(global_invocation_id) global_id: vec3<u32>) {
     if (any(global_id >= params.sdf_size)) {
         return;

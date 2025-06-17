@@ -25,7 +25,7 @@ fn in_bounds(pos: vec3<i32>, size: vec3<u32>) -> bool {
     return all(pos >= vec3<i32>(0)) && all(pos < vec3<i32>(size));
 }
 
-@compute @workgroup_size(8, 8, 8)
+@compute @workgroup_size(8, 8, 4)
 fn jump_flood(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let grid_size = get_grid_size();
     

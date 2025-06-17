@@ -26,7 +26,7 @@ fn get_fluid_type(packed: u32) -> u32 {
     return packed & 0xFFu;
 }
 
-@compute @workgroup_size(8, 8, 8)
+@compute @workgroup_size(8, 8, 4)
 fn separation_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     // Placeholder for phase separation logic
     // Would implement immiscible fluid separation based on density differences

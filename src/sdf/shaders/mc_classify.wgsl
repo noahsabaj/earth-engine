@@ -33,7 +33,7 @@ fn sample_corner(base_pos: vec3<u32>, corner: vec3<u32>, grid_size: vec3<u32>) -
     return sdf[idx].distance;
 }
 
-@compute @workgroup_size(8, 8, 8)
+@compute @workgroup_size(8, 8, 4)
 fn classify_cells(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let grid_size = get_grid_size();
     let cell_size = grid_size - vec3<u32>(1u);

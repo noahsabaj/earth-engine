@@ -140,7 +140,7 @@ fn get_block_color(block_type: u32) -> vec3<f32> {
     }
 }
 
-@compute @workgroup_size(8, 8, 8)
+@compute @workgroup_size(8, 8, 4)
 fn generate_mesh(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let x = i32(global_id.x);
     let y = i32(global_id.y);
@@ -208,7 +208,7 @@ fn generate_mesh(@builtin(global_invocation_id) global_id: vec3<u32>) {
 }
 
 // Entry point for counting visible faces (first pass)
-@compute @workgroup_size(8, 8, 8)
+@compute @workgroup_size(8, 8, 4)
 fn count_faces(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let x = i32(global_id.x);
     let y = i32(global_id.y);

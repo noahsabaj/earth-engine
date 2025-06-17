@@ -16,7 +16,7 @@ struct SmoothVertex {
 @group(0) @binding(1) var<storage, read> cell_types: array<u32>;
 @group(0) @binding(4) var<storage, read_write> vertices: array<SmoothVertex>;
 
-@compute @workgroup_size(8, 8, 8)
+@compute @workgroup_size(8, 8, 4)
 fn generate_vertices(@builtin(global_invocation_id) global_id: vec3<u32>) {
     // Placeholder implementation
     // Would generate vertices based on cell classification

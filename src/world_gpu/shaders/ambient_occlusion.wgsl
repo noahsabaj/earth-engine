@@ -94,7 +94,7 @@ fn vertex_ao(side1: f32, side2: f32, corner: f32) -> f32 {
 }
 
 // Main AO calculation kernel
-@compute @workgroup_size(8, 8, 8)
+@compute @workgroup_size(8, 8, 4)
 fn calculate_ao(
     @builtin(global_invocation_id) global_id: vec3<u32>,
     @builtin(workgroup_id) workgroup_id: vec3<u32>,
@@ -194,7 +194,7 @@ fn calculate_ao(
 }
 
 // Smooth AO kernel - averages AO values with neighbors for smoother gradients
-@compute @workgroup_size(8, 8, 8)
+@compute @workgroup_size(8, 8, 4)
 fn smooth_ao(
     @builtin(global_invocation_id) global_id: vec3<u32>,
     @builtin(workgroup_id) workgroup_id: vec3<u32>,

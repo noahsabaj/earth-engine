@@ -82,7 +82,7 @@ fn vertex_interp(iso_level: f32, p1: vec3<f32>, p2: vec3<f32>, val1: f32, val2: 
     return p1 + mu * (p2 - p1);
 }
 
-@compute @workgroup_size(8, 8, 8)
+@compute @workgroup_size(8, 8, 4)
 fn generate_vertices(
     @builtin(global_invocation_id) global_id: vec3<u32>,
     @builtin(local_invocation_id) local_id: vec3<u32>,
