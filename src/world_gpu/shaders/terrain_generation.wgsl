@@ -8,7 +8,7 @@ struct BlockDistribution {
     max_height: i32,
     probability: f32,
     noise_threshold: f32,
-    _reserved: vec3<f32>,
+    _reserved: vec4<f32>,  // Changed to vec4 for proper GPU alignment with Rust [f32; 4]
 }
 
 // Maximum distributions must match Rust constant
