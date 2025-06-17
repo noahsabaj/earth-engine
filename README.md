@@ -241,7 +241,13 @@ This is currently a personal project, but contributions are welcome! Please read
 
 ## 📄 License
 
-[License information to be added]
+Copyright © 2025 Noah Sabaj. All rights reserved.
+
+This software and associated documentation files (the "Software") are proprietary and confidential. The Software is licensed, not sold, and is protected by copyright laws and international copyright treaties, as well as other intellectual property laws and treaties.
+
+**No part of this Software may be reproduced, distributed, or transmitted in any form or by any means, including photocopying, recording, or other electronic or mechanical methods, without the prior written permission of the copyright holder.**
+
+For licensing inquiries, please contact Noah Sabaj.
 
 ---
 
