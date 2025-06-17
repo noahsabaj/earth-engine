@@ -198,12 +198,38 @@ fn octree_traverse(
                 return true;
             }
         } else {
-            // Internal node - push children
-            for (var i = 0u; i < 8u; i++) {
-                if node.children[i] != 0u && stack_ptr < 32u {
-                    stack[stack_ptr] = node.children[i];
-                    stack_ptr += 1u;
-                }
+            // Internal node - push children (unrolled for WGSL compatibility)
+            if node.children[0] != 0u && stack_ptr < 32u {
+                stack[stack_ptr] = node.children[0];
+                stack_ptr += 1u;
+            }
+            if node.children[1] != 0u && stack_ptr < 32u {
+                stack[stack_ptr] = node.children[1];
+                stack_ptr += 1u;
+            }
+            if node.children[2] != 0u && stack_ptr < 32u {
+                stack[stack_ptr] = node.children[2];
+                stack_ptr += 1u;
+            }
+            if node.children[3] != 0u && stack_ptr < 32u {
+                stack[stack_ptr] = node.children[3];
+                stack_ptr += 1u;
+            }
+            if node.children[4] != 0u && stack_ptr < 32u {
+                stack[stack_ptr] = node.children[4];
+                stack_ptr += 1u;
+            }
+            if node.children[5] != 0u && stack_ptr < 32u {
+                stack[stack_ptr] = node.children[5];
+                stack_ptr += 1u;
+            }
+            if node.children[6] != 0u && stack_ptr < 32u {
+                stack[stack_ptr] = node.children[6];
+                stack_ptr += 1u;
+            }
+            if node.children[7] != 0u && stack_ptr < 32u {
+                stack[stack_ptr] = node.children[7];
+                stack_ptr += 1u;
             }
         }
     }

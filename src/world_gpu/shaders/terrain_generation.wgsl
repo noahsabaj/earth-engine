@@ -118,8 +118,11 @@ fn generate_chunk(
                     skylight = max(0u, 15u - u32((params.sea_level - world_y) * 0.5));
                 }
                 
-                // Calculate buffer index (simplified for testing)
-                let buffer_index = chunk_idx * CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE + 
+                // CRITICAL FIX: Use actual slot index from chunk_positions.w instead of sequential chunk_idx
+                // This fixes the buffer index mismatch where compute shader assumed sequential layout
+                // but WorldBuffer uses slot-based allocation
+                let slot = u32(chunk_pos.w);  // Slot index packed in 4th component
+                let buffer_index = slot * CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE + 
                                   x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE;
                 
                 // Write voxel data
@@ -130,11 +133,97 @@ fn generate_chunk(
         }
     }
     
-    // Update metadata
+    // Update metadata using slot index
     if (all(local_id == vec3<u32>(0u, 0u, 0u))) {
-        if (chunk_idx < arrayLength(&chunk_metadata)) {
-            chunk_metadata[chunk_idx].flags = 1u; // Mark as generated
-            chunk_metadata[chunk_idx].timestamp = 0u;
+        let slot = u32(chunk_pos.w);  // Use same slot index from positions
+        if (slot < arrayLength(&chunk_metadata)) {
+            chunk_metadata[slot].flags = 1u; // Mark as generated
+            chunk_metadata[slot].timestamp = 0u;
         }
     }
+}
+
+// Simple hash-based noise function for terrain generation
+fn hash(n: i32) -> f32 {
+    let x = u32(n * 374761393 + i32(params.seed));
+    let h = (x * x * x) % 1073741824u;
+    return f32(h) / 1073741824.0;
+}
+
+// 2D noise function for terrain height
+fn noise2d(x: f32, z: f32) -> f32 {
+    let xi = i32(floor(x));
+    let zi = i32(floor(z));
+    let xf = fract(x);
+    let zf = fract(z);
+    
+    // Get corner values
+    let a = hash(xi + zi * 57);
+    let b = hash(xi + 1 + zi * 57);
+    let c = hash(xi + (zi + 1) * 57);
+    let d = hash(xi + 1 + (zi + 1) * 57);
+    
+    // Smooth interpolation
+    let u = xf * xf * (3.0 - 2.0 * xf);
+    let v = zf * zf * (3.0 - 2.0 * zf);
+    
+    return mix(mix(a, b, u), mix(c, d, u), v);
+}
+
+// 3D noise function for caves
+fn noise3d(x: f32, y: f32, z: f32) -> f32 {
+    let xi = i32(floor(x));
+    let yi = i32(floor(y));
+    let zi = i32(floor(z));
+    
+    let xf = fract(x);
+    let yf = fract(y);
+    let zf = fract(z);
+    
+    // 8 corner hash values
+    let h000 = hash(xi + yi * 57 + zi * 113);
+    let h001 = hash(xi + yi * 57 + (zi + 1) * 113);
+    let h010 = hash(xi + (yi + 1) * 57 + zi * 113);
+    let h011 = hash(xi + (yi + 1) * 57 + (zi + 1) * 113);
+    let h100 = hash((xi + 1) + yi * 57 + zi * 113);
+    let h101 = hash((xi + 1) + yi * 57 + (zi + 1) * 113);
+    let h110 = hash((xi + 1) + (yi + 1) * 57 + zi * 113);
+    let h111 = hash((xi + 1) + (yi + 1) * 57 + (zi + 1) * 113);
+    
+    // Smooth interpolation
+    let u = xf * xf * (3.0 - 2.0 * xf);
+    let v = yf * yf * (3.0 - 2.0 * yf);
+    let w = zf * zf * (3.0 - 2.0 * zf);
+    
+    let x00 = mix(h000, h100, u);
+    let x01 = mix(h001, h101, u);
+    let x10 = mix(h010, h110, u);
+    let x11 = mix(h011, h111, u);
+    
+    let y0 = mix(x00, x10, v);
+    let y1 = mix(x01, x11, v);
+    
+    return mix(y0, y1, w);
+}
+
+// Calculate terrain height using octaves of noise
+fn terrain_height(x: f32, z: f32) -> f32 {
+    var height = 0.0;
+    var amplitude = 32.0;
+    var frequency = params.terrain_scale;
+    
+    // Multiple octaves for more realistic terrain
+    for (var i = 0; i < 4; i++) {
+        height += noise2d(x * frequency, z * frequency) * amplitude;
+        amplitude *= 0.5;
+        frequency *= 2.0;
+    }
+    
+    return params.sea_level + height;
+}
+
+// Calculate cave density
+fn cave_density(x: f32, y: f32, z: f32) -> f32 {
+    let scale = 0.03;
+    return noise3d(x * scale, y * scale, z * scale);
 }
