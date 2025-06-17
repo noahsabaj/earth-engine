@@ -189,6 +189,12 @@ fn hash(n: i32) -> f32 {
     return f32(h) / 1073741824.0;
 }
 
+// Hash function for u32 input, returns float in range [0, 1]
+fn hash_float(n: u32) -> f32 {
+    let x = n * 1103515245u + 12345u;
+    return f32((x / 65536u) % 32768u) / 32768.0;
+}
+
 // 2D noise function for terrain height
 fn noise2d(x: f32, z: f32) -> f32 {
     let xi = i32(floor(x));
