@@ -1,16 +1,28 @@
 // GPU Terrain Generation Compute Shader
 // Generates realistic terrain using Perlin noise directly in the WorldBuffer
 
+// Generic block distribution rule
+struct BlockDistribution {
+    block_id: u32,
+    min_height: i32,
+    max_height: i32,
+    probability: f32,
+    noise_threshold: f32,
+    _reserved: vec3<f32>,
+}
+
+// Maximum distributions must match Rust constant
+const MAX_BLOCK_DISTRIBUTIONS: u32 = 16u;
+
 struct TerrainParams {
     seed: u32,
     sea_level: f32,
     terrain_scale: f32,
     mountain_threshold: f32,
     cave_threshold: f32,
-    ore_chance_coal: f32,
-    ore_chance_iron: f32,
-    ore_chance_gold: f32,
-    ore_chance_diamond: f32,
+    num_distributions: u32,
+    _padding: vec2<u32>,
+    distributions: array<BlockDistribution, MAX_BLOCK_DISTRIBUTIONS>,
 }
 
 struct ChunkMetadata {
@@ -99,6 +111,30 @@ fn generate_chunk(
                         // Solid block
                         if (world_y < height - 4.0) {
                             block_id = BLOCK_STONE;
+                            
+                            // Check custom block distributions
+                            for (var i = 0u; i < params.num_distributions; i++) {
+                                let dist = params.distributions[i];
+                                
+                                // Check height range
+                                if (i32(world_y) >= dist.min_height && i32(world_y) <= dist.max_height) {
+                                    // Use noise for distribution
+                                    let block_noise = noise3d(
+                                        world_x * 0.1, 
+                                        world_y * 0.1, 
+                                        world_z * 0.1
+                                    );
+                                    
+                                    // Check probability and noise threshold
+                                    if (block_noise > dist.noise_threshold) {
+                                        let chance = hash_float(u32(world_x) * 73856093u ^ u32(world_y) * 19349663u ^ u32(world_z) * 83492791u);
+                                        if (chance < dist.probability) {
+                                            block_id = dist.block_id;
+                                            break; // First matching distribution wins
+                                        }
+                                    }
+                                }
+                            }
                         } else {
                             block_id = BLOCK_DIRT;
                         }

@@ -6,6 +6,7 @@
 use std::sync::{Arc, Mutex};
 use crate::{BlockId, Chunk, ChunkPos};
 use crate::world_gpu::{WorldBuffer, WorldBufferDescriptor, TerrainGenerator, TerrainParams, VoxelData};
+use crate::world_gpu::terrain_generator::{BlockDistribution, MAX_BLOCK_DISTRIBUTIONS};
 use super::{WorldGenerator, terrain::TerrainGenerator as CpuTerrainGenerator};
 use wgpu::util::DeviceExt;
 
@@ -56,10 +57,9 @@ impl GpuWorldGenerator {
             terrain_scale: 0.01,
             mountain_threshold: 0.6,
             cave_threshold: 0.3,
-            ore_chance_coal: 0.1,
-            ore_chance_iron: 0.05,
-            ore_chance_gold: 0.02,
-            ore_chance_diamond: 0.01,
+            num_distributions: 0, // No custom distributions for basic world generator
+            _padding: [0; 2],
+            distributions: [BlockDistribution::default(); MAX_BLOCK_DISTRIBUTIONS],
         };
         terrain_generator.update_params(&queue, &terrain_params);
         

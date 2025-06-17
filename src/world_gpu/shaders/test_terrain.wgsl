@@ -7,7 +7,8 @@ struct TerrainParams {
     terrain_scale: f32,
     mountain_threshold: f32,
     cave_threshold: f32,
-    ore_chances: vec4<f32>,
+    // Note: This test shader doesn't use distributions
+    // The real terrain_generation.wgsl has the full BlockDistribution support
 }
 
 struct ChunkMetadata {

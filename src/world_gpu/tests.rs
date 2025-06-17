@@ -9,6 +9,7 @@ mod tests {
         GpuLighting,
         UnifiedMemoryManager, UnifiedMemoryLayout, SystemType, MemoryStats,
     };
+    use crate::world_gpu::terrain_generator::{BlockDistribution, MAX_BLOCK_DISTRIBUTIONS};
     
     /// Helper to create a test GPU device
     async fn create_test_device() -> (wgpu::Device, wgpu::Queue) {
@@ -108,10 +109,9 @@ mod tests {
             terrain_scale: 0.02,
             mountain_threshold: 0.7,
             cave_threshold: 0.3,
-            ore_chance_coal: 0.1,
-            ore_chance_iron: 0.05,
-            ore_chance_gold: 0.02,
-            ore_chance_diamond: 0.01,
+            num_distributions: 0, // No custom distributions for this test
+            _padding: [0; 2],
+            distributions: [BlockDistribution::default(); MAX_BLOCK_DISTRIBUTIONS],
         };
         terrain_gen.update_params(&queue, &params);
         
@@ -272,10 +272,12 @@ mod tests {
         assert_eq!(default_params.terrain_scale, 0.01);
         assert_eq!(default_params.mountain_threshold, 0.6);
         assert_eq!(default_params.cave_threshold, 0.3);
-        assert_eq!(default_params.ore_chance_coal, 0.1);
-        assert_eq!(default_params.ore_chance_iron, 0.05);
-        assert_eq!(default_params.ore_chance_gold, 0.02);
-        assert_eq!(default_params.ore_chance_diamond, 0.01);
+        assert_eq!(default_params.num_distributions, 0);
+        // Verify distributions are empty by default
+        for dist in &default_params.distributions {
+            assert_eq!(dist.block_id, 0);
+            assert_eq!(dist.probability, 0.0);
+        }
     }
     
     #[test]

@@ -5,6 +5,42 @@ use bytemuck::{Pod, Zeroable};
 use crate::world::ChunkPos;
 use super::world_buffer::WorldBuffer;
 
+/// Generic block distribution rule
+#[repr(C)]
+#[derive(Copy, Clone, Debug, Pod, Zeroable)]
+pub struct BlockDistribution {
+    /// Block ID to place
+    pub block_id: u32,
+    /// Minimum Y coordinate (inclusive)
+    pub min_height: i32,
+    /// Maximum Y coordinate (inclusive)
+    pub max_height: i32,
+    /// Base probability (0.0-1.0)
+    pub probability: f32,
+    /// Noise threshold for placement (0.0-1.0)
+    /// Used for clustering - higher values create more sparse placement
+    pub noise_threshold: f32,
+    /// Reserved for future use (ensures 32-byte alignment)
+    pub _reserved: [f32; 3],
+}
+
+impl Default for BlockDistribution {
+    fn default() -> Self {
+        Self {
+            block_id: 0,
+            min_height: i32::MIN,
+            max_height: i32::MAX,
+            probability: 0.0,
+            noise_threshold: 0.5,
+            _reserved: [0.0; 3],
+        }
+    }
+}
+
+/// Maximum number of custom block distributions
+/// This is a GPU limitation - we need fixed-size arrays in shaders
+pub const MAX_BLOCK_DISTRIBUTIONS: usize = 16;
+
 /// Parameters for terrain generation
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Pod, Zeroable)]
@@ -19,12 +55,13 @@ pub struct TerrainParams {
     pub mountain_threshold: f32,
     /// Cave density threshold
     pub cave_threshold: f32,
-    /// Ore generation chances (0.0-1.0) - Coal, Iron, Gold, Diamond
-    /// Using explicit padding for WGSL vec4<f32> alignment
-    pub ore_chance_coal: f32,
-    pub ore_chance_iron: f32,
-    pub ore_chance_gold: f32,
-    pub ore_chance_diamond: f32,
+    /// Number of active block distributions (0 to MAX_BLOCK_DISTRIBUTIONS)
+    pub num_distributions: u32,
+    /// Padding for alignment
+    pub _padding: [u32; 2],
+    /// Custom block distributions
+    /// Games can specify up to MAX_BLOCK_DISTRIBUTIONS custom blocks
+    pub distributions: [BlockDistribution; MAX_BLOCK_DISTRIBUTIONS],
 }
 
 impl Default for TerrainParams {
@@ -35,11 +72,36 @@ impl Default for TerrainParams {
             terrain_scale: 0.01,
             mountain_threshold: 0.6,
             cave_threshold: 0.3,
-            ore_chance_coal: 0.1,
-            ore_chance_iron: 0.05,
-            ore_chance_gold: 0.02,
-            ore_chance_diamond: 0.01,
+            num_distributions: 0,
+            _padding: [0; 2],
+            distributions: [BlockDistribution::default(); MAX_BLOCK_DISTRIBUTIONS],
         }
+    }
+}
+
+impl TerrainParams {
+    /// Add a block distribution rule
+    /// Returns true if added, false if at capacity
+    pub fn add_distribution(&mut self, distribution: BlockDistribution) -> bool {
+        if self.num_distributions as usize >= MAX_BLOCK_DISTRIBUTIONS {
+            log::warn!("[TerrainParams] Cannot add distribution - at maximum capacity ({} distributions)", MAX_BLOCK_DISTRIBUTIONS);
+            return false;
+        }
+        
+        let index = self.num_distributions as usize;
+        self.distributions[index] = distribution;
+        self.num_distributions += 1;
+        
+        log::debug!("[TerrainParams] Added distribution for block {} at index {} (total: {})", 
+                   distribution.block_id, index, self.num_distributions);
+        true
+    }
+    
+    /// Clear all distributions
+    pub fn clear_distributions(&mut self) {
+        self.num_distributions = 0;
+        // Zero out for safety
+        self.distributions = [BlockDistribution::default(); MAX_BLOCK_DISTRIBUTIONS];
     }
 }
 
