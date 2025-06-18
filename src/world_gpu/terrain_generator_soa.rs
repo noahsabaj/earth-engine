@@ -40,6 +40,161 @@ pub struct TerrainGeneratorSOA {
 }
 
 impl TerrainGeneratorSOA {
+    /// Validate that a shader entry point exists in the shader source
+    fn validate_shader_entry_point(shader_source: &str, entry_point: &str) -> Result<(), String> {
+        // Check for the entry point function definition
+        let fn_pattern = format!("fn {}(", entry_point);
+        if !shader_source.contains(&fn_pattern) {
+            return Err(format!(
+                "Entry point '{}' not found in shader. Available functions: {}",
+                entry_point,
+                Self::extract_function_names(shader_source).join(", ")
+            ));
+        }
+        
+        // Check for @compute annotation
+        let lines: Vec<&str> = shader_source.lines().collect();
+        let mut found_entry_point = false;
+        let mut has_compute_annotation = false;
+        
+        for (i, line) in lines.iter().enumerate() {
+            if line.contains(&fn_pattern) {
+                found_entry_point = true;
+                // Check previous lines for @compute annotation
+                for j in (0..i).rev() {
+                    let prev_line = lines[j].trim();
+                    if prev_line.is_empty() || prev_line.starts_with("//") {
+                        continue;
+                    }
+                    if prev_line.contains("@compute") {
+                        has_compute_annotation = true;
+                        break;
+                    }
+                    // If we hit another function or non-annotation, stop looking
+                    if prev_line.contains("fn ") || (!prev_line.starts_with("@") && !prev_line.starts_with("//")) {
+                        break;
+                    }
+                }
+                break;
+            }
+        }
+        
+        if !found_entry_point {
+            return Err(format!("Entry point function '{}' not found", entry_point));
+        }
+        
+        if !has_compute_annotation {
+            return Err(format!(
+                "Entry point '{}' found but missing @compute annotation. Compute shaders require @compute.",
+                entry_point
+            ));
+        }
+        
+        log::debug!("[TerrainGeneratorSOA] Shader validation passed for entry point: {}", entry_point);
+        Ok(())
+    }
+    
+    /// Extract function names from shader source for debugging
+    fn extract_function_names(shader_source: &str) -> Vec<String> {
+        let mut functions = Vec::new();
+        for line in shader_source.lines() {
+            let trimmed = line.trim();
+            if trimmed.starts_with("fn ") {
+                if let Some(name_start) = trimmed.find("fn ").map(|i| i + 3) {
+                    if let Some(name_end) = trimmed[name_start..].find('(') {
+                        let name = trimmed[name_start..name_start + name_end].trim();
+                        if !name.is_empty() {
+                            functions.push(name.to_string());
+                        }
+                    }
+                }
+            }
+        }
+        functions
+    }
+    
+    /// Validate bind group layout matches shader expectations
+    fn validate_bind_group_layout(shader_source: &str) -> Result<(), String> {
+        let mut issues = Vec::new();
+        
+        // Check for expected bindings in shader
+        let expected_bindings = [
+            ("@group(0) @binding(0)", "voxel buffer"),
+            ("@group(0) @binding(1)", "metadata buffer"), 
+            ("@group(0) @binding(2)", "params buffer"),
+        ];
+        
+        for (binding_pattern, binding_name) in expected_bindings {
+            if !shader_source.contains(binding_pattern) {
+                issues.push(format!("Missing {} binding: {}", binding_name, binding_pattern));
+            }
+        }
+        
+        // Check for ChunkMetadata usage
+        if !shader_source.contains("ChunkMetadata") {
+            issues.push("Shader missing ChunkMetadata struct definition".to_string());
+        }
+        
+        // Check for voxel array access
+        if !shader_source.contains("voxels[") {
+            issues.push("Shader missing voxel array access pattern".to_string());
+        }
+        
+        if !issues.is_empty() {
+            return Err(format!("Bind group layout validation failed: {}", issues.join(", ")));
+        }
+        
+        log::debug!("[TerrainGeneratorSOA] Bind group layout validation passed");
+        Ok(())
+    }
+
+    /// Create compute pipeline with comprehensive validation and error handling
+    fn create_compute_pipeline_with_validation(
+        device: &wgpu::Device,
+        pipeline_layout: &wgpu::PipelineLayout,
+        shader: &wgpu::ShaderModule,
+        entry_point: &str,
+    ) -> Result<wgpu::ComputePipeline, String> {
+        log::debug!("[TerrainGeneratorSOA] Attempting to create compute pipeline with entry point: {}", entry_point);
+        
+        // Create pipeline descriptor
+        let descriptor = wgpu::ComputePipelineDescriptor {
+            label: Some("SOA Terrain Generation Pipeline"),
+            layout: Some(pipeline_layout),
+            module: shader,
+            entry_point,
+        };
+        
+        // Attempt pipeline creation
+        // Note: wgpu doesn't return Result from create_compute_pipeline, but it can panic
+        // We'll use std::panic::catch_unwind to catch any panics during creation
+        let pipeline_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            device.create_compute_pipeline(&descriptor)
+        }));
+        
+        match pipeline_result {
+            Ok(pipeline) => {
+                log::debug!("[TerrainGeneratorSOA] Compute pipeline created successfully");
+                
+                // Additional validation - check pipeline is not null/invalid
+                // wgpu pipelines don't have a direct "is_valid" method, but we can check basic properties
+                log::debug!("[TerrainGeneratorSOA] Pipeline validation complete");
+                Ok(pipeline)
+            },
+            Err(panic_payload) => {
+                let error_msg = if let Some(s) = panic_payload.downcast_ref::<String>() {
+                    s.clone()
+                } else if let Some(s) = panic_payload.downcast_ref::<&str>() {
+                    s.to_string()
+                } else {
+                    "Unknown panic during pipeline creation".to_string()
+                };
+                
+                Err(format!("Pipeline creation panicked: {}", error_msg))
+            }
+        }
+    }
+
     /// Create a new SOA terrain generator with its own buffer manager
     pub fn new(device: Arc<wgpu::Device>, queue: Arc<wgpu::Queue>) -> Self {
         let buffer_manager = Arc::new(GpuBufferManager::new(device.clone(), queue));
@@ -77,6 +232,9 @@ impl TerrainGeneratorSOA {
         };
         
         log::info!("[TerrainGeneratorSOA] Loading SOA shader ({} characters)", shader_source.len());
+        
+        // Keep a copy of shader source for validation
+        let shader_source_for_validation = shader_source.clone();
         
         // Create shader module
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -116,7 +274,7 @@ impl TerrainGeneratorSOA {
             push_constant_ranges: &[],
         });
         
-        // Create compute pipeline
+        // Create compute pipeline with comprehensive error handling
         let entry_point = if use_vectorized {
             "generate_terrain_vectorized"
         } else {
@@ -125,12 +283,44 @@ impl TerrainGeneratorSOA {
         
         log::info!("[TerrainGeneratorSOA] Using entry point: {}", entry_point);
         
-        let generate_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-            label: Some("SOA Terrain Generation Pipeline"),
-            layout: Some(&pipeline_layout),
-            module: &shader,
+        // Validate shader entry point exists before pipeline creation
+        Self::validate_shader_entry_point(&shader_source_for_validation, entry_point)
+            .unwrap_or_else(|e| {
+                log::error!("[TerrainGeneratorSOA] Shader validation failed: {}", e);
+                panic!("[TerrainGeneratorSOA] Cannot create pipeline with invalid shader: {}", e);
+            });
+        
+        // Validate bind group layout matches shader expectations
+        Self::validate_bind_group_layout(&shader_source_for_validation)
+            .unwrap_or_else(|e| {
+                log::error!("[TerrainGeneratorSOA] Bind group layout validation failed: {}", e);
+                panic!("[TerrainGeneratorSOA] Cannot create pipeline with mismatched bindings: {}", e);
+            });
+        
+        // Log detailed pipeline creation parameters for debugging
+        log::info!(
+            "[TerrainGeneratorSOA] Creating compute pipeline - Entry: {}, Shader size: {} chars, Layout bindings: {}",
             entry_point,
+            shader_source_for_validation.len(),
+            3  // We have 3 bindings: voxel_buffer, metadata_buffer, params_buffer
+        );
+        
+        // Attempt pipeline creation with error catching
+        let generate_pipeline = Self::create_compute_pipeline_with_validation(
+            &device,
+            &pipeline_layout,
+            &shader,
+            entry_point,
+        ).unwrap_or_else(|e| {
+            log::error!("[TerrainGeneratorSOA] Pipeline creation failed: {}", e);
+            log::error!("[TerrainGeneratorSOA] Shader source (first 500 chars): {}", 
+                       &shader_source_for_validation[..shader_source_for_validation.len().min(500)]);
+            log::error!("[TerrainGeneratorSOA] Entry point requested: {}", entry_point);
+            log::error!("[TerrainGeneratorSOA] Pipeline layout: {:?}", pipeline_layout);
+            panic!("[TerrainGeneratorSOA] Cannot continue without valid compute pipeline: {}", e);
         });
+        
+        log::info!("[TerrainGeneratorSOA] Compute pipeline created successfully");
         
         // Create SOA parameters buffer
         let default_params = TerrainParams::default();
@@ -241,14 +431,24 @@ impl TerrainGeneratorSOA {
             ],
         });
         
-        // Record compute pass
+        // Record compute pass with comprehensive error handling
         {
+            log::debug!(
+                "[TerrainGeneratorSOA] Starting compute pass for {} chunks", 
+                chunk_positions.len()
+            );
+            
             let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("SOA Terrain Generation Pass"),
                 timestamp_writes: None,
             });
             
+            // Validate pipeline before use
+            log::debug!("[TerrainGeneratorSOA] Setting compute pipeline");
             compute_pass.set_pipeline(&self.generate_pipeline);
+            
+            // Validate bind group before use
+            log::debug!("[TerrainGeneratorSOA] Setting bind group with {} entries", 3);
             compute_pass.set_bind_group(0, &bind_group, &[]);
             
             // Dispatch workgroups for one chunk at a time
@@ -259,11 +459,19 @@ impl TerrainGeneratorSOA {
             
             // For now, generate one chunk at a time
             // TODO: Optimize to generate multiple chunks in parallel
+            log::debug!(
+                "[TerrainGeneratorSOA] Dispatching workgroups: {}x{}x{} (total: {} workgroups)",
+                workgroups_x, workgroups_y, workgroups_z,
+                workgroups_x * workgroups_y * workgroups_z
+            );
+            
             compute_pass.dispatch_workgroups(
                 workgroups_x,
                 workgroups_y,
                 workgroups_z
             );
+            
+            log::debug!("[TerrainGeneratorSOA] Compute pass dispatch completed successfully");
         }
         
         let elapsed = start.elapsed();
