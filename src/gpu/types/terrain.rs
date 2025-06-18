@@ -3,10 +3,7 @@
 use encase::ShaderType;
 use bytemuck::{Pod, Zeroable};
 use crate::gpu::types::core::GpuData;
-
-/// Maximum number of custom block distributions
-/// This is a GPU limitation - we need fixed-size arrays in shaders
-pub const MAX_BLOCK_DISTRIBUTIONS: usize = 16;
+use crate::gpu::constants::MAX_BLOCK_DISTRIBUTIONS;
 
 /// Generic block distribution rule for GPU terrain generation
 /// 

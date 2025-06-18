@@ -5,7 +5,8 @@
 
 use encase::{ShaderType, ShaderSize, internal::WriteInto};
 use bytemuck::{Pod, Zeroable};
-use crate::gpu::types::terrain::{BlockDistribution, TerrainParams, MAX_BLOCK_DISTRIBUTIONS};
+use crate::gpu::types::terrain::{BlockDistribution, TerrainParams};
+use crate::gpu::constants::MAX_BLOCK_DISTRIBUTIONS;
 use std::marker::PhantomData;
 
 /// Marker trait for types that can be converted to SOA representation

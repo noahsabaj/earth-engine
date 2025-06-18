@@ -8,7 +8,8 @@ use std::sync::{Arc, Mutex};
 use crate::{BlockId, Chunk, ChunkPos};
 use crate::world_gpu::{WorldBuffer, WorldBufferDescriptor, TerrainGeneratorSOA, VoxelData};
 use crate::gpu::soa::{TerrainParamsSOA, BlockDistributionSOA};
-use crate::gpu::types::terrain::{BlockDistribution, MAX_BLOCK_DISTRIBUTIONS};
+use crate::gpu::types::terrain::BlockDistribution;
+use crate::gpu::constants::MAX_BLOCK_DISTRIBUTIONS;
 use super::{WorldGenerator, terrain::TerrainGenerator as CpuTerrainGenerator};
 use wgpu::util::DeviceExt;
 

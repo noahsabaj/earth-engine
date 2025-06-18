@@ -19,4 +19,4 @@ pub use compatibility::{UnifiedGpuBuffer, BufferLayoutPreference, SoaMigrationHe
 pub use benchmarks::{SoaBenchmarkSuite, SoaBenchmarkResults, SoaBenchmarkReport};
 
 // Re-export for convenience
-pub use crate::gpu::types::terrain::MAX_BLOCK_DISTRIBUTIONS;
+pub use crate::gpu::constants::MAX_BLOCK_DISTRIBUTIONS;

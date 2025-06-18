@@ -8,11 +8,11 @@ struct BlockDistributionSOA {
     _pad: vec3<u32>,
     
     // Pure arrays - each field stored contiguously for optimal cache usage
-    block_ids: array<u32, MAX_BLOCK_DISTRIBUTIONS>,
-    min_heights: array<i32, MAX_BLOCK_DISTRIBUTIONS>,
-    max_heights: array<i32, MAX_BLOCK_DISTRIBUTIONS>,
-    probabilities: array<f32, MAX_BLOCK_DISTRIBUTIONS>,
-    noise_thresholds: array<f32, MAX_BLOCK_DISTRIBUTIONS>,
+    block_ids: array<u32, 16>,
+    min_heights: array<i32, 16>,
+    max_heights: array<i32, 16>,
+    probabilities: array<f32, 16>,
+    noise_thresholds: array<f32, 16>,
 }
 
 // Chunk metadata for GPU world buffer

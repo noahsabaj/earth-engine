@@ -2,9 +2,9 @@
 // Generated from src/gpu/constants.rs
 
 // Core constants
-const CHUNK_SIZE: u32 = 32u;
-const CHUNK_SIZE_F: f32 = 32.0;
-const VOXELS_PER_CHUNK: u32 = 32768u;
+const CHUNK_SIZE: u32 = 50u;
+const CHUNK_SIZE_F: f32 = 50.0;
+const VOXELS_PER_CHUNK: u32 = 125000u;
 const MAX_WORLD_SIZE: u32 = 512u;
 const MAX_BLOCK_DISTRIBUTIONS: u32 = 16u;
 

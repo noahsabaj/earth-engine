@@ -110,10 +110,7 @@ proc-macro2 = "1.0"
 tempfile = "3.10"
 criterion = { version = "0.5.1", features = ["html_reports"] }
 
-# Benchmarks
-[[bench]]
-name = "dop_vs_oop"
-harness = false
+# Benchmarks removed during cleanup
 
 # Rendering Examples
 [[example]]

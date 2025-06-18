@@ -2,9 +2,9 @@
 
 use std::{env, fs, path::Path};
 
-// Import the constants module types for build-time generation
-const CHUNK_SIZE: u32 = 32;
-const MAX_BLOCK_DISTRIBUTIONS: usize = 16;
+// Import constants from single source of truth
+include!("constants.rs");
+use crate::core::*;
 
 fn main() {
     // Only regenerate if GPU types change
@@ -59,11 +59,11 @@ struct BlockDistributionSOA {{
     _pad: vec3<u32>,
     
     // Pure arrays - each field stored contiguously for optimal cache usage
-    block_ids: array<u32, MAX_BLOCK_DISTRIBUTIONS>,
-    min_heights: array<i32, MAX_BLOCK_DISTRIBUTIONS>,
-    max_heights: array<i32, MAX_BLOCK_DISTRIBUTIONS>,
-    probabilities: array<f32, MAX_BLOCK_DISTRIBUTIONS>,
-    noise_thresholds: array<f32, MAX_BLOCK_DISTRIBUTIONS>,
+    block_ids: array<u32, {}>,
+    min_heights: array<i32, {}>,
+    max_heights: array<i32, {}>,
+    probabilities: array<f32, {}>,
+    noise_thresholds: array<f32, {}>,
 }}
 
 // Chunk metadata for GPU world buffer
@@ -142,7 +142,7 @@ fn check_height_soa_vec4(distributions: ptr<storage, BlockDistributionSOA>, worl
     
     return 0u;
 }}
-"#)
+"#, MAX_BLOCK_DISTRIBUTIONS, MAX_BLOCK_DISTRIBUTIONS, MAX_BLOCK_DISTRIBUTIONS, MAX_BLOCK_DISTRIBUTIONS, MAX_BLOCK_DISTRIBUTIONS)
 }
 
 /// Generate WGSL constants
@@ -176,7 +176,7 @@ const GAME_BLOCK_START: u32 = 100u;
 "#, 
         CHUNK_SIZE,
         CHUNK_SIZE,
-        CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE,
+        VOXELS_PER_CHUNK,
         MAX_BLOCK_DISTRIBUTIONS,
     )
 }

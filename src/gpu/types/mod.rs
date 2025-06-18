@@ -11,4 +11,5 @@ pub mod terrain;
 pub use core::{GpuData, TypedGpuBuffer, Vec2, Vec3, Vec4};
 
 // Re-export terrain types
-pub use terrain::{BlockDistribution, TerrainParams, MAX_BLOCK_DISTRIBUTIONS};
+pub use terrain::{BlockDistribution, TerrainParams};
+pub use crate::gpu::constants::MAX_BLOCK_DISTRIBUTIONS;
