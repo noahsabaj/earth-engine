@@ -1,6 +1,7 @@
 // SOA-optimized terrain generation compute shader
 // Uses Structure of Arrays for maximum GPU performance
 
+#include "../generated/constants.wgsl"
 #include "../generated/types_soa.wgsl"
 
 // Include noise functions
@@ -10,9 +11,7 @@
 @group(0) @binding(1) var<storage, read> metadata: array<ChunkMetadata>;
 @group(0) @binding(2) var<storage, read> params: TerrainParamsSOA;
 
-// Constants
-const CHUNK_SIZE: u32 = 32u;
-const CHUNK_SIZE_F: f32 = 32.0;
+// Constants are now included from generated/constants.wgsl
 
 
 // Get voxel at specific position using SOA data
@@ -37,7 +36,7 @@ fn get_voxel_soa(world_pos: vec3<i32>, params: ptr<storage, TerrainParamsSOA>) -
     
     // Basic terrain rules
     if (world_pos.y > base_height || is_cave) {
-        return 0u; // Air
+        return BLOCK_AIR;
     }
     
     // Check custom block distributions using SOA
@@ -58,11 +57,11 @@ fn get_voxel_soa(world_pos: vec3<i32>, params: ptr<storage, TerrainParamsSOA>) -
     
     // Default blocks based on height
     if (world_pos.y > i32((*params).sea_level) - 5) {
-        return 3u; // Grass
+        return BLOCK_GRASS;
     } else if (world_pos.y > i32((*params).sea_level) - 10) {
-        return 2u; // Dirt
+        return BLOCK_DIRT;
     } else {
-        return 1u; // Stone
+        return BLOCK_STONE;
     }
 }
 
@@ -136,12 +135,24 @@ fn generate_terrain_vectorized(@builtin(global_invocation_id) global_id: vec3<u3
         return;
     }
     
-    // Calculate world positions for 4 voxels
-    let chunk_offset = vec3<i32>(
-        metadata.flags >> 16,
-        0,
-        metadata.flags & 0xFFFF
-    );
+    // For vectorized version, we still process one chunk at a time
+    let chunk_idx = 0u;
+    if (chunk_idx >= arrayLength(&metadata)) {
+        return;
+    }
+    
+    let chunk_meta = metadata[chunk_idx];
+    
+    // Extract chunk position from metadata
+    let chunk_x = i32((chunk_meta.flags >> 16) & 0xFFFF);
+    let chunk_z = i32(chunk_meta.flags & 0xFFFF);
+    let chunk_y = i32(chunk_meta.reserved); // Y stored in reserved field
+    
+    // Sign extend if negative
+    let chunk_x_signed = select(chunk_x, chunk_x - 65536, chunk_x > 32767);
+    let chunk_z_signed = select(chunk_z, chunk_z - 65536, chunk_z > 32767);
+    
+    let chunk_offset = vec3<i32>(chunk_x_signed, chunk_y, chunk_z_signed);
     
     // Generate 4 voxels at once
     for (var i = 0u; i < 4u; i++) {

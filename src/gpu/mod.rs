@@ -10,6 +10,7 @@ pub mod shader_bridge;
 pub mod preprocessor;
 pub mod shader_includes;
 pub mod soa; // Pure Structure of Arrays implementation
+pub mod constants; // Single source of truth for GPU constants
 
 pub use buffer_manager::{GpuBufferManager, GpuError};
 pub use types::{GpuData, TypedGpuBuffer, terrain};

@@ -4,11 +4,7 @@ use std::time::Instant;
 use bytemuck::{Pod, Zeroable};
 use crate::morton::morton_encode;
 use crate::world::ChunkPos;
-
-/// Maximum world size in chunks per dimension
-pub const MAX_WORLD_SIZE: u32 = 512; // 512³ chunks = 134M chunks max
-pub const CHUNK_SIZE: u32 = 32;
-pub const VOXELS_PER_CHUNK: u32 = CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE;
+use crate::gpu::constants::core::{CHUNK_SIZE, VOXELS_PER_CHUNK, MAX_WORLD_SIZE};
 
 /// Packed voxel data format for GPU storage
 /// Uses 32 bits per voxel:

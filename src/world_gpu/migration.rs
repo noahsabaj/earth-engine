@@ -3,7 +3,8 @@ use bytemuck::{Pod, Zeroable};
 use crate::world::{Chunk, ChunkPos, BlockId};
 use crate::morton::morton_encode;
 use crate::memory::{BandwidthProfiler, TransferType};
-use super::world_buffer::{WorldBuffer, VoxelData, CHUNK_SIZE};
+use super::world_buffer::{WorldBuffer, VoxelData};
+use crate::gpu::constants::core::CHUNK_SIZE;
 use super::gpu_lighting::GpuLighting;
 
 /// Handles migration of CPU-side chunk data to GPU world buffer

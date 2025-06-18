@@ -2,26 +2,35 @@
 
 use std::{env, fs, path::Path};
 
+// Import the constants module types for build-time generation
+const CHUNK_SIZE: u32 = 32;
+const MAX_BLOCK_DISTRIBUTIONS: usize = 16;
+
 fn main() {
     // Only regenerate if GPU types change
     println!("cargo:rerun-if-changed=src/gpu/types");
     println!("cargo:rerun-if-changed=src/gpu/soa");
     println!("cargo:rerun-if-changed=src/gpu/shader_bridge.rs");
+    println!("cargo:rerun-if-changed=src/gpu/constants.rs");
     
     // Get output directory
     let out_dir = env::var("OUT_DIR").unwrap();
     let generated_path = Path::new(&out_dir).join("gpu_types.wgsl");
     let soa_generated_path = Path::new(&out_dir).join("gpu_types_soa.wgsl");
+    let constants_generated_path = Path::new(&out_dir).join("gpu_constants.wgsl");
     
     // Generate WGSL content
     let wgsl_content = generate_wgsl_types();
     let soa_wgsl_content = generate_soa_wgsl_types();
+    let constants_wgsl_content = generate_wgsl_constants();
     
     // Write to output directory
     fs::write(&generated_path, &wgsl_content)
         .expect("Failed to write generated WGSL");
     fs::write(&soa_generated_path, &soa_wgsl_content)
         .expect("Failed to write generated SOA WGSL");
+    fs::write(&constants_generated_path, &constants_wgsl_content)
+        .expect("Failed to write generated constants WGSL");
     
     // Also copy to src directory for shader includes
     let shader_dir = Path::new("src/gpu/shaders/generated");
@@ -36,8 +45,13 @@ fn main() {
     fs::write(&soa_shader_path, &soa_wgsl_content)
         .expect("Failed to write SOA WGSL to src directory");
     
+    let constants_shader_path = shader_dir.join("constants.wgsl");
+    fs::write(&constants_shader_path, &constants_wgsl_content)
+        .expect("Failed to write constants WGSL to src directory");
+    
     println!("cargo:warning=Generated WGSL types at {:?}", shader_path);
     println!("cargo:warning=Generated SOA WGSL types at {:?}", soa_shader_path);
+    println!("cargo:warning=Generated constants WGSL at {:?}", constants_shader_path);
 }
 
 /// Generate WGSL type definitions
@@ -45,7 +59,6 @@ fn main() {
 /// Note: In a real implementation, this would use the shader_bridge module.
 /// For now, we inline the generation to avoid circular dependencies.
 fn generate_wgsl_types() -> String {
-    const MAX_BLOCK_DISTRIBUTIONS: usize = 16;
     
     format!(r#"// AUTO-GENERATED - DO NOT EDIT
 // Generated from Rust GPU type definitions by build.rs
@@ -96,7 +109,6 @@ struct ChunkMetadata {{
 
 /// Generate SOA WGSL type definitions
 fn generate_soa_wgsl_types() -> String {
-    const MAX_BLOCK_DISTRIBUTIONS: usize = 16;
     
     format!(r#"// AUTO-GENERATED - DO NOT EDIT
 // Generated from Rust GPU type definitions by build.rs
@@ -195,4 +207,40 @@ fn check_height_soa_vec4(distributions: ptr<storage, BlockDistributionSOA>, worl
     return 0u;
 }}
 "#, MAX_BLOCK_DISTRIBUTIONS)
+}
+
+/// Generate WGSL constants
+fn generate_wgsl_constants() -> String {
+    format!(r#"// AUTO-GENERATED GPU CONSTANTS - DO NOT EDIT
+// Generated from src/gpu/constants.rs
+
+// Core constants
+const CHUNK_SIZE: u32 = {}u;
+const CHUNK_SIZE_F: f32 = {}.0;
+const VOXELS_PER_CHUNK: u32 = {}u;
+const MAX_WORLD_SIZE: u32 = 512u;
+const MAX_BLOCK_DISTRIBUTIONS: u32 = {}u;
+
+// Block IDs - Single source of truth
+const BLOCK_AIR: u32 = 0u;
+const BLOCK_STONE: u32 = 1u;
+const BLOCK_DIRT: u32 = 2u;
+const BLOCK_GRASS: u32 = 3u;
+const BLOCK_WOOD: u32 = 4u;
+const BLOCK_SAND: u32 = 5u;
+const BLOCK_WATER: u32 = 6u;
+const BLOCK_LEAVES: u32 = 7u;
+const BLOCK_GLASS: u32 = 8u;
+const BLOCK_CHEST: u32 = 9u;
+const BLOCK_LAVA: u32 = 10u;
+const BLOCK_BRICK: u32 = 11u;
+
+// Game blocks start at ID 100
+const GAME_BLOCK_START: u32 = 100u;
+"#, 
+        CHUNK_SIZE,
+        CHUNK_SIZE,
+        CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE,
+        MAX_BLOCK_DISTRIBUTIONS,
+    )
 }
