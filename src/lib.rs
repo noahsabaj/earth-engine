@@ -1,47 +1,39 @@
 #![allow(unused_variables, dead_code, unused_imports)]
 
+// Core engine modules
 pub mod error;
 pub mod panic_handler;
-pub mod thread_pool;
+
+// Essential systems
 pub mod camera;
-pub mod crafting;
-pub mod ecs;
 pub mod game;
 pub mod input;
-pub mod inventory;
-pub mod item;
 pub mod lighting;
+pub mod memory;
+pub mod morton;
 pub mod network;
+pub mod particles;
 pub mod persistence;
 pub mod physics;
-pub mod profiling;
 pub mod renderer;
-pub mod ui;
 pub mod world;
-pub mod weather;
-pub mod time;
-pub mod particles;
-pub mod biome;
-pub mod physics_data;
-pub mod spatial_index;
 pub mod world_gpu;
-#[cfg(feature = "native")]
-pub mod streaming;
-pub mod fluid;
-pub mod sdf;
-#[cfg(feature = "native")]
-pub mod hot_reload;
-pub mod morton;
-pub mod instance;
-pub mod process;
-pub mod attributes;
-pub mod memory;
+
+// Advanced features removed - deemed premature for core engine
+
+// GPU and data systems
+pub mod gpu;
+pub mod spatial_index;
+
+// Utilities
+pub mod thread_pool;
 pub mod utils;
 pub mod world_state;
 pub mod system_monitor;
 pub mod event_system;
-pub mod analysis;
-pub mod gpu;
+pub mod instance;
+pub mod process;
+pub mod profiling;
 
 // Web module removed - no longer supporting browser builds
 

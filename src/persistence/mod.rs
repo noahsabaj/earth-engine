@@ -2,10 +2,7 @@
 
 pub mod chunk_serializer;
 pub mod world_save;
-pub mod player_data;
 pub mod player_data_dop;
-pub mod player_data_compat;
-pub mod save_manager;
 pub mod compression;
 pub mod metadata;
 pub mod migration;
@@ -17,10 +14,7 @@ pub mod network_validator;
 
 pub use chunk_serializer::{ChunkSerializer, ChunkFormat};
 pub use world_save::{WorldSave, WorldSaveError};
-pub use player_data::{PlayerData, PlayerSaveData, GameMode, PlayerStats};
 pub use player_data_dop::{PlayerDataBuffer, PlayerHotData, PlayerColdData, PlayerBufferMemoryStats, CACHE_LINE_SIZE, MAX_PLAYERS};
-pub use player_data_compat::{DOPPlayerDataManager, PlayerDataMetrics, PlayerDataBenchmark};
-pub use save_manager::{SaveManager, SaveConfig, AutoSaveConfig};
 pub use compression::{CompressionType, CompressionLevel, Compressor};
 pub use metadata::{WorldMetadata, SaveVersion};
 pub use migration::{MigrationManager, Migration};

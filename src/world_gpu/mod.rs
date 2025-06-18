@@ -24,7 +24,6 @@ pub mod bvh;
 pub mod hierarchical_physics;
 pub mod unified_benchmark;
 pub mod weather_gpu;
-pub mod weather_migration;
 
 #[cfg(test)]
 mod tests;

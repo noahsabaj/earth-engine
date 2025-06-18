@@ -41,10 +41,7 @@ pub use gpu_workload_profiler::{
     GpuOperationScope,
 };
 
-// Re-export from analysis module
-pub use crate::analysis::gpu_architecture_reality::{
-    GpuArchitectureReality, GpuOperationAnalyzer,
-};
+// Analysis module removed during cleanup
 
 /// Macro for timing code blocks
 #[macro_export]

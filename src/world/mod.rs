@@ -1,8 +1,5 @@
 mod block;
 mod basic_blocks;
-mod block_drops;
-mod block_entity;
-mod zero_alloc_block_entity;
 mod position;
 mod ray;
 mod registry;
@@ -24,9 +21,7 @@ mod spawn_finder;
 
 pub use block::{Block, BlockId, RenderData, PhysicsProperties};
 pub use basic_blocks::{AirBlock, StoneBlock, GrassBlock, register_basic_blocks};
-pub use block_drops::{BlockDropHandler, MiningProgress};
-pub use block_entity::{BlockEntity, BlockEntityData, FurnaceBlockEntity, ChestBlockEntity};
-pub use zero_alloc_block_entity::{BlockEntityKeys, serialize_furnace_zero_alloc, serialize_chest_zero_alloc, KEYS, SLOT_KEYS};
+// Game-specific modules removed from engine core
 pub use position::{ChunkPos, VoxelPos};
 pub use ray::{Ray, RaycastHit, BlockFace, cast_ray};
 pub use registry::BlockRegistry;

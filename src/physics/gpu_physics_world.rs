@@ -7,8 +7,7 @@
 use std::sync::{Arc, Mutex};
 use cgmath::{Point3, Vector3};
 use crate::{
-    physics_data::{PhysicsData, EntityId, physics_tables::PhysicsFlags},
-    physics::FIXED_TIMESTEP,
+    physics::{PhysicsData, EntityId, physics_tables::PhysicsFlags, FIXED_TIMESTEP},
     world::WorldInterface,
     world_gpu::{WorldBuffer, HierarchicalPhysics, PhysicsQuery, QueryType, QueryResult},
     memory::MemoryManager,

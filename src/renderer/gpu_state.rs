@@ -15,7 +15,7 @@ use crate::camera::{
 };
 use crate::input::InputState;
 use crate::physics::{GpuPhysicsWorld};
-use crate::physics_data::{EntityId, physics_tables::PhysicsFlags};
+use crate::physics::{EntityId, physics_tables::PhysicsFlags};
 use crate::renderer::{SelectionRenderer, GpuDiagnostics, GpuInitProgress, gpu_driven::GpuDrivenRenderer, screenshot};
 use crate::world::{Ray, RaycastHit, ParallelWorld, ParallelWorldConfig, WorldInterface, SpawnFinder};
 use crate::lighting::{DayNightCycleData, LightUpdate, LightType};

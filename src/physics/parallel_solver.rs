@@ -3,7 +3,7 @@ use super::{
     ContactPoint, ContactPair, collision_data::CollisionStats,
     physics_tables
 };
-use crate::physics_data::error::PhysicsDataResult;
+use crate::physics::error::PhysicsDataResult;
 use rayon::prelude::*;
 use crate::thread_pool::{ThreadPoolManager, PoolCategory};
 use std::sync::Arc;

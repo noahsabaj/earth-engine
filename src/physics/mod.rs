@@ -8,15 +8,19 @@ pub mod preallocated_spatial_hash;
 pub mod parallel_solver;
 pub mod integration;
 pub mod error;
+pub mod gpu_physics_world;
 
-pub use physics_tables::{PhysicsData, EntityId, MAX_ENTITIES};
+pub use physics_tables::{PhysicsData, EntityId, MAX_ENTITIES, AABB};
 pub use collision_data::{CollisionData, ContactPoint, ContactPair};
 pub use spatial_hash::{SpatialHash, SpatialHashConfig};
 pub use parallel_solver::{ParallelPhysicsSolver, SolverConfig};
 pub use integration::{PhysicsIntegrator, WorldInterface, WorldAdapter};
+pub use gpu_physics_world::GpuPhysicsWorld;
 
-// Re-export common types
-pub use crate::physics::{GRAVITY, TERMINAL_VELOCITY, FIXED_TIMESTEP};
+// Physics simulation constants
+pub const GRAVITY: f32 = -9.81;
+pub const TERMINAL_VELOCITY: f32 = -50.0;
+pub const FIXED_TIMESTEP: f32 = 1.0 / 60.0; // 60 FPS physics
 
 /// Physics configuration for data-oriented system
 #[derive(Debug, Clone)]
