@@ -62,6 +62,18 @@ pub trait Game: Send + Sync {
     fn get_active_block(&self) -> BlockId {
         BlockId(1) // Default to first registered block
     }
+    
+    /// Create world generator for this game
+    /// Returns None to use default world generator
+    fn create_world_generator(
+        &self,
+        device: std::sync::Arc<crate::wgpu::Device>,
+        queue: std::sync::Arc<crate::wgpu::Queue>,
+        block_registry: &BlockRegistry,
+    ) -> Option<Box<dyn crate::world::WorldGenerator>> {
+        let _ = (device, queue, block_registry);
+        None // Default: use engine's default world generator
+    }
 }
 
 /// Context passed to game update functions

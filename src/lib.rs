@@ -56,6 +56,9 @@ pub use physics::{PhysicsWorldData, PhysicsBodyData, AABB};
 pub use renderer::Renderer;
 pub use world::{Block, BlockId, BlockRegistry, Chunk, ChunkPos, VoxelPos, RenderData, PhysicsProperties, World, Ray, RaycastHit, BlockFace, cast_ray};
 
+// Re-export wgpu for games that need GPU access (e.g., custom world generators)
+pub use wgpu;
+
 /// Main engine configuration
 #[derive(Debug, Clone)]
 pub struct EngineConfig {

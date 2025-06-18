@@ -1998,6 +1998,54 @@ pub async fn run_app<G: Game + 'static>(
         }
     };
     
+    // Replace world generator with game's custom generator if provided
+    if let Some(custom_generator) = game.create_world_generator(
+        gpu_state.device.clone(),
+        gpu_state.queue.clone(),
+        &gpu_state.block_registry,
+    ) {
+        log::info!("[gpu_state::run_app] Using game's custom world generator");
+        // Create new world with custom generator
+        let seed = 12345; // Same seed as default
+        let parallel_config = ParallelWorldConfig {
+            generation_threads: num_cpus::get().saturating_sub(2).max(2),
+            mesh_threads: num_cpus::get().saturating_sub(2).max(2),
+            chunks_per_frame: num_cpus::get() * 2,
+            view_distance: 5,
+            chunk_size: 32,
+        };
+        gpu_state.world = ParallelWorld::new(custom_generator, parallel_config);
+        
+        // Re-find spawn position with new world
+        log::info!("[gpu_state::run_app] Finding spawn position with custom world generator...");
+        let spawn_x = 0.0;
+        let spawn_z = 0.0;
+        match SpawnFinder::find_safe_spawn(&gpu_state.world, spawn_x, spawn_z, 10) {
+            Ok(spawn_pos) => {
+                log::info!("[gpu_state::run_app] Found new spawn position at {:?}", spawn_pos);
+                gpu_state.camera.position = [spawn_pos.x, spawn_pos.y, spawn_pos.z];
+                gpu_state.camera_uniform.update_view_proj_data(&gpu_state.camera);
+                gpu_state.queue.write_buffer(
+                    &gpu_state.camera_buffer,
+                    0,
+                    bytemuck::cast_slice(&[gpu_state.camera_uniform]),
+                );
+                
+                // Update physics player position if needed
+                if let Some(physics_world) = &mut gpu_state.physics_world {
+                    if let Some(body) = physics_world.get_body_mut(gpu_state.player_entity) {
+                        body.position[0] = spawn_pos.x;
+                        body.position[1] = spawn_pos.y;
+                        body.position[2] = spawn_pos.z;
+                    }
+                }
+            }
+            Err(e) => {
+                log::warn!("[gpu_state::run_app] Failed to find spawn with custom generator: {}", e);
+            }
+        }
+    }
+    
     // Register game blocks
     // Note: Blocks are already registered in GpuState::new()
     // game.register_blocks(&mut gpu_state.block_registry);
