@@ -52,11 +52,10 @@ pub mod bindings {
     /// Culling pipeline bindings
     pub mod culling {
         pub const CAMERA_DATA: u32 = 0;
-        pub const INSTANCE_DATA: u32 = 1;
-        pub const DRAW_COMMANDS: u32 = 2;
-        pub const DRAW_METADATA: u32 = 3;
-        pub const DRAW_COUNT: u32 = 4;
-        pub const STATS_BUFFER: u32 = 5;
+        pub const DRAW_METADATA: u32 = 1;  // draw_metadata array
+        pub const DRAW_COMMANDS: u32 = 2;  // indirect_commands array
+        pub const DRAW_COUNT: u32 = 3;      // draw_count atomic
+        pub const STATS_BUFFER: u32 = 4;   // culling_stats
     }
 }
 

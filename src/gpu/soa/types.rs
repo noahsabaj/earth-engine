@@ -6,7 +6,7 @@
 use encase::{ShaderType, ShaderSize, internal::WriteInto};
 use bytemuck::{Pod, Zeroable};
 use crate::gpu::types::terrain::{BlockDistribution, TerrainParams};
-use crate::gpu::constants::MAX_BLOCK_DISTRIBUTIONS;
+use crate::gpu::constants::core::MAX_BLOCK_DISTRIBUTIONS;
 use std::marker::PhantomData;
 
 /// Marker trait for types that can be converted to SOA representation
@@ -141,6 +141,9 @@ pub struct TerrainParamsSOA {
     
     // Embedded SOA distributions for cache-friendly access
     pub distributions: BlockDistributionSOA,
+    
+    // Additional padding to match WGSL's 384-byte expectation
+    pub _pad_end: [u32; 4], // 16 bytes to align total struct to 384 bytes
 }
 
 impl Default for TerrainParamsSOA {
@@ -154,6 +157,7 @@ impl Default for TerrainParamsSOA {
             num_distributions: 0,
             _pad: [0; 2],
             distributions: BlockDistributionSOA::default(),
+            _pad_end: [0; 4],
         }
     }
 }
@@ -174,6 +178,7 @@ impl TerrainParamsSOA {
             num_distributions: params.num_distributions,
             _pad: params._padding,
             distributions,
+            _pad_end: [0; 4],
         }
     }
     
@@ -198,6 +203,18 @@ impl TerrainParamsSOA {
 }
 
 /// Compile-time validation of SOA sizes
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_terrain_params_soa_size() {
+        let size = std::mem::size_of::<TerrainParamsSOA>();
+        println!("[TerrainParamsSOA] Rust size: {} bytes", size);
+        println!("[TerrainParamsSOA] Expected WGSL size: 384 bytes");
+        assert_eq!(size, 384, "TerrainParamsSOA size mismatch");
+    }
+}
 #[cfg(debug_assertions)]
 pub fn validate_soa_sizes() {
     use encase::ShaderSize;
