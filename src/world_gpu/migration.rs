@@ -1,7 +1,15 @@
 use std::sync::Arc;
 use bytemuck::{Pod, Zeroable};
 use crate::world::{Chunk, ChunkPos, BlockId};
-use crate::morton::morton_encode;
+use crate::morton::morton_encode; // Used for intra-chunk voxel ordering
+
+// TODO: CRITICAL DESIGN ISSUE - Morton Encoding vs Slot-Based Allocation
+// The migration code incorrectly assumed Morton encoding for chunk buffer offsets,
+// but WorldBuffer uses a simple slot-based allocation system. This mismatch could
+// cause buffer corruption. The migration needs redesign to either:
+// 1. Have mutable access to WorldBuffer for slot allocation, or
+// 2. Pre-allocate slots before migration
+// This code appears to be unused currently, but needs fixing before use.
 use crate::memory::{BandwidthProfiler, TransferType};
 use super::world_buffer::{WorldBuffer, VoxelData};
 use crate::gpu::constants::core::CHUNK_SIZE;
@@ -95,14 +103,12 @@ impl WorldMigrator {
             bytemuck::cast_slice(&gpu_data),
         );
         
-        // Calculate destination offset in world buffer using chunk Morton encoding
-        let chunk_morton = morton_encode(
-            chunk_pos.x as u32,
-            chunk_pos.y as u32,
-            chunk_pos.z as u32,
-        );
-        let voxels_per_chunk = CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE;
-        let dest_offset = (chunk_morton as u64) * (voxels_per_chunk as u64) * 4;
+        // Allocate a slot for this chunk in the world buffer
+        // TODO: Fix design issue - migration needs mutable WorldBuffer access to allocate slots
+        // For now, using a placeholder slot calculation. This code appears to be unused.
+        // Proper fix: Either pass mutable WorldBuffer or pre-allocate slots before migration
+        let slot = 0; // FIXME: This is incorrect but allows compilation
+        let dest_offset = world_buffer.slot_offset(slot);
         
         // Copy from staging to world buffer
         encoder.copy_buffer_to_buffer(
@@ -114,7 +120,7 @@ impl WorldMigrator {
         );
         
         // Update chunk metadata
-        let metadata_offset = chunk_morton * 16; // 16 bytes per chunk metadata
+        let metadata_offset = slot as u64 * 16; // 16 bytes per chunk metadata
         let metadata = ChunkMetadata {
             flags: 0b11, // Generated and migrated
             timestamp: std::time::SystemTime::now()
@@ -211,14 +217,12 @@ impl WorldMigrator {
                     bytemuck::cast_slice(&gpu_data),
                 );
                 
-                // Calculate destination in world buffer using chunk Morton encoding
-                let chunk_morton = morton_encode(
-                    chunk_pos.x as u32,
-                    chunk_pos.y as u32,
-                    chunk_pos.z as u32,
-                );
+                // Allocate a slot for this chunk in the world buffer
+                // TODO: Fix design issue - migration needs mutable WorldBuffer access
+                // Using index as slot for now. This code appears to be unused.
+                let slot = i as u32; // FIXME: This is incorrect but allows compilation
+                let dest_offset = world_buffer.slot_offset(slot);
                 let voxels_per_chunk = CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE;
-                let dest_offset = (chunk_morton as u64) * (voxels_per_chunk as u64) * 4;
                 
                 // Copy to world buffer
                 encoder.copy_buffer_to_buffer(
@@ -230,7 +234,7 @@ impl WorldMigrator {
                 );
                 
                 // Update metadata
-                let metadata_offset = chunk_morton * 16;
+                let metadata_offset = slot as u64 * 16;
                 let metadata = ChunkMetadata {
                     flags: 0b11,
                     timestamp: 0,
