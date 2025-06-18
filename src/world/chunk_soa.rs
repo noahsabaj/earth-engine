@@ -421,7 +421,7 @@ mod tests {
     
     #[test]
     fn test_chunk_soa() {
-        let mut chunk = ChunkSoA::new(ChunkPos::new(0, 0, 0), 32);
+        let mut chunk = ChunkSoA::new(ChunkPos::new(0, 0, 0), 50);
         
         // Test basic operations
         chunk.set_block(10, 20, 15, BlockId::STONE);
@@ -436,7 +436,7 @@ mod tests {
     
     #[test]
     fn test_cache_alignment() {
-        let chunk = ChunkSoA::new(ChunkPos::new(0, 0, 0), 32);
+        let chunk = ChunkSoA::new(ChunkPos::new(0, 0, 0), 50);
         
         // Verify alignment
         assert_eq!(chunk.block_ids.ptr as usize % CACHE_LINE_SIZE, 0);

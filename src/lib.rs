@@ -75,7 +75,7 @@ impl Default for EngineConfig {
             window_title: "Hearth Engine".to_string(),
             window_width: 1280,
             window_height: 720,
-            chunk_size: 32,
+            chunk_size: 50, // Optimized for 1dcm³ (10cm) voxels: 5m x 5m x 5m chunks
             render_distance: 8,
         }
     }

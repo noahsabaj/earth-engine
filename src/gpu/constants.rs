@@ -8,9 +8,9 @@ use crate::BlockId;
 
 /// Core GPU/World constants
 pub mod core {
-    /// Chunk dimensions
-    pub const CHUNK_SIZE: u32 = 32;
-    pub const CHUNK_SIZE_F32: f32 = 32.0;
+    /// Chunk dimensions - 1dcm³ (10cm) voxels with 50×50×50 chunks (5m³ per chunk)
+    pub const CHUNK_SIZE: u32 = 50;
+    pub const CHUNK_SIZE_F32: f32 = 50.0;
     pub const VOXELS_PER_CHUNK: u32 = CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE;
     
     /// World limits

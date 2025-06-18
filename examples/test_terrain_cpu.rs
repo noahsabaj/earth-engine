@@ -31,14 +31,15 @@ fn main() {
     for pos in test_positions {
         println!("Chunk at {:?}:", pos);
         
-        let chunk = generator.generate_chunk(pos, 32);
-        let mut layers = vec![0; 32]; // Count blocks per Y layer
+        let chunk_size = 50; // Updated for 1dcm³ voxels: 5m x 5m x 5m chunks
+        let chunk = generator.generate_chunk(pos, chunk_size);
+        let mut layers = vec![0; chunk_size as usize]; // Count blocks per Y layer
         let mut total_blocks = 0;
         
         // Analyze terrain distribution
-        for y in 0..32 {
-            for x in 0..32 {
-                for z in 0..32 {
+        for y in 0..chunk_size {
+            for x in 0..chunk_size {
+                for z in 0..chunk_size {
                     if chunk.get_block(x, y, z) != BlockId::AIR {
                         layers[y as usize] += 1;
                         total_blocks += 1;
@@ -55,11 +56,11 @@ fn main() {
         for (y, count) in layers.iter().enumerate() {
             if *count > 0 {
                 has_terrain = true;
-                let percent = (*count as f32 / 1024.0) * 100.0;
+                let percent = (*count as f32 / 2500.0) * 100.0; // 50*50 voxels per layer
                 println!("    Y={:2}: {:4} blocks ({:5.1}%)", y, count, percent);
                 
-                // Check if it's NOT a strip pattern (strips would have all 1024 blocks)
-                if *count != 1024 {
+                // Check if it's NOT a strip pattern (strips would have all 2500 blocks)
+                if *count != 2500 {
                     strip_pattern = false;
                 }
             }
@@ -74,7 +75,7 @@ fn main() {
         }
         
         println!("  Total blocks: {}/{} ({:.1}%)\n", 
-                 total_blocks, 32768, (total_blocks as f32 / 32768.0) * 100.0);
+                 total_blocks, 125000, (total_blocks as f32 / 125000.0) * 100.0); // 50*50*50 voxels per chunk
     }
     
     // Also test surface height function

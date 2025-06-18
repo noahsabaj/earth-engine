@@ -57,19 +57,19 @@ pub fn morton_decode(morton: u64) -> (u32, u32, u32) {
 }
 
 /// Encode chunk-relative voxel position
-/// Optimized for typical chunk sizes (32x32x32)
+/// Optimized for 50x50x50 chunks (1dcm³ voxels)
 #[inline(always)]
 pub fn morton_encode_chunk(pos: VoxelPos) -> u32 {
-    // For chunk-relative positions, we only need 5 bits per coordinate
-    debug_assert!(pos.x < 32 && pos.y < 32 && pos.z < 32);
+    // For chunk-relative positions, we need 6 bits per coordinate (2^6 = 64 > 50)
+    debug_assert!(pos.x < 50 && pos.y < 50 && pos.z < 50);
     
     let x = pos.x as u32;
     let y = pos.y as u32;
     let z = pos.z as u32;
     
-    // Optimized bit interleaving for 5-bit values
+    // Optimized bit interleaving for 6-bit values
     let mut result = 0u32;
-    for i in 0..5 {
+    for i in 0..6 {
         result |= ((x >> i) & 1) << (i * 3);
         result |= ((y >> i) & 1) << (i * 3 + 1);
         result |= ((z >> i) & 1) << (i * 3 + 2);
@@ -85,7 +85,7 @@ pub fn morton_decode_chunk(morton: u32) -> VoxelPos {
     let mut z = 0u32;
     
     // Extract interleaved bits
-    for i in 0..5 {
+    for i in 0..6 {
         x |= ((morton >> (i * 3)) & 1) << i;
         y |= ((morton >> (i * 3 + 1)) & 1) << i;
         z |= ((morton >> (i * 3 + 2)) & 1) << i;
@@ -147,9 +147,9 @@ impl Iterator for MortonIterator {
 
 /// Convert world position to Morton code
 pub fn world_pos_to_morton(chunk: ChunkPos, voxel: VoxelPos) -> u64 {
-    let world_x = (chunk.x * 32 + voxel.x) as u32;
-    let world_y = (chunk.y * 32 + voxel.y) as u32;
-    let world_z = (chunk.z * 32 + voxel.z) as u32;
+    let world_x = (chunk.x * 50 + voxel.x) as u32;
+    let world_y = (chunk.y * 50 + voxel.y) as u32;
+    let world_z = (chunk.z * 50 + voxel.z) as u32;
     morton_encode(world_x, world_y, world_z)
 }
 
@@ -157,14 +157,14 @@ pub fn world_pos_to_morton(chunk: ChunkPos, voxel: VoxelPos) -> u64 {
 pub fn morton_to_world_pos(morton: u64) -> (ChunkPos, VoxelPos) {
     let (x, y, z) = morton_decode(morton);
     let chunk = ChunkPos {
-        x: (x / 32) as i32,
-        y: (y / 32) as i32,
-        z: (z / 32) as i32,
+        x: (x / 50) as i32,
+        y: (y / 50) as i32,
+        z: (z / 50) as i32,
     };
     let voxel = VoxelPos {
-        x: (x % 32) as i32,
-        y: (y % 32) as i32,
-        z: (z % 32) as i32,
+        x: (x % 50) as i32,
+        y: (y % 50) as i32,
+        z: (z % 50) as i32,
     };
     (chunk, voxel)
 }
@@ -194,9 +194,9 @@ mod tests {
     
     #[test]
     fn test_chunk_morton() {
-        for x in 0..32 {
-            for y in 0..32 {
-                for z in 0..32 {
+        for x in 0..50 {
+            for y in 0..50 {
+                for z in 0..50 {
                     let pos = VoxelPos { x, y, z };
                     let morton = morton_encode_chunk(pos);
                     let decoded = morton_decode_chunk(morton);

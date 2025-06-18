@@ -60,7 +60,7 @@ fn main() {
     // Create world buffer
     let world_buffer_desc = WorldBufferDescriptor {
         max_chunks: 64,
-        chunk_size: 32,
+        chunk_size: 50,
     };
     let mut world_buffer = WorldBuffer::new(device.clone(), &world_buffer_desc);
     
@@ -89,7 +89,7 @@ fn main() {
     // Create a staging buffer to read back results
     let staging_buffer = device.create_buffer(&wgpu::BufferDescriptor {
         label: Some("Staging Buffer"),
-        size: 32 * 32 * 32 * 4, // One chunk worth of u32s
+        size: 50 * 50 * 50 * 4, // One chunk worth of u32s
         usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
         mapped_at_creation: false,
     });
@@ -104,7 +104,7 @@ fn main() {
         0,
         &staging_buffer,
         0,
-        32 * 32 * 32 * 4,
+        50 * 50 * 50 * 4,
     );
     
     queue.submit(std::iter::once(encoder.finish()));
