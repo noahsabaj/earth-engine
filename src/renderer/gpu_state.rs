@@ -147,10 +147,11 @@ impl GpuState {
     }
     
     async fn new(window: Arc<Window>) -> Result<Self> {
-        Self::new_with_game(window, None::<&mut DefaultGameData>).await
+        let default_config = EngineConfig::default();
+        Self::new_with_game(window, None::<&mut DefaultGameData>, default_config).await
     }
     
-    async fn new_with_game<G: GameData>(window: Arc<Window>, game: Option<&mut G>) -> Result<Self> {
+    async fn new_with_game<G: GameData>(window: Arc<Window>, game: Option<&mut G>, engine_config: EngineConfig) -> Result<Self> {
         log::info!("[GpuState::new] Starting GPU initialization");
         let init_start = std::time::Instant::now();
         let _progress = GpuInitProgress::new();
@@ -605,19 +606,27 @@ impl GpuState {
         
         let block_registry = Arc::new(block_registry_mut);
         
-        // Create world with GPU terrain generator (95% GPU / 5% CPU split)
-        log::info!("[GpuState::new] Creating GPU-powered world generator...");
-        let seed = 12345; // Fixed seed for consistent worlds
-        let generator = Box::new(crate::world::GpuDefaultWorldGenerator::new(
-            device.clone(),
-            queue.clone(),
-            seed,
-            grass_id,
-            dirt_id,
-            stone_id,
-            water_id,
-            sand_id,
-        ));
+        // Create world generator (custom, factory, or default GPU generator)
+        let generator = if let Some(custom_gen) = engine_config.world_generator {
+            log::info!("[GpuState::new] Using custom world generator from EngineConfig");
+            custom_gen
+        } else if let Some(factory) = engine_config.world_generator_factory {
+            log::info!("[GpuState::new] Using world generator factory from EngineConfig");
+            (factory)(device.clone(), queue.clone())
+        } else {
+            log::info!("[GpuState::new] Creating default GPU-powered world generator...");
+            let seed = 12345; // Fixed seed for consistent worlds
+            Box::new(crate::world::GpuDefaultWorldGenerator::new(
+                device.clone(),
+                queue.clone(),
+                seed,
+                grass_id,
+                dirt_id,
+                stone_id,
+                water_id,
+                sand_id,
+            ))
+        };
         
         // Start with a temporary camera position (will be updated after spawn search)
         let temp_spawn_x = 0.0;
@@ -625,7 +634,7 @@ impl GpuState {
         let temp_spawn_y = 80.0; // Temporary height above typical terrain
         
         // Create camera at temporary position
-        let mut camera = init_camera_with_spawn(config.width, config.height, temp_spawn_x, temp_spawn_y, temp_spawn_z);
+        let mut camera = init_camera_with_spawn(engine_config.window_width, engine_config.window_height, temp_spawn_x, temp_spawn_y, temp_spawn_z);
         log::info!("[GpuState::new] Camera created at temporary position: {:?}", camera.position);
         
         // Update camera uniform with actual camera position
@@ -644,8 +653,8 @@ impl GpuState {
             generation_threads: cpu_count.saturating_sub(2).max(2),
             mesh_threads: cpu_count.saturating_sub(2).max(2),
             chunks_per_frame: cpu_count * 2,
-            view_distance: 4,  // Balanced view distance for reasonable startup time
-            chunk_size: 32,
+            view_distance: engine_config.render_distance as i32,
+            chunk_size: engine_config.chunk_size,
         };
         
         log::info!("[GpuState::new] World config: {} gen threads, {} mesh threads, {} chunks/frame",
@@ -1884,7 +1893,7 @@ pub async fn run_app<G: GameData + 'static>(
     log::info!("[gpu_state::run_app] Window created successfully");
 
     log::info!("[gpu_state::run_app] Creating GPU state with game block registration...");
-    let mut gpu_state = match GpuState::new_with_game(window.clone(), Some(&mut game)).await {
+    let mut gpu_state = match GpuState::new_with_game(window.clone(), Some(&mut game), config).await {
         Ok(state) => {
             log::info!("[gpu_state::run_app] GPU state created successfully");
             state

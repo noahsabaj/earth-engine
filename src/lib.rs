@@ -38,6 +38,7 @@ pub mod profiling;
 // Web module removed - no longer supporting browser builds
 
 use anyhow::Result;
+use std::sync::Arc;
 use winit::event_loop::{EventLoop, EventLoopBuilder};
 
 pub use error::{EngineError, EngineResult, OptionExt, ErrorContext};
@@ -46,19 +47,47 @@ pub use game::{GameContext, GameData};
 pub use input::KeyCode;
 pub use physics::{AABB};
 pub use renderer::Renderer;
-pub use world::{Block, BlockId, BlockRegistry, Chunk, ChunkPos, VoxelPos, RenderData, PhysicsProperties, World, Ray, RaycastHit, BlockFace, cast_ray};
+pub use world::{Block, BlockId, BlockRegistry, Chunk, ChunkPos, VoxelPos, RenderData, PhysicsProperties, World, Ray, RaycastHit, BlockFace, cast_ray, WorldGenerator};
 
 // Re-export wgpu for games that need GPU access (e.g., custom world generators)
 pub use wgpu;
 
+/// World generator type for EngineConfig
+#[derive(Debug, Clone, PartialEq)]
+pub enum WorldGeneratorType {
+    Default,
+    DangerMoney,
+    Custom(String),
+}
+
+/// Factory function type for creating world generators when GPU resources are available
+pub type WorldGeneratorFactory = Box<dyn Fn(Arc<wgpu::Device>, Arc<wgpu::Queue>) -> Box<dyn WorldGenerator + Send + Sync> + Send + Sync>;
+
 /// Main engine configuration
-#[derive(Debug, Clone)]
 pub struct EngineConfig {
     pub window_title: String,
     pub window_width: u32,
     pub window_height: u32,
     pub chunk_size: u32,
     pub render_distance: u32,
+    pub world_generator: Option<Box<dyn WorldGenerator + Send + Sync>>,
+    pub world_generator_type: WorldGeneratorType,
+    pub world_generator_factory: Option<WorldGeneratorFactory>,
+}
+
+impl std::fmt::Debug for EngineConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("EngineConfig")
+            .field("window_title", &self.window_title)
+            .field("window_width", &self.window_width)
+            .field("window_height", &self.window_height)
+            .field("chunk_size", &self.chunk_size)
+            .field("render_distance", &self.render_distance)
+            .field("world_generator", &self.world_generator.as_ref().map(|_| "<Custom WorldGenerator>"))
+            .field("world_generator_type", &self.world_generator_type)
+            .field("world_generator_factory", &self.world_generator_factory.as_ref().map(|_| "<WorldGenerator Factory>"))
+            .finish()
+    }
 }
 
 impl Default for EngineConfig {
@@ -69,6 +98,9 @@ impl Default for EngineConfig {
             window_height: 720,
             chunk_size: 50, // Optimized for 1dcm³ (10cm) voxels: 5m x 5m x 5m chunks
             render_distance: 8,
+            world_generator: None, // Use engine's default generator when None
+            world_generator_type: WorldGeneratorType::Default,
+            world_generator_factory: None, // Use engine's default generator when None
         }
     }
 }
@@ -148,7 +180,7 @@ impl Engine {
             }
         };
         
-        let config = self.config.clone();
+        let config = self.config;
         log::info!("[Engine::run] Calling renderer::run with config: {:?}", config);
         
         // This will be implemented when we create the renderer
