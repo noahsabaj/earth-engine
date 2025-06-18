@@ -27,7 +27,16 @@ pub struct BlockDistribution {
     pub noise_threshold: f32,
     /// Padding to reach 48 bytes for GPU alignment
     /// Must match the WGSL struct definition
-    pub _padding: [u32; 7], // 28 bytes to reach 48 total
+    // Padding to reach 48 bytes total (7 * 4 = 28 bytes of padding)
+    // Note: Using individual fields instead of array to avoid WGSL uniform buffer
+    // array alignment requirements (arrays in uniforms need 16-byte aligned elements)
+    pub _pad0: u32,
+    pub _pad1: u32,
+    pub _pad2: u32,
+    pub _pad3: u32,
+    pub _pad4: u32,
+    pub _pad5: u32,
+    pub _pad6: u32,
 }
 
 impl Default for BlockDistribution {
@@ -38,7 +47,13 @@ impl Default for BlockDistribution {
             max_height: i32::MAX,
             probability: 0.0,
             noise_threshold: 0.5,
-            _padding: [0; 7],
+            _pad0: 0,
+            _pad1: 0,
+            _pad2: 0,
+            _pad3: 0,
+            _pad4: 0,
+            _pad5: 0,
+            _pad6: 0,
         }
     }
 }

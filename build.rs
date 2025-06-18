@@ -50,8 +50,16 @@ struct BlockDistribution {{
     max_height: i32,
     probability: f32,
     noise_threshold: f32,
-    // Padding for 48-byte alignment (encase handles this automatically)
-    _padding: array<u32, 7>,  // 28 bytes to reach 48 total
+    // Padding to reach 48 bytes total (7 * 4 = 28 bytes of padding)
+    // Using individual fields instead of array to avoid WGSL uniform buffer
+    // array alignment requirements (arrays in uniforms need 16-byte aligned elements)
+    _pad0: u32,
+    _pad1: u32,
+    _pad2: u32,
+    _pad3: u32,
+    _pad4: u32,
+    _pad5: u32,
+    _pad6: u32,
 }}
 
 // Terrain generation parameters  
