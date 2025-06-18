@@ -91,6 +91,7 @@ mod tests {
     async fn test_terrain_generation() {
         let (device, queue) = create_test_device().await;
         let device = std::sync::Arc::new(device);
+        let queue = std::sync::Arc::new(queue);
         
         // Create world buffer (small size for testing)
         let mut world_buffer = WorldBuffer::new(device.clone(), &WorldBufferDescriptor {
@@ -100,7 +101,7 @@ mod tests {
         });
         
         // Create terrain generator
-        let terrain_gen = TerrainGenerator::new(device.clone(), std::sync::Arc::new(queue.clone()));
+        let terrain_gen = TerrainGenerator::new(device.clone(), queue.clone());
         
         // Update parameters
         let params = TerrainParams {
@@ -140,6 +141,7 @@ mod tests {
     async fn test_chunk_modification() {
         let (device, queue) = create_test_device().await;
         let device = std::sync::Arc::new(device);
+        let queue = std::sync::Arc::new(queue);
         
         // Create world buffer (small size for testing)  
         let world_buffer = WorldBuffer::new(device.clone(), &WorldBufferDescriptor {
@@ -171,6 +173,7 @@ mod tests {
     async fn test_ambient_occlusion() {
         let (device, queue) = create_test_device().await;
         let device = std::sync::Arc::new(device);
+        let queue = std::sync::Arc::new(queue);
         
         // Create world buffer and lighting system (small size for testing)
         let world_buffer = WorldBuffer::new(device.clone(), &WorldBufferDescriptor {

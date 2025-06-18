@@ -33,115 +33,15 @@ use winit::{
     window::{CursorGrabMode, Window, WindowBuilder},
 };
 
-// Test blocks for initial rendering
-struct TestGrassBlock;
-impl crate::Block for TestGrassBlock {
-    fn get_id(&self) -> crate::BlockId { crate::BlockId(1) }
-    fn get_render_data(&self) -> crate::RenderData {
-        crate::RenderData {
-            color: [0.3, 0.7, 0.2],
-            texture_id: 0,
-        }
-    }
-    fn get_physics_properties(&self) -> crate::PhysicsProperties {
-        crate::PhysicsProperties {
-            solid: true,
-            density: 1200.0,
-        }
-    }
-    fn get_name(&self) -> &str { "Grass" }
-}
+// Engine's basic blocks are registered via register_basic_blocks()
 
-struct TestDirtBlock;
-impl crate::Block for TestDirtBlock {
-    fn get_id(&self) -> crate::BlockId { crate::BlockId(2) }
-    fn get_render_data(&self) -> crate::RenderData {
-        crate::RenderData {
-            color: [0.5, 0.3, 0.1],
-            texture_id: 0,
-        }
-    }
-    fn get_physics_properties(&self) -> crate::PhysicsProperties {
-        crate::PhysicsProperties {
-            solid: true,
-            density: 1500.0,
-        }
-    }
-    fn get_name(&self) -> &str { "Dirt" }
-}
+// Dummy game for when no game is provided
+struct DummyGame;
 
-struct TestStoneBlock;
-impl crate::Block for TestStoneBlock {
-    fn get_id(&self) -> crate::BlockId { crate::BlockId(3) }
-    fn get_render_data(&self) -> crate::RenderData {
-        crate::RenderData {
-            color: [0.6, 0.6, 0.6],
-            texture_id: 0,
-        }
-    }
-    fn get_physics_properties(&self) -> crate::PhysicsProperties {
-        crate::PhysicsProperties {
-            solid: true,
-            density: 2500.0,
-        }
-    }
-    fn get_name(&self) -> &str { "Stone" }
-}
-
-struct TestWaterBlock;
-impl crate::Block for TestWaterBlock {
-    fn get_id(&self) -> crate::BlockId { crate::BlockId(6) }
-    fn get_render_data(&self) -> crate::RenderData {
-        crate::RenderData {
-            color: [0.1, 0.4, 0.8],
-            texture_id: 0,
-        }
-    }
-    fn get_physics_properties(&self) -> crate::PhysicsProperties {
-        crate::PhysicsProperties {
-            solid: false,
-            density: 1000.0,
-        }
-    }
-    fn get_name(&self) -> &str { "Water" }
-}
-
-struct TestSandBlock;
-impl crate::Block for TestSandBlock {
-    fn get_id(&self) -> crate::BlockId { crate::BlockId(5) }
-    fn get_render_data(&self) -> crate::RenderData {
-        crate::RenderData {
-            color: [0.9, 0.8, 0.6],
-            texture_id: 0,
-        }
-    }
-    fn get_physics_properties(&self) -> crate::PhysicsProperties {
-        crate::PhysicsProperties {
-            solid: true,
-            density: 1600.0,
-        }
-    }
-    fn get_name(&self) -> &str { "Sand" }
-}
-
-struct TestTorchBlock;
-impl crate::Block for TestTorchBlock {
-    fn get_id(&self) -> crate::BlockId { crate::BlockId(7) }
-    fn get_render_data(&self) -> crate::RenderData {
-        crate::RenderData {
-            color: [1.0, 0.8, 0.4], // Warm torch color
-            texture_id: 0,
-        }
-    }
-    fn get_physics_properties(&self) -> crate::PhysicsProperties {
-        crate::PhysicsProperties {
-            solid: false, // Can walk through torches
-            density: 100.0,
-        }
-    }
-    fn get_name(&self) -> &str { "Torch" }
-    fn get_light_emission(&self) -> u8 { 14 } // Bright light
-    fn is_transparent(&self) -> bool { true }
+#[allow(deprecated)]
+impl Game for DummyGame {
+    fn register_blocks(&mut self, _registry: &mut BlockRegistry) {}
+    fn update(&mut self, _ctx: &mut GameContext, _delta_time: f32) {}
 }
 
 // Full camera data for CPU-side operations
@@ -261,6 +161,10 @@ impl GpuState {
     }
     
     async fn new(window: Arc<Window>) -> Result<Self> {
+        Self::new_with_game::<DummyGame>(window, None).await
+    }
+    
+    async fn new_with_game<G: Game>(window: Arc<Window>, game: Option<&mut G>) -> Result<Self> {
         log::info!("[GpuState::new] Starting GPU initialization");
         let init_start = std::time::Instant::now();
         let _progress = GpuInitProgress::new();
@@ -696,15 +600,22 @@ impl GpuState {
         log::info!("[GpuState::new] Creating block registry...");
         let mut block_registry_mut = BlockRegistry::new();
         
-        // Register basic blocks
-        log::info!("[GpuState::new] Registering blocks...");
-        let grass_id = block_registry_mut.register("test:grass", TestGrassBlock);
-        let dirt_id = block_registry_mut.register("test:dirt", TestDirtBlock);
-        let stone_id = block_registry_mut.register("test:stone", TestStoneBlock);
-        let water_id = block_registry_mut.register("test:water", TestWaterBlock);
-        let sand_id = block_registry_mut.register("test:sand", TestSandBlock);
-        let _torch_id = block_registry_mut.register("test:torch", TestTorchBlock);
-        log::info!("[GpuState::new] {} blocks registered", 6);
+        // Register engine's basic blocks first
+        log::info!("[GpuState::new] Registering engine basic blocks...");
+        crate::world::register_basic_blocks(&mut block_registry_mut);
+        
+        // Register game blocks if game is provided
+        if let Some(game) = game {
+            log::info!("[GpuState::new] Registering game blocks...");
+            game.register_blocks(&mut block_registry_mut);
+        }
+        
+        // Get block IDs (they are constants from BlockId)
+        let grass_id = BlockId::GRASS;
+        let dirt_id = BlockId::DIRT;
+        let stone_id = BlockId::STONE;
+        let water_id = BlockId::WATER;
+        let sand_id = BlockId::SAND;
         
         let block_registry = Arc::new(block_registry_mut);
         
@@ -1986,8 +1897,8 @@ pub async fn run_app<G: Game + 'static>(
     );
     log::info!("[gpu_state::run_app] Window created successfully");
 
-    log::info!("[gpu_state::run_app] Creating GPU state...");
-    let mut gpu_state = match GpuState::new(window.clone()).await {
+    log::info!("[gpu_state::run_app] Creating GPU state with game block registration...");
+    let mut gpu_state = match GpuState::new_with_game(window.clone(), Some(&mut game)).await {
         Ok(state) => {
             log::info!("[gpu_state::run_app] GPU state created successfully");
             state

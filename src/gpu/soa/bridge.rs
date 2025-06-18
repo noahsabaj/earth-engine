@@ -151,12 +151,12 @@ mod tests {
         assert_eq!(soa_data.count, 2);
         
         // Unpack single item
-        let item = CpuGpuBridge::unpack_from_gpu(&soa_data, 0);
+        let item: BlockDistribution = CpuGpuBridge::unpack_from_gpu(&soa_data, 0);
         assert_eq!(item.block_id, 1);
         assert_eq!(item.min_height, 0);
         
         // Unpack all items
-        let unpacked = CpuGpuBridge::unpack_all(&soa_data);
+        let unpacked: Vec<BlockDistribution> = CpuGpuBridge::unpack_all(&soa_data);
         assert_eq!(unpacked.len(), 2);
         assert_eq!(unpacked[1].block_id, 2);
     }
@@ -185,7 +185,7 @@ mod tests {
         ];
         
         let soa_data = distributions.to_soa();
-        let collected: Vec<_> = soa_data.iter_soa().collect();
+        let collected: Vec<BlockDistribution> = soa_data.iter_soa().collect();
         
         assert_eq!(collected.len(), 2);
         assert_eq!(collected[0].block_id, 1);

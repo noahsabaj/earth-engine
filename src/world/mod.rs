@@ -23,7 +23,7 @@ mod frame_budget;
 mod spawn_finder;
 
 pub use block::{Block, BlockId, RenderData, PhysicsProperties};
-pub use basic_blocks::{AirBlock, StoneBlock, GrassBlock};
+pub use basic_blocks::{AirBlock, StoneBlock, GrassBlock, register_basic_blocks};
 pub use block_drops::{BlockDropHandler, MiningProgress};
 pub use block_entity::{BlockEntity, BlockEntityData, FurnaceBlockEntity, ChestBlockEntity};
 pub use zero_alloc_block_entity::{BlockEntityKeys, serialize_furnace_zero_alloc, serialize_chest_zero_alloc, KEYS, SLOT_KEYS};
