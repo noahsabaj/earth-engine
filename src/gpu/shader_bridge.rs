@@ -57,7 +57,7 @@ pub fn generate_all_wgsl_types() -> String {
     wgsl
 }
 
-/// Get the path where generated WGSL should be saved
-pub fn generated_wgsl_path() -> &'static str {
-    "src/gpu/shaders/generated/types.wgsl"
+/// Get the path where generated SOA WGSL should be saved
+pub fn generated_soa_wgsl_path() -> &'static str {
+    "src/gpu/shaders/generated/types_soa.wgsl"
 }

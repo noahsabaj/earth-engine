@@ -108,8 +108,7 @@ pub mod shader_paths {
     /// SOA shader paths
     pub const SOA_TERRAIN_GENERATION: &str = "gpu/shaders/soa/terrain_generation_soa.wgsl";
     
-    /// Generated shader paths
-    pub const GENERATED_TYPES: &str = "gpu/shaders/generated/types.wgsl";
+    /// Generated shader paths (SOA only for optimal performance)
     pub const GENERATED_TYPES_SOA: &str = "gpu/shaders/generated/types_soa.wgsl";
     pub const GENERATED_CONSTANTS: &str = "gpu/shaders/generated/constants.wgsl";
     

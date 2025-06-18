@@ -1,24 +1,18 @@
 // GPU Terrain Generation Compute Shader
 // Generates realistic terrain using Perlin noise directly in the WorldBuffer
+// Updated to use SOA (Structure of Arrays) types for optimal GPU performance
 
-// Import auto-generated GPU types
-#include "../../gpu/shaders/generated/types.wgsl"
+// Import auto-generated GPU types (SOA)
+#include "../../gpu/shaders/generated/constants.wgsl"
+#include "../../gpu/shaders/generated/types_soa.wgsl"
 
-// Block IDs (must match Test block get_id() implementations)
-const BLOCK_AIR: u32 = 0u;
-const BLOCK_GRASS: u32 = 1u;   // Matches TestGrassBlock::get_id() = BlockId(1)
-const BLOCK_DIRT: u32 = 2u;    // Matches TestDirtBlock::get_id() = BlockId(2)  
-const BLOCK_STONE: u32 = 3u;   // Matches TestStoneBlock::get_id() = BlockId(3)
-const BLOCK_SAND: u32 = 5u;    // Matches TestSandBlock::get_id() = BlockId(5)
-const BLOCK_WATER: u32 = 6u;   // Matches TestWaterBlock::get_id() = BlockId(6)
-
-// World constants
-const CHUNK_SIZE: u32 = 32u;
+// Block IDs and constants are now included from generated/constants.wgsl
+// This ensures single source of truth and consistency with Rust code
 
 // Bindings
 @group(0) @binding(0) var<storage, read_write> world_voxels: array<u32>;
 @group(0) @binding(1) var<storage, read_write> chunk_metadata: array<ChunkMetadata>;
-@group(0) @binding(2) var<uniform> params: TerrainParams;
+@group(0) @binding(2) var<uniform> params: TerrainParamsSOA;
 @group(0) @binding(3) var<storage, read> chunk_positions: array<vec4<i32>>;
 
 // Helper functions
@@ -84,26 +78,28 @@ fn generate_chunk(
                         if (world_y < height - 4.0) {
                             block_id = BLOCK_STONE;
                             
-                            // Check custom block distributions
-                            for (var i = 0u; i < params.num_distributions; i++) {
-                                let dist = params.distributions[i];
-                                
-                                // Check height range
-                                if (i32(world_y) >= dist.min_height && i32(world_y) <= dist.max_height) {
-                                    // Use noise for distribution
-                                    let block_noise = noise3d(
-                                        world_x * 0.1, 
-                                        world_y * 0.1, 
-                                        world_z * 0.1
-                                    );
-                                    
-                                    // Check probability and noise threshold
-                                    if (block_noise > dist.noise_threshold) {
-                                        let chance = hash_float(u32(world_x) * 73856093u ^ u32(world_y) * 19349663u ^ u32(world_z) * 83492791u);
-                                        if (chance < dist.probability) {
-                                            block_id = dist.block_id;
-                                            break; // First matching distribution wins
+                            // Check custom block distributions using SOA layout for better performance
+                            let custom_block = check_height_soa(&params.distributions, i32(world_y));
+                            if (custom_block != 0u) {
+                                // Find distribution index for this block
+                                for (var i = 0u; i < params.distributions.count; i++) {
+                                    if (params.distributions.block_ids[i] == custom_block) {
+                                        // Use noise for distribution
+                                        let block_noise = noise3d(
+                                            world_x * 0.1, 
+                                            world_y * 0.1, 
+                                            world_z * 0.1
+                                        );
+                                        
+                                        // Check probability and noise threshold using SOA arrays
+                                        if (block_noise > params.distributions.noise_thresholds[i]) {
+                                            let chance = hash_float(u32(world_x) * 73856093u ^ u32(world_y) * 19349663u ^ u32(world_z) * 83492791u);
+                                            if (chance < params.distributions.probabilities[i]) {
+                                                block_id = custom_block;
+                                                break; // First matching distribution wins
+                                            }
                                         }
+                                        break;
                                     }
                                 }
                             }

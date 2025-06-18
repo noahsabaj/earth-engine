@@ -3,9 +3,6 @@
 //! This module provides shader includes that are embedded at compile time
 //! to avoid runtime path resolution issues on different platforms.
 
-/// The auto-generated WGSL types from build.rs
-pub const GENERATED_TYPES_WGSL: &str = include_str!("shaders/generated/types.wgsl");
-
 /// The auto-generated SOA WGSL types from build.rs
 pub const GENERATED_TYPES_SOA_WGSL: &str = include_str!("shaders/generated/types_soa.wgsl");
 
@@ -18,9 +15,6 @@ pub const PERLIN_NOISE_WGSL: &str = include_str!("../renderer/shaders/perlin_noi
 /// Get shader include content by name
 pub fn get_shader_include(name: &str) -> Option<&'static str> {
     match name {
-        "types.wgsl" | "generated/types.wgsl" | "../../gpu/shaders/generated/types.wgsl" => {
-            Some(GENERATED_TYPES_WGSL)
-        }
         "types_soa.wgsl" | "generated/types_soa.wgsl" | "../generated/types_soa.wgsl" => {
             Some(GENERATED_TYPES_SOA_WGSL)
         }
