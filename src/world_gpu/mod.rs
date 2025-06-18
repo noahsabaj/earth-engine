@@ -13,6 +13,7 @@
 pub mod error;
 pub mod world_buffer;
 pub mod terrain_generator;
+pub mod terrain_generator_soa;
 pub mod chunk_modifier;
 pub mod gpu_lighting;
 pub mod gpu_lighting_migration;
@@ -33,6 +34,7 @@ pub mod benchmarks;
 
 pub use world_buffer::{WorldBuffer, WorldBufferDescriptor, VoxelData};
 pub use terrain_generator::{TerrainGenerator, TerrainParams};
+pub use terrain_generator_soa::{TerrainGeneratorSOA, TerrainGeneratorSOABuilder};
 pub use chunk_modifier::{ChunkModifier, ModificationCommand};
 pub use gpu_lighting::GpuLighting;
 pub use gpu_lighting_migration::{GpuLightPropagator, GpuBlockProvider, migrate_to_gpu_lighting};

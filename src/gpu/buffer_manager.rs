@@ -45,6 +45,11 @@ impl GpuBufferManager {
         }
     }
     
+    /// Get a reference to the queue
+    pub fn queue(&self) -> &Arc<wgpu::Queue> {
+        &self.queue
+    }
+    
     /// Create a uniform buffer with automatic alignment
     pub fn create_uniform<T: GpuData>(&self, data: &T) -> Result<TypedGpuBuffer<T>, GpuError> {
         // Use encase to handle alignment automatically
@@ -196,10 +201,5 @@ impl GpuBufferManager {
     /// Get the device reference
     pub fn device(&self) -> &Arc<wgpu::Device> {
         &self.device
-    }
-    
-    /// Get the queue reference
-    pub fn queue(&self) -> &Arc<wgpu::Queue> {
-        &self.queue
     }
 }
