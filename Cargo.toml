@@ -97,6 +97,9 @@ rustc-hash = "1.1"
 # Lazy static
 lazy_static = "1.4"
 
+# Regular expressions
+regex = "1.10"
+
 # System interface
 libc = "0.2"
 
@@ -190,6 +193,7 @@ path = "examples/minimal_engine.rs"
 [[example]]
 name = "physics_integration_demo"
 path = "examples/physics_integration_demo.rs"
+
 
 # Hearth Engine is now a pure library
 # All binaries have been moved to examples or removed

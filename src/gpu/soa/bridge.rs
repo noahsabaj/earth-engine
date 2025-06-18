@@ -132,8 +132,7 @@ mod tests {
                 max_height: 10,
                 probability: 0.5,
                 noise_threshold: 0.3,
-                _pad0: 0, _pad1: 0, _pad2: 0, _pad3: 0,
-                _pad4: 0, _pad5: 0, _pad6: 0,
+                _padding: [0; 3],
             },
             BlockDistribution {
                 block_id: 2,
@@ -141,8 +140,7 @@ mod tests {
                 max_height: 20,
                 probability: 0.3,
                 noise_threshold: 0.5,
-                _pad0: 0, _pad1: 0, _pad2: 0, _pad3: 0,
-                _pad4: 0, _pad5: 0, _pad6: 0,
+                _padding: [0; 3],
             },
         ];
         
@@ -170,8 +168,7 @@ mod tests {
                 max_height: 10,
                 probability: 0.5,
                 noise_threshold: 0.3,
-                _pad0: 0, _pad1: 0, _pad2: 0, _pad3: 0,
-                _pad4: 0, _pad5: 0, _pad6: 0,
+                _padding: [0; 3],
             },
             BlockDistribution {
                 block_id: 2,
@@ -179,8 +176,7 @@ mod tests {
                 max_height: 20,
                 probability: 0.3,
                 noise_threshold: 0.5,
-                _pad0: 0, _pad1: 0, _pad2: 0, _pad3: 0,
-                _pad4: 0, _pad5: 0, _pad6: 0,
+                _padding: [0; 3],
             },
         ];
         

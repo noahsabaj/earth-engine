@@ -4,6 +4,7 @@ use encase::ShaderType;
 use bytemuck::{Pod, Zeroable};
 use crate::gpu::types::core::GpuData;
 use crate::gpu::constants::MAX_BLOCK_DISTRIBUTIONS;
+use crate::gpu::automation::auto_wgsl::AutoWgsl;
 
 /// Generic block distribution rule for GPU terrain generation
 /// 
@@ -22,18 +23,8 @@ pub struct BlockDistribution {
     /// Noise threshold for placement (0.0-1.0)
     /// Used for clustering - higher values create more sparse placement
     pub noise_threshold: f32,
-    /// Padding to reach 48 bytes for GPU alignment
-    /// Must match the WGSL struct definition
-    // Padding to reach 48 bytes total (7 * 4 = 28 bytes of padding)
-    // Note: Using individual fields instead of array to avoid WGSL uniform buffer
-    // array alignment requirements (arrays in uniforms need 16-byte aligned elements)
-    pub _pad0: u32,
-    pub _pad1: u32,
-    pub _pad2: u32,
-    pub _pad3: u32,
-    pub _pad4: u32,
-    pub _pad5: u32,
-    pub _pad6: u32,
+    /// Padding to ensure 16-byte alignment (20 bytes -> 32 bytes)
+    pub _padding: [u32; 3],
 }
 
 impl Default for BlockDistribution {
@@ -44,13 +35,7 @@ impl Default for BlockDistribution {
             max_height: i32::MAX,
             probability: 0.0,
             noise_threshold: 0.5,
-            _pad0: 0,
-            _pad1: 0,
-            _pad2: 0,
-            _pad3: 0,
-            _pad4: 0,
-            _pad5: 0,
-            _pad6: 0,
+            _padding: [0; 3],
         }
     }
 }
@@ -71,7 +56,7 @@ pub struct TerrainParams {
     pub cave_threshold: f32,
     /// Number of active block distributions (0 to MAX_BLOCK_DISTRIBUTIONS)
     pub num_distributions: u32,
-    /// Padding for alignment
+    /// Padding for 16-byte alignment
     pub _padding: [u32; 2],
     /// Custom block distributions
     /// Games can specify up to MAX_BLOCK_DISTRIBUTIONS custom blocks
@@ -92,6 +77,33 @@ impl Default for TerrainParams {
         }
     }
 }
+
+// Implement AutoWgsl for automatic WGSL generation
+crate::auto_wgsl!(
+    BlockDistribution,
+    name = "BlockDistribution",
+    fields = [
+        block_id: "u32",
+        min_height: "i32",
+        max_height: "i32",
+        probability: "f32",
+        noise_threshold: "f32",
+    ]
+);
+
+crate::auto_wgsl!(
+    TerrainParams,
+    name = "TerrainParams",
+    fields = [
+        seed: "u32",
+        sea_level: "f32",
+        terrain_scale: "f32",
+        mountain_threshold: "f32",
+        cave_threshold: "f32",
+        num_distributions: "u32",
+        distributions: "BlockDistribution"[MAX_BLOCK_DISTRIBUTIONS],
+    ]
+);
 
 impl TerrainParams {
     /// Add a block distribution rule
@@ -120,8 +132,63 @@ impl TerrainParams {
 }
 
 // Compile-time size validation
-// Note: encase handles padding automatically, so we can't predict exact sizes
-// We'll validate these at runtime in debug builds instead
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use encase::ShaderSize;
+    
+    #[test]
+    fn test_block_distribution_layout() {
+        let rust_size = std::mem::size_of::<BlockDistribution>();
+        let shader_size = BlockDistribution::SHADER_SIZE.get();
+        
+        println!("[BlockDistribution] Memory layout:");
+        println!("  Rust size: {} bytes", rust_size);
+        println!("  Shader size (encase): {} bytes", shader_size);
+        println!("  Original size with manual padding: 48 bytes");
+        
+        // Encase should handle alignment automatically
+        assert_eq!(shader_size % 16, 0, "BlockDistribution must be 16-byte aligned");
+        
+        // The size without padding would be: 5 fields * 4 bytes = 20 bytes
+        // Encase should pad this to at least 32 bytes (next 16-byte boundary)
+        assert!(shader_size >= 32, "BlockDistribution shader size should be at least 32 bytes");
+        
+        if shader_size != 48 {
+            println!("NOTE: BlockDistribution size changed from 48 to {} bytes", shader_size);
+            println!("      WGSL shaders may need updating to match new layout");
+        }
+    }
+    
+    #[test]
+    fn test_terrain_params_layout() {
+        let rust_size = std::mem::size_of::<TerrainParams>();
+        let shader_size = TerrainParams::SHADER_SIZE.get();
+        
+        println!("[TerrainParams] Memory layout:");
+        println!("  Rust size: {} bytes", rust_size);
+        println!("  Shader size (encase): {} bytes", shader_size);
+        
+        // Verify alignment
+        assert_eq!(shader_size % 16, 0, "TerrainParams must be 16-byte aligned");
+        
+        // TerrainParams contains:
+        // - 6 scalar fields (24 bytes)
+        // - Array of BlockDistribution[MAX_BLOCK_DISTRIBUTIONS]
+        let base_size = 24;
+        let distribution_array_size = BlockDistribution::SHADER_SIZE.get() * MAX_BLOCK_DISTRIBUTIONS as u64;
+        let expected_min_size = base_size + distribution_array_size;
+        
+        println!("  Base fields size: {} bytes", base_size);
+        println!("  Distributions array size: {} bytes", distribution_array_size);
+        println!("  Expected minimum size: {} bytes", expected_min_size);
+        
+        assert!(shader_size >= expected_min_size, 
+                "TerrainParams shader size {} should be at least {} bytes", 
+                shader_size, expected_min_size);
+    }
+}
+
 #[cfg(debug_assertions)]
 pub fn validate_terrain_sizes() {
     use encase::ShaderSize;

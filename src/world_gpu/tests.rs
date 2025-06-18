@@ -9,7 +9,8 @@ mod tests {
         GpuLighting,
         UnifiedMemoryManager, UnifiedMemoryLayout, SystemType, MemoryStats,
     };
-    use crate::gpu::types::terrain::{BlockDistribution, MAX_BLOCK_DISTRIBUTIONS};
+    use crate::gpu::types::terrain::BlockDistribution;
+    use crate::gpu::constants::MAX_BLOCK_DISTRIBUTIONS;
     
     /// Helper to create a test GPU device
     async fn create_test_device() -> (wgpu::Device, wgpu::Queue) {

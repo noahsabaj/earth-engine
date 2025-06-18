@@ -205,8 +205,7 @@ impl SoaBenchmarkSuite {
                 max_height: (i * 10 + 20) as i32 - 50,
                 probability: 0.1 * (i + 1) as f32,
                 noise_threshold: 0.5,
-                _pad0: 0, _pad1: 0, _pad2: 0, _pad3: 0,
-                _pad4: 0, _pad5: 0, _pad6: 0,
+                _padding: [0; 3],
             })
             .collect()
     }

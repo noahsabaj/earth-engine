@@ -175,6 +175,10 @@ impl GpuState {
         log::info!("[GpuState::new] Running GPU diagnostics...");
         let diagnostics_report = GpuDiagnostics::run_diagnostics(&instance).await;
         diagnostics_report.print_report();
+        
+        // Initialize GPU type registry
+        log::info!("[GpuState::new] Initializing GPU type registry...");
+        crate::gpu::automation::initialize_gpu_registry();
 
         // Create surface with detailed error handling
         log::info!("[GpuState::new] Creating surface...");

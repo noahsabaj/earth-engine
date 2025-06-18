@@ -80,9 +80,8 @@ impl GpuDefaultWorldGenerator {
             mountain_threshold: 0.6,
             cave_threshold: 0.3,
             num_distributions: 0, // No custom distributions for default generator
-            _pad: [0; 2],
+            _padding: [0; 2],
             distributions: BlockDistributionSOA::default(),
-            _pad_end: [0; 4],
         };
         terrain_generator.update_params_soa(&terrain_params)
             .expect("Failed to update terrain parameters");

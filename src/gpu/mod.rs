@@ -12,6 +12,10 @@ pub mod shader_includes;
 pub mod soa; // Pure Structure of Arrays implementation
 pub mod constants; // Single source of truth for GPU constants
 pub mod buffer_layouts; // Centralized buffer layout definitions
+pub mod wgsl_generator; // Automatic WGSL generation from Rust types
+
+// New automation system modules
+pub mod automation; // Unified automation system entry point
 
 pub use buffer_manager::{GpuBufferManager, GpuError};
 pub use types::{GpuData, TypedGpuBuffer, terrain};
@@ -28,4 +32,10 @@ pub use soa::{SoaCompatible, BlockDistributionSOA, TerrainParamsSOA, SoaBufferBu
 pub use buffer_layouts::{
     VoxelData, InstanceData, CameraUniform, IndirectDrawCommand,
     bindings, calculations, constants as buffer_constants,
+};
+
+// Re-export automation types
+pub use automation::{
+    UnifiedGpuSystem, GpuTypeInfo, BindingAccess,
+    TypedRenderPipelineBuilder, TypedComputePipelineBuilder, create_validated_shader,
 };

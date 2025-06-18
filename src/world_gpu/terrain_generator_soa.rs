@@ -40,6 +40,47 @@ pub struct TerrainGeneratorSOA {
 }
 
 impl TerrainGeneratorSOA {
+    /// Strip manual type definitions from shader code
+    /// The unified system will add all required type definitions automatically
+    fn strip_manual_types(shader_code: &str) -> String {
+        let mut result = String::new();
+        let mut in_struct = false;
+        let mut brace_count = 0;
+        
+        for line in shader_code.lines() {
+            let trimmed = line.trim();
+            
+            // Skip struct definitions (they'll come from unified system)
+            if trimmed.starts_with("struct ") {
+                in_struct = true;
+                brace_count = 0;
+                continue;
+            }
+            
+            // Track braces to know when struct ends
+            if in_struct {
+                brace_count += line.chars().filter(|&c| c == '{').count() as i32;
+                brace_count -= line.chars().filter(|&c| c == '}').count() as i32;
+                
+                if brace_count <= 0 && trimmed.ends_with('}') {
+                    in_struct = false;
+                }
+                continue;
+            }
+            
+            // Skip type aliases and constants (they'll come from unified system)
+            if trimmed.starts_with("alias ") || trimmed.starts_with("const ") {
+                continue;
+            }
+            
+            // Keep the rest of the shader code
+            result.push_str(line);
+            result.push('\n');
+        }
+        
+        result
+    }
+    
     /// Validate that a shader entry point exists in the shader source
     fn validate_shader_entry_point(shader_source: &str, entry_point: &str) -> Result<(), String> {
         // Check for the entry point function definition
@@ -216,31 +257,31 @@ impl TerrainGeneratorSOA {
         log::info!("[TerrainGeneratorSOA] TerrainParamsSOA size: {} bytes", 
                   std::mem::size_of::<TerrainParamsSOA>());
         
-        // Load SOA shader
-        let shader_source_raw = include_str!("../gpu/shaders/soa/terrain_generation_soa.wgsl");
+        // Load SOA shader code (without type definitions - those come from unified system)
+        let shader_code_raw = include_str!("../gpu/shaders/soa/terrain_generation_soa.wgsl");
         
-        // Preprocess the shader
-        let shader_source = match crate::gpu::preprocess_shader_content(
-            shader_source_raw, 
-            std::path::Path::new("src/gpu/shaders/soa/terrain_generation_soa.wgsl")
+        // Strip out manual type definitions from shader (they'll be auto-generated)
+        let shader_code = Self::strip_manual_types(shader_code_raw);
+        
+        log::info!("[TerrainGeneratorSOA] Creating shader through unified GPU system");
+        
+        // Create shader through unified system which adds all types automatically
+        let validated_shader = match crate::gpu::automation::create_gpu_shader(
+            &device,
+            "terrain_generation_soa",
+            &shader_code,
         ) {
-            Ok(processed) => processed,
+            Ok(shader) => shader,
             Err(e) => {
-                log::error!("[TerrainGeneratorSOA] Failed to preprocess shader: {}", e);
-                panic!("[TerrainGeneratorSOA] Shader preprocessing failed: {}", e);
+                log::error!("[TerrainGeneratorSOA] Failed to create shader: {:?}", e);
+                panic!("[TerrainGeneratorSOA] Shader creation failed: {:?}", e);
             }
         };
         
-        log::info!("[TerrainGeneratorSOA] Loading SOA shader ({} characters)", shader_source.len());
+        let shader = &validated_shader.module;
         
-        // Keep a copy of shader source for validation
-        let shader_source_for_validation = shader_source.clone();
-        
-        // Create shader module
-        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("SOA Terrain Generation Shader"),
-            source: wgpu::ShaderSource::Wgsl(shader_source.into()),
-        });
+        // Keep reference to shader code for validation
+        let shader_source_for_validation = shader_code.clone();
         
         // Create bind group layout for SOA shader using centralized definitions
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
