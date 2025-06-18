@@ -63,9 +63,6 @@ fn generate_wgsl_types() -> String {
     format!(r#"// AUTO-GENERATED - DO NOT EDIT
 // Generated from Rust GPU type definitions by build.rs
 
-// Maximum number of block distributions (must match Rust)
-const MAX_BLOCK_DISTRIBUTIONS: u32 = {}u;
-
 // Generic block distribution rule
 struct BlockDistribution {{
     block_id: u32,
@@ -104,7 +101,7 @@ struct ChunkMetadata {{
     checksum: u32,      // For validation
     reserved: u32,
 }}
-"#, MAX_BLOCK_DISTRIBUTIONS)
+"#)
 }
 
 /// Generate SOA WGSL type definitions
@@ -113,9 +110,6 @@ fn generate_soa_wgsl_types() -> String {
     format!(r#"// AUTO-GENERATED - DO NOT EDIT
 // Generated from Rust GPU type definitions by build.rs
 // Structure of Arrays (SOA) types for maximum GPU performance
-
-// Maximum number of block distributions (must match Rust)
-const MAX_BLOCK_DISTRIBUTIONS: u32 = {}u;
 
 // SOA representation of block distributions for coalesced memory access
 struct BlockDistributionSOA {{
@@ -206,7 +200,7 @@ fn check_height_soa_vec4(distributions: ptr<storage, BlockDistributionSOA>, worl
     
     return 0u;
 }}
-"#, MAX_BLOCK_DISTRIBUTIONS)
+"#)
 }
 
 /// Generate WGSL constants

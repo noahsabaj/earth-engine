@@ -2,9 +2,6 @@
 // Generated from Rust GPU type definitions by build.rs
 // Structure of Arrays (SOA) types for maximum GPU performance
 
-// Maximum number of block distributions (must match Rust)
-const MAX_BLOCK_DISTRIBUTIONS: u32 = 16u;
-
 // SOA representation of block distributions for coalesced memory access
 struct BlockDistributionSOA {
     count: u32,

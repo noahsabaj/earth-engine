@@ -135,9 +135,9 @@ impl TerrainGeneratorSOA {
             issues.push("Shader missing ChunkMetadata struct definition".to_string());
         }
         
-        // Check for voxel array access
-        if !shader_source.contains("voxels[") {
-            issues.push("Shader missing voxel array access pattern".to_string());
+        // Check for world_data array access (the actual buffer name used)
+        if !shader_source.contains("world_data[") {
+            issues.push("Shader missing world_data array access pattern".to_string());
         }
         
         if !issues.is_empty() {

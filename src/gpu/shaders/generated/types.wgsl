@@ -1,9 +1,6 @@
 // AUTO-GENERATED - DO NOT EDIT
 // Generated from Rust GPU type definitions by build.rs
 
-// Maximum number of block distributions (must match Rust)
-const MAX_BLOCK_DISTRIBUTIONS: u32 = 16u;
-
 // Generic block distribution rule
 struct BlockDistribution {
     block_id: u32,
