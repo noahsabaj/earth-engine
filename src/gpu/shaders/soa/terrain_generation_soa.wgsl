@@ -95,7 +95,7 @@ fn find_distribution_index_soa_global(block_id: u32) -> u32 {
 }
 
 // Main compute kernel
-@compute @workgroup_size(8, 8, 8)
+@compute @workgroup_size(8, 4, 4)
 fn generate_terrain(
     @builtin(global_invocation_id) global_id: vec3<u32>,
     @builtin(workgroup_id) workgroup_id: vec3<u32>,
@@ -110,7 +110,7 @@ fn generate_terrain(
     let chunk_meta = metadata[chunk_idx];
     
     // Calculate local position within chunk
-    let local_pos = local_id + workgroup_id * vec3<u32>(8u, 8u, 8u);
+    let local_pos = local_id + workgroup_id * vec3<u32>(8u, 4u, 4u);
     
     // Check bounds
     if (local_pos.x >= CHUNK_SIZE || local_pos.y >= CHUNK_SIZE || local_pos.z >= CHUNK_SIZE) {
@@ -140,7 +140,7 @@ fn generate_terrain(
 }
 
 // Vectorized compute kernel for even better performance
-@compute @workgroup_size(8, 8, 8)
+@compute @workgroup_size(8, 4, 4)
 fn generate_terrain_vectorized(@builtin(global_invocation_id) global_id: vec3<u32>) {
     // Process 4 voxels at once when possible
     let base_x = global_id.x * 4u;

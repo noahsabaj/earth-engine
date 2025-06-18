@@ -452,10 +452,10 @@ impl TerrainGeneratorSOA {
             compute_pass.set_bind_group(0, &bind_group, &[]);
             
             // Dispatch workgroups for one chunk at a time
-            // With workgroup size 8x8x8 and chunk size 32x32x32
+            // With workgroup size 8x4x4 and chunk size 32x32x32
             let workgroups_x = 4; // 32 / 8
-            let workgroups_y = 4; // 32 / 8  
-            let workgroups_z = 4; // 32 / 8
+            let workgroups_y = 8; // 32 / 4  
+            let workgroups_z = 8; // 32 / 4
             
             // For now, generate one chunk at a time
             // TODO: Optimize to generate multiple chunks in parallel
