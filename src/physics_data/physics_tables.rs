@@ -21,6 +21,12 @@ impl EntityId {
     }
 }
 
+impl std::fmt::Display for EntityId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 /// Axis-aligned bounding box for collision detection
 #[derive(Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 #[repr(C)]
@@ -105,6 +111,9 @@ impl PhysicsFlags {
     pub const KINEMATIC: u32 = 1 << 2;
     pub const GRAVITY: u32 = 1 << 3;
     pub const SLEEPING: u32 = 1 << 4;
+    pub const GROUNDED: u32 = 1 << 5;
+    pub const IN_WATER: u32 = 1 << 6;
+    pub const ON_LADDER: u32 = 1 << 7;
     
     pub fn new() -> Self {
         Self { bits: Self::ACTIVE | Self::GRAVITY }

@@ -11,7 +11,7 @@ use hearth_engine::profiling::{
 };
 use hearth_engine::renderer::gpu_driven::GpuDrivenRenderer;
 use hearth_engine::world::{ParallelWorld, ParallelWorldConfig};
-use hearth_engine::camera::{Camera, CameraData, init_camera};
+use hearth_engine::camera::{CameraData, init_camera};
 use hearth_engine::EngineConfig;
 
 use winit::{

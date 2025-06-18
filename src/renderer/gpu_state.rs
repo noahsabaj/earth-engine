@@ -5,15 +5,17 @@
 
 #![allow(deprecated)]
 
-use crate::{EngineConfig, Game, GameContext, BlockRegistry, BlockId, VoxelPos};
+use crate::{EngineConfig, GameContext, BlockRegistry, BlockId, VoxelPos};
+use crate::game::{GameData, register_game_blocks, update_game, get_active_block_from_game, handle_block_break, handle_block_place};
 use crate::camera::{
-    Camera, CameraData,
+    CameraData,
     update_aspect_ratio, camera_rotate, 
     build_view_matrix, build_projection_matrix, calculate_forward_vector,
     init_camera, init_camera_with_spawn,
 };
 use crate::input::InputState;
-use crate::physics::{PhysicsWorldData, GpuPhysicsWorld, EntityId, flags};
+use crate::physics::{GpuPhysicsWorld};
+use crate::physics_data::{EntityId, physics_tables::PhysicsFlags};
 use crate::renderer::{SelectionRenderer, GpuDiagnostics, GpuInitProgress, gpu_driven::GpuDrivenRenderer, screenshot};
 use crate::world::{Ray, RaycastHit, ParallelWorld, ParallelWorldConfig, WorldInterface, SpawnFinder};
 use crate::lighting::{DayNightCycleData, LightUpdate, LightType};
@@ -36,13 +38,11 @@ use winit::{
 // Engine's basic blocks are registered via register_basic_blocks()
 
 // Dummy game for when no game is provided
-struct DummyGame;
+// Default empty game data for engine-only mode
+#[derive(Clone)]
+struct DefaultGameData;
 
-#[allow(deprecated)]
-impl Game for DummyGame {
-    fn register_blocks(&mut self, _registry: &mut BlockRegistry) {}
-    fn update(&mut self, _ctx: &mut GameContext, _delta_time: f32) {}
-}
+impl GameData for DefaultGameData {}
 
 // Full camera data for CPU-side operations
 #[repr(C)]
@@ -69,21 +69,7 @@ impl CameraUniform {
         }
     }
 
-    #[deprecated(since="0.35.0", note="Use update_view_proj_data instead")]
-    fn update_view_proj(&mut self, camera: &Camera) {
-        let view = camera.build_view_matrix();
-        let proj = camera.build_projection_matrix();
-        self.view = view.into();
-        self.projection = proj.into();
-        self.view_proj = (proj * view).into();
-        self.position = [camera.position.x, camera.position.y, camera.position.z];
-        
-        // Log camera matrices for debugging
-        log::debug!("[CameraUniform] Camera position: {:?}", camera.position);
-        log::debug!("[CameraUniform] View matrix: {:?}", view);
-        log::debug!("[CameraUniform] Projection matrix: {:?}", proj);
-        log::debug!("[CameraUniform] View-Proj matrix: {:?}", self.view_proj);
-    }
+    // Deprecated Camera method removed - use update_view_proj_data instead
 
     fn update_view_proj_data(&mut self, camera: &CameraData) {
         let view = build_view_matrix(camera);
@@ -161,10 +147,10 @@ impl GpuState {
     }
     
     async fn new(window: Arc<Window>) -> Result<Self> {
-        Self::new_with_game::<DummyGame>(window, None).await
+        Self::new_with_game(window, None::<&mut DefaultGameData>).await
     }
     
-    async fn new_with_game<G: Game>(window: Arc<Window>, game: Option<&mut G>) -> Result<Self> {
+    async fn new_with_game<G: GameData>(window: Arc<Window>, game: Option<&mut G>) -> Result<Self> {
         log::info!("[GpuState::new] Starting GPU initialization");
         let init_start = std::time::Instant::now();
         let _progress = GpuInitProgress::new();
@@ -607,7 +593,7 @@ impl GpuState {
         // Register game blocks if game is provided
         if let Some(game) = game {
             log::info!("[GpuState::new] Registering game blocks...");
-            game.register_blocks(&mut block_registry_mut);
+            register_game_blocks(game, &mut block_registry_mut);
         }
         
         // Get block IDs (they are constants from BlockId)
@@ -737,7 +723,7 @@ impl GpuState {
         log::info!("[GpuState::new] Creating GPU physics world...");
         
         // Create GPU physics system if WorldBuffer is available
-        let (mut physics_world, player_entity) = if let Some(world_buffer) = world.get_world_buffer() {
+        let (physics_world, player_entity) = if let Some(world_buffer) = world.get_world_buffer() {
             log::info!("[GpuState::new] Creating GPU-accelerated physics system...");
             let mut gpu_physics = GpuPhysicsWorld::new(
                 device.clone(),
@@ -761,7 +747,7 @@ impl GpuState {
         } else {
             log::warn!("[GpuState::new] WorldBuffer not available - falling back to CPU physics");
             // Fallback player entity ID
-            (None, 1)
+            (None, EntityId(1))
         };
         
         log::info!("[GpuState::new] Physics world created with player entity ID: {} at safe spawn position: {:?}", player_entity, camera.position);
@@ -780,7 +766,7 @@ impl GpuState {
         if let Some(ref physics_world) = physics_world {
             if let Some(body) = physics_world.get_body(player_entity) {
                 log::info!("[GpuState::new] Player body verified at position: [{:.2}, {:.2}, {:.2}]", body.position[0], body.position[1], body.position[2]);
-                let is_grounded = (body.flags & flags::GROUNDED) != 0;
+                let is_grounded = (body.flags & PhysicsFlags::GROUNDED) != 0;
                 if !is_grounded {
                     log::info!("[GpuState::new] Player spawned in air - will fall to ground and become grounded");
                 }
@@ -1323,9 +1309,9 @@ impl GpuState {
                 }
                 
                 // Check player state flags
-                let is_grounded = (body.flags & flags::GROUNDED) != 0;
-                let is_in_water = (body.flags & flags::IN_WATER) != 0;
-                let is_on_ladder = (body.flags & flags::ON_LADDER) != 0;
+                let is_grounded = (body.flags & PhysicsFlags::GROUNDED) != 0;
+                let is_in_water = (body.flags & PhysicsFlags::IN_WATER) != 0;
+                let is_on_ladder = (body.flags & PhysicsFlags::ON_LADDER) != 0;
                 
                 // Determine movement speed based on state
                 let mut move_speed = 4.3; // Normal walking speed
@@ -1872,7 +1858,7 @@ fn create_depth_texture(
     texture.create_view(&wgpu::TextureViewDescriptor::default())
 }
 
-pub async fn run_app<G: Game + 'static>(
+pub async fn run_app<G: GameData + 'static>(
     event_loop: EventLoop<()>,
     config: EngineConfig,
     mut game: G,
@@ -1909,12 +1895,9 @@ pub async fn run_app<G: Game + 'static>(
         }
     };
     
-    // Replace world generator with game's custom generator if provided
-    if let Some(custom_generator) = game.create_world_generator(
-        gpu_state.device.clone(),
-        gpu_state.queue.clone(),
-        &gpu_state.block_registry,
-    ) {
+    // TODO: Custom world generator support for DOP games
+    // This feature needs to be redesigned for the DOP architecture
+    if false { // let Some(custom_generator) = game.create_world_generator(
         log::info!("[gpu_state::run_app] Using game's custom world generator");
         // Create new world with custom generator
         let seed = 12345; // Same seed as default
@@ -1925,6 +1908,15 @@ pub async fn run_app<G: Game + 'static>(
             view_distance: 5,
             chunk_size: 32,
         };
+        // Create default world generator for custom world
+        let custom_generator = Box::new(crate::world::generation::DefaultWorldGenerator::new(
+            42, // seed
+            BlockId(0), // air
+            BlockId(1), // grass
+            BlockId(2), // dirt
+            BlockId(3), // water
+            BlockId(4), // sand
+        ));
         gpu_state.world = ParallelWorld::new(custom_generator, parallel_config);
         
         // Re-find spawn position with new world
@@ -2075,7 +2067,7 @@ pub async fn run_app<G: Game + 'static>(
                         last_frame = now;
 
                         // Update input and camera
-                        let active_block = game.get_active_block();
+                        let active_block = get_active_block_from_game(&game);
                         let (broken_block_info, placed_block_pos) = gpu_state.process_input(&input_state, delta_time, active_block);
                         
                         // Log camera info periodically for debugging
@@ -2233,14 +2225,14 @@ pub async fn run_app<G: Game + 'static>(
                             input: &input_state,
                             selected_block: gpu_state.selected_block.clone(),
                         };
-                        game.update(&mut ctx, delta_time);
+                        update_game(&mut game, &mut ctx, delta_time);
                         
                         // Handle block callbacks
                         if let Some((pos, block_id)) = broken_block_info {
-                            game.on_block_break(pos, block_id);
+                            handle_block_break(&mut game, pos, block_id);
                         }
                         if let Some(place_pos) = placed_block_pos {
-                            game.on_block_place(place_pos, active_block);
+                            handle_block_place(&mut game, place_pos, active_block);
                         }
 
                         // Render

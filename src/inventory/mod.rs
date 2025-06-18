@@ -1,5 +1,5 @@
 pub mod data_inventory;
-pub mod drop_handler;
+// pub mod drop_handler; // Removed - was using deprecated inventory system
 
 // Re-export data-oriented inventory system
 pub use data_inventory::{
@@ -43,23 +43,5 @@ pub use data_inventory::{
     apply_operation_batch,
 };
 
-pub use drop_handler::ItemDropHandler;
+// pub use drop_handler::ItemDropHandler; // Removed with deprecated inventory system
 
-// Legacy OOP-style modules (to be removed)
-#[deprecated(note = "Use data_inventory module instead")]
-pub mod item;
-#[deprecated(note = "Use data_inventory module instead")]
-pub mod player_inventory;
-#[deprecated(note = "Use data_inventory module instead")]
-pub mod slot;
-
-// Legacy exports for compatibility (to be removed)
-#[allow(deprecated)]
-#[deprecated(note = "Use ItemStackData instead")]
-pub use item::ItemStack;
-#[allow(deprecated)]
-#[deprecated(note = "Use PlayerInventoryData instead")]
-pub use player_inventory::PlayerInventory;
-#[allow(deprecated)]
-#[deprecated(note = "Use InventorySlotData instead")]
-pub use slot::InventorySlot;

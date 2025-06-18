@@ -38,43 +38,6 @@ pub fn get_active_block_from_game<T: GameData>(game: &T) -> BlockId {
     BlockId(1) // Default to first registered block
 }
 
-/// Legacy trait for backwards compatibility
-/// Will be removed in future sprints
-#[deprecated(note = "Use GameData trait and DOP functions instead")]
-pub trait Game: Send + Sync {
-    /// Called once at startup to register blocks
-    fn register_blocks(&mut self, registry: &mut BlockRegistry);
-    
-    /// Called every frame
-    fn update(&mut self, ctx: &mut GameContext, delta_time: f32);
-    
-    /// Called when a block is broken
-    fn on_block_break(&mut self, pos: VoxelPos, block: BlockId) {
-        let _ = (pos, block); // Default implementation does nothing
-    }
-    
-    /// Called when a block is placed
-    fn on_block_place(&mut self, pos: VoxelPos, block: BlockId) {
-        let _ = (pos, block); // Default implementation does nothing
-    }
-    
-    /// Get the block ID that should be placed when right-clicking
-    fn get_active_block(&self) -> BlockId {
-        BlockId(1) // Default to first registered block
-    }
-    
-    /// Create world generator for this game
-    /// Returns None to use default world generator
-    fn create_world_generator(
-        &self,
-        device: std::sync::Arc<crate::wgpu::Device>,
-        queue: std::sync::Arc<crate::wgpu::Queue>,
-        block_registry: &BlockRegistry,
-    ) -> Option<Box<dyn crate::world::WorldGenerator>> {
-        let _ = (device, queue, block_registry);
-        None // Default: use engine's default world generator
-    }
-}
 
 /// Context passed to game update functions
 pub struct GameContext<'a> {
@@ -122,24 +85,3 @@ pub fn place_block_in_context(ctx: &mut GameContext, pos: VoxelPos, block_id: Bl
     }
 }
 
-/// Legacy implementation for backwards compatibility
-#[allow(deprecated)]
-impl<'a> GameContext<'a> {
-    /// Cast a ray from the camera and find what block is being looked at
-    #[deprecated(note = "Use cast_camera_ray_from_context instead")]
-    pub fn cast_camera_ray(&self, max_distance: f32) -> Option<RaycastHit> {
-        cast_camera_ray_from_context(self, max_distance)
-    }
-    
-    /// Break a block at the given position
-    #[deprecated(note = "Use break_block_in_context instead")]
-    pub fn break_block(&mut self, pos: VoxelPos) -> bool {
-        break_block_in_context(self, pos)
-    }
-    
-    /// Place a block at the given position
-    #[deprecated(note = "Use place_block_in_context instead")]
-    pub fn place_block(&mut self, pos: VoxelPos, block_id: BlockId) -> bool {
-        place_block_in_context(self, pos, block_id)
-    }
-}

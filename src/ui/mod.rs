@@ -1,5 +1,5 @@
 pub mod data_inventory_ui;
-pub mod inventory_input;
+// pub mod inventory_input; // Removed - was using deprecated UI patterns
 
 // Re-export data-oriented UI system
 pub use data_inventory_ui::{
@@ -22,11 +22,5 @@ pub use data_inventory_ui::{
     process_inventory_input,
 };
 
-pub use inventory_input::{InventoryInputHandler, MouseButton};
+// pub use inventory_input::{InventoryInputHandler, MouseButton}; // Removed with deprecated UI
 
-// Legacy OOP-style UI (to be removed)
-#[deprecated(note = "Use data_inventory_ui module instead")]
-pub mod inventory_ui;
-#[allow(deprecated)]
-#[deprecated(note = "Use InventoryUIData instead")]
-pub use inventory_ui::InventoryUI;

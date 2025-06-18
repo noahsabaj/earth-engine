@@ -50,9 +50,9 @@ use winit::event_loop::{EventLoop, EventLoopBuilder};
 
 pub use error::{EngineError, EngineResult, OptionExt, ErrorContext};
 pub use camera::{CameraData, CameraUniform};
-pub use game::{Game, GameContext};
+pub use game::{GameContext, GameData};
 pub use input::KeyCode;
-pub use physics::{PhysicsWorldData, PhysicsBodyData, AABB};
+pub use physics::{AABB};
 pub use renderer::Renderer;
 pub use world::{Block, BlockId, BlockRegistry, Chunk, ChunkPos, VoxelPos, RenderData, PhysicsProperties, World, Ray, RaycastHit, BlockFace, cast_ray};
 
@@ -142,7 +142,7 @@ impl Engine {
         }
     }
 
-    pub fn run<G: Game + 'static>(mut self, game: G) -> Result<()> {
+    pub fn run<G: GameData + 'static>(mut self, game: G) -> Result<()> {
         log::info!("[Engine::run] Starting engine run method");
         
         let event_loop = match self.event_loop.take() {

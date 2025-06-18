@@ -4,7 +4,7 @@ use hearth_engine::{
     ChunkPos, BlockId, BlockRegistry,
     renderer::SimpleAsyncRenderer,
     world::{ParallelWorld, ParallelWorldConfig, generation::DefaultWorldGenerator},
-    camera::{Camera, CameraData, init_camera},
+    camera::{CameraData, init_camera},
 };
 use std::sync::Arc;
 use cgmath::Point3;
@@ -49,13 +49,12 @@ fn main() {
         Some(2),
     );
     
-    // Create camera using the deprecated API for this example
-    #[allow(deprecated)]
-    let mut camera = Camera::new(800, 600);
+    // Create camera using the data-oriented API
+    let mut camera = init_camera(800, 600);
     
     println!("Step 1: Initial position - generating chunks");
-    camera.position = Point3::new(0.0, 10.0, 0.0);
-    world.update(camera.position);
+    camera.position = [0.0, 10.0, 0.0];
+    world.update(Point3::new(camera.position[0], camera.position[1], camera.position[2]));
     
     // Wait for chunks to generate
     std::thread::sleep(std::time::Duration::from_millis(200));
@@ -69,8 +68,8 @@ fn main() {
     println!("  Initial GPU meshes: {}", initial_meshes);
     
     println!("\nStep 2: Move camera far away - chunks unload");
-    camera.position = Point3::new(1000.0, 10.0, 1000.0);
-    world.update(camera.position);
+    camera.position = [1000.0, 10.0, 1000.0];
+    world.update(Point3::new(camera.position[0], camera.position[1], camera.position[2]));
     
     // Wait for unloading
     std::thread::sleep(std::time::Duration::from_millis(200));
@@ -83,8 +82,8 @@ fn main() {
     println!("  After cleanup: {} GPU meshes", renderer.mesh_count());
     
     println!("\nStep 3: Return to original position");
-    camera.position = Point3::new(0.0, 10.0, 0.0);
-    world.update(camera.position);
+    camera.position = [0.0, 10.0, 0.0];
+    world.update(Point3::new(camera.position[0], camera.position[1], camera.position[2]));
     
     // Queue chunks again
     renderer.queue_dirty_chunks(&world, &camera);

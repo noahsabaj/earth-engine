@@ -7,12 +7,27 @@
 use std::sync::{Arc, Mutex};
 use cgmath::{Point3, Vector3};
 use crate::{
-    physics::{PhysicsBodyData, EntityId, flags, FIXED_TIMESTEP},
+    physics_data::{PhysicsData, EntityId, physics_tables::PhysicsFlags},
+    physics::FIXED_TIMESTEP,
     world::WorldInterface,
     world_gpu::{WorldBuffer, HierarchicalPhysics, PhysicsQuery, QueryType, QueryResult},
     memory::MemoryManager,
 };
 use wgpu::util::DeviceExt;
+
+/// Compatibility struct for PhysicsBodyData
+#[derive(Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+#[repr(C)]
+pub struct PhysicsBodyData {
+    pub position: [f32; 3],
+    pub velocity: [f32; 3],
+    pub aabb_min: [f32; 3],
+    pub aabb_max: [f32; 3],
+    pub mass: f32,
+    pub friction: f32,
+    pub restitution: f32,
+    pub flags: u32,
+}
 
 /// GPU-powered physics world that maintains PhysicsWorldData interface
 pub struct GpuPhysicsWorld {
@@ -138,7 +153,7 @@ impl GpuPhysicsWorld {
             entities: Vec::with_capacity(max_entities as usize),
             active_count: 0,
             id_to_index: rustc_hash::FxHashMap::default(),
-            next_entity_id: 1,
+            next_entity_id: EntityId(1),
             physics_pipeline,
             bind_group_layout,
             accumulator: 0.0,
@@ -163,11 +178,11 @@ impl GpuPhysicsWorld {
     ) -> EntityId {
         if self.active_count >= self.entity_capacity as usize {
             log::error!("[GpuPhysicsWorld] Cannot add entity - capacity exceeded");
-            return 0;
+            return EntityId(0);
         }
         
         let entity_id = self.next_entity_id;
-        self.next_entity_id += 1;
+        self.next_entity_id.0 += 1;
         
         let half_size = aabb_size * 0.5;
         let body = PhysicsBodyData {
@@ -178,7 +193,7 @@ impl GpuPhysicsWorld {
             mass,
             friction,
             restitution,
-            flags: flags::ACTIVE,
+            flags: PhysicsFlags::ACTIVE,
         };
         
         // Store in CPU-side tracking

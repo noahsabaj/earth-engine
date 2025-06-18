@@ -214,22 +214,3 @@ fn order_edge(a: u32, b: u32) -> (u32, u32) {
     if a < b { (a, b) } else { (b, a) }
 }
 
-// ===== COMPATIBILITY LAYER =====
-// Temporary wrapper to maintain compatibility with existing code
-
-#[deprecated(note = "Use MeshSimplifierData and pure functions instead")]
-pub type MeshSimplifier = MeshSimplifierData;
-
-impl MeshSimplifierData {
-    /// Compatibility wrapper - use create_mesh_simplifier_data instead
-    #[deprecated(note = "Use create_mesh_simplifier_data function instead")]
-    pub fn new(vertices: &[Vertex], indices: &[u32]) -> Self {
-        create_mesh_simplifier_data(vertices, indices)
-    }
-    
-    /// Compatibility wrapper - use simplify_mesh function instead  
-    #[deprecated(note = "Use simplify_mesh function instead")]
-    pub fn simplify(&mut self, target_triangles: usize) -> SimplifiedMesh {
-        simplify_mesh(self, target_triangles)
-    }
-}

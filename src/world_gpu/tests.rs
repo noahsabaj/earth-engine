@@ -4,12 +4,12 @@ mod tests {
     use crate::world::ChunkPos;
     use crate::world_gpu::{
         WorldBuffer, WorldBufferDescriptor, VoxelData,
-        TerrainGenerator, TerrainParams,
+        TerrainGeneratorSOA, TerrainParams,
         ChunkModifier, ModificationCommand,
         GpuLighting,
         UnifiedMemoryManager, UnifiedMemoryLayout, SystemType, MemoryStats,
     };
-    use crate::world_gpu::terrain_generator::{BlockDistribution, MAX_BLOCK_DISTRIBUTIONS};
+    use crate::gpu::types::terrain::{BlockDistribution, MAX_BLOCK_DISTRIBUTIONS};
     
     /// Helper to create a test GPU device
     async fn create_test_device() -> (wgpu::Device, wgpu::Queue) {
@@ -101,7 +101,7 @@ mod tests {
         });
         
         // Create terrain generator
-        let terrain_gen = TerrainGenerator::new(device.clone(), queue.clone());
+        let terrain_gen = TerrainGeneratorSOA::new(device.clone(), queue.clone());
         
         // Update parameters
         let params = TerrainParams {
@@ -129,7 +129,7 @@ mod tests {
             label: Some("Test Terrain Generation"),
         });
         
-        terrain_gen.generate_chunks(&mut encoder, &mut world_buffer, &chunks_to_generate);
+        terrain_gen.generate_chunks(&world_buffer, &chunks_to_generate, &mut encoder).expect("Failed to generate chunks");
         
         queue.submit(std::iter::once(encoder.finish()));
         

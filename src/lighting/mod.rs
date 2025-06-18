@@ -12,8 +12,8 @@ pub use optimized_propagation::{propagate_light_thread_local};
 pub use skylight::SkylightCalculator;
 pub use time_of_day::{TimeOfDayData, DayNightCycleData};
 pub use parallel_propagator::{
-    ParallelLightPropagator, LightUpdate, ChunkLightData, 
-    LightingStats, BatchLightCalculator, BlockProvider
+    ParallelLightPropagatorData, LightUpdate, ChunkLightData, 
+    LightingStats, BatchLightCalculatorData, BlockProvider
 };
 pub use concurrent_provider::{
     ConcurrentBlockProvider, ParallelBlockProvider, TestBlockProvider

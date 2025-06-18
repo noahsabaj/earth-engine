@@ -3,7 +3,7 @@ use std::time::Instant;
 use crate::world::ChunkPos;
 use super::{
     WorldBuffer, WorldBufferDescriptor,
-    TerrainGenerator, TerrainParams,
+    TerrainGeneratorSOA, TerrainParams,
     ChunkModifier, ModificationCommand,
     GpuLighting,
 };
@@ -35,13 +35,13 @@ impl GpuWorldBenchmarks {
     fn benchmark_terrain_generation(&self) {
         println!("## Terrain Generation Benchmark");
         
-        let mut world_buffer = WorldBuffer::new(self.device.clone(), &WorldBufferDescriptor {
+        let world_buffer = WorldBuffer::new(self.device.clone(), &WorldBufferDescriptor {
             view_distance: 8,
             enable_atomics: true,
             enable_readback: false,
         });
         
-        let terrain_gen = TerrainGenerator::new(self.device.clone(), self.queue.clone());
+        let terrain_gen = TerrainGeneratorSOA::new(self.device.clone(), self.queue.clone());
         terrain_gen.update_params(&TerrainParams::default()).unwrap();
         
         // Test different batch sizes
@@ -62,7 +62,7 @@ impl GpuWorldBenchmarks {
                 label: Some("Benchmark Encoder"),
             });
             
-            terrain_gen.generate_chunks(&mut encoder, &mut world_buffer, &chunks);
+            terrain_gen.generate_chunks(&world_buffer, &chunks, &mut encoder).expect("Failed to generate chunks");
             
             self.queue.submit(std::iter::once(encoder.finish()));
             self.device.poll(wgpu::Maintain::Wait);
@@ -90,7 +90,7 @@ impl GpuWorldBenchmarks {
         let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: None,
         });
-        terrain_gen.generate_chunks(&mut encoder, &mut world_buffer, &chunks);
+        terrain_gen.generate_chunks(&world_buffer, &chunks, &mut encoder).expect("Failed to generate chunks");
         self.queue.submit(std::iter::once(encoder.finish()));
         self.device.poll(wgpu::Maintain::Wait);
         let elapsed = start.elapsed();

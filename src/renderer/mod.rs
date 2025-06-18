@@ -27,7 +27,8 @@ pub mod chunk_mesh_adapter;
 pub mod chunk_rendering;
 pub mod screenshot;
 
-use crate::{EngineConfig, Game};
+use crate::{EngineConfig};
+use crate::game::GameData;
 use anyhow::Result;
 use winit::event_loop::EventLoop;
 
@@ -62,7 +63,7 @@ pub struct Renderer {
     // Will be implemented
 }
 
-pub fn run<G: Game + 'static>(
+pub fn run<G: GameData + 'static>(
     event_loop: EventLoop<()>,
     config: EngineConfig,
     game: G,

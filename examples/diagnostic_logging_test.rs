@@ -10,7 +10,7 @@
 /// 5. Camera Spatial Context logging
 
 use hearth_engine::{
-    world_gpu::{terrain_generator::TerrainGenerator, world_buffer::{WorldBuffer, WorldBufferDescriptor}},
+    world_gpu::{TerrainGeneratorSOA, world_buffer::{WorldBuffer, WorldBufferDescriptor}},
     renderer::data_mesh_builder::{MESH_BUFFER_POOL, operations::build_chunk_mesh},
     camera::data_camera::{init_camera_with_spawn, diagnostics},
     world::ChunkPos,
@@ -151,8 +151,8 @@ async fn test_gpu_operations() -> Result<(), Box<dyn std::error::Error>> {
     let mut world_buffer = WorldBuffer::new(device.clone(), &desc);
     
     // Test terrain generator logging
-    println!("Testing TerrainGenerator diagnostic logging...");
-    let terrain_generator = TerrainGenerator::new(device.clone(), queue.clone());
+    println!("Testing TerrainGeneratorSOA diagnostic logging...");
+    let terrain_generator = TerrainGeneratorSOA::new(device.clone(), queue.clone());
     
     // Create command encoder for GPU operations
     let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
@@ -166,7 +166,7 @@ async fn test_gpu_operations() -> Result<(), Box<dyn std::error::Error>> {
         ChunkPos::new(0, 0, 1),
     ];
     
-    terrain_generator.generate_chunks(&mut encoder, &world_buffer, &test_chunks);
+    terrain_generator.generate_chunks(&world_buffer, &test_chunks, &mut encoder).expect("Failed to generate chunks");
     
     // Submit GPU commands
     let submission_start = std::time::Instant::now();

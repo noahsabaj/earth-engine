@@ -1,15 +1,11 @@
 pub mod aabb;
-pub mod data_physics;
 pub mod body;
 pub mod gpu_physics_world;
 
 pub use aabb::AABB;
 pub use body::{PhysicsBody, RigidBody, PlayerBody, MovementState};
-pub use data_physics::{PhysicsWorldData, PhysicsBodyData, PhysicsUpdate, CollisionBlockBuffer, EntityId, flags};
 pub use gpu_physics_world::GpuPhysicsWorld;
 
-// Re-export PhysicsWorldData as PhysicsWorld for compatibility
-pub use data_physics::PhysicsWorldData as PhysicsWorld;
 
 use cgmath::Vector3;
 
