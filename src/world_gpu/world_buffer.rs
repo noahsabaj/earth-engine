@@ -119,6 +119,23 @@ impl WorldBuffer {
         
         // Safety check: prevent massive allocations
         let memory_mb = (max_chunks as u64 * CHUNK_BUFFER_SLOT_SIZE) / (1024 * 1024);
+        let memory_bytes = max_chunks as u64 * CHUNK_BUFFER_SLOT_SIZE;
+        
+        // GPU binding limit check (134217728 bytes = 128MB as per error)
+        const GPU_BINDING_LIMIT: u64 = 134217728; // 128MB
+        if memory_bytes > GPU_BINDING_LIMIT {
+            log::error!("WorldBuffer: view_distance {} would require {} MB which exceeds GPU binding limit of {} MB", 
+                       view_distance, memory_mb, GPU_BINDING_LIMIT / (1024 * 1024));
+            
+            // Calculate maximum safe view distance
+            let max_safe_chunks = GPU_BINDING_LIMIT / CHUNK_BUFFER_SLOT_SIZE;
+            let max_safe_diameter = (max_safe_chunks as f64).powf(1.0/3.0).floor() as u32;
+            let max_safe_view_distance = (max_safe_diameter - 1) / 2;
+            
+            panic!("WorldBuffer: Reduce view_distance to {} or less (current: {}, required: {} MB, limit: {} MB)", 
+                   max_safe_view_distance, view_distance, memory_mb, GPU_BINDING_LIMIT / (1024 * 1024));
+        }
+        
         if memory_mb > 4096 {
             panic!("WorldBuffer: view_distance {} would require {} MB GPU memory (max 4096MB recommended)", 
                    view_distance, memory_mb);

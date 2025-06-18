@@ -15,24 +15,24 @@
 
 
 // Get voxel at specific position using SOA data
-fn get_voxel_soa(world_pos: vec3<i32>, params: ptr<storage, TerrainParamsSOA>) -> u32 {
+fn get_voxel_soa(world_pos: vec3<i32>) -> u32 {
     let pos_f = vec3<f32>(f32(world_pos.x), f32(world_pos.y), f32(world_pos.z));
     
     // Use 2D noise for terrain height (not 3D)
     let height_noise = fbm2d(
-        pos_f.x * (*params).terrain_scale, 
-        pos_f.z * (*params).terrain_scale,
+        pos_f.x * params.terrain_scale, 
+        pos_f.z * params.terrain_scale,
         6,     // octaves
         2.0,   // lacunarity
         0.5    // persistence
     );
     
     // Convert noise (-1 to 1) to height with base at sea level
-    let base_height = i32((*params).sea_level + height_noise * 32.0);
+    let base_height = i32(params.sea_level + height_noise * 32.0);
     
     // Cave generation using 3D noise
     let cave_noise = perlin3d(pos_f.x * 0.05, pos_f.y * 0.05, pos_f.z * 0.05);
-    let is_cave = cave_noise > (*params).cave_threshold && world_pos.y < base_height - 5;
+    let is_cave = cave_noise > params.cave_threshold && world_pos.y < base_height - 5;
     
     // Basic terrain rules
     if (world_pos.y > base_height || is_cave) {
@@ -40,14 +40,14 @@ fn get_voxel_soa(world_pos: vec3<i32>, params: ptr<storage, TerrainParamsSOA>) -
     }
     
     // Check custom block distributions using SOA
-    let custom_block = check_height_soa(&(*params).distributions, world_pos.y);
+    let custom_block = check_height_soa_global(world_pos.y);
     if (custom_block != 0u) {
         let distribution_noise = perlin3d(pos_f.x * 0.1, pos_f.y * 0.1, pos_f.z * 0.1);
-        let dist_index = find_distribution_index_soa(&(*params).distributions, custom_block);
+        let dist_index = find_distribution_index_soa_global(custom_block);
         
-        if (dist_index < (*params).distributions.count) {
-            let probability = (*params).distributions.probabilities[dist_index];
-            let threshold = (*params).distributions.noise_thresholds[dist_index];
+        if (dist_index < params.distributions.count) {
+            let probability = params.distributions.probabilities[dist_index];
+            let threshold = params.distributions.noise_thresholds[dist_index];
             
             if (distribution_noise < probability && distribution_noise > threshold) {
                 return custom_block;
@@ -56,22 +56,37 @@ fn get_voxel_soa(world_pos: vec3<i32>, params: ptr<storage, TerrainParamsSOA>) -
     }
     
     // Default blocks based on height
-    if (world_pos.y > i32((*params).sea_level) - 5) {
+    if (world_pos.y > i32(params.sea_level) - 5) {
         return BLOCK_GRASS;
-    } else if (world_pos.y > i32((*params).sea_level) - 10) {
+    } else if (world_pos.y > i32(params.sea_level) - 10) {
         return BLOCK_DIRT;
     } else {
         return BLOCK_STONE;
     }
 }
 
-// Find distribution index for a given block ID (SOA optimized)
-fn find_distribution_index_soa(distributions: ptr<storage, BlockDistributionSOA>, block_id: u32) -> u32 {
-    let count = (*distributions).count;
+// Check height using global params
+fn check_height_soa_global(world_y: i32) -> u32 {
+    let count = params.distributions.count;
+    
+    // Coalesced memory access - all threads read sequential elements
+    for (var i = 0u; i < count; i++) {
+        if (world_y >= params.distributions.min_heights[i] && 
+            world_y <= params.distributions.max_heights[i]) {
+            return params.distributions.block_ids[i];
+        }
+    }
+    
+    return 0u;
+}
+
+// Find distribution index for a given block ID using global params
+fn find_distribution_index_soa_global(block_id: u32) -> u32 {
+    let count = params.distributions.count;
     
     // Linear search optimized for GPU (could be vectorized further)
     for (var i = 0u; i < count; i++) {
-        if ((*distributions).block_ids[i] == block_id) {
+        if (params.distributions.block_ids[i] == block_id) {
             return i;
         }
     }
@@ -115,7 +130,7 @@ fn generate_terrain(
     let world_pos = vec3<i32>(local_pos) + chunk_offset * i32(CHUNK_SIZE);
     
     // Generate voxel using SOA data
-    let voxel = get_voxel_soa(world_pos, &params);
+    let voxel = get_voxel_soa(world_pos);
     
     // Calculate linear index
     let index = local_pos.x + local_pos.y * CHUNK_SIZE + local_pos.z * CHUNK_SIZE * CHUNK_SIZE;
@@ -159,7 +174,7 @@ fn generate_terrain_vectorized(@builtin(global_invocation_id) global_id: vec3<u3
         let local_pos = vec3<u32>(base_x + i, global_id.y, global_id.z);
         let world_pos = vec3<i32>(local_pos) + chunk_offset * i32(CHUNK_SIZE);
         
-        let voxel = get_voxel_soa(world_pos, &params);
+        let voxel = get_voxel_soa(world_pos);
         let index = (base_x + i) + global_id.y * CHUNK_SIZE + global_id.z * CHUNK_SIZE * CHUNK_SIZE;
         
         world_data[index] = voxel;

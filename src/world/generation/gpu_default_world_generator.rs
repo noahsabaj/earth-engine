@@ -45,6 +45,7 @@ impl GpuDefaultWorldGenerator {
         device: Arc<wgpu::Device>,
         queue: Arc<wgpu::Queue>,
         seed: u32,
+        chunk_size: u32,
         grass_id: BlockId,
         dirt_id: BlockId,
         stone_id: BlockId,
@@ -52,8 +53,17 @@ impl GpuDefaultWorldGenerator {
         sand_id: BlockId,
     ) -> Self {
         // Create WorldBuffer with safe size that fits GPU memory limits (128MB max)
+        // Calculate safe view distance based on chunk size
+        let chunk_memory_bytes = (chunk_size * chunk_size * chunk_size * 4) as u64;
+        let max_safe_chunks = 134217728u64 / chunk_memory_bytes; // 128MB limit
+        let max_safe_diameter = (max_safe_chunks as f64).powf(1.0/3.0).floor() as u32;
+        let safe_view_distance = ((max_safe_diameter - 1) / 2).min(3); // Cap at 3 for performance
+        
+        log::info!("[GpuDefaultWorldGenerator] Calculated safe view_distance: {} for chunk_size: {}", 
+                  safe_view_distance, chunk_size);
+        
         let world_buffer_desc = WorldBufferDescriptor {
-            view_distance: 3, // Conservative: 7³=343 chunks, ~45MB (safe for 128MB GPU limit)
+            view_distance: safe_view_distance,
             enable_atomics: true,
             enable_readback: true,
         };
@@ -79,13 +89,15 @@ impl GpuDefaultWorldGenerator {
         // Keep CPU terrain generator for surface height queries
         let cpu_terrain_gen = CpuTerrainGenerator::new(seed);
         
+        log::info!("[GpuDefaultWorldGenerator] Initialized with chunk_size: {}, seed: {}", chunk_size, seed);
+        
         Self {
             device,
             queue,
             world_buffer: Arc::new(Mutex::new(world_buffer)),
             terrain_generator,
             cpu_terrain_gen,
-            chunk_size: 32, // Standard chunk size
+            chunk_size,
             seed,
             grass_id,
             dirt_id,
@@ -364,11 +376,13 @@ pub fn create_gpu_default_world_generator(
     device: Arc<wgpu::Device>,
     queue: Arc<wgpu::Queue>,
     seed: u32,
+    chunk_size: u32,
 ) -> GpuDefaultWorldGenerator {
     GpuDefaultWorldGenerator::new(
         device,
         queue,
         seed,
+        chunk_size,
         BlockId::GRASS,
         BlockId::DIRT,
         BlockId::STONE,

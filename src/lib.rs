@@ -61,7 +61,8 @@ pub enum WorldGeneratorType {
 }
 
 /// Factory function type for creating world generators when GPU resources are available
-pub type WorldGeneratorFactory = Box<dyn Fn(Arc<wgpu::Device>, Arc<wgpu::Queue>) -> Box<dyn WorldGenerator + Send + Sync> + Send + Sync>;
+/// Accepts the full EngineConfig to ensure proper configuration propagation
+pub type WorldGeneratorFactory = Box<dyn Fn(Arc<wgpu::Device>, Arc<wgpu::Queue>, &EngineConfig) -> Box<dyn WorldGenerator + Send + Sync> + Send + Sync>;
 
 /// Main engine configuration
 pub struct EngineConfig {
@@ -90,6 +91,86 @@ impl std::fmt::Debug for EngineConfig {
     }
 }
 
+impl EngineConfig {
+    /// Validate configuration parameters
+    pub fn validate(&self) -> Result<()> {
+        // Validate chunk size
+        if self.chunk_size == 0 {
+            return Err(anyhow::anyhow!("EngineConfig: chunk_size cannot be 0"));
+        }
+        
+        if self.chunk_size > 256 {
+            return Err(anyhow::anyhow!("EngineConfig: chunk_size {} exceeds maximum of 256", self.chunk_size));
+        }
+        
+        // Validate render distance
+        if self.render_distance == 0 {
+            return Err(anyhow::anyhow!("EngineConfig: render_distance cannot be 0"));
+        }
+        
+        // Calculate memory requirements for world buffer
+        const GPU_BINDING_LIMIT: u64 = 134217728; // 128MB
+        let voxel_data_size = 4u64; // 4 bytes per voxel
+        let voxels_per_chunk = (self.chunk_size as u64).pow(3);
+        let chunk_memory_bytes = voxels_per_chunk * voxel_data_size;
+        
+        // Maximum view distance based on chunk size and GPU limits
+        let max_safe_chunks = GPU_BINDING_LIMIT / chunk_memory_bytes;
+        let max_safe_diameter = (max_safe_chunks as f64).powf(1.0/3.0).floor() as u32;
+        let max_safe_view_distance = (max_safe_diameter.saturating_sub(1)) / 2;
+        
+        log::info!(
+            "[EngineConfig] Validation: chunk_size={}, voxels_per_chunk={}, chunk_memory={}KB, max_safe_view_distance={}",
+            self.chunk_size, voxels_per_chunk, chunk_memory_bytes / 1024, max_safe_view_distance
+        );
+        
+        // Validate window dimensions
+        if self.window_width < 320 || self.window_height < 240 {
+            return Err(anyhow::anyhow!("EngineConfig: Window dimensions too small (min 320x240)"));
+        }
+        
+        if self.window_width > 16384 || self.window_height > 16384 {
+            return Err(anyhow::anyhow!("EngineConfig: Window dimensions too large (max 16384x16384)"));
+        }
+        
+        log::info!("[EngineConfig] Configuration validated successfully");
+        Ok(())
+    }
+    
+    /// Calculate safe view distance for a given chunk size
+    pub fn calculate_safe_view_distance(chunk_size: u32) -> u32 {
+        const GPU_BINDING_LIMIT: u64 = 134217728; // 128MB
+        let voxel_data_size = 4u64; // 4 bytes per voxel
+        let voxels_per_chunk = (chunk_size as u64).pow(3);
+        let chunk_memory_bytes = voxels_per_chunk * voxel_data_size;
+        
+        let max_safe_chunks = GPU_BINDING_LIMIT / chunk_memory_bytes;
+        let max_safe_diameter = (max_safe_chunks as f64).powf(1.0/3.0).floor() as u32;
+        (max_safe_diameter.saturating_sub(1)) / 2
+    }
+    
+    /// Suggest safe configuration parameters
+    pub fn suggest_safe_config(&self) -> String {
+        let mut suggestions = Vec::new();
+        
+        if self.chunk_size > 0 {
+            let safe_view_distance = Self::calculate_safe_view_distance(self.chunk_size);
+            suggestions.push(format!(
+                "For chunk_size={}, maximum safe view_distance is {}",
+                self.chunk_size, safe_view_distance
+            ));
+        }
+        
+        // Common safe configurations
+        suggestions.push("Common safe configurations:".to_string());
+        suggestions.push("  - chunk_size=32, view_distance=3 (27MB)".to_string());
+        suggestions.push("  - chunk_size=50, view_distance=2 (62.5MB)".to_string());
+        suggestions.push("  - chunk_size=64, view_distance=1 (64MB)".to_string());
+        
+        suggestions.join("\n")
+    }
+}
+
 impl Default for EngineConfig {
     fn default() -> Self {
         Self {
@@ -114,6 +195,13 @@ pub struct Engine {
 impl Engine {
     pub fn new(config: EngineConfig) -> Self {
         log::debug!("[Engine::new] Starting engine initialization");
+        
+        // Validate configuration before proceeding
+        if let Err(e) = config.validate() {
+            log::error!("[Engine::new] Configuration validation failed: {}", e);
+            log::error!("[Engine::new] Suggestions:\n{}", config.suggest_safe_config());
+            panic!("Invalid engine configuration: {}. See log for suggestions.", e);
+        }
         
         // Force X11 backend for WSL compatibility
         #[cfg(target_os = "linux")]

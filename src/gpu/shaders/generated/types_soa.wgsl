@@ -38,56 +38,8 @@ struct TerrainParamsSOA {
     distributions: BlockDistributionSOA,
 }
 
-// Optimized height check function for SOA data
-fn check_height_soa(distributions: ptr<storage, BlockDistributionSOA>, world_y: i32) -> u32 {
-    let count = (*distributions).count;
-    
-    // Coalesced memory access - all threads read sequential elements
-    for (var i = 0u; i < count; i++) {
-        if (world_y >= (*distributions).min_heights[i] && 
-            world_y <= (*distributions).max_heights[i]) {
-            return (*distributions).block_ids[i];
-        }
-    }
-    
-    return 0u;
-}
+// NOTE: check_height_soa removed - use check_height_soa_global in terrain_generation_soa.wgsl instead
+// WGSL does not allow passing storage pointers as function parameters
 
-// Vectorized height check (processes 4 distributions at once)
-fn check_height_soa_vec4(distributions: ptr<storage, BlockDistributionSOA>, world_y: i32) -> u32 {
-    let count = (*distributions).count;
-    let y_vec = vec4<i32>(world_y);
-    
-    // Process 4 distributions at a time using SIMD
-    for (var i = 0u; i < count; i += 4u) {
-        // Check bounds to avoid out-of-bounds access
-        let remaining = min(4u, count - i);
-        
-        if (remaining >= 1u) {
-            if (world_y >= (*distributions).min_heights[i] && 
-                world_y <= (*distributions).max_heights[i]) {
-                return (*distributions).block_ids[i];
-            }
-        }
-        if (remaining >= 2u) {
-            if (world_y >= (*distributions).min_heights[i + 1] && 
-                world_y <= (*distributions).max_heights[i + 1]) {
-                return (*distributions).block_ids[i + 1];
-            }
-        }
-        if (remaining >= 3u) {
-            if (world_y >= (*distributions).min_heights[i + 2] && 
-                world_y <= (*distributions).max_heights[i + 2]) {
-                return (*distributions).block_ids[i + 2];
-            }
-        }
-        if (remaining >= 4u) {
-            if (world_y >= (*distributions).min_heights[i + 3] && 
-                world_y <= (*distributions).max_heights[i + 3]) {
-                return (*distributions).block_ids[i + 3];
-            }
-        }
-    }
-    
-    return 0u;
-}
+// NOTE: check_height_soa_vec4 removed - use check_height_soa_global in terrain_generation_soa.wgsl instead
+// WGSL does not allow passing storage pointers as function parameters

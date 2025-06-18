@@ -610,9 +610,9 @@ impl GpuState {
         let generator = if let Some(custom_gen) = engine_config.world_generator {
             log::info!("[GpuState::new] Using custom world generator from EngineConfig");
             custom_gen
-        } else if let Some(factory) = engine_config.world_generator_factory {
+        } else if let Some(ref factory) = engine_config.world_generator_factory {
             log::info!("[GpuState::new] Using world generator factory from EngineConfig");
-            (factory)(device.clone(), queue.clone())
+            (factory)(device.clone(), queue.clone(), &engine_config)
         } else {
             log::info!("[GpuState::new] Creating default GPU-powered world generator...");
             let seed = 12345; // Fixed seed for consistent worlds
@@ -620,6 +620,7 @@ impl GpuState {
                 device.clone(),
                 queue.clone(),
                 seed,
+                engine_config.chunk_size,
                 grass_id,
                 dirt_id,
                 stone_id,
