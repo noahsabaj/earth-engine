@@ -52,9 +52,21 @@ impl TerrainGenerator {
         }
         
         // Use the proper terrain generation shader with Perlin noise
-        let shader_source = include_str!("shaders/terrain_generation.wgsl");
+        let shader_source_raw = include_str!("shaders/terrain_generation.wgsl");
         
-        log::info!("[TerrainGenerator] Loading terrain generation shader ({} characters)", shader_source.len());
+        // Preprocess the shader to handle includes
+        let shader_source = match crate::gpu::preprocess_shader_content(
+            shader_source_raw, 
+            std::path::Path::new("src/world_gpu/shaders/terrain_generation.wgsl")
+        ) {
+            Ok(processed) => processed,
+            Err(e) => {
+                log::error!("[TerrainGenerator] Failed to preprocess shader: {}", e);
+                panic!("[TerrainGenerator] Shader preprocessing failed: {}", e);
+            }
+        };
+        
+        log::info!("[TerrainGenerator] Loading terrain generation shader ({} characters after preprocessing)", shader_source.len());
         
         // Validate shader source
         if shader_source.is_empty() {
@@ -69,7 +81,7 @@ impl TerrainGenerator {
         log::info!("[TerrainGenerator] Creating shader module...");
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Terrain Generation Shader"),
-            source: wgpu::ShaderSource::Wgsl(shader_source.into()),
+            source: wgpu::ShaderSource::Wgsl(shader_source.clone().into()),
         });
         
         // Note: create_shader_module doesn't return Result in wgpu 0.17+

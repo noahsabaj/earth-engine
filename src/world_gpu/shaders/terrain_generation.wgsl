@@ -1,36 +1,8 @@
 // GPU Terrain Generation Compute Shader
 // Generates realistic terrain using Perlin noise directly in the WorldBuffer
 
-// Generic block distribution rule
-struct BlockDistribution {
-    block_id: u32,
-    min_height: i32,
-    max_height: i32,
-    probability: f32,
-    noise_threshold: f32,
-    _reserved: array<f32, 7>,  // 7 floats for 48-byte total (16-byte aligned)
-}
-
-// Maximum distributions must match Rust constant
-const MAX_BLOCK_DISTRIBUTIONS: u32 = 16u;
-
-struct TerrainParams {
-    seed: u32,
-    sea_level: f32,
-    terrain_scale: f32,
-    mountain_threshold: f32,
-    cave_threshold: f32,
-    num_distributions: u32,
-    _padding: vec2<u32>,
-    distributions: array<BlockDistribution, MAX_BLOCK_DISTRIBUTIONS>,
-}
-
-struct ChunkMetadata {
-    flags: u32,         // Bit 0: generated, Bit 1: modified, etc.
-    timestamp: u32,     // Generation timestamp
-    checksum: u32,      // For validation
-    reserved: u32,
-}
+// Import auto-generated GPU types
+#include "../../gpu/shaders/generated/types.wgsl"
 
 // Block IDs (must match Test block get_id() implementations)
 const BLOCK_AIR: u32 = 0u;
