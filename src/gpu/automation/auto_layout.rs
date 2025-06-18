@@ -230,12 +230,21 @@ macro_rules! gpu_layout {
             )*
         }
         
-        impl_auto_layout!(
-            $name,
-            fields = [
-                $( $field : $ty = stringify!($field) ),*
-            ]
-        );
+        impl $crate::gpu::automation::auto_layout::AutoLayout for $name {
+            fn field_offsets() -> Vec<$crate::gpu::automation::auto_layout::FieldOffset> {
+                let mut builder = $crate::gpu::automation::auto_layout::LayoutBuilder::new();
+                
+                $(
+                    builder.add_field::<$ty>(
+                        stringify!($field),
+                        stringify!($ty)
+                    );
+                )*
+                
+                let layout = builder.build(16); // Standard WGSL alignment
+                layout.fields
+            }
+        }
     };
 }
 

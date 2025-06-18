@@ -250,22 +250,24 @@ macro_rules! shader_bindings {
             }
             
             $(
-                pub mod group_$group {
-                    use super::*;
-                    
-                    $(
-                        pub fn $name() -> u32 {
-                            LAYOUT.get_binding($group, stringify!($name))
-                                .expect(concat!("Binding ", stringify!($name), " not found"))
+                paste::paste! {
+                    pub mod [<group_ $group>] {
+                        use super::*;
+                        
+                        $(
+                            pub fn $name() -> u32 {
+                                LAYOUT.get_binding($group, stringify!($name))
+                                    .expect(concat!("Binding ", stringify!($name), " not found"))
+                            }
+                        )*
+                        
+                        pub fn layout_entries() -> Vec<wgpu::BindGroupLayoutEntry> {
+                            LAYOUT.generate_layout_entries($group)
                         }
-                    )*
-                    
-                    pub fn layout_entries() -> Vec<wgpu::BindGroupLayoutEntry> {
-                        LAYOUT.generate_layout_entries($group)
-                    }
-                    
-                    pub fn wgsl_bindings() -> String {
-                        LAYOUT.generate_wgsl_bindings($group)
+                        
+                        pub fn wgsl_bindings() -> String {
+                            LAYOUT.generate_wgsl_bindings($group)
+                        }
                     }
                 }
             )*
