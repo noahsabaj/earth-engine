@@ -8,6 +8,7 @@ pub mod types;
 pub mod validation;
 pub mod shader_bridge;
 pub mod preprocessor;
+pub mod shader_includes;
 
 pub use buffer_manager::{GpuBufferManager, GpuError};
 pub use types::{GpuData, TypedGpuBuffer, terrain};

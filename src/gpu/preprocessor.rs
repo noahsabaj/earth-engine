@@ -35,29 +35,41 @@ impl WgslPreprocessor {
 
         for line in content.lines() {
             if let Some(include_path) = Self::parse_include_directive(line) {
-                // Try to resolve the include path
-                let resolved_path = self.resolve_include_path(&include_path, parent_dir)?;
-                
-                // Prevent circular includes
-                if !self.processed_files.contains(&resolved_path) {
-                    self.processed_files.insert(resolved_path.clone());
-                    
-                    // Recursively process the included file
-                    let included_content = fs::read_to_string(&resolved_path)?;
-                    let processed = self.process_content(&included_content, &resolved_path)?;
-                    
+                // First check if this is an embedded include
+                if let Some(embedded) = crate::gpu::shader_includes::get_shader_include(&include_path) {
+                    // Use embedded content directly - no need for circular include checking
                     result.push_str("// Begin include: ");
                     result.push_str(&include_path);
-                    result.push('\n');
-                    result.push_str(&processed);
+                    result.push_str(" (embedded)\n");
+                    result.push_str(embedded);
                     result.push_str("\n// End include: ");
                     result.push_str(&include_path);
                     result.push('\n');
                 } else {
-                    // Skip circular include
-                    result.push_str("// Skipped circular include: ");
-                    result.push_str(&include_path);
-                    result.push('\n');
+                    // Try to resolve the include path from filesystem
+                    let resolved_path = self.resolve_include_path(&include_path, parent_dir)?;
+                    
+                    // Prevent circular includes
+                    if !self.processed_files.contains(&resolved_path) {
+                        self.processed_files.insert(resolved_path.clone());
+                        
+                        // Recursively process the included file
+                        let included_content = fs::read_to_string(&resolved_path)?;
+                        let processed = self.process_content(&included_content, &resolved_path)?;
+                        
+                        result.push_str("// Begin include: ");
+                        result.push_str(&include_path);
+                        result.push('\n');
+                        result.push_str(&processed);
+                        result.push_str("\n// End include: ");
+                        result.push_str(&include_path);
+                        result.push('\n');
+                    } else {
+                        // Skip circular include
+                        result.push_str("// Skipped circular include: ");
+                        result.push_str(&include_path);
+                        result.push('\n');
+                    }
                 }
             } else {
                 // Regular line, just append
@@ -135,10 +147,37 @@ pub fn preprocess_shader(shader_path: &Path) -> Result<String, std::io::Error> {
 pub fn preprocess_shader_content(content: &str, base_path: &Path) -> Result<String, std::io::Error> {
     let mut preprocessor = WgslPreprocessor::new();
     
-    // Add GPU shaders directories as include paths
-    preprocessor.add_include_dir("src/gpu/shaders");
-    preprocessor.add_include_dir("src/gpu/shaders/generated");
-    preprocessor.add_include_dir("src/world_gpu/shaders");
+    // Get the executable directory for cross-platform compatibility
+    let exe_path = std::env::current_exe().ok();
+    let exe_dir = exe_path.as_ref().and_then(|p| p.parent());
+    
+    // Try multiple possible locations for the generated shader files
+    // This handles both development (cargo run) and release scenarios
+    let possible_roots = vec![
+        // Development: relative to current directory
+        PathBuf::from("."),
+        // Release: relative to executable
+        exe_dir.map(|d| d.to_path_buf()).unwrap_or_default(),
+        // Cargo workspace root (if running from workspace)
+        PathBuf::from(".."),
+    ];
+    
+    for root in &possible_roots {
+        // Add GPU shaders directories as include paths
+        preprocessor.add_include_dir(root.join("src/gpu/shaders"));
+        preprocessor.add_include_dir(root.join("src/gpu/shaders/generated"));
+        preprocessor.add_include_dir(root.join("src/world_gpu/shaders"));
+        
+        // Also try without src/ prefix (for installed/deployed scenarios)
+        preprocessor.add_include_dir(root.join("gpu/shaders"));
+        preprocessor.add_include_dir(root.join("gpu/shaders/generated"));
+        preprocessor.add_include_dir(root.join("world_gpu/shaders"));
+    }
+    
+    // Add parent directory of base_path if it exists
+    if let Some(parent) = base_path.parent() {
+        preprocessor.add_include_dir(parent);
+    }
     
     preprocessor.process_content(content, base_path)
 }
