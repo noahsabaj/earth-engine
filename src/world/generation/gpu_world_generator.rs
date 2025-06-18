@@ -5,8 +5,9 @@
 
 use std::sync::{Arc, Mutex};
 use crate::{BlockId, Chunk, ChunkPos};
-use crate::world_gpu::{WorldBuffer, WorldBufferDescriptor, TerrainGenerator, TerrainParams, VoxelData};
-use crate::world_gpu::terrain_generator::{BlockDistribution, MAX_BLOCK_DISTRIBUTIONS};
+use crate::world_gpu::{WorldBuffer, WorldBufferDescriptor, TerrainGeneratorSOA, VoxelData};
+use crate::gpu::soa::{TerrainParamsSOA, BlockDistributionSOA};
+use crate::gpu::types::terrain::{BlockDistribution, MAX_BLOCK_DISTRIBUTIONS};
 use super::{WorldGenerator, terrain::TerrainGenerator as CpuTerrainGenerator};
 use wgpu::util::DeviceExt;
 
@@ -15,7 +16,7 @@ pub struct GpuWorldGenerator {
     device: Arc<wgpu::Device>,
     queue: Arc<wgpu::Queue>,
     world_buffer: Arc<Mutex<WorldBuffer>>,
-    terrain_generator: TerrainGenerator,
+    terrain_generator: TerrainGeneratorSOA,
     cpu_terrain_gen: CpuTerrainGenerator, // For surface height queries
     chunk_size: u32,
     
@@ -47,21 +48,21 @@ impl GpuWorldGenerator {
         };
         let world_buffer = WorldBuffer::new(device.clone(), &world_buffer_desc);
         
-        // Create GPU terrain generator
-        let terrain_generator = TerrainGenerator::new(device.clone(), queue.clone());
+        // Create GPU terrain generator with SOA
+        let terrain_generator = TerrainGeneratorSOA::new(device.clone(), queue.clone());
         
-        // Set terrain parameters
-        let terrain_params = TerrainParams {
+        // Set terrain parameters in SOA format
+        let terrain_params = TerrainParamsSOA {
             seed,
             sea_level: 64.0,
             terrain_scale: 0.01,
             mountain_threshold: 0.6,
             cave_threshold: 0.3,
             num_distributions: 0, // No custom distributions for basic world generator
-            _padding: [0; 2],
-            distributions: [BlockDistribution::default(); MAX_BLOCK_DISTRIBUTIONS],
+            _pad: [0; 2],
+            distributions: BlockDistributionSOA::default(),
         };
-        terrain_generator.update_params(&terrain_params)
+        terrain_generator.update_params_soa(&terrain_params)
             .expect("Failed to update terrain parameters");
         
         // Keep CPU terrain generator for surface height queries (until we add GPU readback for this)

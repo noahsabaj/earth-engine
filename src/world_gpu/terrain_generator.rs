@@ -12,6 +12,7 @@ pub use crate::gpu::types::terrain::{BlockDistribution, TerrainParams, MAX_BLOCK
 // The old definitions have been removed to use the centralized GPU type system
 
 /// GPU-based terrain generator
+#[deprecated(since = "0.36.0", note = "Use TerrainGeneratorSOA for better performance with Structure of Arrays layout")]
 pub struct TerrainGenerator {
     device: Arc<wgpu::Device>,
     

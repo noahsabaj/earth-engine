@@ -33,6 +33,7 @@ mod tests;
 pub mod benchmarks;
 
 pub use world_buffer::{WorldBuffer, WorldBufferDescriptor, VoxelData};
+#[allow(deprecated)]
 pub use terrain_generator::{TerrainGenerator, TerrainParams};
 pub use terrain_generator_soa::{TerrainGeneratorSOA, TerrainGeneratorSOABuilder};
 pub use chunk_modifier::{ChunkModifier, ModificationCommand};

@@ -3,8 +3,8 @@
 
 #include "../generated/types_soa.wgsl"
 
-// Existing noise functions would be included here
-// #include "../noise_functions.wgsl"
+// Include noise functions
+#include "../../../renderer/shaders/perlin_noise.wgsl"
 
 @group(0) @binding(0) var<storage, read_write> world_data: array<u32>;
 @group(0) @binding(1) var<storage, read> metadata: ChunkMetadata;
@@ -14,22 +14,17 @@
 const CHUNK_SIZE: u32 = 32u;
 const CHUNK_SIZE_F: f32 = 32.0;
 
-// Simple noise function placeholder
-fn noise3d(pos: vec3<f32>) -> f32 {
-    // Placeholder - would use real noise function
-    return fract(sin(dot(pos, vec3<f32>(12.9898, 78.233, 45.164))) * 43758.5453);
-}
 
 // Get voxel at specific position using SOA data
 fn get_voxel_soa(world_pos: vec3<i32>, params: ptr<storage, TerrainParamsSOA>) -> u32 {
     let pos_f = vec3<f32>(f32(world_pos.x), f32(world_pos.y), f32(world_pos.z));
     
     // Base terrain height
-    let height_noise = noise3d(pos_f * (*params).terrain_scale);
+    let height_noise = perlin3d(pos_f.x * (*params).terrain_scale, pos_f.y * (*params).terrain_scale, pos_f.z * (*params).terrain_scale);
     let base_height = i32(height_noise * 64.0);
     
     // Cave generation
-    let cave_noise = noise3d(pos_f * 0.05);
+    let cave_noise = perlin3d(pos_f.x * 0.05, pos_f.y * 0.05, pos_f.z * 0.05);
     let is_cave = cave_noise > (*params).cave_threshold;
     
     // Basic terrain rules
@@ -40,7 +35,7 @@ fn get_voxel_soa(world_pos: vec3<i32>, params: ptr<storage, TerrainParamsSOA>) -
     // Check custom block distributions using SOA
     let custom_block = check_height_soa(&(*params).distributions, world_pos.y);
     if (custom_block != 0u) {
-        let distribution_noise = noise3d(pos_f * 0.1);
+        let distribution_noise = perlin3d(pos_f.x * 0.1, pos_f.y * 0.1, pos_f.z * 0.1);
         let dist_index = find_distribution_index_soa(&(*params).distributions, custom_block);
         
         if (dist_index < (*params).distributions.count) {

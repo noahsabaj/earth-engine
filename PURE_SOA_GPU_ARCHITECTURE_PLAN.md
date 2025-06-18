@@ -486,9 +486,9 @@ SOA scales with wider SIMD units and larger cache lines.
 
 ## Implementation Status
 
-### ✅ Completed (June 17, 2025)
+### ✅ Completed and Integrated (June 18, 2025)
 
-All four phases of the Pure SOA GPU Architecture have been successfully implemented:
+All four phases of the Pure SOA GPU Architecture have been successfully implemented and **fully integrated** into the live code paths:
 
 #### Phase 1: Core Infrastructure ✅
 - Created `src/gpu/soa/` module structure
@@ -540,6 +540,14 @@ The SOA shader uses storage buffers for relaxed alignment:
 
 #### 4. Compatibility Layer
 UnifiedGpuBuffer allows gradual migration without breaking changes.
+
+#### 5. Live Code Integration (June 18, 2025)
+- **GpuWorldGenerator** now uses `TerrainGeneratorSOA` exclusively
+- **GpuDefaultWorldGenerator** now uses `TerrainGeneratorSOA` exclusively  
+- **TerrainGenerator** (AOS) marked as deprecated
+- All GPU terrain generation now uses SOA data layout
+- Shaders properly include noise functions with correct paths
+- Both `update_params()` and `update_params_soa()` methods available
 
 ### Performance Validation
 

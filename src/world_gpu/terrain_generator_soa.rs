@@ -39,6 +39,12 @@ pub struct TerrainGeneratorSOA {
 }
 
 impl TerrainGeneratorSOA {
+    /// Create a new SOA terrain generator with its own buffer manager
+    pub fn new(device: Arc<wgpu::Device>, queue: Arc<wgpu::Queue>) -> Self {
+        let buffer_manager = Arc::new(GpuBufferManager::new(device.clone(), queue));
+        Self::new_with_manager(device, buffer_manager, false)
+    }
+    
     /// Create a new SOA terrain generator
     pub fn new_with_manager(
         device: Arc<wgpu::Device>, 
@@ -170,7 +176,7 @@ impl TerrainGeneratorSOA {
     }
     
     /// Update terrain parameters (converts from AOS to SOA)
-    pub fn update_params(&self, params: &TerrainParams) {
+    pub fn update_params(&self, params: &TerrainParams) -> Result<(), GpuError> {
         let queue = &self.buffer_manager.queue();
         
         // Convert AOS to SOA
@@ -179,7 +185,19 @@ impl TerrainGeneratorSOA {
         // Update GPU buffer
         queue.write_buffer(&self.params_buffer.buffer, 0, bytemuck::bytes_of(&soa_params));
         
-        log::debug!("[TerrainGeneratorSOA] Updated SOA parameters");
+        log::debug!("[TerrainGeneratorSOA] Updated SOA parameters from AOS");
+        Ok(())
+    }
+    
+    /// Update terrain parameters directly with SOA data
+    pub fn update_params_soa(&self, params: &TerrainParamsSOA) -> Result<(), GpuError> {
+        let queue = &self.buffer_manager.queue();
+        
+        // Update GPU buffer directly with SOA data
+        queue.write_buffer(&self.params_buffer.buffer, 0, bytemuck::bytes_of(params));
+        
+        log::debug!("[TerrainGeneratorSOA] Updated SOA parameters directly");
+        Ok(())
     }
     
     /// Generate chunks using SOA layout
@@ -267,6 +285,17 @@ impl TerrainGeneratorSOA {
         );
         
         Ok(())
+    }
+    
+    /// Generate a single chunk (convenience method)
+    pub fn generate_chunk(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        world_buffer: &mut WorldBuffer,
+        chunk_pos: ChunkPos,
+    ) {
+        self.generate_chunks(world_buffer, &[chunk_pos], encoder)
+            .expect("Failed to generate chunk with SOA");
     }
 }
 
