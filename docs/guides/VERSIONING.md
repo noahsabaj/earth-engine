@@ -36,19 +36,19 @@ Examples:
 
 | Version | Date | Description | Status |
 |---------|------|-------------|---------|
-| 0.1.0 | 2024-01 | Initial foundation | ✅ Released |
-| 0.16.0 | 2024-11 | Parallel systems complete | ✅ Released |
-| 0.21.0 | 2024-12 | GPU World Architecture | ✅ Released |
-| 0.26.0 | 2025-01 | Hot-reload complete | ✅ Released |
-| 0.27.0 | 2025-01 | Memory optimizations | ✅ Released |
-| 0.28.0 | 2025-01 | Morton encoding | ✅ Released |
-| 0.29.0 | 2025-01 | Fluid simulation | ✅ Released |
-| 0.30.0 | 2025-01 | Instance metadata | ✅ Released |
-| 0.31.0 | 2025-01 | Process system | ✅ Released |
-| 0.32.0 | 2025-01 | Dynamic attributes | ✅ Released |
-| 0.33.0 | 2025-01 | Legacy migration & memory | ✅ Released |
-| 0.34.0 | 2025-01 | Unified world kernel | ✅ Released |
-| 0.35.0 | 2025-01 | Architecture finalization | ✅ Released (Current) |
+| 0.1.0 | 2025-06 | Initial foundation | ✅ Released |
+| 0.16.0 | 2025-06 | Parallel systems complete | ✅ Released |
+| 0.21.0 | 2025-06 | GPU World Architecture | ✅ Released |
+| 0.26.0 | 2025-06 | Hot-reload complete | ✅ Released |
+| 0.27.0 | 2025-06 | Memory optimizations | ✅ Released |
+| 0.28.0 | 2025-06 | Morton encoding | ✅ Released |
+| 0.29.0 | 2025-06 | Fluid simulation | ✅ Released |
+| 0.30.0 | 2025-06 | Instance metadata | ✅ Released |
+| 0.31.0 | 2025-06 | Process system | ✅ Released |
+| 0.32.0 | 2025-06 | Dynamic attributes | ✅ Released |
+| 0.33.0 | 2025-06 | Legacy migration & memory | ✅ Released |
+| 0.34.0 | 2025-06 | Unified world kernel | ✅ Released |
+| 0.35.0 | 2025-06 | Architecture finalization | ✅ Released (Current) |
 | 0.37.0 | TBD | Feature complete | 📋 Future |
 | 1.0.0-rc1 | TBD | Release candidate | 📋 Future |
 | 1.0.0 | TBD | First stable release | 📋 Future |

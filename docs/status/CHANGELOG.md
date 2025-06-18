@@ -184,7 +184,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Sprint Completed
 - Sprint 23: Data-Oriented World Streaming
 
-## [0.21.0] - 2024-12
+## [0.21.0] - 2025-06
 
 ### Added
 - GPU World Architecture
@@ -199,7 +199,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Sprint Completed
 - Sprint 21: GPU World Architecture (The Big Shift)
 
-## [0.16.0] - 2024-11
+## [0.16.0] - 2025-06
 
 ### Added
 - Parallel lighting system
@@ -209,7 +209,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Sprint Completed
 - Sprint 16: Parallel Lighting System
 
-## [0.1.0] - 2024-01
+## [0.1.0] - 2025-06
 
 ### Added
 - Initial engine foundation
