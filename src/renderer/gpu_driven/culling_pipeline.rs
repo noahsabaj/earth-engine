@@ -11,6 +11,7 @@ use bytemuck::{Pod, Zeroable};
 use cgmath::{Matrix4};
 pub use super::indirect_commands::{DrawMetadata};
 use crate::camera::data_camera::{CameraData as CameraCameraData, build_camera_uniform};
+use crate::gpu::buffer_layouts::{bindings, layouts};
 
 /// Camera data for culling shader
 #[repr(C)]
@@ -163,65 +164,39 @@ impl CullingPipeline {
             source: wgpu::ShaderSource::Wgsl(shader_source.into()),
         });
         
-        // Create bind group layout
+        // Create bind group layout using centralized definitions
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("Culling Bind Group Layout"),
             entries: &[
                 // Camera data
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
+                layouts::uniform_buffer_entry(
+                    bindings::culling::CAMERA_DATA,
+                    wgpu::ShaderStages::COMPUTE,
+                ),
                 // Draw metadata
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
+                layouts::storage_buffer_entry(
+                    bindings::culling::DRAW_METADATA,
+                    true,
+                    wgpu::ShaderStages::COMPUTE,
+                ),
                 // Indirect commands
-                wgpu::BindGroupLayoutEntry {
-                    binding: 2,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: false },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
+                layouts::storage_buffer_entry(
+                    bindings::culling::DRAW_COMMANDS,
+                    false,
+                    wgpu::ShaderStages::COMPUTE,
+                ),
                 // Draw count
-                wgpu::BindGroupLayoutEntry {
-                    binding: 3,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: false },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
+                layouts::storage_buffer_entry(
+                    bindings::culling::DRAW_COUNT,
+                    false,
+                    wgpu::ShaderStages::COMPUTE,
+                ),
                 // Culling stats
-                wgpu::BindGroupLayoutEntry {
-                    binding: 4,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: false },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
+                layouts::storage_buffer_entry(
+                    bindings::culling::STATS_BUFFER,
+                    false,
+                    wgpu::ShaderStages::COMPUTE,
+                ),
             ],
         });
         

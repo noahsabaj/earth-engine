@@ -1,32 +1,13 @@
-use bytemuck::{Pod, Zeroable};
-use cgmath::{Matrix4, Vector3};
 use std::sync::Arc;
+use bytemuck::{Pod, Zeroable};
+use crate::gpu::buffer_layouts::{
+    calculations,
+    usage,
+    constants::INSTANCE_DATA_SIZE,
+};
 
-/// Per-instance data stored on GPU
-#[repr(C)]
-#[derive(Copy, Clone, Debug, Pod, Zeroable)]
-pub struct InstanceData {
-    /// Model matrix (world transform)
-    pub model_matrix: [[f32; 4]; 4],
-    
-    /// Color tint and alpha
-    pub color: [f32; 4],
-    
-    /// Custom data (can be used for various purposes)
-    pub custom_data: [f32; 4],
-}
-
-impl InstanceData {
-    pub fn new(position: Vector3<f32>, scale: f32, color: [f32; 4]) -> Self {
-        let model_matrix = Matrix4::from_translation(position) * Matrix4::from_scale(scale);
-        
-        Self {
-            model_matrix: model_matrix.into(),
-            color,
-            custom_data: [0.0; 4],
-        }
-    }
-}
+// Re-export InstanceData for public use
+pub use crate::gpu::buffer_layouts::InstanceData;
 
 /// Manages GPU buffers for instance data
 pub struct InstanceBuffer {
@@ -52,12 +33,12 @@ pub struct InstanceBuffer {
 impl InstanceBuffer {
     /// Create a new instance buffer
     pub fn new(device: Arc<wgpu::Device>, capacity: u32) -> Self {
-        let buffer_size = (std::mem::size_of::<InstanceData>() * capacity as usize) as u64;
+        let buffer_size = calculations::instance_buffer_size(capacity);
         
         let buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Instance Buffer"),
             size: buffer_size,
-            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::STORAGE,
+            usage: usage::VERTEX | usage::STORAGE,
             mapped_at_creation: false,
         });
         

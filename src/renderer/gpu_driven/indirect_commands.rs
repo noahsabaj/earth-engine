@@ -1,54 +1,15 @@
-use bytemuck::{Pod, Zeroable};
 use std::sync::Arc;
+use crate::gpu::buffer_layouts::{
+    usage,
+    calculations,
+};
 
-/// GPU indirect draw command structure
-/// This matches wgpu's DrawIndirect command layout
-#[repr(C)]
-#[derive(Copy, Clone, Debug, Pod, Zeroable)]
-pub struct IndirectDrawCommand {
-    /// Number of vertices to draw
-    pub vertex_count: u32,
-    
-    /// Number of instances to draw
-    pub instance_count: u32,
-    
-    /// First vertex index
-    pub first_vertex: u32,
-    
-    /// First instance index
-    pub first_instance: u32,
-}
-
-impl IndirectDrawCommand {
-    pub fn new(vertex_count: u32, instance_count: u32) -> Self {
-        Self {
-            vertex_count,
-            instance_count,
-            first_vertex: 0,
-            first_instance: 0,
-        }
-    }
-}
-
-/// GPU indirect draw indexed command structure
-#[repr(C)]
-#[derive(Copy, Clone, Debug, Pod, Zeroable)]
-pub struct IndirectDrawIndexedCommand {
-    /// Number of indices to draw
-    pub index_count: u32,
-    
-    /// Number of instances to draw
-    pub instance_count: u32,
-    
-    /// First index in the index buffer
-    pub first_index: u32,
-    
-    /// Value added to each index
-    pub base_vertex: i32,
-    
-    /// First instance index
-    pub first_instance: u32,
-}
+// Re-export types for public use
+pub use crate::gpu::buffer_layouts::{
+    DrawMetadata,
+    IndirectDrawCommand,
+    IndirectDrawIndexedCommand,
+};
 
 /// Manages GPU buffers for indirect drawing commands
 pub struct IndirectCommandBuffer {
@@ -90,7 +51,7 @@ impl IndirectCommandBuffer {
         let buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Indirect Command Buffer"),
             size: buffer_size,
-            usage: wgpu::BufferUsages::INDIRECT | wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            usage: usage::INDIRECT,
             mapped_at_creation: false,
         });
         
@@ -284,25 +245,4 @@ impl IndirectCommandManager {
     }
 }
 
-/// Metadata for draw commands (used by compute shaders)
-#[repr(C)]
-#[derive(Copy, Clone, Debug, Pod, Zeroable)]
-pub struct DrawMetadata {
-    /// World-space bounding sphere (xyz = center, w = radius)
-    pub bounding_sphere: [f32; 4],
-    
-    /// LOD information (x = min distance, y = max distance, z = LOD level, w = unused)
-    pub lod_info: [f32; 4],
-    
-    /// Material properties (for sorting)
-    pub material_id: u32,
-    
-    /// Mesh ID
-    pub mesh_id: u32,
-    
-    /// Instance offset in instance buffer
-    pub instance_offset: u32,
-    
-    /// Flags (visibility, shadows, etc.)
-    pub flags: u32,
-}
+// DrawMetadata is now imported from gpu::buffer_layouts

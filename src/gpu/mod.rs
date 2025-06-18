@@ -11,6 +11,7 @@ pub mod preprocessor;
 pub mod shader_includes;
 pub mod soa; // Pure Structure of Arrays implementation
 pub mod constants; // Single source of truth for GPU constants
+pub mod buffer_layouts; // Centralized buffer layout definitions
 
 pub use buffer_manager::{GpuBufferManager, GpuError};
 pub use types::{GpuData, TypedGpuBuffer, terrain};
@@ -22,3 +23,9 @@ pub use types::terrain::{BlockDistribution, TerrainParams};
 
 // Re-export SOA types for convenience
 pub use soa::{SoaCompatible, BlockDistributionSOA, TerrainParamsSOA, SoaBufferBuilder, CpuGpuBridge};
+
+// Re-export buffer layout types for convenience
+pub use buffer_layouts::{
+    VoxelData, InstanceData, CameraUniform, IndirectDrawCommand,
+    bindings, calculations, constants as buffer_constants,
+};

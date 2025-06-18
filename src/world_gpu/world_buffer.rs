@@ -5,6 +5,13 @@ use bytemuck::{Pod, Zeroable};
 use crate::morton::morton_encode;
 use crate::world::ChunkPos;
 use crate::gpu::constants::core::{CHUNK_SIZE, VOXELS_PER_CHUNK, MAX_WORLD_SIZE};
+use crate::gpu::buffer_layouts::{
+    constants::*,
+    bindings,
+    calculations,
+    usage,
+    layouts,
+};
 
 /// Packed voxel data format for GPU storage
 /// Uses 32 bits per voxel:
@@ -111,24 +118,24 @@ impl WorldBuffer {
         let max_chunks = diameter * diameter * diameter;
         
         // Safety check: prevent massive allocations
-        let gb = max_chunks as u64 * VOXELS_PER_CHUNK as u64 * 4 / (1024 * 1024 * 1024);
-        if gb > 4 {
-            panic!("WorldBuffer: view_distance {} would require {} GB GPU memory (max 4GB recommended)", 
-                   view_distance, gb);
+        let memory_mb = (max_chunks as u64 * CHUNK_BUFFER_SLOT_SIZE) / (1024 * 1024);
+        if memory_mb > 4096 {
+            panic!("WorldBuffer: view_distance {} would require {} MB GPU memory (max 4096MB recommended)", 
+                   view_distance, memory_mb);
         }
         
         log::info!("Creating WorldBuffer with view_distance {} ({} max chunks, {} MB)", 
-                  view_distance, max_chunks, 
-                  max_chunks as u64 * VOXELS_PER_CHUNK as u64 * 4 / (1024 * 1024));
+                  view_distance, max_chunks, memory_mb);
         
         let total_voxels = max_chunks as u64 * VOXELS_PER_CHUNK as u64;
-        let buffer_size = total_voxels * std::mem::size_of::<VoxelData>() as u64;
+        let buffer_size = max_chunks as u64 * CHUNK_BUFFER_SLOT_SIZE;
         
         // Main voxel buffer
-        let mut usage = wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST;
-        if desc.enable_readback {
-            usage |= wgpu::BufferUsages::COPY_SRC;
-        }
+        let usage = if desc.enable_readback {
+            usage::STORAGE_READ
+        } else {
+            usage::STORAGE
+        };
         
         let voxel_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("World Voxel Buffer"),
@@ -138,11 +145,11 @@ impl WorldBuffer {
         });
         
         // Chunk metadata buffer
-        let metadata_size = max_chunks as u64 * 16; // 16 bytes per chunk
+        let metadata_size = max_chunks as u64 * CHUNK_METADATA_SIZE;
         let metadata_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Chunk Metadata Buffer"),
             size: metadata_size,
-            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            usage: usage::STORAGE,
             mapped_at_creation: false,
         });
         
@@ -150,7 +157,7 @@ impl WorldBuffer {
         let staging_buffer = if desc.enable_readback {
             Some(device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("World Staging Buffer"),
-                size: VOXELS_PER_CHUNK as u64 * std::mem::size_of::<VoxelData>() as u64,
+                size: CHUNK_BUFFER_SLOT_SIZE,
                 usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
                 mapped_at_creation: false,
             }))
@@ -158,30 +165,20 @@ impl WorldBuffer {
             None
         };
         
-        // Create bind group layout
+        // Create bind group layout using centralized definitions
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("World Buffer Bind Group Layout"),
             entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::COMPUTE | wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: false },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: false },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
+                layouts::storage_buffer_entry(
+                    bindings::world::VOXEL_BUFFER,
+                    false,
+                    wgpu::ShaderStages::COMPUTE | wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
+                ),
+                layouts::storage_buffer_entry(
+                    bindings::world::METADATA_BUFFER,
+                    false,
+                    wgpu::ShaderStages::COMPUTE,
+                ),
             ],
         });
         
@@ -191,11 +188,11 @@ impl WorldBuffer {
             layout: &bind_group_layout,
             entries: &[
                 wgpu::BindGroupEntry {
-                    binding: 0,
+                    binding: bindings::world::VOXEL_BUFFER,
                     resource: voxel_buffer.as_entire_binding(),
                 },
                 wgpu::BindGroupEntry {
-                    binding: 1,
+                    binding: bindings::world::METADATA_BUFFER,
                     resource: metadata_buffer.as_entire_binding(),
                 },
             ],
@@ -294,7 +291,7 @@ impl WorldBuffer {
     
     /// Calculate buffer offset for a chunk slot
     pub fn slot_offset(&self, slot: u32) -> u64 {
-        slot as u64 * VOXELS_PER_CHUNK as u64 * std::mem::size_of::<VoxelData>() as u64
+        calculations::chunk_slot_offset(slot)
     }
     
     /// Upload a single chunk from CPU (migration path)
@@ -343,7 +340,7 @@ impl WorldBuffer {
         
         let slot = self.get_chunk_slot(chunk_pos);
         let offset = self.slot_offset(slot);
-        let size = VOXELS_PER_CHUNK as u64 * std::mem::size_of::<VoxelData>() as u64;
+        let size = CHUNK_BUFFER_SLOT_SIZE;
         
         log::debug!("[WORLD_BUFFER] Clear operation: slot {}, offset {} bytes, size {} bytes", 
                    slot, offset, size);

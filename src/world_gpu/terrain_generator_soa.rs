@@ -13,7 +13,8 @@ use crate::gpu::{
     soa::{
         SoaBufferBuilder, TerrainParamsSOA, BlockDistributionSOA,
         UnifiedGpuBuffer, BufferLayoutPreference, CpuGpuBridge,
-    }
+    },
+    buffer_layouts::{bindings, usage, layouts, constants::*},
 };
 use crate::gpu::types::terrain::TerrainParams;
 use super::world_buffer::WorldBuffer;
@@ -83,43 +84,28 @@ impl TerrainGeneratorSOA {
             source: wgpu::ShaderSource::Wgsl(shader_source.into()),
         });
         
-        // Create bind group layout for SOA shader
+        // Create bind group layout for SOA shader using centralized definitions
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("SOA Terrain Generator Bind Group Layout"),
             entries: &[
                 // World buffer binding
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: false },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
+                layouts::storage_buffer_entry(
+                    bindings::world::VOXEL_BUFFER,
+                    false,
+                    wgpu::ShaderStages::COMPUTE,
+                ),
                 // Metadata buffer binding
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                // SOA Parameters buffer (using storage buffer for SOA)
-                wgpu::BindGroupLayoutEntry {
-                    binding: 2,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
+                layouts::storage_buffer_entry(
+                    bindings::world::METADATA_BUFFER,
+                    true,
+                    wgpu::ShaderStages::COMPUTE,
+                ),
+                // SOA Parameters buffer
+                layouts::storage_buffer_entry(
+                    bindings::world::PARAMS_BUFFER,
+                    true,
+                    wgpu::ShaderStages::COMPUTE,
+                ),
             ],
         });
         
@@ -232,7 +218,7 @@ impl TerrainGeneratorSOA {
         let metadata_buffer = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("SOA Chunk Metadata"),
             contents: bytemuck::cast_slice(&metadata_data),
-            usage: wgpu::BufferUsages::STORAGE,
+            usage: usage::STORAGE,
         });
         
         // Create bind group
@@ -241,15 +227,15 @@ impl TerrainGeneratorSOA {
             layout: &self.bind_group_layout,
             entries: &[
                 wgpu::BindGroupEntry {
-                    binding: 0,
+                    binding: bindings::world::VOXEL_BUFFER,
                     resource: world_buffer.voxel_buffer().as_entire_binding(),
                 },
                 wgpu::BindGroupEntry {
-                    binding: 1,
+                    binding: bindings::world::METADATA_BUFFER,
                     resource: metadata_buffer.as_entire_binding(),
                 },
                 wgpu::BindGroupEntry {
-                    binding: 2,
+                    binding: bindings::world::PARAMS_BUFFER,
                     resource: self.params_buffer.buffer.as_entire_binding(),
                 },
             ],
