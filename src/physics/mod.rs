@@ -1,24 +1,39 @@
-pub mod aabb;
-pub mod body;
-pub mod gpu_physics_world;
+/// Data-oriented physics system using struct-of-arrays for cache efficiency
+/// and GPU compatibility.
 
-pub use aabb::AABB;
-pub use body::{PhysicsBody, RigidBody, PlayerBody, MovementState};
-pub use gpu_physics_world::GpuPhysicsWorld;
+pub mod physics_tables;
+pub mod collision_data;
+pub mod spatial_hash;
+pub mod preallocated_spatial_hash;
+pub mod parallel_solver;
+pub mod integration;
+pub mod error;
 
+pub use physics_tables::{PhysicsData, EntityId, MAX_ENTITIES};
+pub use collision_data::{CollisionData, ContactPoint, ContactPair};
+pub use spatial_hash::{SpatialHash, SpatialHashConfig};
+pub use parallel_solver::{ParallelPhysicsSolver, SolverConfig};
+pub use integration::{PhysicsIntegrator, WorldInterface, WorldAdapter};
 
-use cgmath::Vector3;
+// Re-export common types
+pub use crate::physics::{GRAVITY, TERMINAL_VELOCITY, FIXED_TIMESTEP};
 
-pub type Vec3 = Vector3<f32>;
+/// Physics configuration for data-oriented system
+#[derive(Debug, Clone)]
+pub struct PhysicsConfig {
+    pub max_entities: usize,
+    pub spatial_hash_cell_size: f32,
+    pub worker_threads: usize,
+    pub enable_gpu_buffers: bool,
+}
 
-pub const GRAVITY: f32 = -20.0; // Roughly 2x real gravity for better game feel
-pub const TERMINAL_VELOCITY: f32 = -50.0;
-pub const PHYSICS_TICK_RATE: f32 = 50.0; // 50ms = 20Hz
-pub const FIXED_TIMESTEP: f32 = 1.0 / 20.0; // 0.05 seconds
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct RaycastHit {
-    pub point: Vec3,
-    pub normal: Vec3,
-    pub distance: f32,
+impl Default for PhysicsConfig {
+    fn default() -> Self {
+        Self {
+            max_entities: 65536, // 64k entities
+            spatial_hash_cell_size: 4.0, // 4 meter cells
+            worker_threads: num_cpus::get(),
+            enable_gpu_buffers: false,
+        }
+    }
 }

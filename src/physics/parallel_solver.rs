@@ -1,5 +1,5 @@
 use super::{
-    PhysicsData, CollisionData, SpatialHash, EntityId, 
+    PhysicsData, CollisionData, SpatialHash, EntityId,
     ContactPoint, ContactPair, collision_data::CollisionStats,
     physics_tables
 };
