@@ -217,12 +217,15 @@ impl TerrainGeneratorSOA {
         log::info!("[TerrainGeneratorSOA] Generating {} chunks with SOA layout", batch_size);
         
         // Create metadata buffer for chunk generation
+        // Each chunk needs a full ChunkMetadata struct (4 u32 values)
         let metadata_data: Vec<u32> = chunk_positions.iter()
-            .map(|pos| {
-                // Pack chunk position into metadata
-                let x = ((pos.x & 0xFFFF) as u32) << 16;
-                let z = (pos.z & 0xFFFF) as u32;
-                x | z
+            .flat_map(|pos| {
+                // Create ChunkMetadata for each chunk
+                let flags = ((pos.x & 0xFFFF) as u32) << 16 | (pos.z & 0xFFFF) as u32;
+                let timestamp = 0u32;
+                let checksum = 0u32;
+                let reserved = pos.y as u32; // Store Y position in reserved field
+                vec![flags, timestamp, checksum, reserved]
             })
             .collect();
         
@@ -262,18 +265,19 @@ impl TerrainGeneratorSOA {
             compute_pass.set_pipeline(&self.generate_pipeline);
             compute_pass.set_bind_group(0, &bind_group, &[]);
             
-            // Dispatch workgroups
+            // Dispatch workgroups for one chunk at a time
+            // With workgroup size 8x8x8 and chunk size 32x32x32
             let workgroups_x = 4; // 32 / 8
-            let workgroups_y = 8; // 32 / 4  
-            let workgroups_z = 8; // 32 / 4
+            let workgroups_y = 4; // 32 / 8  
+            let workgroups_z = 4; // 32 / 8
             
-            for i in 0..batch_size {
-                compute_pass.dispatch_workgroups(
-                    workgroups_x,
-                    workgroups_y,
-                    workgroups_z
-                );
-            }
+            // For now, generate one chunk at a time
+            // TODO: Optimize to generate multiple chunks in parallel
+            compute_pass.dispatch_workgroups(
+                workgroups_x,
+                workgroups_y,
+                workgroups_z
+            );
         }
         
         let elapsed = start.elapsed();

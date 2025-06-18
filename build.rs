@@ -118,6 +118,14 @@ struct BlockDistributionSOA {{
     noise_thresholds: array<f32, MAX_BLOCK_DISTRIBUTIONS>,
 }}
 
+// Chunk metadata for GPU world buffer
+struct ChunkMetadata {{
+    flags: u32,         // Bit 0: generated, Bit 1: modified, etc.
+    timestamp: u32,     // Generation timestamp
+    checksum: u32,      // For validation
+    reserved: u32,
+}}
+
 // SOA terrain parameters with embedded distributions
 struct TerrainParamsSOA {{
     // Scalar parameters

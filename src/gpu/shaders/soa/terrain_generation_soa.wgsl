@@ -7,7 +7,7 @@
 #include "../../../renderer/shaders/perlin_noise.wgsl"
 
 @group(0) @binding(0) var<storage, read_write> world_data: array<u32>;
-@group(0) @binding(1) var<storage, read> metadata: ChunkMetadata;
+@group(0) @binding(1) var<storage, read> metadata: array<ChunkMetadata>;
 @group(0) @binding(2) var<storage, read> params: TerrainParamsSOA;
 
 // Constants
@@ -19,13 +19,21 @@ const CHUNK_SIZE_F: f32 = 32.0;
 fn get_voxel_soa(world_pos: vec3<i32>, params: ptr<storage, TerrainParamsSOA>) -> u32 {
     let pos_f = vec3<f32>(f32(world_pos.x), f32(world_pos.y), f32(world_pos.z));
     
-    // Base terrain height
-    let height_noise = perlin3d(pos_f.x * (*params).terrain_scale, pos_f.y * (*params).terrain_scale, pos_f.z * (*params).terrain_scale);
-    let base_height = i32(height_noise * 64.0);
+    // Use 2D noise for terrain height (not 3D)
+    let height_noise = fbm2d(
+        pos_f.x * (*params).terrain_scale, 
+        pos_f.z * (*params).terrain_scale,
+        6,     // octaves
+        2.0,   // lacunarity
+        0.5    // persistence
+    );
     
-    // Cave generation
+    // Convert noise (-1 to 1) to height with base at sea level
+    let base_height = i32((*params).sea_level + height_noise * 32.0);
+    
+    // Cave generation using 3D noise
     let cave_noise = perlin3d(pos_f.x * 0.05, pos_f.y * 0.05, pos_f.z * 0.05);
-    let is_cave = cave_noise > (*params).cave_threshold;
+    let is_cave = cave_noise > (*params).cave_threshold && world_pos.y < base_height - 5;
     
     // Basic terrain rules
     if (world_pos.y > base_height || is_cave) {
@@ -74,26 +82,44 @@ fn find_distribution_index_soa(distributions: ptr<storage, BlockDistributionSOA>
 
 // Main compute kernel
 @compute @workgroup_size(8, 8, 8)
-fn generate_terrain(@builtin(global_invocation_id) global_id: vec3<u32>) {
-    // Check bounds
-    if (global_id.x >= CHUNK_SIZE || global_id.y >= CHUNK_SIZE || global_id.z >= CHUNK_SIZE) {
+fn generate_terrain(
+    @builtin(global_invocation_id) global_id: vec3<u32>,
+    @builtin(workgroup_id) workgroup_id: vec3<u32>,
+    @builtin(local_invocation_id) local_id: vec3<u32>
+) {
+    // For single chunk generation, chunk index is 0
+    let chunk_idx = 0u;
+    if (chunk_idx >= arrayLength(&metadata)) {
         return;
     }
     
-    // Calculate world position
-    let chunk_offset = vec3<i32>(
-        metadata.flags >> 16,  // Chunk X stored in upper 16 bits
-        0,                     // Y is always 0 for now
-        metadata.flags & 0xFFFF // Chunk Z stored in lower 16 bits
-    );
+    let chunk_meta = metadata[chunk_idx];
     
-    let world_pos = vec3<i32>(global_id) + chunk_offset * i32(CHUNK_SIZE);
+    // Calculate local position within chunk
+    let local_pos = local_id + workgroup_id * vec3<u32>(8u, 8u, 8u);
+    
+    // Check bounds
+    if (local_pos.x >= CHUNK_SIZE || local_pos.y >= CHUNK_SIZE || local_pos.z >= CHUNK_SIZE) {
+        return;
+    }
+    
+    // Extract chunk position from metadata
+    let chunk_x = i32((chunk_meta.flags >> 16) & 0xFFFF);
+    let chunk_z = i32(chunk_meta.flags & 0xFFFF);
+    let chunk_y = i32(chunk_meta.reserved); // Y stored in reserved field
+    
+    // Sign extend if negative
+    let chunk_x_signed = select(chunk_x, chunk_x - 65536, chunk_x > 32767);
+    let chunk_z_signed = select(chunk_z, chunk_z - 65536, chunk_z > 32767);
+    
+    let chunk_offset = vec3<i32>(chunk_x_signed, chunk_y, chunk_z_signed);
+    let world_pos = vec3<i32>(local_pos) + chunk_offset * i32(CHUNK_SIZE);
     
     // Generate voxel using SOA data
     let voxel = get_voxel_soa(world_pos, &params);
     
     // Calculate linear index
-    let index = global_id.x + global_id.y * CHUNK_SIZE + global_id.z * CHUNK_SIZE * CHUNK_SIZE;
+    let index = local_pos.x + local_pos.y * CHUNK_SIZE + local_pos.z * CHUNK_SIZE * CHUNK_SIZE;
     
     // Store result
     world_data[index] = voxel;
