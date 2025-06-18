@@ -1,5 +1,9 @@
 use noise::{NoiseFn, Perlin};
 
+// Import terrain generation constants for voxel-scaled measurements
+include!("../../../constants.rs");
+use terrain::*;
+
 pub struct TerrainGenerator {
     height_noise: Perlin,
     detail_noise: Perlin,
@@ -24,20 +28,20 @@ impl TerrainGenerator {
         let scale2 = 0.05;  // Medium features (hills)
         let scale3 = 0.1;   // Small features (bumps)
         
-        // Sample noise at different scales
-        let height1 = self.height_noise.get([world_x * scale1, world_z * scale1]) * 32.0;
-        let height2 = self.detail_noise.get([world_x * scale2, world_z * scale2]) * 8.0;
-        let height3 = self.height_noise.get([world_x * scale3, world_z * scale3]) * 2.0;
+        // Sample noise at different scales (voxel-scaled for 1dcm³ world)
+        let height1 = self.height_noise.get([world_x * scale1, world_z * scale1]) * MOUNTAIN_AMPLITUDE as f64;
+        let height2 = self.detail_noise.get([world_x * scale2, world_z * scale2]) * HILL_AMPLITUDE as f64;
+        let height3 = self.height_noise.get([world_x * scale3, world_z * scale3]) * DETAIL_AMPLITUDE as f64;
         
         // Combine octaves
         let combined_height = height1 + height2 + height3;
         
-        // Base height at y=64 (sea level) with variation
-        let base_height = 64;
+        // Base height at sea level (voxel-scaled: 64m = 640 voxels) with variation
+        let base_height = SEA_LEVEL;
         let final_height = base_height + combined_height as i32;
         
-        // Clamp to reasonable values
-        final_height.clamp(10, 200)
+        // Clamp to reasonable values (voxel-scaled: 10m-200m = 100-2000 voxels)
+        final_height.clamp(MIN_HEIGHT, MAX_HEIGHT)
     }
     
     pub fn get_biome_factor(&self, world_x: f64, world_z: f64) -> f64 {

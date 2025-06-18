@@ -1,6 +1,10 @@
 use glam::{Vec3, Vec4};
 use serde::{Serialize, Deserialize};
 
+// Import physics constants for voxel-scaled gravity
+include!("../../constants.rs");
+use physics::GRAVITY;
+
 /// Individual particle in the particle system
 #[derive(Debug, Clone)]
 pub struct Particle {
@@ -141,8 +145,8 @@ impl Particle {
         // Apply drag
         self.velocity *= 1.0 - self.properties.drag * dt;
         
-        // Apply gravity
-        self.velocity.y -= 9.81 * self.properties.gravity * dt;
+        // Apply gravity (voxel-scaled for 1dcm³ world)
+        self.velocity.y -= (-GRAVITY) * self.properties.gravity * dt;
         
         // Update position
         self.position += self.velocity * dt;

@@ -17,10 +17,9 @@ pub use parallel_solver::{ParallelPhysicsSolver, SolverConfig};
 pub use integration::{PhysicsIntegrator, WorldInterface, WorldAdapter};
 pub use gpu_physics_world::GpuPhysicsWorld;
 
-// Physics simulation constants
-pub const GRAVITY: f32 = -9.81;
-pub const TERMINAL_VELOCITY: f32 = -50.0;
-pub const FIXED_TIMESTEP: f32 = 1.0 / 60.0; // 60 FPS physics
+// Import and re-export physics constants from single source of truth
+include!("../../constants.rs");
+pub use physics::*;
 
 /// Physics configuration for data-oriented system
 #[derive(Debug, Clone)]
@@ -35,7 +34,7 @@ impl Default for PhysicsConfig {
     fn default() -> Self {
         Self {
             max_entities: 65536, // 64k entities
-            spatial_hash_cell_size: 4.0, // 4 meter cells
+            spatial_hash_cell_size: SPATIAL_HASH_CELL_SIZE, // 40 voxel cells (4m in voxel units)
             worker_threads: num_cpus::get(),
             enable_gpu_buffers: false,
         }

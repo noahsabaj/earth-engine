@@ -38,9 +38,11 @@ struct VoxelData {
 @group(0) @binding(2) var<uniform> params: PhysicsParams;
 
 // Physics simulation constants
-const GRAVITY: f32 = -9.81;
-const TERMINAL_VELOCITY: f32 = -50.0;
-const CHUNK_SIZE: u32 = 32u;
+// Physics constants scaled for 1dcm³ voxels (10cm = 0.1m)
+// These values are 10x larger than meter-based constants
+const GRAVITY: f32 = -98.1;        // -9.81 m/s² × 10 voxels/m
+const TERMINAL_VELOCITY: f32 = -500.0;  // -50 m/s × 10 voxels/m
+const CHUNK_SIZE: u32 = 50u;  // Updated to match engine constants (1dcm³ voxel system)
 const AIR_BLOCK_ID: u32 = 0u;
 
 // Physics flags

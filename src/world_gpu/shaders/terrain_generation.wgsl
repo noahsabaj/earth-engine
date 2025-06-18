@@ -222,7 +222,7 @@ fn noise3d(x: f32, y: f32, z: f32) -> f32 {
 // Calculate terrain height using octaves of noise
 fn terrain_height(x: f32, z: f32) -> f32 {
     var height = 0.0;
-    var amplitude = 32.0;
+    var amplitude = 320.0; // Mountain amplitude (32m × 10 voxels/m = 320 voxels)
     var frequency = params.terrain_scale;
     
     // Multiple octaves for more realistic terrain

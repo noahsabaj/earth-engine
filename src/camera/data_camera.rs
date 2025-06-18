@@ -7,6 +7,11 @@ use cgmath::{perspective, Rad, InnerSpace, Matrix4, Point3, Vector3};
 use bytemuck::{Pod, Zeroable};
 use crate::world::ChunkPos;
 
+// Import camera constants for voxel-scaled measurements
+include!("../../constants.rs");
+use camera::*;
+use measurements::*;
+
 /// Camera data as a plain old data structure
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Pod, Zeroable)]
@@ -37,13 +42,13 @@ pub struct CameraUniform {
 /// Initialize camera data with default values
 pub fn init_camera(width: u32, height: u32) -> CameraData {
     CameraData {
-        position: [0.0, 10.0, 10.0],
+        position: [0.0, DEFAULT_HEIGHT, DEFAULT_HEIGHT], // Use voxel-scaled height (100 voxels = 10m)
         yaw_radians: -std::f32::consts::FRAC_PI_2, // -90 degrees
         pitch_radians: 0.0,
         aspect_ratio: width as f32 / height as f32,
         fovy_radians: std::f32::consts::FRAC_PI_4, // 45 degrees
-        znear: 0.1,
-        zfar: 1000.0,
+        znear: ZNEAR,  // 1.0 voxel minimum (10cm)
+        zfar: ZFAR,    // 10,000 voxels maximum (1km)
         _padding: [0.0; 3],
     }
 }
@@ -56,8 +61,8 @@ pub fn init_camera_with_spawn(width: u32, height: u32, spawn_x: f32, spawn_y: f3
         pitch_radians: 0.0,
         aspect_ratio: width as f32 / height as f32,
         fovy_radians: std::f32::consts::FRAC_PI_4, // 45 degrees
-        znear: 0.1,
-        zfar: 1000.0,
+        znear: ZNEAR,  // 1.0 voxel minimum (10cm)
+        zfar: ZFAR,    // 10,000 voxels maximum (1km)
         _padding: [0.0; 3],
     }
 }
@@ -220,26 +225,27 @@ pub mod diagnostics {
     use super::*;
     
     /// Get camera position as chunk coordinates for spatial context
+    /// Uses proper voxel-scaled chunk size (50 voxels = 5m per chunk)
     pub fn camera_chunk_position(camera: &CameraData) -> ChunkPos {
-        let chunk_x = (camera.position[0] / 32.0).floor() as i32;
-        let chunk_y = (camera.position[1] / 32.0).floor() as i32;
-        let chunk_z = (camera.position[2] / 32.0).floor() as i32;
+        let chunk_x = (camera.position[0] / CHUNK_SIZE_VOXELS).floor() as i32;
+        let chunk_y = (camera.position[1] / CHUNK_SIZE_VOXELS).floor() as i32;
+        let chunk_z = (camera.position[2] / CHUNK_SIZE_VOXELS).floor() as i32;
         ChunkPos::new(chunk_x, chunk_y, chunk_z)
     }
     
-    /// Get camera position within chunk (0-31 range)
+    /// Get camera position within chunk (0-49 range for 50 voxel chunks)
     pub fn camera_local_position(camera: &CameraData) -> (f32, f32, f32) {
-        let local_x = camera.position[0] % 32.0;
-        let local_y = camera.position[1] % 32.0;
-        let local_z = camera.position[2] % 32.0;
+        let local_x = camera.position[0] % CHUNK_SIZE_VOXELS;
+        let local_y = camera.position[1] % CHUNK_SIZE_VOXELS;
+        let local_z = camera.position[2] % CHUNK_SIZE_VOXELS;
         (local_x, local_y, local_z)
     }
     
     /// Calculate distance from camera to a chunk position
     pub fn distance_to_chunk(camera: &CameraData, chunk_pos: ChunkPos) -> f32 {
-        let chunk_center_x = (chunk_pos.x * 32) as f32 + 16.0;
-        let chunk_center_y = (chunk_pos.y * 32) as f32 + 16.0;
-        let chunk_center_z = (chunk_pos.z * 32) as f32 + 16.0;
+        let chunk_center_x = (chunk_pos.x as f32 * CHUNK_SIZE_VOXELS) + (CHUNK_SIZE_VOXELS / 2.0);
+        let chunk_center_y = (chunk_pos.y as f32 * CHUNK_SIZE_VOXELS) + (CHUNK_SIZE_VOXELS / 2.0);
+        let chunk_center_z = (chunk_pos.z as f32 * CHUNK_SIZE_VOXELS) + (CHUNK_SIZE_VOXELS / 2.0);
         
         let dx = camera.position[0] - chunk_center_x;
         let dy = camera.position[1] - chunk_center_y;
@@ -283,7 +289,7 @@ pub mod diagnostics {
                     
                     // Only include chunks within spherical distance
                     let distance = distance_to_chunk(camera, chunk_pos);
-                    if distance <= (view_distance as f32 * 32.0) {
+                    if distance <= (view_distance as f32 * CHUNK_SIZE_VOXELS) {
                         chunks.push(chunk_pos);
                     }
                 }
@@ -326,7 +332,7 @@ mod tests {
     #[test]
     fn test_camera_initialization() {
         let camera = init_camera(1920, 1080);
-        assert_eq!(camera.position, [0.0, 10.0, 10.0]);
+        assert_eq!(camera.position, [0.0, 100.0, 100.0]);
         assert!((camera.aspect_ratio - 1920.0 / 1080.0).abs() < 0.001);
     }
     
@@ -363,15 +369,15 @@ mod tests {
         let camera = init_camera_with_spawn(1920, 1080, 100.0, 50.0, 200.0);
         let chunk_pos = camera_chunk_position(&camera);
         
-        // Camera at (100, 50, 200) should be in chunk (3, 1, 6)
-        assert_eq!(chunk_pos.x, 3);
+        // Camera at (100, 50, 200) should be in chunk (2, 1, 4) with 50-voxel chunks
+        assert_eq!(chunk_pos.x, 2);
         assert_eq!(chunk_pos.y, 1);
-        assert_eq!(chunk_pos.z, 6);
+        assert_eq!(chunk_pos.z, 4);
         
         let (local_x, local_y, local_z) = camera_local_position(&camera);
-        assert!((local_x - 4.0).abs() < 0.001); // 100 % 32 = 4
-        assert!((local_y - 18.0).abs() < 0.001); // 50 % 32 = 18
-        assert!((local_z - 8.0).abs() < 0.001); // 200 % 32 = 8
+        assert!((local_x - 0.0).abs() < 0.001); // 100 % 50 = 0
+        assert!((local_y - 0.0).abs() < 0.001); // 50 % 50 = 0
+        assert!((local_z - 0.0).abs() < 0.001); // 200 % 50 = 0
     }
     
     #[test]

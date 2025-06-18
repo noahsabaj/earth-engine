@@ -38,6 +38,102 @@ pub mod blocks {
     pub const GAME_BLOCK_START: u16 = 100;
 }
 
+/// World measurement system - SINGLE SOURCE OF TRUTH
+/// All measurements in the engine are based on 1dcm³ voxels (10cm cubes)
+pub mod measurements {
+    /// Core voxel measurement definition
+    pub const VOXEL_SIZE_METERS: f32 = 0.1; // 1 voxel = 10cm = 0.1m
+    pub const METERS_TO_VOXELS: f32 = 10.0;  // 1m = 10 voxels
+    pub const VOXELS_TO_METERS: f32 = 0.1;   // 1 voxel = 0.1m
+    
+    /// Chunk physical dimensions
+    pub const CHUNK_SIZE_VOXELS: f32 = 50.0;
+    pub const CHUNK_SIZE_METERS: f32 = CHUNK_SIZE_VOXELS * VOXEL_SIZE_METERS; // 5.0m
+    
+    /// Conversion utilities for external APIs
+    #[inline]
+    pub const fn meters_to_voxels(meters: f32) -> f32 {
+        meters * METERS_TO_VOXELS
+    }
+    
+    #[inline] 
+    pub const fn voxels_to_meters(voxels: f32) -> f32 {
+        voxels * VOXELS_TO_METERS
+    }
+}
+
+/// Physics constants - ALL IN VOXEL UNITS
+/// These values are scaled for 1dcm³ voxels, not meters
+pub mod physics {
+    /// Gravitational acceleration (voxels/s²)
+    /// Earth gravity: -9.81 m/s² × 10 voxels/m = -98.1 voxels/s²
+    pub const GRAVITY: f32 = -98.1;
+    
+    /// Terminal velocity for falling objects (voxels/s) 
+    /// Realistic terminal velocity: -50 m/s × 10 voxels/m = -500 voxels/s
+    pub const TERMINAL_VELOCITY: f32 = -500.0;
+    
+    /// Fixed physics timestep (seconds)
+    /// 60 FPS physics simulation 
+    pub const FIXED_TIMESTEP: f32 = 1.0 / 60.0;
+    
+    /// Spatial hash cell size (voxels)
+    /// 4 meters × 10 voxels/m = 40 voxels per cell
+    pub const SPATIAL_HASH_CELL_SIZE: f32 = 40.0;
+    
+    /// Player collision box half-extents (voxels)
+    /// Typical player: 0.4m wide, 0.9m tall → 4 voxels wide, 9 voxels tall
+    pub const PLAYER_HALF_EXTENTS: [f32; 3] = [4.0, 9.0, 4.0];
+    
+    /// Block collision box half-extents (voxels)
+    /// 1 voxel = 10cm, so half-extents = 5cm = 0.5 voxels
+    pub const BLOCK_HALF_EXTENTS: [f32; 3] = [0.5, 0.5, 0.5];
+}
+
+/// Camera and rendering constants - ALL IN VOXEL UNITS
+pub mod camera {
+    /// Near clipping plane (voxels)
+    /// 0.1m × 10 voxels/m = 1.0 voxel minimum
+    pub const ZNEAR: f32 = 1.0;
+    
+    /// Far clipping plane (voxels) 
+    /// 1000m × 10 voxels/m = 10,000 voxels (1km view distance)
+    pub const ZFAR: f32 = 10000.0;
+    
+    /// Default camera position (voxels)
+    /// 10m height × 10 voxels/m = 100 voxels above ground
+    pub const DEFAULT_HEIGHT: f32 = 100.0;
+    
+    /// Camera movement speeds (voxels/s)
+    pub const WALK_SPEED: f32 = 43.0;      // ~4.3 m/s walking
+    pub const RUN_SPEED: f32 = 80.0;       // ~8.0 m/s running  
+    pub const FLY_SPEED: f32 = 100.0;      // ~10.0 m/s flying
+}
+
+/// Terrain generation constants - ALL IN VOXEL UNITS
+pub mod terrain {
+    /// Terrain height variations (voxels)
+    /// Mountains: 32m × 10 voxels/m = 320 voxels
+    pub const MOUNTAIN_AMPLITUDE: f32 = 320.0;
+    
+    /// Hill height variations (voxels)
+    /// Hills: 8m × 10 voxels/m = 80 voxels  
+    pub const HILL_AMPLITUDE: f32 = 80.0;
+    
+    /// Detail noise amplitude (voxels)
+    /// Fine details: 2m × 10 voxels/m = 20 voxels
+    pub const DETAIL_AMPLITUDE: f32 = 20.0;
+    
+    /// Base terrain height (voxels)
+    /// Sea level: 64m × 10 voxels/m = 640 voxels
+    pub const SEA_LEVEL: i32 = 640;
+    
+    /// Terrain height limits (voxels)
+    /// Range: 10m-200m × 10 voxels/m = 100-2000 voxels
+    pub const MIN_HEIGHT: i32 = 100;
+    pub const MAX_HEIGHT: i32 = 2000;
+}
+
 /// GPU buffer alignment requirements
 pub mod alignment {
     /// WGSL requires 16-byte alignment for storage buffers

@@ -2,7 +2,7 @@ use super::{PhysicsData, EntityId, physics_tables};
 use rayon::prelude::*;
 
 // Import physics constants from main physics module
-use crate::physics::{FIXED_TIMESTEP, GRAVITY, TERMINAL_VELOCITY};
+use crate::physics::{FIXED_TIMESTEP, GRAVITY, TERMINAL_VELOCITY, PLAYER_HALF_EXTENTS, BLOCK_HALF_EXTENTS};
 
 /// Physics integrator for updating positions and velocities
 pub struct PhysicsIntegrator {
@@ -154,12 +154,11 @@ impl PhysicsIntegrator {
                 *vel = [0.0, 0.0, 0.0];
             }
             
-            // Update bounding box
+            // Update bounding box with voxel-scaled block extents
             if let Some(bbox) = physics_data.bounding_boxes.get_mut(idx) {
-                let half_extents = [0.5, 0.5, 0.5]; // Simplified
                 *bbox = physics_tables::AABB::from_center_half_extents(
                     position,
-                    half_extents,
+                    BLOCK_HALF_EXTENTS,
                 );
             }
         }
@@ -232,17 +231,17 @@ impl PhysicsIntegrator {
                     // Calculate intended movement
                     let delta = [vel[0] * dt, vel[1] * dt, vel[2] * dt];
                     
-                    // Perform collision detection and resolution
+                    // Perform collision detection and resolution with voxel-scaled player extents
                     let (new_pos, new_vel, collision_flags) = self.resolve_world_collision(
-                        world, *pos, delta, *vel, [0.4, 0.9, 0.4] // Player-like AABB half extents
+                        world, *pos, delta, *vel, PLAYER_HALF_EXTENTS
                     );
                     
                     // Update position and velocity
                     *pos = new_pos;
                     *vel = new_vel;
                     
-                    // Update bounding box
-                    *bbox = physics_tables::AABB::from_center_half_extents(new_pos, [0.4, 0.9, 0.4]);
+                    // Update bounding box with voxel-scaled player extents
+                    *bbox = physics_tables::AABB::from_center_half_extents(new_pos, PLAYER_HALF_EXTENTS);
                     
                     // Update flags based on collision
                     if let Some(physics_flag) = physics_data.flags.get_mut(i) {
