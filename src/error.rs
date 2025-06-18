@@ -290,6 +290,12 @@ impl From<crate::persistence::PersistenceError> for EngineError {
             PersistenceError::LockPoisoned(e) => EngineError::LockPoisoned {
                 resource: e,
             },
+            PersistenceError::PlayerNotFound(e) => EngineError::Internal {
+                message: format!("Player not found: {}", e),
+            },
+            PersistenceError::CapacityExceeded(e) => EngineError::Internal {
+                message: format!("Capacity exceeded: {}", e),
+            },
         }
     }
 }

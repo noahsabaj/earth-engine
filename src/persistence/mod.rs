@@ -3,6 +3,8 @@
 pub mod chunk_serializer;
 pub mod world_save;
 pub mod player_data;
+pub mod player_data_dop;
+pub mod player_data_compat;
 pub mod save_manager;
 pub mod compression;
 pub mod metadata;
@@ -16,6 +18,8 @@ pub mod network_validator;
 pub use chunk_serializer::{ChunkSerializer, ChunkFormat};
 pub use world_save::{WorldSave, WorldSaveError};
 pub use player_data::{PlayerData, PlayerSaveData, GameMode, PlayerStats};
+pub use player_data_dop::{PlayerDataBuffer, PlayerHotData, PlayerColdData, PlayerBufferMemoryStats, CACHE_LINE_SIZE, MAX_PLAYERS};
+pub use player_data_compat::{DOPPlayerDataManager, PlayerDataMetrics, PlayerDataBenchmark};
 pub use save_manager::{SaveManager, SaveConfig, AutoSaveConfig};
 pub use compression::{CompressionType, CompressionLevel, Compressor};
 pub use metadata::{WorldMetadata, SaveVersion};
@@ -46,6 +50,8 @@ pub enum PersistenceError {
     MigrationError(String),
     BackupError(String),
     LockPoisoned(String),
+    PlayerNotFound(String),
+    CapacityExceeded(String),
 }
 
 impl std::fmt::Display for PersistenceError {
@@ -62,6 +68,8 @@ impl std::fmt::Display for PersistenceError {
             PersistenceError::MigrationError(e) => write!(f, "Migration error: {}", e),
             PersistenceError::BackupError(e) => write!(f, "Backup error: {}", e),
             PersistenceError::LockPoisoned(e) => write!(f, "Lock poisoned: {}", e),
+            PersistenceError::PlayerNotFound(e) => write!(f, "Player not found: {}", e),
+            PersistenceError::CapacityExceeded(e) => write!(f, "Capacity exceeded: {}", e),
         }
     }
 }
