@@ -116,16 +116,8 @@ fn generate_terrain(
         return;
     }
     
-    // Extract chunk position from metadata
-    let chunk_x = i32((chunk_meta.flags >> 16) & 0xFFFF);
-    let chunk_z = i32(chunk_meta.flags & 0xFFFF);
-    let chunk_y = i32(chunk_meta.reserved); // Y stored in reserved field
-    
-    // Sign extend if negative
-    let chunk_x_signed = select(chunk_x, chunk_x - 65536, chunk_x > 32767);
-    let chunk_z_signed = select(chunk_z, chunk_z - 65536, chunk_z > 32767);
-    
-    let chunk_offset = vec3<i32>(chunk_x_signed, chunk_y, chunk_z_signed);
+    // Extract chunk position from metadata - offset is already a vec3<i32>
+    let chunk_offset = chunk_meta.offset;
     let world_pos = vec3<i32>(local_pos) + chunk_offset * i32(CHUNK_SIZE);
     
     // Generate voxel using SOA data
@@ -157,16 +149,8 @@ fn generate_terrain_vectorized(@builtin(global_invocation_id) global_id: vec3<u3
     
     let chunk_meta = metadata[chunk_idx];
     
-    // Extract chunk position from metadata
-    let chunk_x = i32((chunk_meta.flags >> 16) & 0xFFFF);
-    let chunk_z = i32(chunk_meta.flags & 0xFFFF);
-    let chunk_y = i32(chunk_meta.reserved); // Y stored in reserved field
-    
-    // Sign extend if negative
-    let chunk_x_signed = select(chunk_x, chunk_x - 65536, chunk_x > 32767);
-    let chunk_z_signed = select(chunk_z, chunk_z - 65536, chunk_z > 32767);
-    
-    let chunk_offset = vec3<i32>(chunk_x_signed, chunk_y, chunk_z_signed);
+    // Extract chunk position from metadata - offset is already a vec3<i32>
+    let chunk_offset = chunk_meta.offset;
     
     // Generate 4 voxels at once
     for (var i = 0u; i < 4u; i++) {

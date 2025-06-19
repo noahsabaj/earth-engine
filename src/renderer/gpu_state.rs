@@ -433,26 +433,38 @@ impl GpuState {
 
         // Configure surface with validation
         log::info!("[GpuState::new] Getting surface capabilities...");
-        let surface_caps = surface.get_capabilities(&adapter);
+        let mut surface_caps = surface.get_capabilities(&adapter);
         
-        if surface_caps.formats.is_empty() {
+        let surface_format = if surface_caps.formats.is_empty() {
             log::error!("[GpuState::new] No surface formats available!");
-            return Err(anyhow::anyhow!("No surface formats supported"));
-        }
-        
-        log::info!("[GpuState::new] Available surface formats: {:?}", surface_caps.formats);
-        log::info!("[GpuState::new] Available present modes: {:?}", surface_caps.present_modes);
-        log::info!("[GpuState::new] Available alpha modes: {:?}", surface_caps.alpha_modes);
-        
-        let surface_format = surface_caps
-            .formats
-            .iter()
-            .copied()
-            .find(|f| f.is_srgb())
-            .unwrap_or_else(|| {
-                log::warn!("[GpuState::new] No sRGB format found, using first available: {:?}", surface_caps.formats[0]);
-                surface_caps.formats[0]
-            });
+            log::warn!("[GpuState::new] Attempting fallback with default surface format...");
+            
+            // Fallback: Try to use a common format that should work on Windows
+            let fallback_format = wgpu::TextureFormat::Bgra8UnormSrgb;
+            surface_caps = wgpu::SurfaceCapabilities {
+                formats: vec![fallback_format],
+                present_modes: vec![wgpu::PresentMode::Fifo, wgpu::PresentMode::Immediate],
+                alpha_modes: vec![wgpu::CompositeAlphaMode::Opaque],
+                usages: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            };
+            
+            log::info!("[GpuState::new] Using fallback surface format: {:?}", fallback_format);
+            fallback_format
+        } else {
+            log::info!("[GpuState::new] Available surface formats: {:?}", surface_caps.formats);
+            log::info!("[GpuState::new] Available present modes: {:?}", surface_caps.present_modes);
+            log::info!("[GpuState::new] Available alpha modes: {:?}", surface_caps.alpha_modes);
+            
+            surface_caps
+                .formats
+                .iter()
+                .copied()
+                .find(|f| f.is_srgb())
+                .unwrap_or_else(|| {
+                    log::warn!("[GpuState::new] No sRGB format found, using first available: {:?}", surface_caps.formats[0]);
+                    surface_caps.formats[0]
+                })
+        };
         log::info!("[GpuState::new] Selected surface format: {:?}", surface_format);
         
         // Choose present mode with fallback - prioritize Immediate for performance
