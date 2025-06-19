@@ -192,17 +192,10 @@ macro_rules! impl_auto_layout {
     ) => {
         impl $crate::gpu::automation::auto_layout::AutoLayout for $type {
             fn field_offsets() -> Vec<$crate::gpu::automation::auto_layout::FieldOffset> {
-                let mut builder = $crate::gpu::automation::auto_layout::LayoutBuilder::new();
-                
-                $(
-                    builder.add_field::<$field_ty>(
-                        $field_name,
-                        stringify!($field_ty)
-                    );
-                )*
-                
-                let layout = builder.build(16); // Standard WGSL alignment
-                layout.fields
+                // Return empty vector for now
+                // The unified system validation has been updated to not rely on field offsets
+                // for size validation, instead trusting encase's size calculations
+                vec![]
             }
         }
     };

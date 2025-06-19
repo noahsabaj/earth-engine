@@ -18,6 +18,8 @@ pub mod physics;
 pub mod renderer;
 pub mod world;
 pub mod world_gpu;
+// TODO: world_unified module is incomplete - future work to unify world and world_gpu
+// pub mod world_unified;
 
 // Advanced features removed - deemed premature for core engine
 
