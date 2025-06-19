@@ -131,13 +131,7 @@ impl UnifiedGpuSystem {
         // In the future, this should be driven by the type registry
         match shader_name {
             "terrain_generation_soa" => {
-                // Add ChunkMetadata struct (not registered in unified system yet)
-                wgsl.push_str("struct ChunkMetadata {\n");
-                wgsl.push_str("    offset: vec3<i32>,\n");
-                wgsl.push_str("    size: vec3<u32>,\n");
-                wgsl.push_str("    voxel_count: u32,\n");
-                wgsl.push_str("}\n\n");
-                
+                // ChunkMetadata is now properly registered in the type system
                 // Standard terrain generation bindings
                 wgsl.push_str("@group(0) @binding(0) var<storage, read_write> world_data: array<u32>;\n");
                 wgsl.push_str("@group(0) @binding(1) var<storage, read> metadata: array<ChunkMetadata>;\n");

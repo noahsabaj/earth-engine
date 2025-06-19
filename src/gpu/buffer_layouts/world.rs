@@ -1,145 +1,13 @@
 //! World buffer layout definitions
 //! 
-//! Defines the GPU buffer structures for world voxel data and chunk metadata.
+//! This module re-exports world GPU types from the unified type system.
 
-use bytemuck::{Pod, Zeroable};
 use crate::world::ChunkPos;
 use super::constants::*;
 use crate::gpu::constants::core::VOXELS_PER_CHUNK;
 
-/// Packed voxel data format for GPU storage
-/// Uses 32 bits per voxel for efficient memory usage
-/// 
-/// Memory layout:
-/// - Bits 0-15: Block ID (supports 65,536 block types)
-/// - Bits 16-19: Light level (0-15)
-/// - Bits 20-23: Sky light level (0-15)
-/// - Bits 24-27: Metadata (flags, rotation, etc)
-/// - Bits 28-31: Reserved for future use
-#[repr(C)]
-#[derive(Copy, Clone, Debug, Pod, Zeroable)]
-pub struct VoxelData(pub u32);
-
-impl VoxelData {
-    /// Air block constant
-    pub const AIR: Self = Self(0);
-    
-    /// Create a new voxel data entry
-    #[inline]
-    pub fn new(block_id: u16, light: u8, sky_light: u8, metadata: u8) -> Self {
-        let packed = (block_id as u32) 
-            | ((light as u32 & 0xF) << 16)
-            | ((sky_light as u32 & 0xF) << 20)
-            | ((metadata as u32 & 0xF) << 24);
-        Self(packed)
-    }
-    
-    /// Extract block ID
-    #[inline]
-    pub fn block_id(&self) -> u16 {
-        (self.0 & 0xFFFF) as u16
-    }
-    
-    /// Extract light level
-    #[inline]
-    pub fn light_level(&self) -> u8 {
-        ((self.0 >> 16) & 0xF) as u8
-    }
-    
-    /// Extract sky light level
-    #[inline]
-    pub fn sky_light_level(&self) -> u8 {
-        ((self.0 >> 20) & 0xF) as u8
-    }
-    
-    /// Extract metadata
-    #[inline]
-    pub fn metadata(&self) -> u8 {
-        ((self.0 >> 24) & 0xF) as u8
-    }
-    
-    /// Check if this is an air block
-    #[inline]
-    pub fn is_air(&self) -> bool {
-        self.block_id() == 0
-    }
-    
-    /// Set block ID while preserving other data
-    #[inline]
-    pub fn with_block_id(mut self, block_id: u16) -> Self {
-        self.0 = (self.0 & 0xFFFF0000) | (block_id as u32);
-        self
-    }
-    
-    /// Set light level while preserving other data
-    #[inline]
-    pub fn with_light_level(mut self, light: u8) -> Self {
-        self.0 = (self.0 & 0xFFF0FFFF) | ((light as u32 & 0xF) << 16);
-        self
-    }
-}
-
-/// Chunk metadata stored on GPU
-/// Aligned to 16 bytes for efficient GPU access
-#[repr(C)]
-#[derive(Copy, Clone, Debug, Pod, Zeroable)]
-pub struct ChunkMetadata {
-    /// Flags: bit 0 = loaded, bit 1 = modified, bit 2-31 = reserved
-    pub flags: u32,
-    
-    /// Last modification timestamp (frame number)
-    pub last_modified: u32,
-    
-    /// LOD level (0 = full detail, higher = less detail)
-    pub lod_level: u32,
-    
-    /// Reserved for future use (maintains 16-byte alignment)
-    pub reserved: u32,
-}
-
-impl ChunkMetadata {
-    /// Create new metadata for a fresh chunk
-    pub fn new() -> Self {
-        Self {
-            flags: 0,
-            last_modified: 0,
-            lod_level: 0,
-            reserved: 0,
-        }
-    }
-    
-    /// Check if chunk is loaded
-    #[inline]
-    pub fn is_loaded(&self) -> bool {
-        (self.flags & 1) != 0
-    }
-    
-    /// Set loaded flag
-    #[inline]
-    pub fn set_loaded(&mut self, loaded: bool) {
-        if loaded {
-            self.flags |= 1;
-        } else {
-            self.flags &= !1;
-        }
-    }
-    
-    /// Check if chunk is modified
-    #[inline]
-    pub fn is_modified(&self) -> bool {
-        (self.flags & 2) != 0
-    }
-    
-    /// Set modified flag
-    #[inline]
-    pub fn set_modified(&mut self, modified: bool) {
-        if modified {
-            self.flags |= 2;
-        } else {
-            self.flags &= !2;
-        }
-    }
-}
+// Re-export world types from the unified GPU type system
+pub use crate::gpu::types::world::{VoxelData, ChunkMetadata};
 
 /// World buffer layout information
 pub struct WorldBufferLayout {
@@ -149,41 +17,71 @@ pub struct WorldBufferLayout {
     /// View distance
     pub view_distance: u32,
     
-    /// Total voxel count
-    pub total_voxels: u64,
+    /// Bytes per chunk (voxel data)
+    pub bytes_per_chunk: u64,
     
-    /// Voxel buffer size in bytes
+    /// Total buffer size for voxel data
     pub voxel_buffer_size: u64,
     
-    /// Metadata buffer size in bytes
+    /// Total buffer size for metadata
     pub metadata_buffer_size: u64,
 }
 
 impl WorldBufferLayout {
-    /// Create layout for a given view distance
+    /// Create a new world buffer layout
     pub fn new(view_distance: u32) -> Self {
-        let diameter = 2 * view_distance + 1;
-        let max_chunks = diameter * diameter * diameter;
-        let total_voxels = max_chunks as u64 * VOXELS_PER_CHUNK as u64;
+        // Calculate max chunks based on view distance
+        // Using a cubic region around the player
+        let chunks_per_axis = (view_distance * 2 + 1) as u32;
+        let max_chunks = chunks_per_axis * chunks_per_axis * chunks_per_axis;
+        
+        // Calculate buffer sizes
+        let bytes_per_chunk = (VOXELS_PER_CHUNK * std::mem::size_of::<VoxelData>() as u32) as u64;
+        let voxel_buffer_size = bytes_per_chunk * max_chunks as u64;
+        let metadata_buffer_size = (max_chunks * std::mem::size_of::<ChunkMetadata>() as u32) as u64;
         
         Self {
             max_chunks,
             view_distance,
-            total_voxels,
-            voxel_buffer_size: total_voxels * VOXEL_DATA_SIZE,
-            metadata_buffer_size: max_chunks as u64 * CHUNK_METADATA_SIZE,
+            bytes_per_chunk,
+            voxel_buffer_size,
+            metadata_buffer_size,
         }
     }
     
-    /// Calculate slot offset for a chunk
-    #[inline]
-    pub fn chunk_offset(&self, slot: u32) -> u64 {
-        super::calculations::chunk_slot_offset(slot)
+    /// Get the byte offset for a chunk in the voxel buffer
+    pub fn chunk_offset(&self, chunk_index: u32) -> u64 {
+        chunk_index as u64 * self.bytes_per_chunk
     }
+}
+
+/// Binding indices for world buffers
+pub mod bindings {
+    /// Voxel data buffer binding
+    pub const VOXEL_BUFFER: u32 = 0;
     
-    /// Get memory usage in MB
-    pub fn memory_usage_mb(&self) -> f32 {
-        let total_bytes = self.voxel_buffer_size + self.metadata_buffer_size;
-        total_bytes as f32 / (1024.0 * 1024.0)
+    /// Metadata buffer binding
+    pub const METADATA_BUFFER: u32 = 1;
+    
+    /// Parameters buffer binding (for terrain generation)
+    pub const PARAMS_BUFFER: u32 = 2;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_world_buffer_layout() {
+        let layout = WorldBufferLayout::new(2);
+        
+        // View distance 2 = 5x5x5 chunks
+        assert_eq!(layout.max_chunks, 125);
+        
+        // Each chunk has VOXELS_PER_CHUNK voxels, 4 bytes each
+        assert_eq!(layout.bytes_per_chunk, VOXELS_PER_CHUNK as u64 * 4);
+        
+        // Metadata is 16 bytes per chunk
+        assert_eq!(layout.metadata_buffer_size, 125 * 16);
     }
 }

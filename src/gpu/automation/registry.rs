@@ -8,8 +8,9 @@ use crate::gpu::automation::{
     auto_layout::AutoLayout,
 };
 use crate::gpu::soa::{TerrainParamsSOA, BlockDistributionSOA};
+use crate::gpu::types::world::{ChunkMetadata, VoxelData};
 // TODO: Add these when they implement AutoWgsl
-// use crate::gpu::buffer_layouts::{VoxelData, InstanceData, CameraUniform, IndirectDrawCommand};
+// use crate::gpu::buffer_layouts::{InstanceData, CameraUniform, IndirectDrawCommand};
 use lazy_static::lazy_static;
 use std::sync::Mutex;
 
@@ -25,8 +26,11 @@ lazy_static! {
         system.register_type::<TerrainParamsSOA>();
         system.register_type::<BlockDistributionSOA>();
         
+        // World storage types
+        system.register_type::<ChunkMetadata>();
+        system.register_type::<VoxelData>();
+        
         // Rendering types - TODO: Implement AutoWgsl for these
-        // system.register_type::<VoxelData>();
         // system.register_type::<InstanceData>();
         // system.register_type::<CameraUniform>();
         // system.register_type::<IndirectDrawCommand>();

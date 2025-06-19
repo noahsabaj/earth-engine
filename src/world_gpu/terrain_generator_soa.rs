@@ -40,47 +40,6 @@ pub struct TerrainGeneratorSOA {
 }
 
 impl TerrainGeneratorSOA {
-    /// Strip manual type definitions from shader code
-    /// The unified system will add all required type definitions automatically
-    fn strip_manual_types(shader_code: &str) -> String {
-        let mut result = String::new();
-        let mut in_struct = false;
-        let mut brace_count = 0;
-        
-        for line in shader_code.lines() {
-            let trimmed = line.trim();
-            
-            // Skip struct definitions (they'll come from unified system)
-            if trimmed.starts_with("struct ") {
-                in_struct = true;
-                brace_count = 0;
-                continue;
-            }
-            
-            // Track braces to know when struct ends
-            if in_struct {
-                brace_count += line.chars().filter(|&c| c == '{').count() as i32;
-                brace_count -= line.chars().filter(|&c| c == '}').count() as i32;
-                
-                if brace_count <= 0 && trimmed.ends_with('}') {
-                    in_struct = false;
-                }
-                continue;
-            }
-            
-            // Skip type aliases and constants (they'll come from unified system)
-            if trimmed.starts_with("alias ") || trimmed.starts_with("const ") {
-                continue;
-            }
-            
-            // Keep the rest of the shader code
-            result.push_str(line);
-            result.push('\n');
-        }
-        
-        result
-    }
-    
     /// Validate that a shader entry point exists in the shader source
     fn validate_shader_entry_point(shader_source: &str, entry_point: &str) -> Result<(), String> {
         // Check for the entry point function definition
@@ -257,11 +216,8 @@ impl TerrainGeneratorSOA {
         log::info!("[TerrainGeneratorSOA] TerrainParamsSOA size: {} bytes", 
                   std::mem::size_of::<TerrainParamsSOA>());
         
-        // Load SOA shader code (without type definitions - those come from unified system)
-        let shader_code_raw = include_str!("../gpu/shaders/soa/terrain_generation_soa.wgsl");
-        
-        // Strip out manual type definitions from shader (they'll be auto-generated)
-        let shader_code = Self::strip_manual_types(shader_code_raw);
+        // Load SOA shader code
+        let shader_code = include_str!("../gpu/shaders/soa/terrain_generation_soa.wgsl");
         
         log::info!("[TerrainGeneratorSOA] Creating shader through unified GPU system");
         
@@ -269,7 +225,7 @@ impl TerrainGeneratorSOA {
         let validated_shader = match crate::gpu::automation::create_gpu_shader(
             &device,
             "terrain_generation_soa",
-            &shader_code,
+            shader_code,
         ) {
             Ok(shader) => shader,
             Err(e) => {
@@ -281,7 +237,7 @@ impl TerrainGeneratorSOA {
         let shader = &validated_shader.module;
         
         // Keep reference to shader code for validation
-        let shader_source_for_validation = shader_code.clone();
+        let shader_source_for_validation = shader_code;
         
         // Create bind group layout for SOA shader using centralized definitions
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -433,22 +389,14 @@ impl TerrainGeneratorSOA {
         
         log::info!("[TerrainGeneratorSOA] Generating {} chunks with SOA layout", batch_size);
         
-        // Create metadata buffer for chunk generation
-        // Each chunk needs a full ChunkMetadata struct (4 u32 values)
-        let metadata_data: Vec<u32> = chunk_positions.iter()
-            .flat_map(|pos| {
-                // Create ChunkMetadata for each chunk
-                let flags = ((pos.x & 0xFFFF) as u32) << 16 | (pos.z & 0xFFFF) as u32;
-                let timestamp = 0u32;
-                let checksum = 0u32;
-                let reserved = pos.y as u32; // Store Y position in reserved field
-                vec![flags, timestamp, checksum, reserved]
-            })
+        // Create metadata buffer for chunk generation using proper ChunkMetadata struct
+        let metadata: Vec<crate::gpu::types::world::ChunkMetadata> = chunk_positions.iter()
+            .map(|pos| crate::gpu::types::world::ChunkMetadata::new(pos.x, pos.y, pos.z))
             .collect();
         
         let metadata_buffer = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("SOA Chunk Metadata"),
-            contents: bytemuck::cast_slice(&metadata_data),
+            contents: bytemuck::cast_slice(&metadata),
             usage: usage::STORAGE,
         });
         

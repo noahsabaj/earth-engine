@@ -2,6 +2,7 @@
 
 pub mod core;
 pub mod terrain;
+pub mod world;
 // Future modules:
 // pub mod lighting;
 // pub mod physics;
@@ -12,4 +13,8 @@ pub use core::{GpuData, TypedGpuBuffer, Vec2, Vec3, Vec4};
 
 // Re-export terrain types
 pub use terrain::{BlockDistribution, TerrainParams};
+
+// Re-export world types
+pub use world::{ChunkMetadata, VoxelData};
+
 pub use crate::gpu::constants::MAX_BLOCK_DISTRIBUTIONS;
