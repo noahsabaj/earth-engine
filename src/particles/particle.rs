@@ -3,7 +3,7 @@ use serde::{Serialize, Deserialize};
 
 // Import physics constants for voxel-scaled gravity
 include!("../../constants.rs");
-use physics::GRAVITY;
+use self::physics::GRAVITY;
 
 /// Individual particle in the particle system
 #[derive(Debug, Clone)]

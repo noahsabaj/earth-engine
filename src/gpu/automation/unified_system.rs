@@ -252,18 +252,17 @@ impl UnifiedGpuSystem {
     
     /// Process #include directives
     fn process_includes(&self, shader_code: &str) -> String {
-        let mut result = String::new();
-        
-        for line in shader_code.lines() {
-            if line.trim().starts_with("#include") {
-                // Skip includes - types come from unified system
-                continue;
+        // Use the actual preprocessor to handle includes
+        match crate::gpu::preprocessor::preprocess_shader_content(
+            shader_code,
+            std::path::Path::new("shader.wgsl"), // dummy path for relative includes
+        ) {
+            Ok(processed) => processed,
+            Err(e) => {
+                log::warn!("Failed to preprocess shader includes: {}. Using original code.", e);
+                shader_code.to_string()
             }
-            result.push_str(line);
-            result.push('\n');
         }
-        
-        result
     }
     
     /// Get memory layout constants for all types

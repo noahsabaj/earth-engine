@@ -7,7 +7,6 @@ use std::{env, fs, path::Path};
 
 // Import constants from single source of truth
 include!("constants.rs");
-use crate::core::*;
 
 // Note: In a real build.rs, we would use a separate crate or procedural macro
 // For now, we'll keep the manual generation but document the future approach
@@ -138,11 +137,11 @@ fn generate_block_distribution_soa_wgsl() -> String {
     probabilities: array<f32, {}>,
     noise_thresholds: array<f32, {}>,
 }}"#, 
-        MAX_BLOCK_DISTRIBUTIONS, 
-        MAX_BLOCK_DISTRIBUTIONS, 
-        MAX_BLOCK_DISTRIBUTIONS, 
-        MAX_BLOCK_DISTRIBUTIONS, 
-        MAX_BLOCK_DISTRIBUTIONS
+        core::MAX_BLOCK_DISTRIBUTIONS, 
+        core::MAX_BLOCK_DISTRIBUTIONS, 
+        core::MAX_BLOCK_DISTRIBUTIONS, 
+        core::MAX_BLOCK_DISTRIBUTIONS, 
+        core::MAX_BLOCK_DISTRIBUTIONS
     )
 }
 
@@ -259,9 +258,9 @@ const BLOCK_BRICK: u32 = 11u;
 // Game blocks start at ID 100
 const GAME_BLOCK_START: u32 = 100u;
 "#, 
-        CHUNK_SIZE,
-        CHUNK_SIZE,
-        VOXELS_PER_CHUNK,
-        MAX_BLOCK_DISTRIBUTIONS,
+        core::CHUNK_SIZE,
+        core::CHUNK_SIZE,
+        core::VOXELS_PER_CHUNK,
+        core::MAX_BLOCK_DISTRIBUTIONS as u32,
     )
 }

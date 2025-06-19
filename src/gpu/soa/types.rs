@@ -6,7 +6,7 @@
 use encase::{ShaderType, ShaderSize, internal::WriteInto};
 use bytemuck::{Pod, Zeroable};
 use crate::gpu::types::terrain::{BlockDistribution, TerrainParams};
-use crate::gpu::constants::core::MAX_BLOCK_DISTRIBUTIONS;
+use crate::gpu::constants::MAX_BLOCK_DISTRIBUTIONS;
 use crate::gpu::automation::auto_wgsl::AutoWgsl;
 use crate::gpu::automation::auto_layout::AutoLayout;
 use std::marker::PhantomData;
@@ -270,7 +270,7 @@ mod tests {
         
         // Calculate expected size: count (4) + 5 arrays of MAX_BLOCK_DISTRIBUTIONS elements
         // Each array element is 4 bytes, so each array is MAX_BLOCK_DISTRIBUTIONS * 4
-        let expected_size = 4 + 5 * (MAX_BLOCK_DISTRIBUTIONS * 4);
+        let expected_size = 4 + 5 * (MAX_BLOCK_DISTRIBUTIONS as usize * 4);
         let expected_aligned = ((expected_size + 15) / 16) * 16; // Round up to 16-byte alignment
         
         println!("[BlockDistributionSOA] Expected size (unaligned): {} bytes", expected_size);

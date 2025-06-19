@@ -4,7 +4,7 @@ use crate::world_unified::storage::ChunkSoA;
 
 // Import terrain generation constants for voxel-scaled measurements
 include!("../../../constants.rs");
-use terrain::*;
+use self::terrain::*;
 
 pub struct TerrainGenerator {
     height_noise: Perlin,
