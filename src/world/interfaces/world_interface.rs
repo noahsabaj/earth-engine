@@ -17,12 +17,6 @@ pub trait WorldInterface: UnifiedInterface {
     /// Set a block at the specified position
     fn set_block(&mut self, pos: VoxelPos, block_id: BlockId) -> Result<(), WorldError>;
     
-    /// Legacy compatibility: set block without returning Result
-    /// This provides compatibility with legacy code that expects void return
-    fn set_block_legacy(&mut self, pos: VoxelPos, block_id: BlockId) {
-        let _ = self.set_block(pos, block_id);
-    }
-    
     /// Get surface height at world coordinates
     fn get_surface_height(&self, x: f64, z: f64) -> i32;
     

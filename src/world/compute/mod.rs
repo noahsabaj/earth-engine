@@ -13,6 +13,7 @@ mod skylight;
 mod gpu_lighting;
 mod gpu_light_propagator;
 mod weather;
+mod gpu_block_query;
 pub mod hierarchical_physics;
 pub mod bvh;
 pub mod sparse_octree;
@@ -39,6 +40,11 @@ pub use effects::{
 
 // Skylight calculation
 pub use skylight::{SkylightCalculator, MAX_SKY_LIGHT};
+
+// GPU block queries
+pub use gpu_block_query::{
+    GpuBlockQuery, BlockQueryRequest, BlockQueryResult, BlockQueryHandle
+};
 
 // Shader management
 pub use shaders::{ShaderManager, ComputeShaderConfig, ShaderError};

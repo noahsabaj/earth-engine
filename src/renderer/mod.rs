@@ -26,6 +26,7 @@ mod progressive_streaming;
 pub mod chunk_mesh_adapter;
 pub mod chunk_rendering;
 pub mod screenshot;
+pub mod gpu_meshing;
 
 use crate::{EngineConfig};
 use crate::game::GameData;

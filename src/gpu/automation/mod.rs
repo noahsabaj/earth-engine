@@ -12,6 +12,7 @@ pub mod auto_layout;
 pub mod layout_derive;
 pub mod unified_system;
 pub mod registry;
+pub mod bind_group_macros;
 
 // Re-export main types
 pub use unified_system::{UnifiedGpuSystem, GpuTypeInfo, BindingAccess};

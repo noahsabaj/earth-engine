@@ -1,7 +1,6 @@
 //! Parallel world implementation for unified architecture
 //! 
-//! This provides a parallel world manager that works with the unified GPU/CPU backend,
-//! replacing the legacy parallel world system.
+//! This provides a parallel world manager that works with the unified GPU/CPU backend.
 
 use std::sync::Arc;
 use std::time::Instant;
@@ -187,106 +186,7 @@ impl<'a> ChunkManagerAdapter<'a> {
     }
 }
 
-// Implement WorldInterface for compatibility with legacy code
-#[cfg(feature = "legacy-world-modules")]
-impl crate::world::WorldInterface for ParallelWorld {
-    fn get_block(&self, pos: VoxelPos) -> BlockId {
-        let manager = self.manager.read();
-        manager.get_block(pos)
-    }
-    
-    fn set_block(&mut self, pos: VoxelPos, block: BlockId) {
-        let mut manager = self.manager.write();
-        let _ = manager.set_block(pos, block);
-    }
-    
-    fn update_loaded_chunks(&mut self, player_pos: cgmath::Point3<f32>) {
-        let chunk_pos = ChunkPos {
-            x: (player_pos.x / self.config.chunk_size as f32).floor() as i32,
-            y: (player_pos.y / self.config.chunk_size as f32).floor() as i32,
-            z: (player_pos.z / self.config.chunk_size as f32).floor() as i32,
-        };
-        
-        let mut manager = self.manager.write();
-        let view_distance = self.config.view_distance;
-        
-        // Load chunks in view distance
-        for x in -view_distance..=view_distance {
-            for y in -2..=2 { // Limited vertical range
-                for z in -view_distance..=view_distance {
-                    let load_pos = ChunkPos {
-                        x: chunk_pos.x + x,
-                        y: chunk_pos.y + y,
-                        z: chunk_pos.z + z,
-                    };
-                    
-                    if !manager.is_chunk_loaded(load_pos) {
-                        let _ = manager.load_chunk(load_pos);
-                    }
-                }
-            }
-        }
-    }
-    
-    fn chunk_size(&self) -> u32 {
-        self.config.chunk_size
-    }
-    
-    fn is_block_in_bounds(&self, _pos: VoxelPos) -> bool {
-        true // Infinite world
-    }
-    
-    fn get_sky_light(&self, _pos: VoxelPos) -> u8 {
-        15 // TODO: Implement lighting
-    }
-    
-    fn set_sky_light(&mut self, _pos: VoxelPos, _level: u8) {
-        // TODO: Implement lighting
-    }
-    
-    fn get_block_light(&self, _pos: VoxelPos) -> u8 {
-        0 // TODO: Implement lighting
-    }
-    
-    fn set_block_light(&mut self, _pos: VoxelPos, _level: u8) {
-        // TODO: Implement lighting
-    }
-    
-    fn is_chunk_loaded(&self, pos: ChunkPos) -> bool {
-        let manager = self.manager.read();
-        manager.is_chunk_loaded(pos)
-    }
-    
-    fn take_dirty_chunks(&mut self) -> std::collections::HashSet<ChunkPos> {
-        std::collections::HashSet::new() // TODO: Implement dirty chunk tracking
-    }
-    
-    fn get_surface_height(&self, world_x: f64, world_z: f64) -> i32 {
-        let manager = self.manager.read();
-        manager.get_surface_height(world_x, world_z)
-    }
-    
-    fn is_block_transparent(&self, pos: VoxelPos) -> bool {
-        self.get_block(pos) == BlockId::AIR
-    }
-    
-    fn ensure_camera_chunk_loaded(&mut self, camera_pos: cgmath::Point3<f32>) -> bool {
-        let chunk_pos = ChunkPos {
-            x: (camera_pos.x / self.config.chunk_size as f32).floor() as i32,
-            y: (camera_pos.y / self.config.chunk_size as f32).floor() as i32,
-            z: (camera_pos.z / self.config.chunk_size as f32).floor() as i32,
-        };
-        
-        let mut manager = self.manager.write();
-        if !manager.is_chunk_loaded(chunk_pos) {
-            manager.load_chunk(chunk_pos).is_ok()
-        } else {
-            true
-        }
-    }
-}
-
-// Implement unified WorldInterface (always available)
+// Implement unified WorldInterface
 impl crate::world::interfaces::WorldInterface for ParallelWorld {
     fn get_block(&self, pos: VoxelPos) -> BlockId {
         let manager = self.manager.read();

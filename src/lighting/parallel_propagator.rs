@@ -1,4 +1,3 @@
-#![cfg(feature = "legacy-world-modules")]
 #![allow(unused_variables, dead_code)]
 use std::sync::Arc;
 use std::collections::VecDeque;

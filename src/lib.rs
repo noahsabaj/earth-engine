@@ -33,6 +33,9 @@ pub mod instance;
 pub mod process;
 pub mod profiling;
 
+// Gateway API
+pub mod gateway;
+
 use anyhow::Result;
 use std::sync::Arc;
 use winit::event_loop::{EventLoop, EventLoopBuilder};

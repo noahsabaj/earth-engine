@@ -1,17 +1,17 @@
-// Legacy OOP modules (to be removed)
+// OOP modules (to be migrated to DOP)
 pub mod particle;
 pub mod emitter;
 pub mod particle_system;
 pub mod effects;
 pub mod physics;
 
-// New data-oriented modules
+// Data-oriented modules
 pub mod particle_data;
 pub mod update;
 pub mod system;
 pub mod gpu_particle_system;
 
-// Re-export legacy types (for compatibility during transition)
+// Re-export types
 pub use particle::{Particle, ParticleType, ParticleProperties};
 pub use emitter::{ParticleEmitter, EmitterShape, EmissionPattern};
 pub use particle_system::{ParticleSystem, ParticleUpdate};

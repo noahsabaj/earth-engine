@@ -635,17 +635,8 @@ impl GpuState {
         // Register game blocks if game is provided
         if let Some(game) = game {
             log::info!("[GpuState::new] Game data provided - Registering game blocks...");
-            #[cfg(feature = "legacy-world-modules")]
-            {
-                // register_game_blocks expects the legacy registry type, but we need unified
-                // For now, skip game block registration during migration
-                log::warn!("[GpuState::new] Game blocks registration temporarily disabled during migration");
-            }
-            #[cfg(not(feature = "legacy-world-modules"))]
-            {
-                // TODO: Port register_game_blocks to world_unified
-                log::warn!("[GpuState::new] Game blocks registration not yet ported to world_unified");
-            }
+            // TODO: Port register_game_blocks to unified world
+            log::warn!("[GpuState::new] Game blocks registration not yet ported to unified world");
             log::info!("[GpuState::new] Game blocks registered successfully");
         } else {
             log::info!("[GpuState::new] No game data provided - Using default blocks only");
@@ -658,15 +649,6 @@ impl GpuState {
         let water_id = BlockId::WATER;
         let sand_id = BlockId::SAND;
         
-        #[cfg(feature = "legacy-world-modules")]
-        let block_registry = {
-            // Convert from legacy BlockRegistry to unified BlockRegistry
-            // For now, create a new unified registry and copy over the data
-            let mut unified_registry = BlockRegistry::new();
-            // TODO: Proper conversion from legacy to unified registry
-            Arc::new(unified_registry)
-        };
-        #[cfg(not(feature = "legacy-world-modules"))]
         let block_registry = Arc::new(block_registry_mut);
         
         // Create world generator (custom, factory, or default GPU generator)
@@ -681,27 +663,8 @@ impl GpuState {
             generated
         } else {
             log::info!("[GpuState::new] Creating default GPU-powered world generator...");
-            let seed = 12345u64; // Fixed seed for consistent worlds
-            #[cfg(feature = "legacy-world-modules")]
-            {
-                crate::world::generation::create_legacy_gpu_generator(
-                    device.clone(),
-                    queue.clone(),
-                    seed,
-                    engine_config.chunk_size,
-                    grass_id,
-                    dirt_id,
-                    stone_id,
-                    water_id,
-                    sand_id,
-                )
-            }
-            #[cfg(not(feature = "legacy-world-modules"))]
-            {
-                // TODO: Create unified generator for non-legacy mode
-                log::error!("[GpuState::new] Unified world generator not yet implemented");
-                panic!("Unified world generator not yet implemented");
-            }
+            let seed = 12345u32; // Fixed seed for consistent worlds
+            Box::new(crate::world::generation::DefaultWorldGenerator::new(seed))
         };
         
         // Start with a temporary camera position (will be updated after spawn search)
@@ -2254,15 +2217,13 @@ pub async fn run_app<G: GameData + 'static>(
                                 if block.get_light_emission() > 0 {
                                     // Removed a light source - queue for GPU processing
                                     if let Some(ref light_propagator) = gpu_state.light_propagator {
-                                        // Convert world_unified VoxelPos to legacy world VoxelPos
-                                        let legacy_pos = crate::world::VoxelPos::new(pos.x, pos.y, pos.z);
-                                        let update = LightUpdate { pos: legacy_pos, light_type: LightType::Block, level: block.get_light_emission(), is_removal: true };
+                                        let update = LightUpdate { pos, light_type: LightType::Block, level: block.get_light_emission(), is_removal: true };
                                         light_propagator.queue_update(update);
                                     }
                                 }
                             }
                             // Update skylight column
-                            // TODO: Port skylight updates to world_unified
+                            // TODO: Port skylight updates
                         }
                         
                         if let Some(place_pos) = placed_block_pos {
@@ -2270,15 +2231,13 @@ pub async fn run_app<G: GameData + 'static>(
                                 if block.get_light_emission() > 0 {
                                     // Placed a light source - queue for GPU processing
                                     if let Some(ref light_propagator) = gpu_state.light_propagator {
-                                        // Convert world_unified VoxelPos to legacy world VoxelPos
-                                        let legacy_pos = crate::world::VoxelPos::new(place_pos.x, place_pos.y, place_pos.z);
-                                        let update = LightUpdate { pos: legacy_pos, light_type: LightType::Block, level: block.get_light_emission(), is_removal: false };
+                                        let update = LightUpdate { pos: place_pos, light_type: LightType::Block, level: block.get_light_emission(), is_removal: false };
                                         light_propagator.queue_update(update);
                                     }
                                 }
                             }
                             // Update skylight column
-                            // TODO: Port skylight updates to world_unified
+                            // TODO: Port skylight updates
                         }
                         
                         // Process light propagation if needed

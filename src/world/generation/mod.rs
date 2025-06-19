@@ -9,8 +9,6 @@ mod cpu_fallback;
 mod caves;
 mod ores;
 mod unified_generator;
-#[cfg(feature = "legacy-world-modules")]
-mod legacy_adapter;
 
 // GPU generation (primary)
 pub use terrain_gpu::{TerrainGeneratorSOA, TerrainGeneratorSOABuilder};
@@ -23,10 +21,6 @@ pub use ores::OreGenerator;
 
 // Unified generation interface
 pub use unified_generator::{WorldGenerator, UnifiedGenerator, GeneratorConfig, GeneratorError, BlockIds};
-
-// Legacy compatibility
-#[cfg(feature = "legacy-world-modules")]
-pub use legacy_adapter::{LegacyGeneratorAdapter, create_legacy_gpu_generator};
 
 /// Create a unified generator that automatically chooses GPU or CPU backend
 pub async fn create_unified_generator(

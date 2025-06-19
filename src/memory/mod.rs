@@ -2,8 +2,6 @@
 /// 
 /// Provides efficient memory allocation, persistent mapped buffers,
 /// and CPU-GPU synchronization primitives for the engine.
-/// 
-/// Part of Sprint 33: Legacy System Migration & Memory Optimization
 
 pub mod error;
 pub mod persistent_buffer;

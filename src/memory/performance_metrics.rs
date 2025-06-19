@@ -1,7 +1,7 @@
 /// Performance Metrics Module
 /// 
 /// Provides comprehensive performance comparison between
-/// legacy CPU-based and new GPU-based systems.
+/// CPU-based and GPU-based systems.
 
 use std::time::{Duration, Instant};
 use std::sync::{Arc, Mutex};
@@ -44,9 +44,9 @@ pub struct Measurement {
 /// Implementation type
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Implementation {
-    /// Legacy CPU-based implementation
+    /// CPU-based implementation
     Cpu,
-    /// New GPU-based implementation
+    /// GPU-based implementation
     Gpu,
 }
 
