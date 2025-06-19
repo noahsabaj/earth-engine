@@ -225,19 +225,23 @@ impl GpuState {
             let surface_compatible = adapter.is_surface_supported(&surface);
             log::info!("[GpuState::new] Adapter '{}' surface compatible: {}", info.name, surface_compatible);
             
+            // Score adapters based on hardware vs software and vendor
+            let mut score = 0i32;
+            
             if !surface_compatible {
-                log::warn!("[GpuState::new] Adapter '{}' not surface compatible - skipping", info.name);
-                // For NVIDIA GPUs, this might be a false negative - let's be more permissive
-                if !(info.name.to_lowercase().contains("nvidia") || info.vendor == 0x10DE) {
-                    continue;
+                log::warn!("[GpuState::new] Adapter '{}' not surface compatible", info.name);
+                
+                // In WSL, NVIDIA GPUs often report as incompatible even when they might work
+                // However, for safety, we should prefer compatible adapters
+                if info.name.to_lowercase().contains("nvidia") || info.vendor == 0x10DE {
+                    log::warn!("[GpuState::new] NVIDIA GPU detected but not surface compatible - likely WSL limitation");
+                    score -= 500;  // Reduce score for incompatible NVIDIA GPU
+                } else {
+                    continue;  // Skip non-NVIDIA incompatible adapters entirely
                 }
-                log::warn!("[GpuState::new] NVIDIA GPU detected - attempting to use despite surface incompatibility");
             }
             
             let name_lower = info.name.to_lowercase();
-            
-            // Score adapters based on hardware vs software and vendor
-            let mut score = 0i32;
             
             // Hardware GPUs get massive bonus
             match info.device_type {
@@ -495,9 +499,26 @@ impl GpuState {
         
         log::info!("[GpuState::new] Configuring surface with size {}x{}...", config.width, config.height);
         let config_start = std::time::Instant::now();
-        surface.configure(&device, &config);
-        let config_time = config_start.elapsed();
-        log::info!("[GpuState::new] Surface configured successfully in {:?}", config_time);
+        
+        // CRITICAL: Handle surface configuration failure gracefully
+        match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            surface.configure(&device, &config);
+        })) {
+            Ok(_) => {
+                let config_time = config_start.elapsed();
+                log::info!("[GpuState::new] Surface configured successfully in {:?}", config_time);
+            }
+            Err(e) => {
+                log::error!("[GpuState::new] Surface configuration failed: {:?}", e);
+                log::error!("[GpuState::new] This is likely due to WSL/OpenGL incompatibility with Windows GPU");
+                log::error!("[GpuState::new] The game cannot run in this configuration");
+                log::error!("[GpuState::new] SOLUTIONS:");
+                log::error!("[GpuState::new] 1. Run on native Windows instead of WSL");
+                log::error!("[GpuState::new] 2. Use Linux Mint as you suggested");
+                log::error!("[GpuState::new] 3. Try with MESA_D3D12_DEFAULT_ADAPTER_NAME=nvidia environment variable");
+                return Err(anyhow::anyhow!("Surface configuration failed - likely WSL/GPU incompatibility. Please run on native Windows or Linux instead of WSL."));
+            }
+        }
 
         // Create depth texture
         let depth_texture = create_depth_texture(&device, &config);
