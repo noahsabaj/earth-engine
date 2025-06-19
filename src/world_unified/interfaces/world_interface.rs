@@ -3,7 +3,7 @@
 use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
 use crate::world_unified::{
-    core::{VoxelPos, ChunkPos, BlockId, Ray, RaycastHit, cast_ray},
+    core::{VoxelPos, ChunkPos, BlockId, Ray, RaycastHit},
     management::UnifiedWorldManager,
 };
 use super::{UnifiedInterface, QueryType, capabilities};
@@ -155,10 +155,37 @@ impl WorldInterface for UnifiedWorldInterface {
     
     fn raycast(&self, ray: Ray, max_distance: f32) -> Option<RaycastHit> {
         if let Ok(manager) = self.manager.lock() {
-            // TODO: Implement proper raycast through the world
-            cast_ray(&ray, max_distance, |pos| {
-                manager.get_block(pos) != BlockId::AIR
-            })
+            // Manual raycast implementation
+            let step = 0.1; // Step size
+            let mut t = 0.0;
+            
+            while t <= max_distance {
+                let point = cgmath::Point3::new(
+                    ray.origin.x + ray.direction.x * t,
+                    ray.origin.y + ray.direction.y * t,
+                    ray.origin.z + ray.direction.z * t,
+                );
+                
+                let voxel_pos = VoxelPos::new(
+                    point.x.floor() as i32,
+                    point.y.floor() as i32,
+                    point.z.floor() as i32,
+                );
+                
+                let block = manager.get_block(voxel_pos);
+                if block != BlockId::AIR {
+                    // Found a solid block
+                    return Some(RaycastHit {
+                        position: voxel_pos,
+                        face: crate::world_unified::core::BlockFace::Top, // TODO: Calculate proper face
+                        distance: t,
+                        block,
+                    });
+                }
+                
+                t += step;
+            }
+            None
         } else {
             None
         }
@@ -183,7 +210,10 @@ impl WorldInterface for UnifiedWorldInterface {
                 Ok(QueryResult::ChunkList(chunks))
             }
             QueryType::Raycast { origin, direction, max_distance } => {
-                let ray = Ray::new(origin, direction);
+                let ray = Ray::new(
+                    cgmath::Point3::new(origin[0], origin[1], origin[2]),
+                    cgmath::Vector3::new(direction[0], direction[1], direction[2])
+                );
                 let hit = self.raycast(ray, max_distance);
                 Ok(QueryResult::RaycastHit(hit))
             }

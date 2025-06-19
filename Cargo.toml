@@ -197,6 +197,9 @@ path = "examples/minimal_engine.rs"
 name = "physics_integration_demo"
 path = "examples/physics_integration_demo.rs"
 
+[[example]]
+name = "test_unified_world"
+path = "examples/test_unified_world.rs"
 
 # Hearth Engine is now a pure library
 # All binaries have been moved to examples or removed

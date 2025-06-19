@@ -42,6 +42,21 @@ pub struct UnifiedKernelConfig {
     pub random_seed: u32,
 }
 
+impl Default for UnifiedKernelConfig {
+    fn default() -> Self {
+        Self {
+            frame_number: 0,
+            delta_time_ms: 16, // 60 FPS
+            world_size: 256,
+            active_chunks: 1024,
+            physics_substeps: 1,
+            lighting_iterations: 4,
+            system_flags: SystemFlags::TERRAIN_GEN | SystemFlags::LIGHTING,
+            random_seed: 0,
+        }
+    }
+}
+
 /// System flags for the unified kernel
 pub mod SystemFlags {
     pub const TERRAIN_GEN: u32 = 1 << 0;
@@ -92,9 +107,8 @@ pub struct UnifiedWorldKernel {
 impl UnifiedWorldKernel {
     pub fn new(
         device: Arc<Device>,
-        world_buffer: &super::WorldBuffer,
-        memory_manager: &mut MemoryManager,
-    ) -> Self {
+        config: UnifiedKernelConfig,
+    ) -> Result<Self, super::ComputeError> {
         // Create the unified shader module
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Unified World Kernel"),
@@ -256,6 +270,21 @@ impl UnifiedWorldKernel {
             mapped_at_creation: false,
         });
         
+        // Create placeholder world buffer for now
+        let world_voxel_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("World Voxel Buffer"),
+            size: 256 * 1024 * 1024, // 256MB placeholder
+            usage: wgpu::BufferUsages::STORAGE,
+            mapped_at_creation: false,
+        });
+        
+        let chunk_metadata_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Chunk Metadata Buffer"),
+            size: 16 * 1024 * 1024, // 16MB placeholder
+            usage: wgpu::BufferUsages::STORAGE,
+            mapped_at_creation: false,
+        });
+        
         // Create main bind group
         let world_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("Unified World Bind Group"),
@@ -263,11 +292,11 @@ impl UnifiedWorldKernel {
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
-                    resource: world_buffer.voxel_buffer().as_entire_binding(),
+                    resource: world_voxel_buffer.as_entire_binding(),
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: world_buffer.metadata_buffer().as_entire_binding(),
+                    resource: chunk_metadata_buffer.as_entire_binding(),
                 },
                 wgpu::BindGroupEntry {
                     binding: 2,
@@ -296,14 +325,25 @@ impl UnifiedWorldKernel {
             ],
         });
         
-        Self {
+        Ok(Self {
             device,
             unified_pipeline,
             config_buffer,
             work_graph_buffer,
             world_bind_group,
-            metrics: memory_manager.performance_metrics().cloned(),
-        }
+            metrics: None, // Will be set up separately
+        })
+    }
+    
+    /// Execute a compute pass
+    pub fn execute_pass(
+        &self,
+        device: &Device,
+        queue: &Queue,
+        commands: Vec<super::ComputeCommand>,
+    ) -> Result<(), super::ComputeError> {
+        // TODO: Implement command execution
+        Ok(())
     }
     
     /// Execute the unified world update

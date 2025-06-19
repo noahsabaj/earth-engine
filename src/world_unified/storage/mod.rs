@@ -11,7 +11,7 @@ mod gpu_chunks;
 pub use world_buffer::{WorldBuffer, WorldBufferDescriptor, VoxelData};
 
 // CPU fallback storage
-pub use cpu_chunks::{ChunkSoA, ChunkMemoryStats, ChunkBatchOps};
+pub use cpu_chunks::{ChunkSoA, ChunkMemoryStats};
 
 // GPU chunk management
 pub use gpu_chunks::{GpuChunk, GpuChunkManager, GpuChunkStats};

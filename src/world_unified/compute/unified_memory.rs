@@ -229,6 +229,7 @@ impl MemoryStats {
     }
 }
 
+
 /// Align a size to a boundary
 fn align_to(size: u64, alignment: u64) -> u64 {
     (size + alignment - 1) & !(alignment - 1)

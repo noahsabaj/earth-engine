@@ -19,7 +19,7 @@ pub mod renderer;
 pub mod world;
 pub mod world_gpu;
 // TODO: world_unified module is incomplete - future work to unify world and world_gpu
-// pub mod world_unified;
+pub mod world_unified;
 
 // Advanced features removed - deemed premature for core engine
 
@@ -50,6 +50,17 @@ pub use input::KeyCode;
 pub use physics::{AABB};
 pub use renderer::Renderer;
 pub use world::{Block, BlockId, BlockRegistry, Chunk, ChunkPos, VoxelPos, RenderData, PhysicsProperties, World, Ray, RaycastHit, BlockFace, cast_ray, WorldGenerator};
+
+// Re-export unified world module for GPU-first architecture
+pub use world_unified::{
+    WorldManager as UnifiedWorldManager,
+    WorldManagerConfig as UnifiedWorldConfig,
+    UnifiedStorage,
+    UnifiedGenerator,
+    ComputeEngine,
+    ChunkManagerInterface,
+    GeneratorInterface,
+};
 
 // Re-export wgpu for games that need GPU access (e.g., custom world generators)
 pub use wgpu;

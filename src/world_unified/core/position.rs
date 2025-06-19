@@ -90,6 +90,12 @@ impl VoxelPos {
         )
     }
     
+    /// Get chunk offset (same as to_local_pos but returns VoxelPos)
+    pub fn to_chunk_offset(&self, chunk_size: u32) -> VoxelPos {
+        let (x, y, z) = self.to_local_pos(chunk_size);
+        VoxelPos::new(x as i32, y as i32, z as i32)
+    }
+    
     /// Create VoxelPos from world position (glam Vec3)
     pub fn from_world_pos(pos: glam::Vec3) -> Self {
         Self {

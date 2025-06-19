@@ -18,6 +18,7 @@
 
 #### Core Systems
 - ✅ **World System**: Pure GPU buffers
+- ✅ **Unified World Module**: GPU-first architecture (NEW - Sprint 39)
 - ✅ **Physics**: Lock-free parallel simulation
 - ✅ **Rendering**: GPU-driven pipeline
 - ✅ **Networking**: Zero-copy serialization

@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use crate::world_unified::{
     core::{ChunkPos, VoxelPos},
     storage::ChunkSoA,
-    generation::{UnifiedGenerator, TerrainParams},
+    generation::{UnifiedGenerator, TerrainParams, WorldGenerator},
 };
 use super::{UnifiedInterface, capabilities};
 

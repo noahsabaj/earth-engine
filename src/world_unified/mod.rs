@@ -31,7 +31,7 @@ pub mod interfaces;
 pub use core::{
     Block, BlockId, RenderData, PhysicsProperties,
     ChunkPos, VoxelPos, 
-    Ray, RaycastHit, BlockFace, cast_ray,
+    Ray, RaycastHit, BlockFace,
     BlockRegistry
 };
 
@@ -58,9 +58,7 @@ pub use generation::{
 pub use compute::{
     // GPU kernels and optimization
     UnifiedWorldKernel, UnifiedKernelConfig, SystemFlags,
-    SparseVoxelOctree, OctreeNode, OctreeStats,
-    VoxelBvh, BvhNode, BvhStats,
-    HierarchicalPhysics, PhysicsQuery, QueryResult,
+    // GPU optimization structures will be added later
     // GPU lighting and effects
     GpuLighting, WeatherGpu, WeatherData
 };
@@ -88,11 +86,12 @@ pub fn voxel_to_chunk_pos(voxel_pos: VoxelPos, chunk_size: u32) -> ChunkPos {
 /// Unified world creation function that automatically chooses GPU or CPU backend
 pub async fn create_unified_world(
     device: Option<std::sync::Arc<wgpu::Device>>,
+    queue: Option<std::sync::Arc<wgpu::Queue>>,
     config: WorldManagerConfig,
 ) -> Result<UnifiedWorldManager, crate::world_unified::management::WorldError> {
-    if let Some(device) = device {
+    if let (Some(device), Some(queue)) = (device, queue) {
         // GPU-first path
-        UnifiedWorldManager::new_gpu(device, config).await
+        UnifiedWorldManager::new_gpu(device, queue, config).await
     } else {
         // CPU fallback path
         UnifiedWorldManager::new_cpu(config)

@@ -1,5 +1,5 @@
-use crate::world::BlockId;
-use crate::world::position::{ChunkPos, VoxelPos};
+use crate::world_unified::core::{BlockId, ChunkPos};
+use crate::world::VoxelPos; // Use world's VoxelPos for morton encoding compatibility
 use crate::lighting::LightLevel;
 use crate::morton::morton_encode_chunk;
 use std::alloc::{alloc_zeroed, dealloc, Layout};
@@ -217,6 +217,17 @@ impl ChunkSoA {
             LightLevel {
                 sky: self.sky_light.get_unchecked(morton_idx),
                 block: self.block_light.get_unchecked(morton_idx),
+            }
+        }
+    }
+    
+    /// Set block ID directly by index (for generation)
+    #[inline(always)]
+    pub fn set_block_by_index(&mut self, index: usize, block_id: BlockId) {
+        if index < self.voxel_count {
+            // SAFETY: We've checked the index is valid
+            unsafe {
+                self.block_ids.set_unchecked(index, block_id);
             }
         }
     }

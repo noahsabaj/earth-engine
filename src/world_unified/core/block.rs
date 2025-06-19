@@ -4,7 +4,7 @@
 use serde::{Serialize, Deserialize};
 
 // Re-export basic blocks from basic_blocks.rs
-pub use super::basic_blocks::{AirBlock, StoneBlock, GrassBlock, register_basic_blocks};
+// Basic blocks are now in a separate module
 use std::fmt;
 
 /// Unique identifier for a block type

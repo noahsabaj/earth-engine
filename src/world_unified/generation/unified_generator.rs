@@ -61,14 +61,7 @@ impl UnifiedGenerator {
     
     /// Create CPU-based generator
     pub fn new_cpu(config: GeneratorConfig) -> Result<Self, GeneratorError> {
-        let generator = DefaultWorldGenerator::new(
-            config.terrain_params.seed,
-            config.block_ids.grass,
-            config.block_ids.dirt,
-            config.block_ids.stone,
-            config.block_ids.water,
-            config.block_ids.sand,
-        );
+        let generator = DefaultWorldGenerator::new(config.terrain_params.seed);
         
         Ok(UnifiedGenerator::Cpu { generator })
     }

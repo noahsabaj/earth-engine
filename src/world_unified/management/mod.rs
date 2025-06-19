@@ -9,7 +9,7 @@ mod chunk_manager;
 mod performance;
 
 pub use world_manager::{UnifiedWorldManager, WorldManagerConfig, WorldError};
-pub use chunk_manager::{UnifiedChunkManager, ChunkManagerConfig, ChunkManagerInterface};
+pub use chunk_manager::{UnifiedChunkManager, ChunkManagerConfig, ChunkManagerInterface, ChunkStats};
 pub use performance::{WorldPerformanceMetrics, GenerationStats, PerformanceMonitor};
 
 /// Backend selection for unified managers

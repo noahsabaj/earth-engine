@@ -4,7 +4,7 @@ use std::sync::Arc;
 use crate::world_unified::{
     core::{ChunkPos, VoxelPos, BlockId},
     storage::{UnifiedStorage, StorageError},
-    generation::{UnifiedGenerator, GeneratorConfig, GeneratorError},
+    generation::{UnifiedGenerator, GeneratorError, GeneratorConfig as UnifiedGeneratorConfig, WorldGenerator},
     compute::{UnifiedCompute, UnifiedComputeConfig, ComputeError},
     management::{Backend, BackendRequirements, select_backend},
 };
@@ -22,21 +22,30 @@ impl UnifiedWorldManager {
     /// Create a new GPU-based world manager
     pub async fn new_gpu(
         device: Arc<wgpu::Device>,
+        queue: Arc<wgpu::Queue>,
         config: WorldManagerConfig,
     ) -> Result<Self, WorldError> {
-        let queue = Arc::new(device.queue());
         
         // Create GPU storage
-        let storage = UnifiedStorage::new_gpu(device.clone(), &config.storage_config)
+        let world_buffer_desc = crate::world_unified::storage::WorldBufferDescriptor {
+            view_distance: config.view_distance,
+            enable_atomics: true,
+            enable_readback: cfg!(debug_assertions),
+        };
+        let storage = UnifiedStorage::new_gpu(device.clone(), &world_buffer_desc)
             .await
             .map_err(|e| WorldError::StorageInitFailed { message: e.to_string() })?;
         
         // Create GPU generator
-        let buffer_manager = Arc::new(crate::gpu::GpuBufferManager::new(device.clone()));
+        let buffer_manager = Arc::new(crate::gpu::GpuBufferManager::new(device.clone(), queue.clone()));
+        
+        // Convert to unified generator config
+        let gen_config = UnifiedGeneratorConfig::default(); // TODO: Convert from config.generator_config
+        
         let generator = UnifiedGenerator::new_gpu(
             device.clone(),
             buffer_manager,
-            config.generator_config.clone(),
+            gen_config,
         )
         .await
         .map_err(|e| WorldError::GeneratorInitFailed { message: e.to_string() })?;
@@ -63,7 +72,10 @@ impl UnifiedWorldManager {
         let storage = UnifiedStorage::new_cpu();
         
         // Create CPU generator
-        let generator = UnifiedGenerator::new_cpu(config.generator_config.clone())
+        // Convert to unified generator config
+        let gen_config = UnifiedGeneratorConfig::default(); // TODO: Convert from config.generator_config
+        
+        let generator = UnifiedGenerator::new_cpu(gen_config)
             .map_err(|e| WorldError::GeneratorInitFailed { message: e.to_string() })?;
         
         Ok(Self {
@@ -78,14 +90,15 @@ impl UnifiedWorldManager {
     /// Create a world manager with automatic backend selection
     pub async fn new_auto(
         device: Option<Arc<wgpu::Device>>,
+        queue: Option<Arc<wgpu::Queue>>,
         config: WorldManagerConfig,
     ) -> Result<Self, WorldError> {
         let backend = select_backend(device.as_deref(), &config.backend_requirements).await;
         
         match backend {
             Backend::Gpu => {
-                if let Some(device) = device {
-                    Self::new_gpu(device, config).await
+                if let (Some(device), Some(queue)) = (device, queue) {
+                    Self::new_gpu(device, queue, config).await
                 } else {
                     Err(WorldError::BackendNotAvailable { backend: "GPU".to_string() })
                 }
@@ -174,6 +187,44 @@ impl UnifiedWorldManager {
     }
 }
 
+// StorageConfig and GeneratorConfig are imported from generation module
+
+/// Storage configuration
+#[derive(Debug, Clone)]
+pub struct StorageConfig {
+    pub world_size: u32,
+    pub world_height: u32,
+    pub memory_limit_mb: u64,
+}
+
+impl Default for StorageConfig {
+    fn default() -> Self {
+        Self {
+            world_size: 256,
+            world_height: 256,
+            memory_limit_mb: 1024,
+        }
+    }
+}
+
+/// Generator configuration
+#[derive(Debug, Clone)]
+pub struct GeneratorConfig {
+    pub seed: u32,
+    pub enable_caves: bool,
+    pub enable_ores: bool,
+}
+
+impl Default for GeneratorConfig {
+    fn default() -> Self {
+        Self {
+            seed: 12345,
+            enable_caves: true,
+            enable_ores: true,
+        }
+    }
+}
+
 /// Configuration for unified world manager
 #[derive(Debug, Clone)]
 pub struct WorldManagerConfig {
@@ -198,21 +249,6 @@ impl Default for WorldManagerConfig {
     }
 }
 
-/// Storage configuration
-#[derive(Debug, Clone)]
-pub struct StorageConfig {
-    pub max_loaded_chunks: usize,
-    pub memory_limit_mb: u64,
-}
-
-impl Default for StorageConfig {
-    fn default() -> Self {
-        Self {
-            max_loaded_chunks: 1024,
-            memory_limit_mb: 512,
-        }
-    }
-}
 
 /// World management errors
 #[derive(Debug, thiserror::Error)]

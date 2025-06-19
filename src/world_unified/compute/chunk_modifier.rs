@@ -1,6 +1,6 @@
 use std::sync::Arc;
 use bytemuck::{Pod, Zeroable};
-use super::world_buffer::WorldBuffer;
+use crate::world_unified::storage::WorldBuffer;
 // use crate::memory::PersistentBuffer; // Not needed anymore
 use crate::world_gpu::error::{WorldGpuResult, WorldGpuErrorContext};
 

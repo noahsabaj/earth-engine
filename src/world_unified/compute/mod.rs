@@ -4,23 +4,23 @@
 //! including unified kernels, optimization structures, and effects.
 
 mod kernels;
+mod chunk_modifier;
 mod optimization;
 mod effects;
 mod shaders;
+mod unified_memory;
 
 // GPU kernels and unified systems
 pub use kernels::{
-    UnifiedWorldKernel, UnifiedKernelConfig, SystemFlags,
-    ChunkModifier, ModificationCommand
+    UnifiedWorldKernel, UnifiedKernelConfig, SystemFlags
 };
+pub use chunk_modifier::{ChunkModifier, ModificationCommand};
 
-// GPU optimization structures
-pub use optimization::{
-    SparseVoxelOctree, OctreeNode, OctreeStats, OctreeUpdater,
-    VoxelBvh, BvhNode, BvhStats,
-    HierarchicalPhysics, PhysicsQuery, QueryResult, QueryType,
-    UnifiedMemoryManager, UnifiedMemoryLayout, MemoryStats
-};
+// GPU optimization structures - to be implemented
+// pub use optimization::{};
+
+// Memory management
+pub use unified_memory::{UnifiedMemoryManager, UnifiedMemoryLayout, MemoryStats};
 
 // GPU effects and lighting
 pub use effects::{
@@ -48,7 +48,8 @@ impl UnifiedCompute {
         config: UnifiedComputeConfig,
     ) -> Result<Self, ComputeError> {
         let kernel = UnifiedWorldKernel::new(device.clone(), config.kernel_config)?;
-        let memory_manager = UnifiedMemoryManager::new(device.clone(), config.memory_config)?;
+        // Use default world size for now - should come from config
+        let memory_manager = unified_memory::UnifiedMemoryManager::new(device.clone(), 256, 256);
         let shader_manager = ShaderManager::new(device.clone())?;
         
         Ok(Self {
@@ -63,14 +64,22 @@ impl UnifiedCompute {
     /// Execute a compute pass with the unified kernel
     pub fn execute_unified_pass(
         &mut self,
-        commands: &[UnifiedCommand],
+        commands: &[ComputeCommand],
     ) -> Result<(), ComputeError> {
-        self.kernel.execute_pass(&self.device, &self.queue, commands)
+        self.kernel.execute_pass(&self.device, &self.queue, commands.to_vec())
     }
     
     /// Get memory statistics
     pub fn memory_stats(&self) -> MemoryStats {
-        self.memory_manager.get_stats()
+        // TODO: Implement proper memory stats
+        MemoryStats {
+            total_allocated: 0,
+            voxel_data: 0,
+            chunk_metadata: 0,
+            lighting_data: 0,
+            entity_data: 0,
+            particle_data: 0,
+        }
     }
     
     /// Update optimization structures
@@ -120,7 +129,7 @@ impl Default for MemoryConfig {
 
 /// Unified compute commands
 #[derive(Debug, Clone)]
-pub enum UnifiedCommand {
+pub enum ComputeCommand {
     GenerateTerrain {
         chunk_pos: crate::world_unified::core::ChunkPos,
         params: crate::world_unified::generation::TerrainParams,
@@ -156,4 +165,7 @@ pub enum ComputeError {
     
     #[error("Invalid command: {command}")]
     InvalidCommand { command: String },
+    
+    #[error("Shader error: {0}")]
+    ShaderError(#[from] shaders::ShaderError),
 }
