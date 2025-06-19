@@ -9,6 +9,8 @@ crate-type = ["cdylib", "rlib"]
 [features]
 default = ["native"]
 native = ["dep:tokio", "dep:zstd", "dep:lz4_flex", "dep:notify"]
+# Legacy features - to be removed after migration validation
+legacy-world-modules = []
 
 [dependencies]
 # Windowing and graphics

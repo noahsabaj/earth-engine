@@ -1,7 +1,7 @@
 /// Spatial hash implementation for chunk positions using pre-allocated arrays
 /// This replaces HashMap<ChunkPos, T> with zero-allocation lookups
 
-use crate::world::ChunkPos;
+use crate::ChunkPos;
 
 /// Maximum chunks per dimension (covers -MAX_COORD to MAX_COORD)
 pub const MAX_CHUNK_COORD: i32 = 256;

@@ -130,6 +130,7 @@ impl BlockId {
 pub struct RenderData {
     pub color: [f32; 3],
     pub texture_id: u32,
+    pub light_emission: u8,
 }
 
 /// Physical properties of a block

@@ -240,21 +240,21 @@ pub mod operations {
         queue: &Queue,
         encoder: &mut wgpu::CommandEncoder,
         params: &FrameParams,
-        unified_kernel: &crate::world_gpu::UnifiedWorldKernel,
+        unified_kernel: &crate::world_unified::compute::UnifiedWorldKernel,
     ) {
         // Update frame metadata
         state.frame_number = params.frame_number;
         state.delta_time_ms = params.delta_time_ms;
         
         // Single unified kernel updates everything
-        let config = crate::world_gpu::UnifiedKernelConfig {
+        let config = crate::world_unified::compute::UnifiedKernelConfig {
             frame_number: params.frame_number as u32,
             delta_time_ms: params.delta_time_ms,
             world_size: 32, // Use reasonable size (should come from WorldConfig)
             active_chunks: state.active_chunks,
             physics_substeps: 4,
             lighting_iterations: 2,
-            system_flags: crate::world_gpu::SystemFlags::ALL,
+            system_flags: crate::world_unified::compute::SystemFlags::ALL,
             random_seed: params.random_seed,
         };
         

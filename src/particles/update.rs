@@ -2,7 +2,7 @@ use glam::Vec3;
 use rand::{thread_rng, Rng};
 
 use crate::particles::particle_data::{ParticleData, EmitterData};
-use crate::world::{World, BlockId, VoxelPos};
+use crate::{World, BlockId, VoxelPos};
 
 /// Update all particles in the system
 pub fn update_particles(

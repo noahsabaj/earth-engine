@@ -9,6 +9,10 @@ mod optimization;
 mod effects;
 mod shaders;
 mod unified_memory;
+mod skylight;
+pub mod hierarchical_physics;
+pub mod bvh;
+pub mod sparse_octree;
 
 // GPU kernels and unified systems
 pub use kernels::{
@@ -16,8 +20,10 @@ pub use kernels::{
 };
 pub use chunk_modifier::{ChunkModifier, ModificationCommand};
 
-// GPU optimization structures - to be implemented
-// pub use optimization::{};
+// GPU optimization structures
+pub use hierarchical_physics::{HierarchicalPhysics, PhysicsQuery, QueryType, QueryResult};
+pub use bvh::{VoxelBvh, BvhNode, BvhStats};
+pub use sparse_octree::{SparseVoxelOctree, OctreeNode, OctreeStats, OctreeUpdater};
 
 // Memory management
 pub use unified_memory::{UnifiedMemoryManager, UnifiedMemoryLayout, MemoryStats};
@@ -27,6 +33,9 @@ pub use effects::{
     GpuLighting, GpuLightPropagator,
     WeatherGpu, WeatherData, WeatherTransition, WeatherConfig
 };
+
+// Skylight calculation
+pub use skylight::{SkylightCalculator, MAX_SKY_LIGHT};
 
 // Shader management
 pub use shaders::{ShaderManager, ComputeShaderConfig, ShaderError};

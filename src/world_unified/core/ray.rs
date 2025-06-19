@@ -58,7 +58,40 @@ pub struct RaycastHit {
     pub block: BlockId,
 }
 
-// Cast ray function removed - implementations should provide their own raycasting
+/// Cast a ray through the world and find the first block it hits
+/// This is a basic implementation - specific world implementations may override with optimized versions
+pub fn cast_ray<W: crate::WorldInterface>(
+    world: &W,
+    ray: Ray,
+    max_distance: f32,
+) -> Option<RaycastHit> {
+    let step_size = 0.1;
+    let mut t = 0.0;
+    
+    while t <= max_distance {
+        let point = ray.origin + ray.direction * t;
+        let voxel_pos = VoxelPos::new(
+            point.x.floor() as i32,
+            point.y.floor() as i32,
+            point.z.floor() as i32,
+        );
+        
+        let block = world.get_block(voxel_pos);
+        if block != BlockId::AIR {
+            let face = determine_hit_face(point, voxel_pos);
+            return Some(RaycastHit {
+                position: voxel_pos,
+                face,
+                distance: t,
+                block,
+            });
+        }
+        
+        t += step_size;
+    }
+    
+    None
+}
 
 fn determine_hit_face(hit_point: Point3<f32>, voxel_pos: VoxelPos) -> BlockFace {
     // Calculate the local position within the voxel (0-1 range)

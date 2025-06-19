@@ -11,7 +11,7 @@ mod registry;
 
 pub use block::{Block, BlockId, RenderData, PhysicsProperties};
 pub use position::{ChunkPos, VoxelPos};
-pub use ray::{Ray, RaycastHit, BlockFace};
+pub use ray::{Ray, RaycastHit, BlockFace, cast_ray};
 pub use registry::BlockRegistry;
 
 // Re-export basic block definitions

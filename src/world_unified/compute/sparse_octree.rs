@@ -5,8 +5,9 @@
 use std::sync::Arc;
 use wgpu::{Device, Queue, Buffer};
 use bytemuck::{Pod, Zeroable};
-use crate::world::ChunkPos;
+use crate::world_unified::core::ChunkPos;
 use crate::memory::MemoryManager;
+use crate::world_unified::storage::WorldBuffer;
 
 /// Octree node stored on GPU
 #[repr(C)]
@@ -105,7 +106,7 @@ impl SparseVoxelOctree {
     pub fn build_from_world(
         &mut self,
         queue: &Queue,
-        world_buffer: &super::WorldBuffer,
+        world_buffer: &WorldBuffer,
         active_chunks: &[ChunkPos],
     ) {
         // This would typically be done on GPU, but for initial implementation
@@ -306,7 +307,7 @@ impl OctreeUpdater {
         &self,
         encoder: &mut wgpu::CommandEncoder,
         octree: &SparseVoxelOctree,
-        world_buffer: &super::WorldBuffer,
+        world_buffer: &WorldBuffer,
     ) {
         let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("Octree Update Bind Group"),

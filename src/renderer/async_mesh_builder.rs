@@ -1,5 +1,5 @@
 /// Placeholder for async mesh builder module
-use crate::world::ChunkPos;
+use crate::ChunkPos;
 
 pub struct AsyncMeshBuilder;
 pub struct MeshBuildRequest {

@@ -1,4 +1,5 @@
-use crate::world::{Chunk, ChunkPos};
+use crate::world_unified::core::ChunkPos;
+use crate::world_unified::storage::ChunkSoA;
 use wgpu::util::DeviceExt;
 
 /// GPU-resident chunk data for efficient GPU processing

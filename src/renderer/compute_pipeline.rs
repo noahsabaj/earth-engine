@@ -1,5 +1,5 @@
 use wgpu::util::DeviceExt;
-use crate::world::gpu_chunk::GpuChunkManager;
+use crate::world_unified::storage::GpuChunkManager;
 use std::sync::Arc;
 
 /// Manages compute pipelines for GPU-based chunk operations

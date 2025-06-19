@@ -11,7 +11,7 @@ use std::sync::{Arc, Mutex};
 use serde::{Serialize, Deserialize};
 use glam::Vec3;
 
-use crate::world::{ChunkPos, VoxelPos, BlockId};
+use crate::{ChunkPos, VoxelPos, BlockId};
 use crate::persistence::{PersistenceResult, PersistenceError};
 use crate::network::{SaveStatus, LoadStatus, ChunkSaveStatus};
 

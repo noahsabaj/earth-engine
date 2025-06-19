@@ -544,7 +544,7 @@ impl ParallelChunkManager {
     
     /// Get access to GPU WorldBuffer if using GPU-based generator
     /// Returns None if using CPU-based generator
-    pub fn get_world_buffer(&self) -> Option<std::sync::Arc<std::sync::Mutex<crate::world_gpu::WorldBuffer>>> {
+    pub fn get_world_buffer(&self) -> Option<std::sync::Arc<std::sync::Mutex<crate::world_unified::storage::WorldBuffer>>> {
         self.generator.get_world_buffer()
     }
     

@@ -10,7 +10,7 @@ use std::time::{Duration, Instant};
 use std::thread;
 
 use crate::persistence::{PersistenceResult, PersistenceError, atomic_save::{AtomicSaveManager, SaveOperation, SavePriority}};
-use crate::world::{World, ChunkPos};
+use crate::{World, ChunkPos};
 
 /// Player connection state
 #[derive(Debug, Clone, PartialEq)]

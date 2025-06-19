@@ -5,7 +5,7 @@
 
 use cgmath::{perspective, Rad, InnerSpace, Matrix4, Point3, Vector3};
 use bytemuck::{Pod, Zeroable};
-use crate::world::ChunkPos;
+use crate::ChunkPos;
 
 // Import camera constants for voxel-scaled measurements
 include!("../../constants.rs");

@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::time::Instant;
 use bytemuck::{Pod, Zeroable};
 use crate::morton::morton_encode;
-use crate::world::ChunkPos;
+use crate::world_unified::core::ChunkPos;
 use crate::gpu::constants::core::{CHUNK_SIZE, VOXELS_PER_CHUNK, MAX_WORLD_SIZE};
 use crate::gpu::buffer_layouts::{
     constants::*,

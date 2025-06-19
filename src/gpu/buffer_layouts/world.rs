@@ -2,7 +2,7 @@
 //! 
 //! This module re-exports world GPU types from the unified type system.
 
-use crate::world::ChunkPos;
+use crate::ChunkPos;
 use super::constants::*;
 use crate::gpu::constants::core::VOXELS_PER_CHUNK;
 

@@ -6,7 +6,7 @@ use crate::particles::{
     Particle, ParticleEmitter, ParticleEffect, 
     EffectPreset, ParticlePhysics,
 };
-use crate::world::World;
+use crate::World;
 
 /// Particle system update result
 #[derive(Debug, Clone)]

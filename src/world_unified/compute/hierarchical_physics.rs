@@ -8,6 +8,8 @@ use bytemuck::{Pod, Zeroable};
 use crate::memory::MemoryManager;
 use crate::world_gpu::error::WorldGpuResult;
 use crate::error::EngineError;
+use crate::world_unified::storage::WorldBuffer;
+use super::{SparseVoxelOctree, VoxelBvh};
 
 /// Physics query types
 #[repr(u32)]
@@ -233,9 +235,9 @@ impl HierarchicalPhysics {
         &self,
         queue: &Queue,
         encoder: &mut wgpu::CommandEncoder,
-        world_buffer: &super::WorldBuffer,
-        octree: &super::SparseVoxelOctree,
-        bvh: &super::VoxelBvh,
+        world_buffer: &WorldBuffer,
+        octree: &SparseVoxelOctree,
+        bvh: &VoxelBvh,
         queries: &[PhysicsQuery],
     ) {
         if queries.is_empty() || queries.len() > self.query_capacity as usize {

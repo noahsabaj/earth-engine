@@ -1,4 +1,4 @@
-use crate::world::{BlockId, BlockRegistry, VoxelPos, WorldInterface, Ray, RaycastHit, cast_ray};
+use crate::{BlockId, BlockRegistry, VoxelPos, WorldInterface, Ray, RaycastHit, cast_ray};
 use crate::camera::{CameraData, calculate_forward_vector};
 use crate::input::InputState;
 use cgmath::Point3;

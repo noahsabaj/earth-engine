@@ -7,10 +7,12 @@
 mod world_manager;
 mod chunk_manager;
 mod performance;
+mod parallel_world;
 
 pub use world_manager::{UnifiedWorldManager, WorldManagerConfig, WorldError};
 pub use chunk_manager::{UnifiedChunkManager, ChunkManagerConfig, ChunkManagerInterface, ChunkStats};
 pub use performance::{WorldPerformanceMetrics, GenerationStats, PerformanceMonitor};
+pub use parallel_world::{ParallelWorld, ParallelWorldConfig, SpawnFinder};
 
 /// Backend selection for unified managers
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

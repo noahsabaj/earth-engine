@@ -1,4 +1,4 @@
-use crate::world::{Block, BlockId, BlockRegistry, RenderData, PhysicsProperties};
+use super::{Block, BlockId, BlockRegistry, RenderData, PhysicsProperties};
 
 /// Basic Air block
 #[derive(Debug, Clone)]
@@ -13,6 +13,7 @@ impl Block for AirBlock {
         RenderData {
             color: [0.0, 0.0, 0.0],
             texture_id: 0,
+            light_emission: 0,
         }
     }
     
@@ -45,6 +46,7 @@ impl Block for StoneBlock {
         RenderData {
             color: [0.5, 0.5, 0.5],
             texture_id: 1,
+            light_emission: 0,
         }
     }
     
@@ -77,6 +79,7 @@ impl Block for GrassBlock {
         RenderData {
             color: [0.3, 0.7, 0.2],
             texture_id: 2,
+            light_emission: 0,
         }
     }
     
@@ -109,6 +112,7 @@ impl Block for DirtBlock {
         RenderData {
             color: [0.5, 0.3, 0.1],
             texture_id: 3,
+            light_emission: 0,
         }
     }
     
@@ -141,6 +145,7 @@ impl Block for SandBlock {
         RenderData {
             color: [0.9, 0.8, 0.6],
             texture_id: 4,
+            light_emission: 0,
         }
     }
     
@@ -173,6 +178,7 @@ impl Block for WaterBlock {
         RenderData {
             color: [0.1, 0.3, 0.8],
             texture_id: 5,
+            light_emission: 0,
         }
     }
     
@@ -205,6 +211,7 @@ impl Block for BedrockBlock {
         RenderData {
             color: [0.2, 0.2, 0.2],
             texture_id: 6,
+            light_emission: 0,
         }
     }
     

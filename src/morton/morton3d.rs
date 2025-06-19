@@ -2,7 +2,7 @@
 /// 
 /// Uses optimized bit manipulation for fast encoding/decoding
 
-use crate::world::{VoxelPos, ChunkPos};
+use crate::{VoxelPos, ChunkPos};
 
 /// Magic numbers for bit spreading/compacting
 /// These constants are used in the "magic bits" algorithm for fast Morton encoding

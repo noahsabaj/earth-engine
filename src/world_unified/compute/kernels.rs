@@ -18,7 +18,7 @@ use std::sync::Arc;
 use wgpu::{Device, Queue, Buffer, BindGroup, ComputePipeline};
 use bytemuck::{Pod, Zeroable};
 use crate::memory::{MemoryManager, PerformanceMetrics, MetricType, Implementation};
-use crate::world::ChunkPos;
+use crate::world_unified::core::ChunkPos;
 
 /// Unified kernel configuration
 #[repr(C)]

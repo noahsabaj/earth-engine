@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 use glam::Vec3;
-use crate::world::{VoxelPos, BlockId};
+use crate::{VoxelPos, BlockId};
 use crate::network::packet::MovementState;
 
 /// Anti-cheat detection and validation

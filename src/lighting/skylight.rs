@@ -1,4 +1,4 @@
-use crate::world::{WorldInterface, VoxelPos, ChunkPos, BlockId};
+use crate::{WorldInterface, VoxelPos, ChunkPos, BlockId};
 use crate::lighting::MAX_LIGHT_LEVEL;
 
 /// Calculates skylight propagation from the sky downward

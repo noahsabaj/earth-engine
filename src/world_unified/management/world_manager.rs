@@ -185,6 +185,44 @@ impl UnifiedWorldManager {
     pub fn config(&self) -> &WorldManagerConfig {
         &self.config
     }
+    
+    /// Check if a chunk is loaded
+    pub fn is_chunk_loaded(&self, chunk_pos: ChunkPos) -> bool {
+        match &self.storage {
+            UnifiedStorage::Gpu { .. } => {
+                // TODO: Implement GPU chunk checking
+                false
+            }
+            UnifiedStorage::Cpu { chunks } => {
+                chunks.contains_key(&chunk_pos)
+            }
+        }
+    }
+    
+    /// Get the number of loaded chunks
+    pub fn loaded_chunk_count(&self) -> usize {
+        match &self.storage {
+            UnifiedStorage::Gpu { .. } => {
+                // TODO: Implement GPU chunk counting
+                0
+            }
+            UnifiedStorage::Cpu { chunks } => {
+                chunks.len()
+            }
+        }
+    }
+    
+    /// Get surface height at a world position
+    pub fn get_surface_height(&self, world_x: f64, world_z: f64) -> i32 {
+        // Simple height calculation for now
+        // TODO: This should query actual terrain data
+        let x_int = world_x as i32;
+        let z_int = world_z as i32;
+        
+        // For now, return a simple height based on position
+        // This would normally query the terrain generator or loaded chunks
+        64 + ((x_int as f32 * 0.1).sin() * 8.0) as i32 + ((z_int as f32 * 0.1).cos() * 8.0) as i32
+    }
 }
 
 // StorageConfig and GeneratorConfig are imported from generation module

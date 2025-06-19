@@ -1,3 +1,5 @@
+#![cfg(feature = "legacy-world-modules")]
+
 use std::sync::Arc;
 use parking_lot::RwLock;
 use crate::{

@@ -5,20 +5,28 @@
 
 mod terrain_gpu;
 mod terrain_cpu;
+mod cpu_fallback;
 mod caves;
 mod ores;
 mod unified_generator;
+#[cfg(feature = "legacy-world-modules")]
+mod legacy_adapter;
 
 // GPU generation (primary)
 pub use terrain_gpu::{TerrainGeneratorSOA, TerrainGeneratorSOABuilder};
 
 // CPU generation (fallback)
 pub use terrain_cpu::{TerrainGenerator, DefaultWorldGenerator};
+pub use cpu_fallback::CpuWorldGenerator;
 pub use caves::CaveGenerator;
 pub use ores::OreGenerator;
 
 // Unified generation interface
-pub use unified_generator::{WorldGenerator, UnifiedGenerator, GeneratorConfig, GeneratorError};
+pub use unified_generator::{WorldGenerator, UnifiedGenerator, GeneratorConfig, GeneratorError, BlockIds};
+
+// Legacy compatibility
+#[cfg(feature = "legacy-world-modules")]
+pub use legacy_adapter::{LegacyGeneratorAdapter, create_legacy_gpu_generator};
 
 /// Create a unified generator that automatically chooses GPU or CPU backend
 pub async fn create_unified_generator(
@@ -43,6 +51,9 @@ pub struct TerrainParams {
     pub terrain_scale: f32,
     pub mountain_threshold: f32,
     pub cave_threshold: f32,
+    pub terrain_amplitude: f32,
+    pub terrain_offset: f32,
+    pub water_level: i32,
 }
 
 impl Default for TerrainParams {
@@ -53,6 +64,9 @@ impl Default for TerrainParams {
             terrain_scale: 0.01,
             mountain_threshold: 0.6,
             cave_threshold: 0.3,
+            terrain_amplitude: 40.0,
+            terrain_offset: 64.0,
+            water_level: 64,
         }
     }
 }

@@ -1,6 +1,6 @@
 use wgpu::util::DeviceExt;
 use cgmath::{Vector3, Matrix4, SquareMatrix};
-use crate::world::RaycastHit;
+use crate::RaycastHit;
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]

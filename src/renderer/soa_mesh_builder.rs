@@ -4,7 +4,7 @@
 /// for optimal cache performance during mesh generation and processing.
 
 use super::vertex_soa::VertexBufferSoA;
-use crate::world::BlockId;
+use crate::BlockId;
 use std::collections::HashMap;
 
 /// Mesh generation data in SOA layout

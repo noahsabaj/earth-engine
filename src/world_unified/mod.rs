@@ -26,6 +26,8 @@ pub mod generation;
 pub mod compute;
 pub mod management;
 pub mod interfaces;
+pub mod blocks;
+pub mod lighting;
 
 // Re-export core types for convenience
 pub use core::{
@@ -68,14 +70,27 @@ pub use management::{
     // Unified managers
     UnifiedWorldManager, WorldManagerConfig,
     // Performance and statistics
-    WorldPerformanceMetrics, GenerationStats
+    WorldPerformanceMetrics, GenerationStats,
+    // Parallel world support
+    ParallelWorld, ParallelWorldConfig, SpawnFinder
 };
 
 // Re-export interfaces
 pub use interfaces::{
-    WorldInterface, ReadOnlyWorldInterface,
-    ChunkManagerInterface, GeneratorInterface
+    WorldInterface, ReadOnlyWorldInterface, UnifiedWorldInterface,
+    ChunkManagerInterface, GeneratorInterface,
+    WorldQuery, QueryResult, WorldOperation, OperationResult, WorldError,
+    WorldConfig, ChunkManager, DefaultChunkManager, ChunkData
 };
+
+// Re-export block system
+pub use blocks::{
+    register_basic_blocks,
+    GrassBlock, DirtBlock, StoneBlock, WaterBlock, SandBlock, GlowstoneBlock
+};
+
+// Re-export lighting system
+pub use lighting::SkylightCalculator;
 
 /// Helper function to convert voxel position to chunk position
 /// Following DOP principles - pure function that transforms data

@@ -5,7 +5,7 @@
 /// Follows DOP principles from Sprint 37.
 
 use std::collections::VecDeque;
-use crate::world::{WorldInterface, VoxelPos, BlockId};
+use crate::{WorldInterface, VoxelPos, BlockId};
 use crate::lighting::{LightType, MAX_LIGHT_LEVEL, LIGHT_FALLOFF};
 
 /// Light propagation data (DOP - no methods)

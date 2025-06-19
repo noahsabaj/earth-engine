@@ -39,13 +39,13 @@ fn test_terrain_generation_shader_compiles() {
         let queue = Arc::new(queue);
         
         // Test creating the terrain generator which includes shader compilation
-        use hearth_engine::world_gpu::terrain_generator_soa::TerrainGeneratorSOA;
-        use hearth_engine::world_gpu::world_buffer::WorldBuffer;
-        use hearth_engine::world::BlockRegistry;
+        use hearth_engine::world_unified::generation::TerrainGeneratorSOA;
+        use hearth_engine::world_unified::storage::WorldBuffer;
+        use hearth_engine::BlockRegistry;
         
         let world_buffer = WorldBuffer::new(&device, 2);
         let mut registry = BlockRegistry::new();
-        hearth_engine::world::basic_blocks::register_basic_blocks(&mut registry);
+        hearth_engine::world_unified::core::register_basic_blocks(&mut registry);
         
         // This should compile the shader
         let result = TerrainGeneratorSOA::new(

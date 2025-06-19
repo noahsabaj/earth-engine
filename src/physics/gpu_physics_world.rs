@@ -8,8 +8,11 @@ use std::sync::{Arc, Mutex};
 use cgmath::{Point3, Vector3};
 use crate::{
     physics::{PhysicsData, EntityId, physics_tables::PhysicsFlags, FIXED_TIMESTEP},
-    world::WorldInterface,
-    world_gpu::{WorldBuffer, HierarchicalPhysics, PhysicsQuery, QueryType, QueryResult},
+    world_unified::interfaces::WorldInterface,
+    world_unified::{
+        storage::WorldBuffer,
+        compute::hierarchical_physics::{HierarchicalPhysics, PhysicsQuery, QueryType, QueryResult},
+    },
     memory::MemoryManager,
 };
 use wgpu::util::DeviceExt;

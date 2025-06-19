@@ -1,6 +1,6 @@
 use glam::Vec3;
 use crate::particles::Particle;
-use crate::world::{World, VoxelPos};
+use crate::{World, VoxelPos};
 
 /// Particle physics system
 pub struct ParticlePhysics {

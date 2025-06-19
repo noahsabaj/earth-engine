@@ -134,6 +134,7 @@ impl Default for GeneratorConfig {
 /// Block IDs for generation
 #[derive(Debug, Clone, Copy)]
 pub struct BlockIds {
+    pub air: BlockId,
     pub grass: BlockId,
     pub dirt: BlockId,
     pub stone: BlockId,
@@ -144,6 +145,7 @@ pub struct BlockIds {
 impl Default for BlockIds {
     fn default() -> Self {
         Self {
+            air: BlockId::AIR,
             grass: BlockId::GRASS,
             dirt: BlockId::DIRT,
             stone: BlockId::STONE,

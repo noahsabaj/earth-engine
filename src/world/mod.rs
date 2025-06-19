@@ -48,3 +48,56 @@ pub use chunk_soa::ChunkSoA as Chunk;
 pub fn voxel_to_chunk_pos(voxel_pos: VoxelPos, chunk_size: u32) -> ChunkPos {
     voxel_pos.to_chunk_pos(chunk_size)
 }
+
+// === MIGRATION COMPATIBILITY LAYER ===
+// This allows gradual migration from world to world_unified
+// TODO: Remove this after full migration to world_unified
+
+#[cfg(feature = "legacy-world-modules")]
+mod unified_compat {
+    // Re-export core types from world_unified to maintain compatibility
+    pub use crate::world_unified::core::{
+        Block as UnifiedBlock,
+        BlockId as UnifiedBlockId,
+        BlockRegistry as UnifiedBlockRegistry,
+        ChunkPos as UnifiedChunkPos,
+        VoxelPos as UnifiedVoxelPos,
+        Ray as UnifiedRay,
+        RaycastHit as UnifiedRaycastHit,
+        BlockFace as UnifiedBlockFace,
+        RenderData as UnifiedRenderData,
+        PhysicsProperties as UnifiedPhysicsProperties,
+    };
+    
+    pub use crate::world_unified::storage::ChunkSoA as UnifiedChunk;
+    pub use crate::world_unified::management::UnifiedWorldManager as UnifiedWorld;
+    pub use crate::world_unified::generation::WorldGenerator as UnifiedWorldGenerator;
+    
+    // Type conversion helpers
+    pub fn to_unified_block_id(id: super::BlockId) -> UnifiedBlockId {
+        UnifiedBlockId(id.0)
+    }
+    
+    pub fn from_unified_block_id(id: UnifiedBlockId) -> super::BlockId {
+        super::BlockId(id.0)
+    }
+    
+    pub fn to_unified_voxel_pos(pos: super::VoxelPos) -> UnifiedVoxelPos {
+        UnifiedVoxelPos::new(pos.x, pos.y, pos.z)
+    }
+    
+    pub fn from_unified_voxel_pos(pos: UnifiedVoxelPos) -> super::VoxelPos {
+        super::VoxelPos::new(pos.x, pos.y, pos.z)
+    }
+    
+    pub fn to_unified_chunk_pos(pos: super::ChunkPos) -> UnifiedChunkPos {
+        UnifiedChunkPos { x: pos.x, y: pos.y, z: pos.z }
+    }
+    
+    pub fn from_unified_chunk_pos(pos: UnifiedChunkPos) -> super::ChunkPos {
+        super::ChunkPos { x: pos.x, y: pos.y, z: pos.z }
+    }
+}
+
+#[cfg(feature = "legacy-world-modules")]
+pub use unified_compat::*;

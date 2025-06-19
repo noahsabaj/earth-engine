@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use serde::{Serialize, Deserialize};
 use glam::Vec3;
 
-use crate::world::{World, Chunk, ChunkPos};
+use crate::{World, Chunk, ChunkPos};
 use crate::persistence::{
     PersistenceResult, PersistenceError,
     ChunkSerializer, ChunkFormat,

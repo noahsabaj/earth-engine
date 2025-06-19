@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 use std::time::{Duration, Instant};
-use crate::world::{VoxelPos, BlockId};
+use crate::{VoxelPos, BlockId};
 use glam::{Vec3, Quat};
 
 /// Maximum history to keep for lag compensation (milliseconds)

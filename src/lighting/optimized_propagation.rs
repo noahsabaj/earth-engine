@@ -4,7 +4,7 @@
 /// Zero-allocation light propagation using pre-allocated buffers.
 /// Pure functions for light update transformations - no methods, just data operations.
 
-use crate::world::{World, VoxelPos, BlockId};
+use crate::{World, VoxelPos, BlockId};
 use crate::lighting::{LightType, MAX_LIGHT_LEVEL, LIGHT_FALLOFF};
 
 /// Pre-allocated buffers for light propagation (pure data)

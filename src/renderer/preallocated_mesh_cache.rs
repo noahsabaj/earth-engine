@@ -8,7 +8,7 @@
 /// - Position validation uses ok_or_else() for proper error messages
 /// - All methods return Result types to enable error propagation up the call stack
 
-use crate::world::ChunkPos;
+use crate::ChunkPos;
 use crate::utils::chunk_spatial_hash::{chunk_pos_to_index, MAX_CHUNK_COORD};
 use super::mesh_optimizer::{OptimizedMesh, MeshLod};
 use crate::error::EngineError;

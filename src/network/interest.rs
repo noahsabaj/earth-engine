@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use glam::Vec3;
-use crate::world::VoxelPos;
+use crate::VoxelPos;
 
 /// Maximum view distance for entity updates (meters)
 const MAX_ENTITY_VIEW_DISTANCE: f32 = 128.0;

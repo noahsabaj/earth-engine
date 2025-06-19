@@ -1,5 +1,5 @@
 /// Placeholder for simple async renderer module
-use crate::{BlockRegistry, world::ParallelWorld};
+use crate::{BlockRegistry, ParallelWorld};
 use crate::camera::data_camera::CameraData;
 use std::sync::Arc;
 

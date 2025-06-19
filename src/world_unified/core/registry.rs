@@ -1,4 +1,4 @@
-use crate::world::{Block, BlockId};
+use super::{Block, BlockId};
 use std::collections::HashMap;
 use std::sync::Arc;
 

@@ -1,5 +1,5 @@
 use serde::{Serialize, Deserialize};
-use crate::world::{VoxelPos, BlockId, ChunkPos};
+use crate::{VoxelPos, BlockId, ChunkPos};
 use glam::{Vec3, Quat};
 
 /// Packet types for network communication

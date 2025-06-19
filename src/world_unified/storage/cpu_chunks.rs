@@ -1,5 +1,4 @@
-use crate::world_unified::core::{BlockId, ChunkPos};
-use crate::world::VoxelPos; // Use world's VoxelPos for morton encoding compatibility
+use crate::world_unified::core::{BlockId, ChunkPos, VoxelPos};
 use crate::lighting::LightLevel;
 use crate::morton::morton_encode_chunk;
 use std::alloc::{alloc_zeroed, dealloc, Layout};

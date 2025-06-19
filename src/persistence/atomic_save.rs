@@ -11,7 +11,7 @@ use std::time::{Duration, Instant};
 use std::fs;
 
 use crate::persistence::{PersistenceResult, PersistenceError, error::{atomic_write, LockResultExt}};
-use crate::world::{ChunkPos, Chunk, World};
+use crate::{ChunkPos, Chunk, World};
 
 /// Operation types for the save queue
 #[derive(Debug, Clone)]

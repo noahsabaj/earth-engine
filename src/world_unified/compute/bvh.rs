@@ -7,7 +7,7 @@ use wgpu::{Device, Queue, Buffer};
 use bytemuck::{Pod, Zeroable};
 use cgmath::{Vector3, Point3};
 use crate::memory::MemoryManager;
-use crate::world::ChunkPos;
+use crate::world_unified::core::ChunkPos;
 
 /// BVH node format optimized for GPU traversal
 #[repr(C)]

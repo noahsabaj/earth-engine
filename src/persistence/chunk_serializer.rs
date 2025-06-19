@@ -1,5 +1,5 @@
 use serde::{Serialize, Deserialize};
-use crate::world::{Chunk, BlockId, VoxelPos, ChunkPos};
+use crate::{Chunk, BlockId, VoxelPos, ChunkPos};
 use crate::persistence::{PersistenceResult, PersistenceError};
 
 /// Version of the chunk format

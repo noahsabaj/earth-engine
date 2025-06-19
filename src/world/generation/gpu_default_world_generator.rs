@@ -6,7 +6,10 @@
 
 use std::sync::{Arc, Mutex};
 use crate::{BlockId, Chunk, ChunkPos};
-use crate::world_gpu::{WorldBuffer, WorldBufferDescriptor, TerrainGeneratorSOA, VoxelData};
+use crate::world_unified::{
+    storage::{WorldBuffer, WorldBufferDescriptor, VoxelData},
+    generation::TerrainGeneratorSOA,
+};
 use crate::gpu::soa::{TerrainParamsSOA, BlockDistributionSOA};
 use crate::gpu::types::terrain::BlockDistribution;
 use crate::gpu::constants::MAX_BLOCK_DISTRIBUTIONS;

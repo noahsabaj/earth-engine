@@ -9,7 +9,7 @@ use std::collections::hash_map::DefaultHasher;
 use std::time::{Duration, Instant};
 
 use crate::persistence::{PersistenceResult, PersistenceError};
-use crate::world::{ChunkPos, World};
+use crate::{ChunkPos, World};
 
 /// Types of validation that can be performed
 #[derive(Debug, Clone, PartialEq)]

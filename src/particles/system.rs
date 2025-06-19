@@ -10,7 +10,7 @@ use crate::particles::update::{
     apply_force_field, apply_vortex, apply_turbulence
 };
 use crate::particles::ParticleType;
-use crate::world::World;
+use crate::World;
 
 /// Data-oriented particle system
 pub struct DOPParticleSystem {

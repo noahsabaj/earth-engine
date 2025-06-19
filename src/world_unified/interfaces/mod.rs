@@ -5,9 +5,15 @@
 
 mod world_interface;
 mod generator_interface;
+mod legacy_adapter;
 
-pub use world_interface::{WorldInterface, ReadOnlyWorldInterface, WorldQuery, QueryResult};
+pub use world_interface::{
+    WorldInterface, ReadOnlyWorldInterface, UnifiedWorldInterface,
+    WorldQuery, QueryResult, WorldOperation, OperationResult, WorldError,
+    WorldConfig, ChunkManager, DefaultChunkManager, ChunkData
+};
 pub use generator_interface::{GeneratorInterface, GenerationRequest, GenerationResult};
+pub use legacy_adapter::LegacyWorldAdapter;
 
 // Re-export chunk manager interface from management
 pub use crate::world_unified::management::{ChunkManagerInterface, ChunkStats};
