@@ -1,15 +1,13 @@
 # World Unification Status
 
-## Current State (Sprint 39) - COMPLETED ✅
+## Current State (June 2025) - COMPLETED ✅
 
-The engine now has three world-related modules:
-- `world` - Original CPU-centric world management (legacy)
-- `world_gpu` - GPU-accelerated world operations (stable)
-- `world_unified` - **COMPLETED** unified GPU-first architecture (NEW!)
+The engine now has a single unified world module:
+- `world` - GPU-first architecture with CPU fallback (unified from previous three modules)
 
 ## Why Unification?
 
-The current dual-module approach (`world` + `world_gpu`) has several issues:
+The previous dual-module approach (`world` + `world_gpu`) had several issues:
 1. **Duplicate data structures** - ChunkData vs GpuChunkData
 2. **Manual synchronization** - Constant CPU↔GPU transfers
 3. **Scattered logic** - Unclear where functionality belongs
@@ -17,9 +15,9 @@ The current dual-module approach (`world` + `world_gpu`) has several issues:
 
 ## Unified Architecture Design
 
-The `world_unified` module was designed to be GPU-first:
+The unified `world` module is designed to be GPU-first:
 ```
-world_unified/
+world/
 ├── core/           # Single source of truth for types
 ├── storage/        # GPU memory management
 ├── compute/        # All GPU kernels
@@ -29,23 +27,21 @@ world_unified/
 
 ## Completion Status (June 2025)
 
-The `world_unified` module is now **FULLY FUNCTIONAL** with all compilation errors fixed:
+The unified `world` module is now **FULLY FUNCTIONAL** with all compilation errors fixed:
 - ✅ All imports and modules properly configured
 - ✅ Shader paths corrected
-- ✅ Type conversions between world/world_unified implemented
+- ✅ Type conversions completed
 - ✅ All trait implementations completed
 - ✅ Full migration from dual modules achieved
 
 ## Usage Recommendation
 
-**New projects should use `world_unified`** for maximum performance:
+**All projects now use the unified `world` module** for maximum performance:
 ```rust
-use hearth_engine::{UnifiedWorldManager, UnifiedWorldConfig};
+use hearth_engine::{World, UnifiedWorldConfig};
 
-let world = UnifiedWorldManager::new(device, queue, config)?;
+let world = World::new(device, queue, config)?;
 ```
-
-**Existing projects can continue using `world_gpu`** for stability while planning migration.
 
 ## Performance Benefits Achieved
 

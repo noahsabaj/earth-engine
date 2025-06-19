@@ -2,19 +2,19 @@
 
 ## Overview
 
-As of June 2025, the Hearth Engine has completed a major migration from three separate world modules (`world`, `world_gpu`, `world_unified`) to a single unified GPU-first architecture under `world_unified`.
+As of June 2025, the Hearth Engine has completed a major migration from three separate world modules (`world`, `world_gpu`, `world_unified`) to a single unified GPU-first architecture under `world`.
 
 ## Migration Summary
 
 ### Before Migration
 - **`world`**: Legacy CPU-centric world management (31+ files using it)
 - **`world_gpu`**: Transitional GPU acceleration layer (only 3 files using it)  
-- **`world_unified`**: New GPU-first unified architecture (completed but not adopted)
+- **`world_unified`**: New GPU-first unified architecture (now renamed to `world`)
 
 ### After Migration
-- **`world_unified`**: Single unified module with GPU-first, CPU-fallback architecture
-- Legacy modules available only with `legacy-world-modules` feature flag
-- All imports updated to use `world_unified` exports
+- **`world`**: Single unified module with GPU-first, CPU-fallback architecture
+- Legacy modules have been completely removed
+- All imports updated to use `world` exports
 
 ## Architecture Benefits
 
@@ -44,11 +44,11 @@ As of June 2025, the Hearth Engine has completed a major migration from three se
 use crate::world::{World, Chunk, ParallelWorld};
 
 // After  
-use crate::{World, Chunk, ParallelWorld}; // Re-exported from world_unified
+use crate::{World, Chunk, ParallelWorld}; // Re-exported from world
 ```
 
 ### Type Changes
-All core types now come from `world_unified`:
+All core types now come from `world`:
 - `Block`, `BlockId`, `BlockRegistry`
 - `ChunkPos`, `VoxelPos`
 - `World` (alias for `UnifiedWorldManager`)
@@ -56,15 +56,11 @@ All core types now come from `world_unified`:
 - `ParallelWorld`, `SpawnFinder`
 
 ### Feature Flags
-```toml
-# To use legacy modules (not recommended)
-[features]
-legacy-world-modules = []
-```
+The `legacy-world-modules` feature flag has been removed. All legacy modules have been deleted.
 
 ## Migration Phases Completed
 
-1. **Phase 1**: Added missing components to world_unified
+1. **Phase 1**: Added missing components to unified architecture
 2. **Phase 2**: Migrated low-risk modules (lighting)
 3. **Phase 3**: Migrated world generation systems
 4. **Phase 4**: Integrated renderer with unified system
@@ -100,5 +96,5 @@ legacy-world-modules = []
 
 For migration issues or questions:
 - Check examples in `examples/test_unified_world.rs`
-- Review tests in `src/world_unified/*/tests.rs`
+- Review tests in `src/world/*/tests.rs`
 - See architecture docs in `docs/architecture/GPU_DRIVEN_ARCHITECTURE.md`

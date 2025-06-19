@@ -2,7 +2,7 @@
 
 ## Overview
 
-The `world_unified` module represents the future of Hearth Engine - a GPU-first architecture that unifies CPU and GPU world management into a single, coherent system.
+The unified `world` module represents Hearth Engine's GPU-first architecture that unifies CPU and GPU world management into a single, coherent system.
 
 ## Key Benefits
 
@@ -15,7 +15,7 @@ The `world_unified` module represents the future of Hearth Engine - a GPU-first 
 ## Architecture
 
 ```
-world_unified/
+world/
 ├── core/           # Unified types (GPU-layout from the start)
 ├── storage/        # GPU-primary, CPU-fallback storage
 ├── compute/        # All GPU kernels and operations
@@ -86,7 +86,7 @@ gpu_world.process_chunk(pos);
 let result = gpu_world.download_chunk(pos);
 ```
 
-### New Way (world_unified)
+### New Way (unified world)
 ```rust
 // Everything stays on GPU
 world.generate_chunk(pos); // GPU generation
@@ -132,7 +132,7 @@ world.load_chunks_parallel(&positions).await;
 
 Enable debug logging:
 ```
-RUST_LOG=hearth_engine::world_unified=debug cargo run
+RUST_LOG=hearth_engine::world=debug cargo run
 ```
 
 Check GPU validation:

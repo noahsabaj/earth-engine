@@ -17,14 +17,14 @@ use crate::input::InputState;
 use crate::physics::{GpuPhysicsWorld};
 use crate::physics::{EntityId, physics_tables::PhysicsFlags};
 use crate::renderer::{SelectionRenderer, GpuDiagnostics, GpuInitProgress, gpu_driven::GpuDrivenRenderer, screenshot};
-use crate::world_unified::{
+use crate::world::{
     interfaces::{WorldInterface, WorldConfig, ChunkManager},
     core::{Ray, RaycastHit},
     management::{UnifiedWorldManager, ParallelWorld, ParallelWorldConfig, SpawnFinder},
 };
 use crate::lighting::{DayNightCycleData, LightUpdate, LightType};
 use crate::lighting::time_of_day::{create_default_day_night_cycle, update_day_night_cycle};
-use crate::world_unified::compute::GpuLightPropagator;
+use crate::world::compute::GpuLightPropagator;
 use anyhow::Result;
 use cgmath::{Matrix4, SquareMatrix, Point3, Vector3, InnerSpace, Zero};
 use chrono;
@@ -630,7 +630,7 @@ impl GpuState {
         
         // Register engine's basic blocks first
         log::info!("[GpuState::new] Registering engine basic blocks...");
-        crate::world_unified::core::register_basic_blocks(&mut block_registry_mut);
+        crate::world::core::register_basic_blocks(&mut block_registry_mut);
         
         // Register game blocks if game is provided
         if let Some(game) = game {
@@ -684,7 +684,7 @@ impl GpuState {
             let seed = 12345u64; // Fixed seed for consistent worlds
             #[cfg(feature = "legacy-world-modules")]
             {
-                crate::world_unified::generation::create_legacy_gpu_generator(
+                crate::world::generation::create_legacy_gpu_generator(
                     device.clone(),
                     queue.clone(),
                     seed,
@@ -872,7 +872,7 @@ impl GpuState {
         // Create GPU light propagator if WorldBuffer is available
         let light_propagator = if let Some(_world_buffer) = world.get_world_buffer() {
             log::info!("[GpuState::new] GPU lighting system available");
-            // TODO: Update GpuLightPropagator to work with world_unified::storage::WorldBuffer
+            // TODO: Update GpuLightPropagator to work with world::storage::WorldBuffer
             log::warn!("[GpuState::new] GpuLightPropagator not yet ported to world_unified - using CPU fallback");
             None
         } else {

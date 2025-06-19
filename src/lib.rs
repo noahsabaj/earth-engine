@@ -16,27 +16,8 @@ pub mod particles;
 pub mod persistence;
 pub mod physics;
 pub mod renderer;
-// === WORLD MODULE MIGRATION COMPLETE ===
-// All functionality has been migrated to world_unified.
-// The legacy world and world_gpu modules are now only available behind
-// the "legacy-world-modules" feature flag for backwards compatibility.
-// 
-// Migration Summary:
-// - world → world_unified: CPU-centric → GPU-first unified architecture
-// - world_gpu → world_unified: GPU acceleration integrated into unified system
-// - ParallelWorld, SpawnFinder: Ported to world_unified/management
-// - All core types (Block, Chunk, etc): Now exported from world_unified
-//
-// Legacy world modules - only exposed with legacy feature flag
-#[cfg(feature = "legacy-world-modules")]
-#[deprecated(since = "0.39.0", note = "Use world_unified instead. See src/world/DEPRECATED.md")]
+// World module - GPU-first unified architecture
 pub mod world;
-// world_gpu module - deprecated, functionality moved to world_unified
-#[cfg(feature = "legacy-world-modules")]
-#[deprecated(since = "0.39.0", note = "Use world_unified instead. See src/world_gpu/DEPRECATED.md")]
-pub mod world_gpu;
-// Unified world module - GPU-first architecture
-pub mod world_unified;
 
 // GPU and data systems
 pub mod gpu;
@@ -63,19 +44,19 @@ pub use input::KeyCode;
 pub use physics::{AABB};
 pub use renderer::Renderer;
 // === Core World Types ===
-// Export from world_unified - the unified GPU-first architecture
-pub use world_unified::core::{Block, BlockId, BlockRegistry, ChunkPos, VoxelPos, RenderData, PhysicsProperties, Ray, RaycastHit, BlockFace, cast_ray};
-pub use world_unified::storage::ChunkSoA as Chunk;
-pub use world_unified::management::UnifiedWorldManager as World;
-pub use world_unified::generation::WorldGenerator;
-pub use world_unified::interfaces::{LegacyWorldAdapter, WorldInterface};
+// Export from world - GPU-first architecture with CPU fallback
+pub use world::core::{Block, BlockId, BlockRegistry, ChunkPos, VoxelPos, RenderData, PhysicsProperties, Ray, RaycastHit, BlockFace, cast_ray};
+pub use world::storage::ChunkSoA as Chunk;
+pub use world::management::UnifiedWorldManager as World;
+pub use world::generation::WorldGenerator;
+pub use world::interfaces::{WorldInterface};
 
-// Re-export unified world's ParallelWorld implementation
-pub use world_unified::management::{ParallelWorld, ParallelWorldConfig, SpawnFinder};
-pub use world_unified::voxel_to_chunk_pos;
+// Re-export ParallelWorld implementation
+pub use world::management::{ParallelWorld, ParallelWorldConfig, SpawnFinder};
+pub use world::voxel_to_chunk_pos;
 
-// Re-export unified world module for GPU-first architecture (always available)
-pub use world_unified::{
+// Re-export world module for GPU-first architecture
+pub use world::{
     UnifiedWorldManager,
     WorldManagerConfig as UnifiedWorldConfig,
     ChunkManagerInterface,
