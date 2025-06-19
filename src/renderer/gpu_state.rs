@@ -597,8 +597,11 @@ impl GpuState {
         
         // Register game blocks if game is provided
         if let Some(game) = game {
-            log::info!("[GpuState::new] Registering game blocks...");
+            log::info!("[GpuState::new] Game data provided - Registering game blocks...");
             register_game_blocks(game, &mut block_registry_mut);
+            log::info!("[GpuState::new] Game blocks registered successfully");
+        } else {
+            log::info!("[GpuState::new] No game data provided - Using default blocks only");
         }
         
         // Get block IDs (they are constants from BlockId)
@@ -616,7 +619,10 @@ impl GpuState {
             custom_gen
         } else if let Some(ref factory) = engine_config.world_generator_factory {
             log::info!("[GpuState::new] Using world generator factory from EngineConfig");
-            (factory)(device.clone(), queue.clone(), &engine_config)
+            log::info!("[GpuState::new] World generator type: {:?}", engine_config.world_generator_type);
+            let generated = (factory)(device.clone(), queue.clone(), &engine_config);
+            log::info!("[GpuState::new] World generator factory returned successfully");
+            generated
         } else {
             log::info!("[GpuState::new] Creating default GPU-powered world generator...");
             let seed = 12345; // Fixed seed for consistent worlds

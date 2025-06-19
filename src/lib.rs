@@ -21,8 +21,6 @@ pub mod world_gpu;
 // TODO: world_unified module is incomplete - future work to unify world and world_gpu
 pub mod world_unified;
 
-// Advanced features removed - deemed premature for core engine
-
 // GPU and data systems
 pub mod gpu;
 pub mod spatial_index;
@@ -36,8 +34,6 @@ pub mod event_system;
 pub mod instance;
 pub mod process;
 pub mod profiling;
-
-// Web module removed - no longer supporting browser builds
 
 use anyhow::Result;
 use std::sync::Arc;
@@ -53,11 +49,8 @@ pub use world::{Block, BlockId, BlockRegistry, Chunk, ChunkPos, VoxelPos, Render
 
 // Re-export unified world module for GPU-first architecture
 pub use world_unified::{
-    WorldManager as UnifiedWorldManager,
+    UnifiedWorldManager,
     WorldManagerConfig as UnifiedWorldConfig,
-    UnifiedStorage,
-    UnifiedGenerator,
-    ComputeEngine,
     ChunkManagerInterface,
     GeneratorInterface,
 };
