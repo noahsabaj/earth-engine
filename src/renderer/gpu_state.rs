@@ -16,7 +16,7 @@ use crate::camera::{
 use crate::input::InputState;
 use crate::physics::{GpuPhysicsWorld};
 use crate::physics::{EntityId, physics_tables::PhysicsFlags};
-use crate::renderer::{SelectionRenderer, GpuDiagnostics, GpuInitProgress, gpu_driven::GpuDrivenRenderer, screenshot};
+use crate::renderer::{SelectionRenderer, GpuDiagnostics, GpuInitProgress, gpu_driven::GpuDrivenRenderer};
 use crate::world::{
     interfaces::{WorldInterface, WorldConfig, ChunkManager},
     core::{Ray, RaycastHit},
@@ -134,12 +134,6 @@ pub struct GpuState {
     frames_without_objects: u32,
     total_objects_submitted: u64,
     last_submission_time: std::time::Instant,
-    // Debug screenshot capture state
-    debug_capture_enabled: bool,
-    capture_timer: f32,
-    capture_interval: f32,
-    screenshot_counter: u32,
-    last_capture_time: Option<std::time::Instant>,
     // Frame rate limiting
     last_frame_time: Option<std::time::Instant>,
 }
@@ -635,8 +629,8 @@ impl GpuState {
         // Register game blocks if game is provided
         if let Some(game) = game {
             log::info!("[GpuState::new] Game data provided - Registering game blocks...");
-            // TODO: Port register_game_blocks to unified world
-            log::warn!("[GpuState::new] Game blocks registration not yet ported to unified world");
+            // Register game blocks through the callback system
+            crate::game::callbacks::execute_register_blocks(&mut block_registry_mut);
             log::info!("[GpuState::new] Game blocks registered successfully");
         } else {
             log::info!("[GpuState::new] No game data provided - Using default blocks only");
@@ -887,11 +881,6 @@ impl GpuState {
             frames_without_objects: 0,
             total_objects_submitted: 0,
             last_submission_time: std::time::Instant::now(),
-            debug_capture_enabled: false,
-            capture_timer: 0.0,
-            capture_interval: 0.25,
-            screenshot_counter: 0,
-            last_capture_time: None,
             last_frame_time: None,
         })
     }
@@ -1671,32 +1660,8 @@ impl GpuState {
             }
         }
 
-        // Extract objects_drawn before screenshot logic to avoid borrow issues
-        let objects_drawn = stats.objects_drawn;
-        
-        // Check if we need to capture a screenshot
-        let should_capture = self.should_capture_screenshot(delta_time);
-
-        // Submit render commands first
+        // Submit render commands
         self.queue.submit(std::iter::once(encoder.finish()));
-
-        // Handle screenshot capture after commands are submitted but before present
-        if should_capture && objects_drawn > 0 {
-            // Force GPU synchronization to ensure render is complete
-            self.device.poll(wgpu::Maintain::Wait);
-            
-            // Create a new encoder for the screenshot operation
-            let mut screenshot_encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("Screenshot Capture Encoder"),
-            });
-            
-            self.capture_screenshot(&mut screenshot_encoder, &output.texture);
-            
-            // Submit screenshot commands
-            self.queue.submit(std::iter::once(screenshot_encoder.finish()));
-        } else if should_capture {
-            log::warn!("[GpuState::render] Skipping screenshot - no objects drawn");
-        }
 
         output.present();
         
@@ -1707,140 +1672,7 @@ impl GpuState {
     }
 
     /// Check if we should capture a screenshot based on timer or single capture request
-    fn should_capture_screenshot(&mut self, delta_time: f32) -> bool {
-        // Check for single screenshot request (F6)
-        if self.screenshot_counter > 0 {
-            // Avoid capturing multiple times from a single F6 press
-            if let Some(last_time) = self.last_capture_time {
-                if last_time.elapsed().as_secs_f32() < 0.5 {
-                    return false;
-                }
-            }
-            return true;
-        }
 
-        // Check for automatic capture (F5 mode)
-        if self.debug_capture_enabled {
-            self.capture_timer += delta_time;
-            if self.capture_timer >= self.capture_interval {
-                self.capture_timer = 0.0;
-                return true;
-            }
-        }
-
-        false
-    }
-
-    /// Capture a screenshot from the current render output
-    fn capture_screenshot(&mut self, encoder: &mut wgpu::CommandEncoder, texture: &wgpu::Texture) {
-        // Generate filename with timestamp
-        let filename = self.generate_screenshot_filename();
-        
-        // Create debug/photos directory if it doesn't exist
-        let screenshot_dir = Path::new("debug/photos");
-        if !screenshot_dir.exists() {
-            if let Err(e) = std::fs::create_dir_all(screenshot_dir) {
-                log::error!("[GpuState::capture_screenshot] Failed to create screenshot directory: {}", e);
-                return;
-            }
-        }
-
-        let filepath = screenshot_dir.join(&filename);
-        
-        // Get texture dimensions
-        let size = texture.size();
-        let format = self.config.format;
-        
-        // Create staging buffer for GPU->CPU transfer
-        let buffer = screenshot::create_staging_buffer(&self.device, size.width, size.height, 4);
-        
-        // Copy texture to buffer
-        if let Err(e) = screenshot::copy_texture_to_buffer(encoder, texture, &buffer, size.width, size.height, format) {
-            log::error!("[GpuState::capture_screenshot] Failed to copy texture: {}", e);
-            return;
-        }
-        
-        // Store screenshot request for deferred processing
-        // We can't use async here directly, so we'll process it synchronously
-        // but in a way that minimizes render loop impact
-        let device = Arc::clone(&self.device);
-        let queue = Arc::clone(&self.queue);
-        
-        // Process screenshot synchronously but efficiently
-        std::thread::spawn(move || {
-            // Use pollster to run the async operation
-            match pollster::block_on(Self::process_screenshot_async(
-                device,
-                queue,
-                buffer,
-                size.width,
-                size.height,
-                format,
-                filepath.clone()
-            )) {
-                Ok(_) => log::info!("[GpuState::capture_screenshot] Screenshot saved successfully to {:?}", filepath),
-                Err(e) => log::error!("[GpuState::capture_screenshot] Failed to save screenshot: {}", e),
-            }
-        });
-        
-        // Update capture state
-        self.last_capture_time = Some(std::time::Instant::now());
-        if self.screenshot_counter > 0 {
-            self.screenshot_counter -= 1;
-        }
-        
-        log::info!("[GpuState::capture_screenshot] Screenshot capture initiated: {}", filename);
-    }
-
-    /// Process screenshot asynchronously to avoid blocking the render loop
-    async fn process_screenshot_async(
-        device: Arc<wgpu::Device>,
-        _queue: Arc<wgpu::Queue>,
-        buffer: wgpu::Buffer,
-        width: u32,
-        height: u32,
-        format: wgpu::TextureFormat,
-        filepath: PathBuf,
-    ) -> Result<()> {
-        // Map buffer for reading
-        let buffer_slice = buffer.slice(..);
-        let (tx, rx) = flume::bounded(1);
-        
-        buffer_slice.map_async(wgpu::MapMode::Read, move |result| {
-            if let Err(_) = tx.send(result) {
-                // Channel receiver was dropped - this is expected in some shutdown scenarios
-            }
-        });
-        
-        device.poll(wgpu::Maintain::Wait);
-        
-        let map_result = rx.recv_async().await
-            .map_err(|_| anyhow::anyhow!("Failed to receive GPU buffer mapping result - channel was closed"))?;
-        map_result?;
-        
-        // Read buffer data
-        let data = buffer_slice.get_mapped_range();
-        let image = screenshot::buffer_to_image(&data, width, height, format)?;
-        
-        // Important: drop the mapped range before unmapping
-        drop(data);
-        buffer.unmap();
-        
-        // Save to file
-        screenshot::save_screenshot(&image, filepath)?;
-        
-        Ok(())
-    }
-
-    /// Generate a unique filename for screenshots
-    fn generate_screenshot_filename(&self) -> String {
-        let now = chrono::Local::now();
-        let timestamp = now.format("%Y%m%d_%H%M%S");
-        // Use a simple incrementing counter for unique filenames
-        static SCREENSHOT_COUNTER: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
-        let counter = SCREENSHOT_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        format!("screenshot_{}_{:03}.png", timestamp, counter)
-    }
 }
 
 /// Validates and clamps texture dimensions to GPU limits
@@ -1947,66 +1779,8 @@ pub async fn run_app<G: GameData + 'static>(
         }
     };
     
-    // TODO: Custom world generator support for DOP games
-    // This feature needs to be redesigned for the DOP architecture
-    if false { // let Some(custom_generator) = game.create_world_generator(
-        log::info!("[gpu_state::run_app] Using game's custom world generator");
-        // Create new world with custom generator
-        let seed = 12345; // Same seed as default
-        let parallel_config = ParallelWorldConfig {
-            generation_threads: num_cpus::get().saturating_sub(2).max(2),
-            mesh_threads: num_cpus::get().saturating_sub(2).max(2),
-            chunks_per_frame: num_cpus::get() * 2,
-            view_distance: 5,
-            chunk_size: 32,
-            enable_gpu: true,
-        };
-        // Create default world generator for custom world
-        // TODO: This code is disabled and needs to be ported to unified architecture
-        /*
-        let custom_generator = Box::new(crate::world::generation::DefaultWorldGenerator::new(
-            42, // seed
-            BlockId(0), // air
-            BlockId(1), // grass
-            BlockId(2), // dirt
-            BlockId(3), // water
-            BlockId(4), // sand
-        ));
-        let world_future = ParallelWorld::new(parallel_config, custom_generator, Some(gpu_state.device.clone()), Some(gpu_state.queue.clone()));
-        
-        gpu_state.world = pollster::block_on(world_future)
-            .map_err(|e| anyhow::anyhow!("Failed to create parallel world: {}", e))?;
-        
-        // Re-find spawn position with new world
-        log::info!("[gpu_state::run_app] Finding spawn position with custom world generator...");
-        let spawn_x = 0.0;
-        let spawn_z = 0.0;
-        match SpawnFinder::find_safe_spawn(&gpu_state.world, spawn_x, spawn_z, 10) {
-            Some(spawn_pos) => {
-                log::info!("[gpu_state::run_app] Found new spawn position at {:?}", spawn_pos);
-                gpu_state.camera.position = [spawn_pos.x, spawn_pos.y, spawn_pos.z];
-                gpu_state.camera_uniform.update_view_proj_data(&gpu_state.camera);
-                gpu_state.queue.write_buffer(
-                    &gpu_state.camera_buffer,
-                    0,
-                    bytemuck::cast_slice(&[gpu_state.camera_uniform]),
-                );
-                
-                // Update physics player position if needed
-                if let Some(physics_world) = &mut gpu_state.physics_world {
-                    if let Some(body) = physics_world.get_body_mut(gpu_state.player_entity) {
-                        body.position[0] = spawn_pos.x;
-                        body.position[1] = spawn_pos.y;
-                        body.position[2] = spawn_pos.z;
-                    }
-                }
-            }
-            None => {
-                log::warn!("[gpu_state::run_app] Failed to find spawn with custom generator");
-            }
-        }
-        */
-    }
+    // Custom world generator is already handled in GpuState::new_with_game
+    // via the config.world_generator_factory mechanism
     
     // Register game blocks
     // Note: Blocks are already registered in GpuState::new()
@@ -2070,23 +1844,6 @@ pub async fn run_app<G: GameData + 'static>(
                             }
                         }
                         
-                        // F5: Toggle debug capture
-                        if event.physical_key == winit::keyboard::PhysicalKey::Code(KeyCode::F5) 
-                            && event.state == winit::event::ElementState::Pressed {
-                            gpu_state.debug_capture_enabled = !gpu_state.debug_capture_enabled;
-                            gpu_state.capture_timer = 0.0; // Reset timer
-                            log::info!(
-                                "[GpuState] Debug screenshot capture {}",
-                                if gpu_state.debug_capture_enabled { "enabled" } else { "disabled" }
-                            );
-                        }
-                        
-                        // F6: Single screenshot
-                        if event.physical_key == winit::keyboard::PhysicalKey::Code(KeyCode::F6) 
-                            && event.state == winit::event::ElementState::Pressed {
-                            gpu_state.screenshot_counter += 1;
-                            log::info!("[GpuState] Single screenshot requested (counter: {})", gpu_state.screenshot_counter);
-                        }
                         
                         if let winit::keyboard::PhysicalKey::Code(keycode) = event.physical_key {
                             input_state.process_key(keycode, event.state);

@@ -293,6 +293,7 @@ pub mod operations {
 
 /// Buffer views for CPU access (debugging/tools only)
 pub mod views {
+    use crate::gpu::buffer_layouts::ChunkMetadata;
     
     
     /// Read-only view of entity positions
