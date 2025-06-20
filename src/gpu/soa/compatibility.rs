@@ -175,7 +175,8 @@ impl SoaMigrationHelper {
         if !self.migrated_systems.contains(&name) {
             self.migrated_systems.push(name);
             log::info!("[SOA Migration] System '{}' migrated to SOA", 
-                      self.migrated_systems.last().unwrap());
+                      self.migrated_systems.last()
+                          .expect("[SOA] Vector should have element after push"));
         }
     }
     

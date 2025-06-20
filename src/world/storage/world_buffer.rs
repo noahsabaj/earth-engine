@@ -405,7 +405,14 @@ impl WorldBuffer {
         let chunk_size_bytes = VOXELS_PER_CHUNK as u64 * std::mem::size_of::<VoxelData>() as u64;
         
         // Get staging buffer reference after mutable operations
-        let staging_buffer = self.staging_buffer.as_ref().unwrap();
+        let staging_buffer = match self.staging_buffer.as_ref() {
+            Some(buffer) => buffer,
+            None => {
+                let error_msg = "WorldBuffer staging buffer unexpectedly None after check";
+                log::error!("[WORLD_BUFFER] {}", error_msg);
+                return Err(error_msg.into());
+            }
+        };
         
         log::info!("[WORLD_BUFFER] GPU readback details: chunk {:?} from slot {} at offset {} bytes (size: {} bytes)", 
                   chunk_pos, slot, source_offset, chunk_size_bytes);

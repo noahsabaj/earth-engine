@@ -263,7 +263,13 @@ impl GpuPhysicsWorld {
             return;
         }
         
-        let world_buffer = self.world_buffer.as_ref().unwrap().clone();
+        let world_buffer = match self.world_buffer.as_ref() {
+            Some(buffer) => buffer.clone(),
+            None => {
+                log::error!("[GpuPhysicsWorld] World buffer unexpectedly None after check");
+                return;
+            }
+        };
         
         // Create physics parameters
         let physics_params = PhysicsParameters {
@@ -281,7 +287,13 @@ impl GpuPhysicsWorld {
         
         // Create bind group
         let bind_group = {
-            let world_buffer_guard = world_buffer.lock().unwrap();
+            let world_buffer_guard = match world_buffer.lock() {
+                Ok(guard) => guard,
+                Err(e) => {
+                    log::error!("[GpuPhysicsWorld] Failed to lock world buffer: {}", e);
+                    return;
+                }
+            };
             self.device.create_bind_group(&wgpu::BindGroupDescriptor {
                 layout: &self.bind_group_layout,
                 entries: &[

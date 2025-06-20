@@ -197,11 +197,23 @@ impl GpuBlockQuery {
         let buffer_slice = download_buffer.slice(..);
         let (tx, rx) = futures::channel::oneshot::channel();
         buffer_slice.map_async(wgpu::MapMode::Read, move |result| {
-            tx.send(result).unwrap();
+            // If we can't send the result, the receiver was dropped
+            // This is logged but doesn't crash
+            if tx.send(result).is_err() {
+                log::error!("[GpuBlockQuery] Failed to send map_async result - receiver dropped");
+            }
         });
         
         self.device.poll(wgpu::Maintain::Wait);
-        rx.await.unwrap()?;
+        
+        // Handle the channel receive
+        match rx.await {
+            Ok(map_result) => map_result?,
+            Err(_) => {
+                log::error!("[GpuBlockQuery] Failed to receive map_async result - sender dropped");
+                return Err(wgpu::BufferAsyncError);
+            }
+        };
         
         let data = buffer_slice.get_mapped_range();
         let results = bytemuck::cast_slice(&data).to_vec();

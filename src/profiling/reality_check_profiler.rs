@@ -151,13 +151,17 @@ impl GpuTimestamps {
     }
     
     pub async fn resolve_timestamps(&self, device: &wgpu::Device, queue: &wgpu::Queue, count: u32) -> Vec<f32> {
-        if self.query_set.is_none() || count == 0 || count > self.max_queries {
+        if count == 0 || count > self.max_queries {
             return Vec::new();
         }
         
-        let query_set = self.query_set.as_ref().unwrap();
-        let query_buffer = self.query_buffer.as_ref().unwrap();
-        let staging_buffer = self.staging_buffer.as_ref().unwrap();
+        let (query_set, query_buffer, staging_buffer) = match (&self.query_set, &self.query_buffer, &self.staging_buffer) {
+            (Some(qs), Some(qb), Some(sb)) => (qs, qb, sb),
+            _ => {
+                log::warn!("[RealityCheckProfiler] GPU resources not available for timestamp resolution");
+                return Vec::new();
+            }
+        };
         
         // Resolve queries
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
@@ -321,7 +325,8 @@ impl RealityCheckProfiler {
     
     /// Start profiling a new frame
     pub fn begin_frame(&self) {
-        let mut current = self.current_frame.lock().unwrap();
+        let mut current = self.current_frame.lock()
+            .expect("[RealityCheckProfiler] Failed to acquire current frame lock");
         *current = Some(FrameProfiler {
             start_time: Instant::now(),
             cpu_timers: HashMap::new(),
@@ -397,7 +402,8 @@ impl RealityCheckProfiler {
     /// End frame and calculate metrics
     pub async fn end_frame(&self, device: Option<&wgpu::Device>, queue: Option<&wgpu::Queue>) {
         let frame_data = {
-            let mut current = self.current_frame.lock().unwrap();
+            let mut current = self.current_frame.lock()
+            .expect("[RealityCheckProfiler] Failed to acquire current frame lock");
             current.take()
         };
         
@@ -479,7 +485,8 @@ impl RealityCheckProfiler {
             };
             
             // Add to history
-            let mut history = self.frame_history.lock().unwrap();
+            let mut history = self.frame_history.lock()
+                .expect("[RealityCheckProfiler] Failed to acquire frame history lock");
             history.push_back(metrics.clone());
             if history.len() > self.history_size {
                 history.pop_front();
@@ -489,13 +496,15 @@ impl RealityCheckProfiler {
     
     /// Record system-level metrics
     pub fn record_system_metrics(&self, system_name: &str, metrics: SystemMetrics) {
-        let mut systems = self.system_metrics.lock().unwrap();
+        let mut systems = self.system_metrics.lock()
+            .expect("[RealityCheckProfiler] Failed to acquire system metrics lock");
         systems.insert(system_name.to_string(), metrics);
     }
     
     /// Get average metrics over history
     pub fn get_average_metrics(&self) -> Option<FrameMetrics> {
-        let history = self.frame_history.lock().unwrap();
+        let history = self.frame_history.lock()
+            .expect("[RealityCheckProfiler] Failed to acquire frame history lock");
         if history.is_empty() {
             return None;
         }
@@ -613,11 +622,13 @@ impl RealityCheckProfiler {
             }
             
             // System breakdown
-            let systems = self.system_metrics.lock().unwrap();
+            let systems = self.system_metrics.lock()
+                .expect("[RealityCheckProfiler] Failed to acquire system metrics lock");
             if !systems.is_empty() {
                 report.push_str("\nSYSTEM BREAKDOWN:\n");
                 let mut system_list: Vec<_> = systems.iter().collect();
-                system_list.sort_by(|a, b| b.1.cpu_time_ms.partial_cmp(&a.1.cpu_time_ms).unwrap());
+                system_list.sort_by(|a, b| b.1.cpu_time_ms.partial_cmp(&a.1.cpu_time_ms)
+                    .unwrap_or(std::cmp::Ordering::Equal));
                 
                 for (name, metrics) in system_list {
                     report.push_str(&format!("  {}: {:.1}ms CPU", name, metrics.cpu_time_ms));

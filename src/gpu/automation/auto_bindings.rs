@@ -45,11 +45,13 @@ impl AutoBindingLayout {
         // Simple regex-based extraction (in production, use naga for proper parsing)
         let binding_regex = regex::Regex::new(
             r"@group\((\d+)\)\s*@binding\((\d+)\)\s*var(?:<([^>]+)>)?\s+(\w+)\s*:\s*([^;]+);"
-        ).unwrap();
+        ).expect("[AutoBindings] Failed to compile regex for binding extraction");
         
         for capture in binding_regex.captures_iter(wgsl) {
-            let group = capture[1].parse::<u32>().unwrap();
-            let _binding = capture[2].parse::<u32>().unwrap(); // Ignore manual binding
+            let group = capture[1].parse::<u32>()
+                .expect("[AutoBindings] Failed to parse group number from regex capture");
+            let _binding = capture[2].parse::<u32>()
+                .expect("[AutoBindings] Failed to parse binding number from regex capture"); // Ignore manual binding
             let storage_type = capture.get(3).map(|m| m.as_str());
             let name = capture[4].to_string();
             let type_str = capture[5].trim();

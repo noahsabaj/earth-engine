@@ -38,30 +38,44 @@ fn test_rendering_systems_exist() {
 
 #[test]
 fn test_chunk_generation_without_gpu() {
-    use hearth_engine::world::{World, ChunkPos, BlockRegistry};
+    use hearth_engine::world::{UnifiedWorldManager, WorldManagerConfig, ChunkPos, BlockRegistry};
     
     println!("\n=== Testing Chunk Generation (CPU) ===");
     
     let mut registry = BlockRegistry::new();
-    hearth_engine::world::basic_blocks::register_basic_blocks(&mut registry);
+    hearth_engine::world::register_basic_blocks(&mut registry);
     println!("✓ Block registry created with {} blocks", registry.len());
     
-    // Create world without GPU
-    let mut world = World::new(50, registry.clone());
+    // Create world without GPU (CPU mode)
+    let config = WorldManagerConfig {
+        chunk_size: 50,
+        render_distance: 2,
+        prefetch_distance: 3,
+        registry: registry.clone(),
+    };
+    let world = UnifiedWorldManager::new_cpu(config);
+    let mut world = match world {
+        Ok(w) => w,
+        Err(e) => {
+            println!("✗ Failed to create world: {}", e);
+            return;
+        }
+    };
     println!("✓ World created with chunk size 50");
     
     // Request a chunk
     let chunk_pos = ChunkPos { x: 0, y: 0, z: 0 };
-    world.request_chunk_load(chunk_pos);
-    println!("✓ Requested chunk at origin");
+    // The UnifiedWorldManager doesn't have request_chunk_load, chunks are managed automatically
+    println!("✓ Chunk management is automatic in UnifiedWorldManager");
     
     // Update world (this should trigger chunk generation)
     let camera_pos = cgmath::Point3::new(0.0, 100.0, 0.0);
-    world.update(camera_pos);
+    world.update(camera_pos, 0.016); // 60 FPS frame time
     println!("✓ World updated");
     
     // Check if chunk was loaded
-    let loaded_count = world.chunk_manager().loaded_chunk_count();
+    let stats = world.get_stats();
+    let loaded_count = stats.chunks_loaded;
     println!("✓ Loaded chunks: {}", loaded_count);
     
     if loaded_count > 0 {

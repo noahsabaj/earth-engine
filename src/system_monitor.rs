@@ -808,7 +808,7 @@ mod tests {
         
         let duration = monitor.end_profiling("test_session");
         assert!(duration.is_some());
-        assert!(duration.unwrap() >= Duration::from_millis(10));
+        assert!(duration.expect("[Test] Profiling duration should be present") >= Duration::from_millis(10));
     }
     
     #[test]

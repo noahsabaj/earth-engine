@@ -206,7 +206,7 @@ pub fn register_binding(
 ) -> u32 {
     BINDING_REGISTRY
         .lock()
-        .unwrap()
+        .expect("[BindingManager] Failed to acquire binding registry lock")
         .register_binding(group, name, ty, visibility)
 }
 
@@ -214,7 +214,7 @@ pub fn register_binding(
 pub fn get_group_layout_entries(group: u32) -> Vec<BindGroupLayoutEntry> {
     BINDING_REGISTRY
         .lock()
-        .unwrap()
+        .expect("[BindingManager] Failed to acquire binding registry lock")
         .get_group_bindings(group)
 }
 
@@ -222,7 +222,7 @@ pub fn get_group_layout_entries(group: u32) -> Vec<BindGroupLayoutEntry> {
 pub fn generate_group_wgsl(group: u32) -> String {
     BINDING_REGISTRY
         .lock()
-        .unwrap()
+        .expect("[BindingManager] Failed to acquire binding registry lock")
         .generate_wgsl_bindings(group)
 }
 

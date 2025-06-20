@@ -507,7 +507,7 @@ mod tests {
         // Then force disconnect
         let result = handler.force_disconnect("force_test");
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), true);
+        assert_eq!(result.expect("[Test] Force disconnect should succeed"), true);
         
         // Should no longer be disconnecting
         assert!(!handler.is_player_disconnecting("force_test"));

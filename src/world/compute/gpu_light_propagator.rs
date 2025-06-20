@@ -156,14 +156,17 @@ impl GpuBlockProvider {
 }
 
 impl BlockProvider for GpuBlockProvider {
-    fn get_block(&self, pos: VoxelPos) -> Option<BlockId> {
+    fn get_block(&self, pos: VoxelPos) -> BlockId {
         // This is a placeholder - in practice, GPU light propagation
         // doesn't need CPU-side block queries as all data is on GPU
-        None
+        // Return AIR as default for GPU-based provider
+        BlockId::AIR
     }
     
-    fn is_block_opaque(&self, block_id: BlockId) -> bool {
-        // Basic opacity check - could be expanded
-        block_id != BlockId::AIR && block_id != BlockId::WATER
+    fn is_transparent(&self, pos: VoxelPos) -> bool {
+        // Get the block at position and check transparency
+        let block = self.get_block(pos);
+        // Basic transparency check - could be expanded
+        block == BlockId::AIR || block == BlockId::WATER
     }
 }

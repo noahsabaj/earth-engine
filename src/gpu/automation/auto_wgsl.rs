@@ -31,8 +31,8 @@ pub trait AutoWgsl: GpuData {
         
         // Struct header with size/alignment info
         let size = Self::SHADER_SIZE.get();
-        writeln!(&mut wgsl, "// Size: {} bytes, Alignment: 16 bytes", size).unwrap();
-        writeln!(&mut wgsl, "struct {} {{", Self::wgsl_name()).unwrap();
+        writeln!(&mut wgsl, "// Size: {} bytes, Alignment: 16 bytes", size).expect("[AutoWgsl] writeln! to String should never fail");
+        writeln!(&mut wgsl, "struct {} {{", Self::wgsl_name()).expect("[AutoWgsl] writeln! to String should never fail");
         
         // Generate fields
         let fields = Self::wgsl_fields();
@@ -43,14 +43,14 @@ pub trait AutoWgsl: GpuData {
             if field.offset > current_offset {
                 let padding_size = field.offset - current_offset;
                 let padding_type = padding_to_wgsl_type(padding_size);
-                writeln!(&mut wgsl, "    _pad{}: {},", i, padding_type).unwrap();
+                writeln!(&mut wgsl, "    _pad{}: {},", i, padding_type).expect("[AutoWgsl] writeln! to String should never fail");
             }
             
             // Add field
             if let Some(count) = field.array_count {
-                writeln!(&mut wgsl, "    {}: array<{}, {}>,", field.name, field.wgsl_type, count).unwrap();
+                writeln!(&mut wgsl, "    {}: array<{}, {}>,", field.name, field.wgsl_type, count).expect("[AutoWgsl] writeln! to String should never fail");
             } else {
-                writeln!(&mut wgsl, "    {}: {},", field.name, field.wgsl_type).unwrap();
+                writeln!(&mut wgsl, "    {}: {},", field.name, field.wgsl_type).expect("[AutoWgsl] writeln! to String should never fail");
             }
             
             current_offset = field.offset + field.size;
@@ -61,7 +61,7 @@ pub trait AutoWgsl: GpuData {
         if current_offset < final_size {
             let padding_size = final_size - current_offset;
             let padding_type = padding_to_wgsl_type(padding_size);
-            writeln!(&mut wgsl, "    _pad_final: {},", padding_type).unwrap();
+            writeln!(&mut wgsl, "    _pad_final: {},", padding_type).expect("[AutoWgsl] writeln! to String should never fail");
         }
         
         wgsl.push_str("}");

@@ -566,13 +566,15 @@ mod tests {
             tags: Vec::new(),
         };
         
-        let index = buffer.add_player(1, hot_data, cold_data).unwrap();
+        let index = buffer.add_player(1, hot_data, cold_data)
+            .expect("[Test] Failed to add player to buffer");
         
         // Update physics
         buffer.update_physics(0.1);
         
         // Check updated position
-        let updated_data = buffer.get_hot_data(index).unwrap();
+        let updated_data = buffer.get_hot_data(index)
+            .expect("[Test] Failed to get player hot data");
         assert_eq!(updated_data.position, Vec3::new(0.1, 0.2, 0.3));
     }
     

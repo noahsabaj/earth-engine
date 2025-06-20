@@ -342,7 +342,8 @@ impl UnifiedGpuSystem {
 /// Extract entry points from shader code
 fn extract_entry_points(shader_code: &str) -> Vec<String> {
     let mut entry_points = Vec::new();
-    let re = regex::Regex::new(r"@(?:vertex|fragment|compute)\s+fn\s+(\w+)").unwrap();
+    let re = regex::Regex::new(r"@(?:vertex|fragment|compute)\s+fn\s+(\w+)")
+        .expect("[UnifiedSystem] Failed to compile regex for entry point extraction");
     
     for capture in re.captures_iter(shader_code) {
         if let Some(name) = capture.get(1) {

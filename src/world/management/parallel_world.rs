@@ -197,8 +197,7 @@ impl crate::world::interfaces::WorldInterface for ParallelWorld {
         let mut manager = self.manager.write();
         manager.set_block(pos, block_id)
             .map_err(|e| crate::world::interfaces::WorldError::OperationFailed { 
-                operation: "set_block".to_string(),
-                reason: e.to_string() 
+                message: format!("set_block failed: {}", e)
             })
     }
     
@@ -216,8 +215,7 @@ impl crate::world::interfaces::WorldInterface for ParallelWorld {
         let mut manager = self.manager.write();
         manager.load_chunk(chunk_pos)
             .map_err(|e| crate::world::interfaces::WorldError::OperationFailed { 
-                operation: "load_chunk".to_string(),
-                reason: e.to_string() 
+                message: format!("load_chunk failed: {}", e)
             })
     }
     
@@ -244,7 +242,7 @@ impl crate::world::interfaces::WorldInterface for ParallelWorld {
     
     fn batch_operation(&mut self, operations: Vec<crate::world::interfaces::WorldOperation>) -> Result<Vec<crate::world::interfaces::OperationResult>, crate::world::interfaces::WorldError> {
         Err(crate::world::interfaces::WorldError::OperationFailed {
-            message: "Query operation not implemented".to_string()
+            message: "Batch operation not implemented".to_string()
         })
     }
 }

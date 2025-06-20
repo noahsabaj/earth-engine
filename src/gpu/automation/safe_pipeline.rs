@@ -321,7 +321,8 @@ fn extract_entry_points(source: &str) -> Vec<String> {
     let mut entry_points = Vec::new();
     
     // Simple regex for entry points
-    let re = regex::Regex::new(r"@(vertex|fragment|compute)\s+fn\s+(\w+)").unwrap();
+    let re = regex::Regex::new(r"@(vertex|fragment|compute)\s+fn\s+(\w+)")
+        .expect("[SafePipeline] Failed to compile regex for entry point extraction");
     for capture in re.captures_iter(source) {
         if let Some(name) = capture.get(2) {
             entry_points.push(name.as_str().to_string());
@@ -338,7 +339,7 @@ fn extract_bindings(source: &str) -> Vec<BindingMetadata> {
     // Simple regex for bindings
     let re = regex::Regex::new(
         r"@group\((\d+)\)\s*@binding\((\d+)\)\s*var(?:<[^>]+>)?\s+(\w+)\s*:\s*([^;]+)"
-    ).unwrap();
+    ).expect("[SafePipeline] Failed to compile regex for binding extraction");
     
     for capture in re.captures_iter(source) {
         if let (Some(group), Some(binding), Some(name), Some(ty)) = 

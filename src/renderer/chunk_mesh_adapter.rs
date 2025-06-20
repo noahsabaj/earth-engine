@@ -5,7 +5,7 @@
 
 use crate::{
     ChunkPos, BlockId,
-    world::{ChunkSoA, BlockRegistry},
+    world::{storage::ChunkSoA, BlockRegistry},
     renderer::{
         data_mesh_builder::{MeshBuffer, MESH_BUFFER_POOL, operations},
         vertex::Vertex,

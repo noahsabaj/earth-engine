@@ -2,28 +2,28 @@
 use std::sync::Arc;
 use parking_lot::RwLock;
 use crate::{
-    world::{VoxelPos, BlockId, ChunkPos, ConcurrentChunkManager, ParallelChunkManager},
+    world::{VoxelPos, BlockId, ChunkPos, management::UnifiedWorldManager},
     lighting::parallel_propagator::BlockProvider,
 };
 
-/// Thread-safe block provider for concurrent chunk manager
-pub struct ConcurrentBlockProvider {
-    chunk_manager: Arc<ConcurrentChunkManager>,
+/// Thread-safe block provider for unified world manager
+pub struct UnifiedBlockProvider {
+    world_manager: Arc<RwLock<UnifiedWorldManager>>,
     chunk_size: u32,
 }
 
-impl ConcurrentBlockProvider {
-    pub fn new(chunk_manager: Arc<ConcurrentChunkManager>, chunk_size: u32) -> Self {
+impl UnifiedBlockProvider {
+    pub fn new(world_manager: Arc<RwLock<UnifiedWorldManager>>, chunk_size: u32) -> Self {
         Self {
-            chunk_manager,
+            world_manager,
             chunk_size,
         }
     }
 }
 
-impl BlockProvider for ConcurrentBlockProvider {
+impl BlockProvider for UnifiedBlockProvider {
     fn get_block(&self, pos: VoxelPos) -> BlockId {
-        self.chunk_manager.get_block(pos)
+        self.world_manager.read().get_block(pos)
     }
     
     fn is_transparent(&self, pos: VoxelPos) -> bool {
@@ -34,20 +34,23 @@ impl BlockProvider for ConcurrentBlockProvider {
     }
 }
 
-/// Thread-safe block provider for parallel chunk manager
+/// Deprecated: Use UnifiedBlockProvider instead
+pub type ConcurrentBlockProvider = UnifiedBlockProvider;
+
+/// Thread-safe block provider for parallel chunk manager (deprecated)
 pub struct ParallelBlockProvider {
-    chunk_manager: Arc<ParallelChunkManager>,
+    world_manager: Arc<RwLock<UnifiedWorldManager>>,
 }
 
 impl ParallelBlockProvider {
-    pub fn new(chunk_manager: Arc<ParallelChunkManager>) -> Self {
-        Self { chunk_manager }
+    pub fn new(world_manager: Arc<RwLock<UnifiedWorldManager>>) -> Self {
+        Self { world_manager }
     }
 }
 
 impl BlockProvider for ParallelBlockProvider {
     fn get_block(&self, pos: VoxelPos) -> BlockId {
-        self.chunk_manager.get_block(pos)
+        self.world_manager.read().get_block(pos)
     }
     
     fn is_transparent(&self, pos: VoxelPos) -> bool {
