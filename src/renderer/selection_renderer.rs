@@ -79,7 +79,7 @@ impl SelectionRenderer {
         // Create shader
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Selection Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("shaders/selection.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/rendering/selection.wgsl").into()),
         });
         
         // Create model uniform buffer and bind group

@@ -88,12 +88,12 @@ impl HierarchicalZBuffer {
         // Create shaders
         let build_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("HZB Build Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("hzb_build.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(include_str!("../../shaders/rendering/hzb_build.wgsl").into()),
         });
         
         let occlusion_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("HZB Occlusion Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("hzb_cull.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(include_str!("../../shaders/rendering/hzb_cull.wgsl").into()),
         });
         
         // Create build pipeline

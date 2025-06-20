@@ -7,7 +7,7 @@ use std::collections::VecDeque;
 use wgpu::{Device, Queue};
 use crate::{
     world::core::{ChunkPos, VoxelPos, BlockId},
-    lighting::{LightUpdate, LightingStats, BlockProvider},
+    world::lighting::{LightUpdate, LightingStats, BlockProvider},
     world::storage::WorldBuffer,
     world::compute::GpuLighting,
     memory::BandwidthProfiler,
@@ -76,9 +76,9 @@ impl GpuLightPropagator {
         let mut chunks_to_update = std::collections::HashSet::new();
         for update in updates {
             let chunk_pos = ChunkPos {
-                x: update.position.x / 32, // Assuming chunk size 32
-                y: update.position.y / 32,
-                z: update.position.z / 32,
+                x: update.pos.x / 32, // Assuming chunk size 32
+                y: update.pos.y / 32,
+                z: update.pos.z / 32,
             };
             chunks_to_update.insert(chunk_pos);
         }
@@ -106,7 +106,7 @@ impl GpuLightPropagator {
         
         // Update stats
         let mut stats = self.stats.write();
-        stats.chunks_updated += chunk_positions.len();
+        stats.chunks_affected += chunk_positions.len();
         stats.updates_processed += 1;
         
         Ok(())

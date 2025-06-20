@@ -1,5 +1,5 @@
 use crate::world::core::{BlockId, ChunkPos, VoxelPos};
-use crate::lighting::LightLevel;
+use crate::world::lighting::LightLevel;
 use crate::morton::morton_encode_chunk;
 use std::alloc::{alloc_zeroed, dealloc, Layout};
 use std::ptr;

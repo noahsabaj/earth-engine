@@ -59,7 +59,7 @@ impl GpuBlockQuery {
         // Create shader module
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Block Query Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("shaders/block_query.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(include_str!("../../shaders/compute/block_query.wgsl").into()),
         });
         
         // Create bind group layout using macro

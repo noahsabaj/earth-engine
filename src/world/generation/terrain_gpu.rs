@@ -258,7 +258,7 @@ impl TerrainGeneratorSOA {
                   std::mem::size_of::<TerrainParamsSOA>());
         
         // Load SOA shader code (without type definitions - those come from unified system)
-        let shader_code_raw = include_str!("../compute/shaders/terrain_generation.wgsl");
+        let shader_code_raw = include_str!("../../shaders/compute/terrain_generation.wgsl");
         
         // Strip out manual type definitions from shader (they'll be auto-generated)
         let shader_code = Self::strip_manual_types(shader_code_raw);

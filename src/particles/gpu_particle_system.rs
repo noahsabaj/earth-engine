@@ -135,7 +135,7 @@ impl GpuParticleSystem {
         // Load shader
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Particle Update Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("gpu_update.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/compute/gpu_update.wgsl").into()),
         });
         
         // Create bind group layouts

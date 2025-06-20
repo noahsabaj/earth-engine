@@ -8,7 +8,7 @@ pub mod panic_handler;
 pub mod camera;
 pub mod game;
 pub mod input;
-pub mod lighting;
+// pub mod lighting; // MIGRATED: Lighting moved to world::lighting for GPU-first architecture
 pub mod memory;
 pub mod morton;
 pub mod network;
@@ -62,6 +62,8 @@ pub use world::{
     WorldManagerConfig as UnifiedWorldConfig,
     ChunkManagerInterface,
     GeneratorInterface,
+    // Re-export GPU lighting system
+    TimeOfDayData, DayNightCycleData, LightType, LightLevel, LightUpdate, LightingStats,
 };
 
 // Re-export wgpu for games that need GPU access (e.g., custom world generators)

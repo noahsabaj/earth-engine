@@ -23,9 +23,9 @@ pub struct CpuWorldGenerator {
 impl CpuWorldGenerator {
     /// Create a new CPU world generator
     pub fn new(seed: u32, params: TerrainParams, block_ids: BlockIds) -> Self {
-        let terrain_noise = Perlin::new().set_seed(seed);
-        let cave_noise = Perlin::new().set_seed(seed.wrapping_add(1));
-        let ore_noise = Perlin::new().set_seed(seed.wrapping_add(2));
+        let terrain_noise = Perlin::new(seed);
+        let cave_noise = Perlin::new(seed.wrapping_add(1));
+        let ore_noise = Perlin::new(seed.wrapping_add(2));
         
         Self {
             terrain_noise,

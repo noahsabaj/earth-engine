@@ -2,7 +2,7 @@ use std::sync::Arc;
 use bytemuck::{Pod, Zeroable};
 use crate::world::storage::WorldBuffer;
 // use crate::memory::PersistentBuffer; // Not needed anymore
-use crate::world::error::{WorldGpuResult, WorldGpuErrorContext};
+use crate::world::error::{WorldGpuResult, WorldGpuErrorContext, WorldErrorContext};
 
 /// Command for modifying voxels
 #[repr(C)]
@@ -81,7 +81,7 @@ impl ChunkModifier {
         // Create shader module
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Chunk Modification Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("shaders/chunk_modification.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(include_str!("../../shaders/compute/chunk_modification.wgsl").into()),
         });
         
         // Create bind group layout
@@ -230,7 +230,7 @@ impl ChunkModifier {
         
         // Get or create cached bind group
         let cache_key = world_buffer.voxel_buffer() as *const _ as u64;
-        let mut cached_groups = self.cached_bind_groups.lock().world_gpu_context("cached_bind_groups")?;
+        let mut cached_groups = self.cached_bind_groups.lock().world_context("cached_bind_groups")?;
         
         let bind_group = cached_groups.entry(cache_key).or_insert_with(|| {
             self.device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -289,7 +289,7 @@ impl ChunkModifier {
         
         // Use cached bind group (same as block modifications)
         let cache_key = world_buffer.voxel_buffer() as *const _ as u64;
-        let cached_groups = self.cached_bind_groups.lock().world_gpu_context("cached_bind_groups")?;
+        let cached_groups = self.cached_bind_groups.lock().world_context("cached_bind_groups")?;
         
         let bind_group = cached_groups.get(&cache_key).expect("Bind group should be cached from block modifications");
         

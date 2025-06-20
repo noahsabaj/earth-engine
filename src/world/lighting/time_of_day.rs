@@ -1,7 +1,7 @@
 /// Data-Oriented Time of Day Functions
 /// 
 /// Pure functions for time calculations. No methods, no self, just data transformations.
-/// Follows DOP principles from Sprint 37.
+/// Follows DOP principles - migrated from CPU to GPU world lighting system.
 
 use cgmath::{Vector3, InnerSpace};
 
@@ -147,6 +147,7 @@ pub fn is_night_time(time: &TimeOfDayData) -> bool {
 
 /// Day/night cycle data (DOP - no methods)
 /// Pure data structure for managing time progression
+#[derive(Debug, Clone)]
 pub struct DayNightCycleData {
     /// Current time of day
     pub time: TimeOfDayData,
@@ -194,7 +195,3 @@ pub fn calculate_global_light_level(cycle: &DayNightCycleData) -> u8 {
 pub fn set_time_scale(cycle: &mut DayNightCycleData, scale: f32) {
     cycle.time_scale = scale.max(0.0);
 }
-
-// ===== COMPATIBILITY LAYER =====
-// Temporary aliases for code that hasn't been converted yet
-

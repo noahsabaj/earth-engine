@@ -43,7 +43,7 @@ impl ComputePipelineManager {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Chunk Compute Shader"),
             source: wgpu::ShaderSource::Wgsl(
-                include_str!("shaders/chunk_compute.wgsl").into()
+                include_str!("../shaders/rendering/chunk_compute.wgsl").into()
             ),
         });
         

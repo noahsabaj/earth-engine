@@ -3,8 +3,8 @@
 // Updated to use SOA (Structure of Arrays) types for optimal GPU performance
 
 // Import auto-generated GPU types (SOA)
-#include "../../gpu/shaders/generated/constants.wgsl"
-#include "../../gpu/shaders/generated/types_soa.wgsl"
+#include "../generated/constants.wgsl"
+#include "../generated/types_soa.wgsl"
 
 // Block IDs and constants are now included from generated/constants.wgsl
 // This ensures single source of truth and consistency with Rust code

@@ -26,12 +26,12 @@ impl ShaderManager {
     /// Load all built-in compute shaders
     fn load_builtin_shaders(&mut self) -> Result<(), ShaderError> {
         let shaders = [
-            ("terrain_generation", include_str!("shaders/terrain_generation.wgsl")),
-            ("chunk_modification", include_str!("shaders/chunk_modification.wgsl")),
-            ("unified_world_kernel", include_str!("shaders/unified_world_kernel.wgsl")),
-            ("hierarchical_physics", include_str!("shaders/hierarchical_physics.wgsl")),
-            ("ambient_occlusion", include_str!("shaders/ambient_occlusion.wgsl")),
-            ("weather_compute", include_str!("shaders/weather_compute.wgsl")),
+            ("terrain_generation", include_str!("../../shaders/compute/terrain_generation.wgsl")),
+            ("chunk_modification", include_str!("../../shaders/compute/chunk_modification.wgsl")),
+            ("unified_world_kernel", include_str!("../../shaders/compute/unified_world_kernel.wgsl")),
+            ("hierarchical_physics", include_str!("../../shaders/compute/hierarchical_physics.wgsl")),
+            ("ambient_occlusion", include_str!("../../shaders/compute/ambient_occlusion.wgsl")),
+            ("weather_compute", include_str!("../../shaders/compute/weather_compute.wgsl")),
         ];
         
         for (name, source) in &shaders {

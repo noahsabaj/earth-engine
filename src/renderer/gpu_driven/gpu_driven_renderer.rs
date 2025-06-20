@@ -88,7 +88,7 @@ impl GpuDrivenRenderer {
         let mesh_buffers = MeshBufferManager::new(device.clone());
         
         // Create render pipeline with error handling
-        let shader_source = include_str!("../shaders/gpu_driven.wgsl");
+        let shader_source = include_str!("../../shaders/rendering/gpu_driven.wgsl");
         log::debug!("[GpuDrivenRenderer] Loading GPU driven shader ({} bytes)", shader_source.len());
         
         let render_pipeline = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {

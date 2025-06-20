@@ -89,7 +89,7 @@ impl GpuPhysicsWorld {
         // Create physics compute shader
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("GPU Physics Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("shaders/gpu_physics.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/compute/gpu_physics.wgsl").into()),
         });
         
         // Create bind group layout

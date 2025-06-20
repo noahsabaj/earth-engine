@@ -45,10 +45,10 @@ impl IndirectRenderer {
         
         // Create shader - use fallback if VERTEX_WRITABLE_STORAGE is not supported
         let shader_source = if supports_vertex_storage {
-            include_str!("indirect_chunk.wgsl")
+            include_str!("../../shaders/rendering/indirect_chunk.wgsl")
         } else {
             log::warn!("Using fallback indirect chunk shader - VERTEX_WRITABLE_STORAGE not supported");
-            include_str!("indirect_chunk_fallback.wgsl")
+            include_str!("../../shaders/rendering/indirect_chunk_fallback.wgsl")
         };
         
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {

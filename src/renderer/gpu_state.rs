@@ -22,8 +22,8 @@ use crate::world::{
     core::{Ray, RaycastHit},
     management::{UnifiedWorldManager, ParallelWorld, ParallelWorldConfig, SpawnFinder},
 };
-use crate::lighting::{DayNightCycleData, LightUpdate, LightType};
-use crate::lighting::time_of_day::{create_default_day_night_cycle, update_day_night_cycle};
+use crate::world::lighting::{DayNightCycleData, LightUpdate, LightType};
+use crate::world::lighting::{create_default_day_night_cycle, update_day_night_cycle};
 use crate::world::compute::GpuLightPropagator;
 use anyhow::Result;
 use cgmath::{Matrix4, SquareMatrix, Point3, Vector3, InnerSpace, Zero};
@@ -573,7 +573,7 @@ impl GpuState {
         // Create render pipeline
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("shaders/voxel.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/rendering/voxel.wgsl").into()),
         });
 
         let render_pipeline_layout =
@@ -2218,7 +2218,7 @@ pub async fn run_app<G: GameData + 'static>(
                                     // Removed a light source - queue for GPU processing
                                     if let Some(ref light_propagator) = gpu_state.light_propagator {
                                         let update = LightUpdate { pos, light_type: LightType::Block, level: block.get_light_emission(), is_removal: true };
-                                        light_propagator.queue_update(update);
+                                        light_propagator.add_update(update);
                                     }
                                 }
                             }
@@ -2232,7 +2232,7 @@ pub async fn run_app<G: GameData + 'static>(
                                     // Placed a light source - queue for GPU processing
                                     if let Some(ref light_propagator) = gpu_state.light_propagator {
                                         let update = LightUpdate { pos: place_pos, light_type: LightType::Block, level: block.get_light_emission(), is_removal: false };
-                                        light_propagator.queue_update(update);
+                                        light_propagator.add_update(update);
                                     }
                                 }
                             }

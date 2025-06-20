@@ -12,6 +12,7 @@
 use std::sync::Arc;
 use wgpu::{Device, Buffer, Queue};
 use bytemuck::{Pod, Zeroable};
+use crate::gpu::buffer_layouts::ChunkMetadata;
 
 /// Complete world state - all game data in one place
 pub struct WorldState {
@@ -302,7 +303,7 @@ pub mod views {
     
     /// Read-only view of chunk metadata
     pub struct ChunkMetadataView<'a> {
-        pub data: &'a [crate::world::ChunkMetadata],
+        pub data: &'a [ChunkMetadata],
         pub count: usize,
     }
     

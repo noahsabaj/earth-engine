@@ -138,7 +138,7 @@ impl WeatherGpu {
         // Create shader module
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Weather Compute Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("shaders/weather_compute.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(include_str!("../../shaders/compute/weather_compute.wgsl").into()),
         });
         
         // Create bind group layout

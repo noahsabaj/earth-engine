@@ -101,7 +101,7 @@ impl HierarchicalPhysics {
         // Create shader module
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Hierarchical Physics Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("shaders/hierarchical_physics.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(include_str!("../../shaders/compute/hierarchical_physics.wgsl").into()),
         });
         
         // Create bind group layout

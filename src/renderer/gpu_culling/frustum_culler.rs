@@ -26,7 +26,7 @@ impl FrustumCuller {
         // Create shader module
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Frustum Cull Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("frustum_cull.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(include_str!("../../shaders/rendering/frustum_cull.wgsl").into()),
         });
         
         // Create bind group layout

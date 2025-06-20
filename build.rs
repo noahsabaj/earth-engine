@@ -51,7 +51,7 @@ const CHUNK_SIZE = 32u;
         .expect("Failed to write generated constants WGSL");
     
     // Also copy to src directory for shader includes
-    let shader_dir = Path::new("src/gpu/shaders/generated");
+    let shader_dir = Path::new("src/shaders/generated");
     fs::create_dir_all(shader_dir)
         .expect("Failed to create shader directory");
     

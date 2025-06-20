@@ -112,7 +112,7 @@ impl UnifiedWorldKernel {
         // Create the unified shader module
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Unified World Kernel"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("shaders/unified_world_kernel.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(include_str!("../../shaders/compute/unified_world_kernel.wgsl").into()),
         });
         
         // Create bind group layout with all resources

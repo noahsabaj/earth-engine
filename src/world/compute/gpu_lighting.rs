@@ -22,7 +22,7 @@ impl GpuLighting {
         // Create shader module
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Ambient Occlusion Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("shaders/ambient_occlusion.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(include_str!("../../shaders/compute/ambient_occlusion.wgsl").into()),
         });
         
         // Create bind group layout

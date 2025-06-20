@@ -137,8 +137,12 @@ pub fn preprocess_shader(shader_path: &Path) -> Result<String, std::io::Error> {
         preprocessor.add_include_dir(parent);
     }
     
-    // Add generated shaders directory
-    preprocessor.add_include_dir("src/gpu/shaders/generated");
+    // Add shader directories
+    preprocessor.add_include_dir("src/shaders");
+    preprocessor.add_include_dir("src/shaders/generated");
+    preprocessor.add_include_dir("src/shaders/compute");
+    preprocessor.add_include_dir("src/shaders/rendering");
+    preprocessor.add_include_dir("src/shaders/mesh");
     
     preprocessor.process_file(shader_path)
 }
@@ -163,15 +167,19 @@ pub fn preprocess_shader_content(content: &str, base_path: &Path) -> Result<Stri
     ];
     
     for root in &possible_roots {
-        // Add GPU shaders directories as include paths
-        preprocessor.add_include_dir(root.join("src/gpu/shaders"));
-        preprocessor.add_include_dir(root.join("src/gpu/shaders/generated"));
-        preprocessor.add_include_dir(root.join("src/world_gpu/shaders"));
+        // Add shader directories as include paths
+        preprocessor.add_include_dir(root.join("src/shaders"));
+        preprocessor.add_include_dir(root.join("src/shaders/generated"));
+        preprocessor.add_include_dir(root.join("src/shaders/compute"));
+        preprocessor.add_include_dir(root.join("src/shaders/rendering"));
+        preprocessor.add_include_dir(root.join("src/shaders/mesh"));
         
         // Also try without src/ prefix (for installed/deployed scenarios)
-        preprocessor.add_include_dir(root.join("gpu/shaders"));
-        preprocessor.add_include_dir(root.join("gpu/shaders/generated"));
-        preprocessor.add_include_dir(root.join("world_gpu/shaders"));
+        preprocessor.add_include_dir(root.join("shaders"));
+        preprocessor.add_include_dir(root.join("shaders/generated"));
+        preprocessor.add_include_dir(root.join("shaders/compute"));
+        preprocessor.add_include_dir(root.join("shaders/rendering"));
+        preprocessor.add_include_dir(root.join("shaders/mesh"));
     }
     
     // Add parent directory of base_path if it exists

@@ -10,7 +10,7 @@ pub fn create_mesh_generation_pipeline(
     // Create shader module
     let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("GPU Mesh Generation Shader"),
-        source: wgpu::ShaderSource::Wgsl(include_str!("shaders/mesh_generation.wgsl").into()),
+        source: wgpu::ShaderSource::Wgsl(include_str!("../../shaders/mesh/mesh_generation.wgsl").into()),
     });
     
     // Create bind group layout using our macro

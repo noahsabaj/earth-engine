@@ -91,7 +91,7 @@ pub use blocks::{
 };
 
 // Re-export lighting system
-pub use lighting::SkylightCalculator;
+pub use lighting::{SkylightCalculator, TimeOfDayData, DayNightCycleData, LightType, LightLevel, LightUpdate, LightingStats};
 
 /// Helper function to convert voxel position to chunk position
 /// Following DOP principles - pure function that transforms data

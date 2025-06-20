@@ -156,7 +156,7 @@ pub struct CullingPipeline {
 impl CullingPipeline {
     pub fn new(device: Arc<wgpu::Device>) -> Self {
         // Load shader with error reporting
-        let shader_source = include_str!("../shaders/gpu_culling.wgsl");
+        let shader_source = include_str!("../../shaders/rendering/gpu_culling.wgsl");
         log::debug!("[CullingPipeline] Loading GPU culling shader ({} bytes)", shader_source.len());
         
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {

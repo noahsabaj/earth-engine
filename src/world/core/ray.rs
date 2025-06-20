@@ -60,7 +60,7 @@ pub struct RaycastHit {
 
 /// Cast a ray through the world and find the first block it hits
 /// This is a basic implementation - specific world implementations may override with optimized versions
-pub fn cast_ray<W: crate::WorldInterface>(
+pub fn cast_ray<W: crate::WorldInterface + ?Sized>(
     world: &W,
     ray: Ray,
     max_distance: f32,
