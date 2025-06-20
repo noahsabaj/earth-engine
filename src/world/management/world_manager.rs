@@ -7,6 +7,7 @@ use crate::world::{
     generation::{UnifiedGenerator, GeneratorError, GeneratorConfig as UnifiedGeneratorConfig, WorldGenerator},
     compute::{UnifiedCompute, UnifiedComputeConfig, ComputeError},
     management::{Backend, BackendRequirements, select_backend},
+    interfaces::ChunkData,
 };
 
 /// Unified world manager that provides a consistent API across GPU and CPU backends
@@ -222,6 +223,32 @@ impl UnifiedWorldManager {
         // For now, return a simple height based on position
         // This would normally query the terrain generator or loaded chunks
         64 + ((x_int as f32 * 0.1).sin() * 8.0) as i32 + ((z_int as f32 * 0.1).cos() * 8.0) as i32
+    }
+    
+    /// Get all loaded chunks (for persistence)
+    pub fn chunks(&self) -> Box<dyn Iterator<Item = (ChunkPos, &dyn ChunkData)> + '_> {
+        match &self.storage {
+            UnifiedStorage::Gpu { .. } => {
+                // TODO: Implement GPU chunk iteration
+                Box::new(std::iter::empty())
+            }
+            UnifiedStorage::Cpu { chunks } => {
+                Box::new(chunks.iter().map(|(pos, chunk)| (*pos, chunk as &dyn ChunkData)))
+            }
+        }
+    }
+    
+    /// Get a specific chunk
+    pub fn get_chunk(&self, chunk_pos: ChunkPos) -> Option<&dyn ChunkData> {
+        match &self.storage {
+            UnifiedStorage::Gpu { .. } => {
+                // TODO: Implement GPU chunk access
+                None
+            }
+            UnifiedStorage::Cpu { chunks } => {
+                chunks.get(&chunk_pos).map(|chunk| chunk as &dyn ChunkData)
+            }
+        }
     }
 }
 

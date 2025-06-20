@@ -1065,7 +1065,7 @@ impl GpuState {
                     &mut mesh_buffer,
                     chunk_pos,
                     chunk_size,
-                    |x, y, z| chunk.get_block(x, y, z),
+                    |x, y, z| chunk.get_block_at(x, y, z),
                 );
                 
                 // Upload mesh to GPU if it has vertices
@@ -1619,7 +1619,9 @@ impl GpuState {
             
             // Verify spawn position now that chunks are loaded
             let camera_pos_point3 = Point3::new(self.camera.position[0], self.camera.position[1], self.camera.position[2]);
-            let adjusted_pos = SpawnFinder::verify_spawn_position(&self.world, camera_pos_point3);
+            // Use find_safe_spawn to verify the position is still valid
+            let adjusted_pos = SpawnFinder::find_safe_spawn(&self.world, camera_pos_point3.x, camera_pos_point3.z, 5)
+                .unwrap_or(camera_pos_point3);
             if adjusted_pos != camera_pos_point3 {
                 log::info!("[GpuState::render] Adjusting spawn position from {:?} to {:?}", 
                          self.camera.position, adjusted_pos);
@@ -1671,7 +1673,6 @@ impl GpuState {
         Ok(())
     }
 
-    /// Check if we should capture a screenshot based on timer or single capture request
 
 }
 

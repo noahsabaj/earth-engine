@@ -11,7 +11,7 @@ use std::time::{Duration, Instant};
 use std::fs;
 
 use crate::persistence::{PersistenceResult, PersistenceError, error::{atomic_write, LockResultExt}};
-use crate::{ChunkPos, Chunk, World};
+use crate::{ChunkPos, Chunk, World, ChunkData};
 
 /// Operation types for the save queue
 #[derive(Debug, Clone)]
@@ -361,7 +361,7 @@ impl AtomicSaveManager {
     }
     
     /// Serialize chunk data
-    fn serialize_chunk(&self, chunk: &Chunk) -> PersistenceResult<Vec<u8>> {
+    fn serialize_chunk(&self, chunk: &dyn ChunkData) -> PersistenceResult<Vec<u8>> {
         // For now, create dummy serialized data
         let data = format!("chunk_data:{:?}", chunk.position()).into_bytes();
         Ok(data)

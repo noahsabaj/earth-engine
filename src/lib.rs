@@ -50,7 +50,7 @@ pub use world::core::{Block, BlockId, BlockRegistry, ChunkPos, VoxelPos, RenderD
 pub use world::storage::ChunkSoA as Chunk;
 pub use world::management::UnifiedWorldManager as World;
 pub use world::generation::WorldGenerator;
-pub use world::interfaces::{WorldInterface};
+pub use world::interfaces::{WorldInterface, ChunkData};
 
 // Re-export ParallelWorld implementation
 pub use world::management::{ParallelWorld, ParallelWorldConfig, SpawnFinder};

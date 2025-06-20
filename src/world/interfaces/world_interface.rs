@@ -494,9 +494,13 @@ impl ChunkManager for DefaultChunkManager {
 }
 
 /// Chunk data trait for accessing chunk contents
-pub trait ChunkData: Send + Sync {
+pub trait ChunkData: Send + Sync + std::any::Any {
+    fn position(&self) -> ChunkPos;
     fn get_block_at(&self, x: u32, y: u32, z: u32) -> BlockId;
     fn set_block_at(&mut self, x: u32, y: u32, z: u32, block: BlockId);
     fn is_dirty(&self) -> bool;
     fn mark_clean(&mut self);
+    
+    /// Helper method to downcast to concrete type
+    fn as_any(&self) -> &dyn std::any::Any;
 }

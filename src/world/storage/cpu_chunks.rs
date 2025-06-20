@@ -1,5 +1,6 @@
 use crate::world::core::{BlockId, ChunkPos, VoxelPos};
 use crate::world::lighting::LightLevel;
+use crate::world::interfaces::ChunkData;
 use crate::morton::morton_encode_chunk;
 use std::alloc::{alloc_zeroed, dealloc, Layout};
 use std::ptr;
@@ -422,6 +423,34 @@ impl ChunkMemoryStats {
         self.block_light_size + 
         self.material_flags_size + 
         self.alignment_overhead
+    }
+}
+
+// Implement ChunkData trait for ChunkSoA
+impl ChunkData for ChunkSoA {
+    fn position(&self) -> ChunkPos {
+        self.position
+    }
+    
+    fn get_block_at(&self, x: u32, y: u32, z: u32) -> BlockId {
+        self.get_block(x, y, z)
+    }
+    
+    fn set_block_at(&mut self, x: u32, y: u32, z: u32, block: BlockId) {
+        self.set_block(x, y, z, block);
+    }
+    
+    fn is_dirty(&self) -> bool {
+        self.dirty
+    }
+    
+    fn mark_clean(&mut self) {
+        self.dirty = false;
+        self.light_dirty = false;
+    }
+    
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
     }
 }
 

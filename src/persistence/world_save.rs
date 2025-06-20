@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use serde::{Serialize, Deserialize};
 use glam::Vec3;
 
-use crate::{World, Chunk, ChunkPos};
+use crate::{World, Chunk, ChunkPos, ChunkData};
 use crate::persistence::{
     PersistenceResult, PersistenceError,
     ChunkSerializer, ChunkFormat,
@@ -147,7 +147,7 @@ impl WorldSave {
     }
     
     /// Save a single chunk
-    pub fn save_chunk(&mut self, chunk: &Chunk) -> PersistenceResult<()> {
+    pub fn save_chunk(&mut self, chunk: &dyn ChunkData) -> PersistenceResult<()> {
         let chunk_path = self.get_chunk_path(chunk.position());
         
         // Ensure chunk directory exists
@@ -155,12 +155,17 @@ impl WorldSave {
             fs::create_dir_all(parent)?;
         }
         
+        // Downcast to ChunkSoA for serialization
+        let chunk_soa = chunk.as_any().downcast_ref::<crate::world::storage::ChunkSoA>()
+            .ok_or_else(|| PersistenceError::SerializationError(
+                "Failed to downcast ChunkData to ChunkSoA".to_string()))?;
+        
         // Analyze chunk to determine best format
-        let format = ChunkSerializer::analyze_chunk(chunk);
+        let format = ChunkSerializer::analyze_chunk(chunk_soa);
         let serializer = ChunkSerializer::new(format);
         
         // Serialize and save
-        let data = serializer.serialize(chunk)?;
+        let data = serializer.serialize(chunk_soa)?;
         atomic_write(&chunk_path, &data)?;
         
         // Cache management would go here
@@ -200,10 +205,10 @@ impl WorldSave {
     }
     
     /// Save multiple chunks efficiently
-    pub fn save_chunks(&mut self, chunks: &[&Chunk]) -> Result<(), Vec<(ChunkPos, WorldSaveError)>> {
+    pub fn save_chunks(&mut self, chunks: &[&dyn ChunkData]) -> Result<(), Vec<(ChunkPos, WorldSaveError)>> {
         let mut errors = Vec::new();
         
-        for chunk in chunks {
+        for &chunk in chunks {
             if let Err(e) = self.save_chunk(chunk) {
                 errors.push((chunk.position(), WorldSaveError::ChunkSave(chunk.position(), e)));
             }

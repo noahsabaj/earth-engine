@@ -41,9 +41,7 @@ pub fn create_mesh_generation_pipeline(
         label: Some("Mesh Generation Pipeline"),
         layout: Some(&pipeline_layout),
         module: &shader,
-        entry_point: Some("generate_mesh"),
-        compilation_options: Default::default(),
-        cache: None,
+        entry_point: "generate_mesh",
     });
     
     (pipeline, bind_group_layout)

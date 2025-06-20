@@ -111,3 +111,17 @@ impl DefaultWorldGenerator {
         self.terrain_gen.get_height(world_x, world_z)
     }
 }
+
+impl super::unified_generator::WorldGenerator for DefaultWorldGenerator {
+    fn generate_chunk(&self, chunk_pos: ChunkPos, chunk_size: u32) -> ChunkSoA {
+        self.generate_chunk(chunk_pos, chunk_size)
+    }
+    
+    fn get_surface_height(&self, world_x: f64, world_z: f64) -> i32 {
+        self.get_surface_height(world_x, world_z)
+    }
+    
+    fn is_gpu(&self) -> bool {
+        false
+    }
+}

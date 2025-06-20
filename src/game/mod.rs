@@ -8,18 +8,18 @@ pub use callbacks::{GameCallbacks, register_game_callbacks, get_game_callbacks};
 
 /// Game data structure (DOP - no methods)
 /// Pure data structure for game state
-pub trait GameData: Send + Sync {}
+pub trait GameData: Send + Sync + 'static {}
 
 /// Register blocks in the registry
 /// Function - transforms registry data by registering game blocks
-pub fn register_game_blocks<T: GameData>(game: &mut T, registry: &mut BlockRegistry) {
+pub fn register_game_blocks<T: GameData + 'static>(game: &mut T, registry: &mut BlockRegistry) {
     let _ = game; // Avoid unused warning
     callbacks::execute_register_blocks(registry);
 }
 
 /// Update game state
 /// Function - transforms game data based on context and time
-pub fn update_game<T: GameData>(game: &mut T, ctx: &mut GameContext, delta_time: f32) {
+pub fn update_game<T: GameData + 'static>(game: &mut T, ctx: &mut GameContext, delta_time: f32) {
     // Use Any to allow game-specific data types
     let game_any = game as &mut dyn std::any::Any;
     callbacks::execute_update_game(game_any, ctx, delta_time);
@@ -27,21 +27,21 @@ pub fn update_game<T: GameData>(game: &mut T, ctx: &mut GameContext, delta_time:
 
 /// Handle block break event
 /// Function - processes block break for game data
-pub fn handle_block_break<T: GameData>(game: &mut T, pos: VoxelPos, block: BlockId) {
+pub fn handle_block_break<T: GameData + 'static>(game: &mut T, pos: VoxelPos, block: BlockId) {
     let game_any = game as &mut dyn std::any::Any;
     callbacks::execute_on_block_break(game_any, pos, block);
 }
 
 /// Handle block place event
 /// Function - processes block place for game data
-pub fn handle_block_place<T: GameData>(game: &mut T, pos: VoxelPos, block: BlockId) {
+pub fn handle_block_place<T: GameData + 'static>(game: &mut T, pos: VoxelPos, block: BlockId) {
     let game_any = game as &mut dyn std::any::Any;
     callbacks::execute_on_block_place(game_any, pos, block);
 }
 
 /// Get the active block for placement
 /// Pure function - reads active block from game data
-pub fn get_active_block_from_game<T: GameData>(game: &T) -> BlockId {
+pub fn get_active_block_from_game<T: GameData + 'static>(game: &T) -> BlockId {
     let game_any = game as &dyn std::any::Any;
     callbacks::execute_get_active_block(game_any)
 }
