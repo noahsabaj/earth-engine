@@ -30,6 +30,17 @@ pub struct GpuMeshingState {
     
     /// Mesh generation statistics
     pub stats: MeshingStats,
+    
+    /// Track buffer allocation (wrapped in Mutex for interior mutability)
+    pub allocator: std::sync::Mutex<BufferAllocator>,
+}
+
+/// Buffer allocation tracker
+pub struct BufferAllocator {
+    /// Track which buffer slots are in use (chunk_pos -> buffer_index)
+    pub allocated_buffers: std::collections::HashMap<crate::ChunkPos, u32>,
+    /// Track free buffer indices
+    pub free_buffers: Vec<u32>,
 }
 
 /// Initialize GPU meshing system
@@ -53,6 +64,12 @@ pub fn create_gpu_meshing_state(
         mapped_at_creation: false,
     });
     
+    // Initialize allocator
+    let allocator = std::sync::Mutex::new(BufferAllocator {
+        allocated_buffers: std::collections::HashMap::new(),
+        free_buffers: (0..MAX_CONCURRENT_MESHES as u32).collect(),
+    });
+    
     GpuMeshingState {
         device,
         queue,
@@ -61,6 +78,7 @@ pub fn create_gpu_meshing_state(
         mesh_buffers,
         indirect_buffer,
         stats: MeshingStats::default(),
+        allocator,
     }
 }
 

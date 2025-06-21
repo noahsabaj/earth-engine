@@ -16,7 +16,7 @@ use crate::camera::{
 use crate::input::InputState;
 use crate::physics::{GpuPhysicsWorld};
 use crate::physics::{EntityId, physics_tables::PhysicsFlags};
-use crate::renderer::{SelectionRenderer, GpuDiagnostics, GpuInitProgress, gpu_driven::GpuDrivenRenderer};
+use crate::renderer::{SelectionRenderer, GpuDiagnostics, GpuInitProgress, gpu_driven::GpuDrivenRenderer, gpu_meshing::{GpuMeshingState, create_gpu_meshing_state}};
 use crate::world::{
     interfaces::{WorldInterface, WorldConfig, ChunkManager},
     core::{Ray, RaycastHit},
@@ -121,6 +121,8 @@ pub struct GpuState {
     // Lighting
     day_night_cycle: DayNightCycleData,
     light_propagator: Option<GpuLightPropagator>,
+    // GPU meshing
+    gpu_meshing: Arc<GpuMeshingState>,
     // Loading state
     first_chunks_loaded: bool,
     frames_rendered: u32,
@@ -129,6 +131,8 @@ pub struct GpuState {
     dirty_chunks: std::collections::HashSet<crate::ChunkPos>,
     // Track which chunks have valid meshes
     chunks_with_meshes: std::collections::HashSet<crate::ChunkPos>,
+    // Map chunk positions to GPU mesh buffer indices
+    chunk_to_buffer_index: std::collections::HashMap<crate::ChunkPos, u32>,
     // Render object submission tracking
     last_render_object_count: u32,
     frames_without_objects: u32,
@@ -764,6 +768,15 @@ impl GpuState {
         let selection_renderer = SelectionRenderer::new(&device, config.format, &camera_bind_group_layout);
         log::info!("[GpuState::new] Selection renderer created");
         
+        // Create GPU meshing system
+        log::info!("[GpuState::new] Creating GPU meshing system...");
+        let gpu_meshing = Arc::new(create_gpu_meshing_state(device.clone(), queue.clone()));
+        log::info!("[GpuState::new] GPU meshing system created");
+        
+        // Set GPU meshing reference on the chunk renderer
+        let mut chunk_renderer = chunk_renderer;
+        chunk_renderer.set_gpu_meshing(gpu_meshing.clone());
+        
         // Create physics world and player entity
         log::info!("[GpuState::new] Creating GPU physics world...");
         
@@ -872,11 +885,13 @@ impl GpuState {
             player_entity,
             day_night_cycle,
             light_propagator,
+            gpu_meshing,
             first_chunks_loaded: false,
             frames_rendered: 0,
             init_time: std::time::Instant::now(),
             dirty_chunks: std::collections::HashSet::new(),
             chunks_with_meshes: std::collections::HashSet::new(),
+            chunk_to_buffer_index: std::collections::HashMap::new(),
             last_render_object_count: 0,
             frames_without_objects: 0,
             total_objects_submitted: 0,
@@ -1021,18 +1036,32 @@ impl GpuState {
                 self.dirty_chunks.insert(chunk_pos);
             }
             
-            // Clear chunks_with_meshes to force complete rebuild
+            // Clear chunks_with_meshes and mapping to force complete rebuild
             self.chunks_with_meshes.clear();
+            self.chunk_to_buffer_index.clear();
         }
         
         // Process dirty chunks and new chunks
         let mut render_objects = Vec::new();
-        let mut chunks_to_upload: Vec<(crate::ChunkPos, Vec<crate::renderer::vertex::Vertex>, Vec<u32>)> = Vec::new();
         
         // Check all loaded chunks
         let mut chunks_needing_rebuild = Vec::new();
         let loaded_chunks: Vec<_> = self.world.iter_loaded_chunks().collect();
         let loaded_count = loaded_chunks.len();
+        
+        // Log diagnostic info every 60 frames
+        if self.frames_rendered % 60 == 0 {
+            log::info!(
+                "[GpuState::update_chunk_renderer] Frame {}: Loaded chunks: {}, Chunks with meshes: {}, Dirty chunks: {}",
+                self.frames_rendered, loaded_count, self.chunks_with_meshes.len(), self.dirty_chunks.len()
+            );
+            
+            // Log first few chunk positions for debugging
+            if loaded_count > 0 {
+                let first_chunks: Vec<_> = loaded_chunks.iter().take(3).map(|(pos, _)| *pos).collect();
+                log::info!("[GpuState::update_chunk_renderer] First loaded chunks: {:?}", first_chunks);
+            }
+        }
         
         for (chunk_pos, _chunk_lock) in loaded_chunks {
             // Check if this chunk needs rebuilding
@@ -1053,130 +1082,102 @@ impl GpuState {
         }
         
         // Process chunks that need rebuilding
-        for chunk_pos in chunks_needing_rebuild {
-            if let Some(chunk_lock) = self.world.get_chunk_for_meshing(chunk_pos) {
-                let chunk = chunk_lock.read();
-                
-                // Acquire a mesh buffer from the pool
-                let mut mesh_buffer = crate::renderer::data_mesh_builder::MESH_BUFFER_POOL.acquire();
-                
-                // Build mesh using data-oriented operations
-                crate::renderer::data_mesh_builder::operations::build_chunk_mesh(
-                    &mut mesh_buffer,
-                    chunk_pos,
-                    chunk_size,
-                    |x, y, z| chunk.get_block_at(x, y, z),
-                );
-                
-                // Upload mesh to GPU if it has vertices
-                if mesh_buffer.vertex_count > 0 {
-                    // Following DOP principles - collect mesh data for batch upload
-                    let vertices = mesh_buffer.vertices[..mesh_buffer.vertex_count].to_vec();
-                    let indices = mesh_buffer.indices[..mesh_buffer.index_count].to_vec();
-                    
-                    // Store for batch upload
-                    chunks_to_upload.push((chunk_pos, vertices, indices));
-                    
-                    // Mark chunk as processed
-                    self.dirty_chunks.remove(&chunk_pos);
-                    
-                    log::trace!(
-                        "[GpuState::update_chunk_renderer] Generated mesh for chunk {:?} with {} vertices, {} indices",
-                        chunk_pos,
-                        mesh_buffer.vertex_count,
-                        mesh_buffer.index_count
+        let chunks_to_rebuild_count = chunks_needing_rebuild.len();
+        if chunks_to_rebuild_count > 0 && self.frames_rendered % 60 == 0 {
+            log::info!("[GpuState::update_chunk_renderer] Processing {} chunks that need rebuilding", chunks_to_rebuild_count);
+        }
+        
+        // GPU-only mesh generation
+        if chunks_needing_rebuild.len() > 0 {
+            log::info!("[GpuState::update_chunk_renderer] Generating {} chunk meshes on GPU", chunks_needing_rebuild.len());
+            
+            // Get world buffer for GPU mesh generation
+            if let Some(world_buffer) = self.world.get_world_buffer() {
+                if let Ok(wb) = world_buffer.lock() {
+                    // Generate meshes on GPU
+                    let mesh_results = crate::renderer::gpu_meshing::generate_chunk_meshes(
+                        &self.gpu_meshing,
+                        wb.voxel_buffer(),
+                        &chunks_needing_rebuild,
+                        0, // LOD level 0 (full detail)
                     );
+                    
+                    // Process mesh generation results
+                    for result in mesh_results {
+                        let chunk_pos = result.chunk_pos;
+                        
+                        // Get the mesh buffer for this chunk
+                        if let Some(mesh_buffer) = crate::renderer::gpu_meshing::get_mesh_buffer(
+                            &self.gpu_meshing,
+                            result.buffer_index
+                        ) {
+                            // Create render object for GPU-driven renderer
+                            let render_object = crate::renderer::gpu_driven::RenderObject {
+                                position: cgmath::Vector3::new(
+                                    (chunk_pos.x * chunk_size as i32 + chunk_size as i32 / 2) as f32,
+                                    (chunk_pos.y * chunk_size as i32 + chunk_size as i32 / 2) as f32,
+                                    (chunk_pos.z * chunk_size as i32 + chunk_size as i32 / 2) as f32,
+                                ),
+                                scale: 1.0,
+                                color: [1.0, 1.0, 1.0, 1.0],
+                                bounding_radius: (chunk_size as f32 * 1.732) / 2.0, // Radius of chunk bounding sphere
+                                mesh_id: result.buffer_index,
+                                material_id: 0,
+                            };
+                            
+                            // GPU mesh buffers are managed by the GPU meshing system
+                            // The renderer will query them directly when needed
+                            
+                            render_objects.push(render_object);
+                            
+                            // Mark chunk as processed and store buffer index mapping
+                            self.dirty_chunks.remove(&chunk_pos);
+                            self.chunks_with_meshes.insert(chunk_pos);
+                            self.chunk_to_buffer_index.insert(chunk_pos, result.buffer_index);
+                            
+                            log::trace!("[GpuState::update_chunk_renderer] GPU mesh generation completed for chunk {:?}, buffer_index: {}", chunk_pos, result.buffer_index);
+                        }
+                    }
                 } else {
-                    // Empty mesh - still mark as processed to avoid repeated attempts
-                    self.dirty_chunks.remove(&chunk_pos);
-                    log::trace!(
-                        "[GpuState::update_chunk_renderer] Chunk {:?} generated empty mesh (likely all air)",
-                        chunk_pos
-                    );
+                    log::error!("[GpuState::update_chunk_renderer] Failed to lock world buffer for GPU mesh generation");
                 }
-                
-                // Release mesh buffer back to pool
-                crate::renderer::data_mesh_builder::MESH_BUFFER_POOL.release(mesh_buffer);
-            }
-        }
-        
-        // Batch upload all mesh data to GPU
-        let upload_count = chunks_to_upload.len();
-        if upload_count > 0 {
-            log::debug!(
-                "[GpuState::update_chunk_renderer] Uploading {} chunk meshes to GPU",
-                upload_count
-            );
-        }
-        
-        for (chunk_pos, vertices, indices) in chunks_to_upload {
-            if let Some(_mesh_id) = self.chunk_renderer.mesh_buffers.upload_mesh(
-                &self.queue,
-                chunk_pos,
-                &vertices,
-                &indices,
-            ) {
-                self.chunks_with_meshes.insert(chunk_pos);
-                log::trace!(
-                    "[GpuState::update_chunk_renderer] Successfully uploaded mesh for chunk {:?}",
-                    chunk_pos
-                );
             } else {
-                log::warn!(
-                    "[GpuState::update_chunk_renderer] Failed to upload mesh for chunk {:?}",
-                    chunk_pos
-                );
+                log::error!("[GpuState::update_chunk_renderer] No world buffer available - GPU mesh generation requires GPU world storage");
             }
         }
+        
         
         // Create render objects for all chunks with valid meshes
-        let mut chunks_without_mesh_id = 0;
-        let mut lost_meshes = Vec::new();
         
         for (chunk_pos, _) in self.world.iter_loaded_chunks() {
             if self.chunks_with_meshes.contains(&chunk_pos) {
-                // Get mesh ID for this chunk - no unsafe access needed
-                if let Some(mesh_id) = self.chunk_renderer.mesh_buffers.get_mesh_id(chunk_pos) {
-                    // Create render object for this chunk
-                    let world_pos = cgmath::Vector3::new(
-                        (chunk_pos.x * chunk_size as i32) as f32,
-                        (chunk_pos.y * chunk_size as i32) as f32,
-                        (chunk_pos.z * chunk_size as i32) as f32,
-                    );
-                    
-                    let render_object = crate::renderer::gpu_driven::gpu_driven_renderer::RenderObject {
-                        position: world_pos,
-                        scale: 1.0,
-                        color: [1.0, 1.0, 1.0, 1.0],
-                        bounding_radius: (chunk_size as f32 * 1.732) / 2.0, // sqrt(3) * chunk_size / 2
-                        mesh_id,
-                        material_id: 0,
-                    };
-                    
-                    render_objects.push(render_object);
+                // Look up the buffer index for this chunk
+                if let Some(&buffer_index) = self.chunk_to_buffer_index.get(&chunk_pos) {
+                    let mesh_id = buffer_index;
+                
+                // Create render object for this chunk
+                let world_pos = cgmath::Vector3::new(
+                    (chunk_pos.x * chunk_size as i32) as f32,
+                    (chunk_pos.y * chunk_size as i32) as f32,
+                    (chunk_pos.z * chunk_size as i32) as f32,
+                );
+                
+                let render_object = crate::renderer::gpu_driven::gpu_driven_renderer::RenderObject {
+                    position: world_pos,
+                    scale: 1.0,
+                    color: [1.0, 1.0, 1.0, 1.0],
+                    bounding_radius: (chunk_size as f32 * 1.732) / 2.0, // sqrt(3) * chunk_size / 2
+                    mesh_id,
+                    material_id: 0,
+                };
+                
+                render_objects.push(render_object);
                 } else {
-                    chunks_without_mesh_id += 1;
-                    lost_meshes.push(chunk_pos);
+                    log::warn!("[GpuState::update_chunk_renderer] Chunk {:?} has mesh but no buffer index mapping", chunk_pos);
                 }
             }
         }
         
-        if chunks_without_mesh_id > 0 {
-            log::warn!(
-                "[GpuState::update_chunk_renderer] {} chunks marked as having meshes but no mesh ID found",
-                chunks_without_mesh_id
-            );
-            
-            // Remove lost meshes from tracking and mark as dirty for rebuild
-            for chunk_pos in lost_meshes {
-                log::warn!(
-                    "[GpuState::update_chunk_renderer] Chunk {:?} lost its mesh, marking for rebuild",
-                    chunk_pos
-                );
-                self.chunks_with_meshes.remove(&chunk_pos);
-                self.dirty_chunks.insert(chunk_pos);
-            }
-        }
         
         // Submit all render objects to GPU-driven renderer
         let render_object_count = render_objects.len() as u32;
@@ -1559,8 +1560,6 @@ impl GpuState {
         // Following DOP principles - separate data transformation phases
         self.chunk_renderer.execute_culling(&mut encoder);
         
-        // Update buffer cache to ensure buffers stay alive during rendering
-        self.chunk_renderer.update_buffer_cache();
         
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -1941,7 +1940,22 @@ pub async fn run_app<G: GameData + 'static>(
                             log::warn!("[render loop] Camera chunk still being generated at position: {:?}", camera_pos);
                         }
                         
+                        // Get current loaded chunks before update
+                        let chunks_before: std::collections::HashSet<_> = gpu_state.world.iter_loaded_chunks()
+                            .map(|(pos, _)| pos)
+                            .collect();
+                        
                         gpu_state.world.update(camera_pos);
+                        
+                        // Mark any newly loaded chunks as dirty so they get meshed
+                        let chunks_after: std::collections::HashSet<_> = gpu_state.world.iter_loaded_chunks()
+                            .map(|(pos, _)| pos)
+                            .collect();
+                        
+                        for chunk_pos in chunks_after.difference(&chunks_before) {
+                            log::debug!("[render loop] New chunk loaded at {:?}, marking as dirty", chunk_pos);
+                            gpu_state.dirty_chunks.insert(*chunk_pos);
+                        }
                         
                         // Periodic sync check
                         if gpu_state.frames_rendered % 300 == 0 && gpu_state.frames_rendered > 0 {

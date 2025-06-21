@@ -91,7 +91,7 @@ macro_rules! typed_bindings {
     ) => {
         $vis mod $mod_name {
             use super::*;
-            use $crate::gpu::typed_bindings::BindingSlot;
+            use $crate::gpu::automation::typed_bindings::BindingSlot;
             
             $(
                 pub const $binding_name: BindingSlot<$type> = BindingSlot::new($group, $binding_idx);
@@ -103,7 +103,7 @@ macro_rules! typed_bindings {
                 wgsl.push_str(&format!("// Bind group {}\n", $group));
                 
                 $(
-                    wgsl.push_str(&$crate::gpu::typed_bindings::generate_binding_wgsl::<$type>(
+                    wgsl.push_str(&$crate::gpu::automation::typed_bindings::generate_binding_wgsl::<$type>(
                         $group,
                         $binding_idx,
                         stringify!($binding_name),

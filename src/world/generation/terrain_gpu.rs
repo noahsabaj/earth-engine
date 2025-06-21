@@ -40,46 +40,6 @@ pub struct TerrainGeneratorSOA {
 }
 
 impl TerrainGeneratorSOA {
-    /// Strip manual type definitions from shader code
-    /// The unified system will add all required type definitions automatically
-    fn strip_manual_types(shader_code: &str) -> String {
-        let mut result = String::new();
-        let mut in_struct = false;
-        let mut brace_count = 0;
-        
-        for line in shader_code.lines() {
-            let trimmed = line.trim();
-            
-            // Skip struct definitions (they'll come from unified system)
-            if trimmed.starts_with("struct ") {
-                in_struct = true;
-                brace_count = 0;
-                continue;
-            }
-            
-            // Track braces to know when struct ends
-            if in_struct {
-                brace_count += line.chars().filter(|&c| c == '{').count() as i32;
-                brace_count -= line.chars().filter(|&c| c == '}').count() as i32;
-                
-                if brace_count <= 0 && trimmed.ends_with('}') {
-                    in_struct = false;
-                }
-                continue;
-            }
-            
-            // Skip type aliases and constants (they'll come from unified system)
-            if trimmed.starts_with("alias ") || trimmed.starts_with("const ") {
-                continue;
-            }
-            
-            // Keep the rest of the shader code
-            result.push_str(line);
-            result.push('\n');
-        }
-        
-        result
-    }
     
     /// Validate that a shader entry point exists in the shader source
     fn validate_shader_entry_point(shader_source: &str, entry_point: &str) -> Result<(), String> {
@@ -154,38 +114,24 @@ impl TerrainGeneratorSOA {
         functions
     }
     
-    /// Validate bind group layout matches shader expectations
-    fn validate_bind_group_layout(shader_source: &str) -> Result<(), String> {
+    /// Validate shader contains required compute logic
+    fn validate_compute_shader(shader_source: &str) -> Result<(), String> {
         let mut issues = Vec::new();
         
-        // Check for expected bindings in shader
-        let expected_bindings = [
-            ("@group(0) @binding(0)", "voxel buffer"),
-            ("@group(0) @binding(1)", "metadata buffer"), 
-            ("@group(0) @binding(2)", "params buffer"),
-        ];
-        
-        for (binding_pattern, binding_name) in expected_bindings {
-            if !shader_source.contains(binding_pattern) {
-                issues.push(format!("Missing {} binding: {}", binding_name, binding_pattern));
-            }
-        }
-        
-        // Check for ChunkMetadata usage
-        if !shader_source.contains("ChunkMetadata") {
-            issues.push("Shader missing ChunkMetadata struct definition".to_string());
-        }
-        
-        // Check for world_data array access (the actual buffer name used)
+        // Check for compute logic patterns (not bindings, which are auto-generated)
         if !shader_source.contains("world_data[") {
             issues.push("Shader missing world_data array access pattern".to_string());
         }
         
-        if !issues.is_empty() {
-            return Err(format!("Bind group layout validation failed: {}", issues.join(", ")));
+        if !shader_source.contains("pack_voxel") {
+            issues.push("Shader missing pack_voxel function".to_string());
         }
         
-        log::debug!("[TerrainGeneratorSOA] Bind group layout validation passed");
+        if !issues.is_empty() {
+            return Err(format!("Compute shader validation failed: {}", issues.join(", ")));
+        }
+        
+        log::debug!("[TerrainGeneratorSOA] Compute shader validation passed");
         Ok(())
     }
 
@@ -257,11 +203,8 @@ impl TerrainGeneratorSOA {
         log::info!("[TerrainGeneratorSOA] TerrainParamsSOA size: {} bytes", 
                   std::mem::size_of::<TerrainParamsSOA>());
         
-        // Load SOA shader code (without type definitions - those come from unified system)
-        let shader_code_raw = include_str!("../../shaders/compute/terrain_generation.wgsl");
-        
-        // Strip out manual type definitions from shader (they'll be auto-generated)
-        let shader_code = Self::strip_manual_types(shader_code_raw);
+        // Load shader code - contains ONLY compute logic, no types/bindings/constants
+        let shader_code = include_str!("../../shaders/compute/terrain_generation.wgsl");
         
         log::info!("[TerrainGeneratorSOA] Creating shader through unified GPU system");
         
@@ -280,9 +223,6 @@ impl TerrainGeneratorSOA {
         
         let shader = &validated_shader.module;
         
-        // Keep reference to shader code for validation
-        let shader_source_for_validation = shader_code.clone();
-        
         // Create bind group layout for SOA shader using centralized definitions
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("SOA Terrain Generator Bind Group Layout"),
@@ -296,7 +236,7 @@ impl TerrainGeneratorSOA {
                 // Metadata buffer binding
                 layouts::storage_buffer_entry(
                     bindings::world::METADATA_BUFFER,
-                    true,
+                    false,
                     wgpu::ShaderStages::COMPUTE,
                 ),
                 // SOA Parameters buffer
@@ -325,24 +265,24 @@ impl TerrainGeneratorSOA {
         log::info!("[TerrainGeneratorSOA] Using entry point: {}", entry_point);
         
         // Validate shader entry point exists before pipeline creation
-        Self::validate_shader_entry_point(&shader_source_for_validation, entry_point)
+        Self::validate_shader_entry_point(shader_code, entry_point)
             .unwrap_or_else(|e| {
                 log::error!("[TerrainGeneratorSOA] Shader validation failed: {}", e);
                 panic!("[TerrainGeneratorSOA] Cannot create pipeline with invalid shader: {}", e);
             });
         
-        // Validate bind group layout matches shader expectations
-        Self::validate_bind_group_layout(&shader_source_for_validation)
+        // Validate shader contains required compute logic
+        Self::validate_compute_shader(shader_code)
             .unwrap_or_else(|e| {
-                log::error!("[TerrainGeneratorSOA] Bind group layout validation failed: {}", e);
-                panic!("[TerrainGeneratorSOA] Cannot create pipeline with mismatched bindings: {}", e);
+                log::error!("[TerrainGeneratorSOA] Compute shader validation failed: {}", e);
+                panic!("[TerrainGeneratorSOA] Cannot create pipeline with invalid compute logic: {}", e);
             });
         
         // Log detailed pipeline creation parameters for debugging
         log::info!(
             "[TerrainGeneratorSOA] Creating compute pipeline - Entry: {}, Shader size: {} chars, Layout bindings: {}",
             entry_point,
-            shader_source_for_validation.len(),
+            shader_code.len(),
             3  // We have 3 bindings: voxel_buffer, metadata_buffer, params_buffer
         );
         
@@ -355,7 +295,7 @@ impl TerrainGeneratorSOA {
         ).unwrap_or_else(|e| {
             log::error!("[TerrainGeneratorSOA] Pipeline creation failed: {}", e);
             log::error!("[TerrainGeneratorSOA] Shader source (first 500 chars): {}", 
-                       &shader_source_for_validation[..shader_source_for_validation.len().min(500)]);
+                       &shader_code[..shader_code.len().min(500)]);
             log::error!("[TerrainGeneratorSOA] Entry point requested: {}", entry_point);
             log::error!("[TerrainGeneratorSOA] Pipeline layout: {:?}", pipeline_layout);
             panic!("[TerrainGeneratorSOA] Cannot continue without valid compute pipeline: {}", e);
@@ -420,7 +360,7 @@ impl TerrainGeneratorSOA {
     /// Generate chunks using SOA layout
     pub fn generate_chunks(
         &self,
-        world_buffer: &WorldBuffer,
+        world_buffer: &mut WorldBuffer,
         chunk_positions: &[ChunkPos],
         encoder: &mut wgpu::CommandEncoder,
     ) -> Result<(), GpuError> {
@@ -436,11 +376,15 @@ impl TerrainGeneratorSOA {
         // Create metadata buffer for chunk generation
         // Each chunk needs a full ChunkMetadata struct (4 u32 values)
         let metadata_data: Vec<u32> = chunk_positions.iter()
-            .flat_map(|pos| {
+            .enumerate()
+            .flat_map(|(idx, pos)| {
+                // Get the slot assignment from WorldBuffer
+                let slot = world_buffer.get_chunk_slot(*pos);
+                
                 // Create ChunkMetadata for each chunk
                 let flags = ((pos.x & 0xFFFF) as u32) << 16 | (pos.z & 0xFFFF) as u32;
                 let timestamp = 0u32;
-                let checksum = 0u32;
+                let checksum = slot; // Store slot index in checksum field for now
                 let reserved = pos.y as u32; // Store Y position in reserved field
                 vec![flags, timestamp, checksum, reserved]
             })
@@ -492,24 +436,31 @@ impl TerrainGeneratorSOA {
             log::debug!("[TerrainGeneratorSOA] Setting bind group with {} entries", 3);
             compute_pass.set_bind_group(0, &bind_group, &[]);
             
-            // Dispatch workgroups for one chunk at a time
-            // With workgroup size 8x4x4 and chunk size 32x32x32
-            let workgroups_x = 4; // 32 / 8
-            let workgroups_y = 8; // 32 / 4  
-            let workgroups_z = 8; // 32 / 4
+            // Calculate workgroups needed based on chunk size and workgroup size
+            let chunk_size = 50u32; // TODO: Get from config
+            let workgroup_size_x = if self.use_vectorized { 16 } else { 8 };
+            let workgroup_size_y = if self.use_vectorized { 2 } else { 4 };
+            let workgroup_size_z = if self.use_vectorized { 2 } else { 4 };
             
-            // For now, generate one chunk at a time
-            // TODO: Optimize to generate multiple chunks in parallel
+            let workgroups_per_chunk_x = (chunk_size + workgroup_size_x - 1) / workgroup_size_x;
+            let workgroups_per_chunk_y = (chunk_size + workgroup_size_y - 1) / workgroup_size_y;
+            let workgroups_per_chunk_z = (chunk_size + workgroup_size_z - 1) / workgroup_size_z;
+            
+            // Total workgroups in X = workgroups per chunk * number of chunks
+            let total_workgroups_x = workgroups_per_chunk_x * chunk_positions.len() as u32;
+            
             log::debug!(
-                "[TerrainGeneratorSOA] Dispatching workgroups: {}x{}x{} (total: {} workgroups)",
-                workgroups_x, workgroups_y, workgroups_z,
-                workgroups_x * workgroups_y * workgroups_z
+                "[TerrainGeneratorSOA] Dispatching workgroups for {} chunks: {} x {} x {} (total: {} workgroups)",
+                chunk_positions.len(),
+                total_workgroups_x, workgroups_per_chunk_y, workgroups_per_chunk_z,
+                total_workgroups_x * workgroups_per_chunk_y * workgroups_per_chunk_z
             );
             
+            // Dispatch all chunks at once - shader will calculate chunk index from workgroup_id.x
             compute_pass.dispatch_workgroups(
-                workgroups_x,
-                workgroups_y,
-                workgroups_z
+                total_workgroups_x,
+                workgroups_per_chunk_y,
+                workgroups_per_chunk_z
             );
             
             log::debug!("[TerrainGeneratorSOA] Compute pass dispatch completed successfully");

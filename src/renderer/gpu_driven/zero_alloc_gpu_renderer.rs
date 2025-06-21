@@ -82,7 +82,7 @@ impl ZeroAllocRenderData {
 pub fn render_with_zero_allocations(
     render_data: &mut ZeroAllocRenderData,
     culling_metadata: &[super::culling_pipeline::DrawMetadata],
-    mesh_buffers: &super::gpu_driven_renderer::MeshBufferManager,
+    gpu_meshing: &crate::renderer::gpu_meshing::GpuMeshingState,
     render_pass: &mut wgpu::RenderPass,
 ) -> Result<RenderStats, &'static str> {
     // Clear previous frame data (no allocations)
@@ -103,15 +103,15 @@ pub fn render_with_zero_allocations(
     
     // Render each mesh group using pre-allocated data
     for (mesh_id, instance_indices) in render_data.iter_mesh_groups() {
-        if let Some(mesh_info) = mesh_buffers.get_mesh_info(mesh_id) {
-            if mesh_info.index_count > 0 && !instance_indices.is_empty() {
-                // Calculate index range for this mesh
-                let start_index = mesh_info.index_start;
-                let end_index = start_index + mesh_info.index_count;
+        if let Some(mesh_buffer) = crate::renderer::gpu_meshing::get_mesh_buffer(gpu_meshing, mesh_id) {
+            if !instance_indices.is_empty() {
+                // Set GPU mesh buffers
+                render_pass.set_vertex_buffer(0, mesh_buffer.vertices.slice(..));
+                render_pass.set_index_buffer(mesh_buffer.indices.slice(..), wgpu::IndexFormat::Uint32);
                 
-                // Draw all instances of this mesh
+                // Draw using fixed index count for now (36 indices for a cube)
                 render_pass.draw_indexed(
-                    start_index..end_index,
+                    0..36,
                     0,
                     0..instance_indices.len() as u32,
                 );
@@ -128,7 +128,7 @@ pub fn render_with_zero_allocations(
 /// Alternative approach using global pools for temporary allocations
 pub fn render_with_pooled_collections(
     culling_metadata: &[super::culling_pipeline::DrawMetadata],
-    mesh_buffers: &super::gpu_driven_renderer::MeshBufferManager,
+    gpu_meshing: &crate::renderer::gpu_meshing::GpuMeshingState,
     render_pass: &mut wgpu::RenderPass,
 ) -> Result<RenderStats, &'static str> {
     let mut stats = RenderStats::default();
@@ -153,13 +153,15 @@ pub fn render_with_pooled_collections(
     
     // Draw each mesh with its instances
     for (mesh_id, instance_indices) in instances_per_mesh.iter() {
-        if let Some(mesh_info) = mesh_buffers.get_mesh_info(*mesh_id) {
-            if mesh_info.index_count > 0 && !instance_indices.is_empty() {
-                let start_index = mesh_info.index_start;
-                let end_index = start_index + mesh_info.index_count;
+        if let Some(mesh_buffer) = crate::renderer::gpu_meshing::get_mesh_buffer(gpu_meshing, *mesh_id) {
+            if !instance_indices.is_empty() {
+                // Set GPU mesh buffers
+                render_pass.set_vertex_buffer(0, mesh_buffer.vertices.slice(..));
+                render_pass.set_index_buffer(mesh_buffer.indices.slice(..), wgpu::IndexFormat::Uint32);
                 
+                // Draw using fixed index count for now (36 indices for a cube)
                 render_pass.draw_indexed(
-                    start_index..end_index,
+                    0..36,
                     0,
                     0..instance_indices.len() as u32,
                 );

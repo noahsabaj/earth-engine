@@ -93,20 +93,20 @@ macro_rules! gpu_struct {
         
         impl $name {
             /// Get layout information for this struct
-            pub fn layout_info() -> $crate::gpu::layout_derive::StructLayout {
-                use $crate::gpu::layout_derive::DeriveLayout;
+            pub fn layout_info() -> $crate::gpu::automation::layout_derive::StructLayout {
+                use $crate::gpu::automation::layout_derive::DeriveLayout;
                 
-                $crate::gpu::layout_derive::StructLayout {
+                $crate::gpu::automation::layout_derive::StructLayout {
                     name: stringify!($name),
                     size: std::mem::size_of::<$name>() as u64,
                     alignment: 16, // Standard WGSL alignment
                     fields: vec![
                         $(
-                            $crate::gpu::layout_derive::FieldInfo {
+                            $crate::gpu::automation::layout_derive::FieldInfo {
                                 name: stringify!($field),
                                 ty: stringify!($ty),
                                 size: std::mem::size_of::<$ty>() as u64,
-                                offset: $crate::gpu::layout_derive::calculate_field_offset::<Self, $ty>(
+                                offset: $crate::gpu::automation::layout_derive::calculate_field_offset::<Self, $ty>(
                                     stringify!($field)
                                 ),
                             }

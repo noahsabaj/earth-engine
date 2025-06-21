@@ -10,6 +10,7 @@ use crate::world::{
     interfaces::WorldInterface,
     generation::WorldGenerator,
     management::UnifiedWorldManager,
+    storage::UnifiedStorage,
 };
 
 /// Configuration for parallel world
@@ -159,7 +160,7 @@ impl ParallelWorld {
     
     /// Get world buffer for GPU operations
     pub fn get_world_buffer(&self) -> Option<Arc<std::sync::Mutex<crate::world::storage::WorldBuffer>>> {
-        None // TODO: Expose from UnifiedWorldManager if needed
+        self.manager.read().get_world_buffer()
     }
     
     /// Get chunk manager interface for compatibility
@@ -244,6 +245,24 @@ impl crate::world::interfaces::WorldInterface for ParallelWorld {
         Err(crate::world::interfaces::WorldError::OperationFailed {
             message: "Batch operation not implemented".to_string()
         })
+    }
+    
+    fn iter_loaded_chunks(&self) -> Box<dyn Iterator<Item = (ChunkPos, bool)> + '_> {
+        let manager = self.manager.read();
+        // For GPU backend, we need to check loaded_gpu_chunks
+        // For CPU backend, check the chunks hashmap
+        // All chunks are marked as needing rebuild (true) for now
+        let chunks: Vec<(ChunkPos, bool)> = match manager.storage() {
+            UnifiedStorage::Gpu { .. } => {
+                // Collect GPU chunks into a Vec
+                manager.loaded_gpu_chunks().iter().map(|pos| (*pos, true)).collect()
+            }
+            UnifiedStorage::Cpu { chunks } => {
+                // Collect CPU chunks into a Vec
+                chunks.keys().map(|pos| (*pos, true)).collect()
+            }
+        };
+        Box::new(chunks.into_iter())
     }
 }
 

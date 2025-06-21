@@ -7,10 +7,22 @@ use std::sync::Arc;
 pub fn create_mesh_generation_pipeline(
     device: &wgpu::Device,
 ) -> (wgpu::ComputePipeline, wgpu::BindGroupLayout) {
+    // Process shader with includes
+    let shader_source = include_str!("../../shaders/mesh/mesh_generation.wgsl");
+    let base_path = std::path::Path::new("src/shaders/mesh/mesh_generation.wgsl");
+    
+    let processed_source = match crate::gpu::preprocessor::preprocess_shader_content(shader_source, base_path) {
+        Ok(content) => content,
+        Err(e) => {
+            log::error!("Failed to preprocess mesh generation shader: {}", e);
+            shader_source.to_string()
+        }
+    };
+    
     // Create shader module
     let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("GPU Mesh Generation Shader"),
-        source: wgpu::ShaderSource::Wgsl(include_str!("../../shaders/mesh/mesh_generation.wgsl").into()),
+        source: wgpu::ShaderSource::Wgsl(processed_source.into()),
     });
     
     // Create bind group layout using our macro
@@ -19,14 +31,11 @@ pub fn create_mesh_generation_pipeline(
         "Mesh Generation Bind Group Layout",
         0 => buffer(storage_read),  // World voxel data
         1 => buffer(storage_read),  // Mesh requests
-        2 => buffer(storage),       // Vertex positions output
-        3 => buffer(storage),       // Vertex normals output
-        4 => buffer(storage),       // Vertex UVs output
-        5 => buffer(storage),       // Vertex colors output
-        6 => buffer(storage),       // Index buffer output
-        7 => buffer(storage),       // Metadata output
-        8 => buffer(storage),       // Indirect commands output
-        9 => buffer(uniform)        // Meshing parameters
+        2 => buffer(storage),       // Vertices output (interleaved)
+        3 => buffer(storage),       // Index buffer output
+        4 => buffer(storage),       // Metadata output
+        5 => buffer(storage),       // Indirect commands output
+        6 => buffer(uniform)        // Meshing parameters
     );
     
     // Create pipeline layout
@@ -49,34 +58,12 @@ pub fn create_mesh_generation_pipeline(
 
 /// Create GPU mesh buffer
 pub fn create_gpu_mesh_buffer(device: &wgpu::Device, buffer_id: u32) -> GpuMeshBuffer {
-    // Position buffer (3 floats per vertex)
-    let positions = device.create_buffer(&wgpu::BufferDescriptor {
-        label: Some(&format!("Mesh {} Positions", buffer_id)),
-        size: (MAX_VERTICES_PER_CHUNK * 3 * 4) as u64,
-        usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_SRC,
-        mapped_at_creation: false,
-    });
-    
-    // Normal buffer (3 floats per vertex)
-    let normals = device.create_buffer(&wgpu::BufferDescriptor {
-        label: Some(&format!("Mesh {} Normals", buffer_id)),
-        size: (MAX_VERTICES_PER_CHUNK * 3 * 4) as u64,
-        usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_SRC,
-        mapped_at_creation: false,
-    });
-    
-    // UV buffer (2 floats per vertex)
-    let uvs = device.create_buffer(&wgpu::BufferDescriptor {
-        label: Some(&format!("Mesh {} UVs", buffer_id)),
-        size: (MAX_VERTICES_PER_CHUNK * 2 * 4) as u64,
-        usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_SRC,
-        mapped_at_creation: false,
-    });
-    
-    // Color buffer (4 floats per vertex)
-    let colors = device.create_buffer(&wgpu::BufferDescriptor {
-        label: Some(&format!("Mesh {} Colors", buffer_id)),
-        size: (MAX_VERTICES_PER_CHUNK * 4 * 4) as u64,
+    // Vertex buffer (interleaved: position + color + normal + light + ao)
+    // Size calculation: 11 floats per vertex (3 + 3 + 3 + 1 + 1)
+    let vertex_size = std::mem::size_of::<crate::renderer::vertex::Vertex>();
+    let vertices = device.create_buffer(&wgpu::BufferDescriptor {
+        label: Some(&format!("Mesh {} Vertices", buffer_id)),
+        size: (MAX_VERTICES_PER_CHUNK * vertex_size) as u64,
         usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_SRC,
         mapped_at_creation: false,
     });
@@ -84,7 +71,7 @@ pub fn create_gpu_mesh_buffer(device: &wgpu::Device, buffer_id: u32) -> GpuMeshB
     // Index buffer
     let indices = device.create_buffer(&wgpu::BufferDescriptor {
         label: Some(&format!("Mesh {} Indices", buffer_id)),
-        size: (MAX_INDICES_PER_CHUNK * 4) as u64,
+        size: (MAX_INDICES_PER_CHUNK * std::mem::size_of::<u32>()) as u64,
         usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_SRC,
         mapped_at_creation: false,
     });
@@ -98,10 +85,7 @@ pub fn create_gpu_mesh_buffer(device: &wgpu::Device, buffer_id: u32) -> GpuMeshB
     });
     
     GpuMeshBuffer {
-        positions,
-        normals,
-        uvs,
-        colors,
+        vertices,
         indices,
         metadata,
         id: buffer_id,
@@ -128,14 +112,11 @@ pub fn create_mesh_bind_group(
         layout,
         0 => world_buffer.as_entire_binding(),
         1 => request_buffer.as_entire_binding(),
-        2 => mesh.positions.as_entire_binding(),
-        3 => mesh.normals.as_entire_binding(),
-        4 => mesh.uvs.as_entire_binding(),
-        5 => mesh.colors.as_entire_binding(),
-        6 => mesh.indices.as_entire_binding(),
-        7 => mesh.metadata.as_entire_binding(),
-        8 => indirect_buffer.as_entire_binding(),
-        9 => params_buffer.as_entire_binding()
+        2 => mesh.vertices.as_entire_binding(),
+        3 => mesh.indices.as_entire_binding(),
+        4 => mesh.metadata.as_entire_binding(),
+        5 => indirect_buffer.as_entire_binding(),
+        6 => params_buffer.as_entire_binding()
     )
 }
 

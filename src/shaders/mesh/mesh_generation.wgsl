@@ -91,17 +91,23 @@ struct MeshMetadata {
     timestamp: u32,
 }
 
+// Vertex structure matching renderer expectations
+struct Vertex {
+    position: vec3<f32>,
+    color: vec3<f32>,
+    normal: vec3<f32>,
+    light: f32,
+    ao: f32,
+}
+
 // Bindings
 @group(0) @binding(0) var<storage, read> world_data: array<u32>;
 @group(0) @binding(1) var<storage, read> requests: array<MeshRequest>;
-@group(0) @binding(2) var<storage, read_write> vertex_positions: array<vec3<f32>>;
-@group(0) @binding(3) var<storage, read_write> vertex_normals: array<vec3<f32>>;
-@group(0) @binding(4) var<storage, read_write> vertex_uvs: array<vec2<f32>>;
-@group(0) @binding(5) var<storage, read_write> vertex_colors: array<vec4<f32>>;
-@group(0) @binding(6) var<storage, read_write> indices: array<u32>;
-@group(0) @binding(7) var<storage, read_write> metadata: array<MeshMetadata>;
-@group(0) @binding(8) var<storage, read_write> indirect_commands: array<vec4<u32>>;
-@group(0) @binding(9) var<uniform> params: MeshingParams;
+@group(0) @binding(2) var<storage, read_write> vertices: array<Vertex>;
+@group(0) @binding(3) var<storage, read_write> indices: array<u32>;
+@group(0) @binding(4) var<storage, read_write> metadata: array<MeshMetadata>;
+@group(0) @binding(5) var<storage, read_write> indirect_commands: array<vec4<u32>>;
+@group(0) @binding(6) var<uniform> params: MeshingParams;
 
 // Shared memory for face culling
 var<workgroup> voxel_cache: array<u32, 512>; // 8x8x8 with padding
@@ -109,7 +115,11 @@ var<workgroup> voxel_cache: array<u32, 512>; // 8x8x8 with padding
 // Get voxel from world data
 fn get_voxel(world_pos: vec3<i32>) -> u32 {
     // Calculate morton index for world position
-    let morton_index = encode_morton3(world_pos);
+    let morton_index = morton_encode_3d(
+        u32(world_pos.x),
+        u32(world_pos.y),
+        u32(world_pos.z)
+    );
     
     // Bounds check
     if (morton_index >= arrayLength(&world_data)) {
@@ -138,21 +148,24 @@ fn add_face(
     let vertex_idx = atomicAdd(&metadata[request_idx].vertex_count, 4u);
     let index_idx = atomicAdd(&metadata[request_idx].index_count, 6u);
     
+    // Get face color
+    let color = get_voxel_color(voxel_type);
+    let normal = FACE_NORMALS[face];
+    
     // Add vertices
     for (var i = 0u; i < 4u; i = i + 1u) {
         let vertex_pos = local_pos + FACE_VERTICES[face][i];
         let vertex_offset = base_vertex_offset + vertex_idx + i;
         
-        vertex_positions[vertex_offset] = vertex_pos;
-        vertex_normals[vertex_offset] = FACE_NORMALS[face];
-        vertex_uvs[vertex_offset] = vec2<f32>(
-            FACE_VERTICES[face][i].x,
-            FACE_VERTICES[face][i].z
-        );
+        // Create vertex with all attributes
+        var vertex: Vertex;
+        vertex.position = vertex_pos;
+        vertex.color = color;
+        vertex.normal = normal;
+        vertex.light = 1.0;  // Full light for now
+        vertex.ao = 1.0;     // No ambient occlusion for now
         
-        // Simple color based on voxel type
-        let color = get_voxel_color(voxel_type);
-        vertex_colors[vertex_offset] = vec4<f32>(color, 1.0);
+        vertices[vertex_offset] = vertex;
     }
     
     // Add indices (two triangles)
@@ -178,15 +191,8 @@ fn get_voxel_color(voxel_type: u32) -> vec3<f32> {
     }
 }
 
-// Morton encoding
-fn encode_morton3(pos: vec3<i32>) -> u32 {
-    // Simple morton encoding for demo
-    // In production, use proper bit interleaving
-    let x = u32(pos.x) & 0x3FFu;
-    let y = u32(pos.y) & 0x3FFu; 
-    let z = u32(pos.z) & 0x3FFu;
-    return (x << 20u) | (y << 10u) | z;
-}
+// Include morton encoding functions
+#include "morton.wgsl"
 
 // Main mesh generation kernel
 @compute @workgroup_size(WORKGROUP_SIZE)

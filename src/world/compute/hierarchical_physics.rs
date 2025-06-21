@@ -98,10 +98,21 @@ impl HierarchicalPhysics {
         memory_manager: &mut MemoryManager,
         max_queries: u32,
     ) -> Self {
-        // Create shader module
+        // Create shader module with preprocessing
+        let shader_source = include_str!("../../shaders/compute/hierarchical_physics.wgsl");
+        let base_path = std::path::Path::new("src/shaders/compute/hierarchical_physics.wgsl");
+        
+        let processed_source = match crate::gpu::preprocessor::preprocess_shader_content(shader_source, base_path) {
+            Ok(content) => content,
+            Err(e) => {
+                log::error!("Failed to preprocess hierarchical physics shader: {}", e);
+                shader_source.to_string()
+            }
+        };
+        
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Hierarchical Physics Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("../../shaders/compute/hierarchical_physics.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(processed_source.into()),
         });
         
         // Create bind group layout

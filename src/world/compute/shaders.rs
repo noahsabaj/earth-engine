@@ -43,9 +43,20 @@ impl ShaderManager {
     
     /// Load a shader from source
     pub fn load_shader(&mut self, name: &str, source: &str) -> Result<(), ShaderError> {
+        // Process includes if needed
+        let path_string = format!("src/shaders/compute/{}.wgsl", name);
+        let base_path = std::path::Path::new(&path_string);
+        let processed_source = match crate::gpu::preprocessor::preprocess_shader_content(source, base_path) {
+            Ok(content) => content,
+            Err(e) => {
+                log::warn!("Failed to preprocess shader '{}': {}, using source as-is", name, e);
+                source.to_string()
+            }
+        };
+        
         let module = self.device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some(name),
-            source: wgpu::ShaderSource::Wgsl(source.into()),
+            source: wgpu::ShaderSource::Wgsl(processed_source.into()),
         });
         
         self.shaders.insert(name.to_string(), module);

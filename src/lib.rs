@@ -21,7 +21,6 @@ pub mod world;
 
 // GPU and data systems
 pub mod gpu;
-pub mod spatial_index;
 
 // Utilities
 pub mod thread_pool;
@@ -140,6 +139,17 @@ impl EngineConfig {
             "[EngineConfig] Validation: chunk_size={}, voxels_per_chunk={}, chunk_memory={}KB, max_safe_view_distance={}",
             self.chunk_size, voxels_per_chunk, chunk_memory_bytes / 1024, max_safe_view_distance
         );
+        
+        // Validate render distance against GPU memory limits
+        if self.render_distance > max_safe_view_distance {
+            return Err(anyhow::anyhow!(
+                "EngineConfig: render_distance {} exceeds GPU memory limit. Maximum safe render_distance for chunk_size {} is {}. {}",
+                self.render_distance,
+                self.chunk_size,
+                max_safe_view_distance,
+                self.suggest_safe_config()
+            ));
+        }
         
         // Validate window dimensions
         if self.window_width < 320 || self.window_height < 240 {

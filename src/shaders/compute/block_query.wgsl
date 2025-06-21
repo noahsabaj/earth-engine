@@ -57,30 +57,8 @@ fn extract_metadata(voxel_data: u32) -> u32 {
     return (voxel_data >> 24u) & 0xFu;
 }
 
-// Morton encoding for chunk-local coordinates
-fn morton_encode_3d(x: u32, y: u32, z: u32) -> u32 {
-    var xx = x;
-    var yy = y;
-    var zz = z;
-    
-    // Spread bits
-    xx = (xx | (xx << 16u)) & 0x030000FFu;
-    xx = (xx | (xx << 8u)) & 0x0300F00Fu;
-    xx = (xx | (xx << 4u)) & 0x030C30C3u;
-    xx = (xx | (xx << 2u)) & 0x09249249u;
-    
-    yy = (yy | (yy << 16u)) & 0x030000FFu;
-    yy = (yy | (yy << 8u)) & 0x0300F00Fu;
-    yy = (yy | (yy << 4u)) & 0x030C30C3u;
-    yy = (yy | (yy << 2u)) & 0x09249249u;
-    
-    zz = (zz | (zz << 16u)) & 0x030000FFu;
-    zz = (zz | (zz << 8u)) & 0x0300F00Fu;
-    zz = (zz | (zz << 4u)) & 0x030C30C3u;
-    zz = (zz | (zz << 2u)) & 0x09249249u;
-    
-    return xx | (yy << 1u) | (zz << 2u);
-}
+// Morton encoding functions from unified GPU system
+#include "morton.wgsl"
 
 // Calculate world buffer index for a world position
 fn world_position_to_buffer_index(world_pos: vec3<i32>) -> u32 {

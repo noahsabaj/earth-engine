@@ -229,7 +229,7 @@ macro_rules! shader_bindings {
     ) => {
         pub mod $shader_name {
             use super::*;
-            use $crate::gpu::auto_bindings::{AutoBindingLayout, BindingUsage, BindingTypeInfo};
+            use $crate::gpu::automation::auto_bindings::{AutoBindingLayout, BindingUsage, BindingTypeInfo};
             use wgpu::ShaderStages;
             
             lazy_static::lazy_static! {

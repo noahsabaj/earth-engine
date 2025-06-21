@@ -121,28 +121,8 @@ fn get_voxel(world_pos: vec3<i32>) -> VoxelData {
     return VoxelData(0u);
 }
 
-fn morton_encode_3d(x: u32, y: u32, z: u32) -> u32 {
-    var xx = x & 0x3FFu;
-    var yy = y & 0x3FFu;
-    var zz = z & 0x3FFu;
-    
-    xx = (xx | (xx << 16u)) & 0x30000FFu;
-    xx = (xx | (xx << 8u)) & 0x300F00Fu;
-    xx = (xx | (xx << 4u)) & 0x30C30C3u;
-    xx = (xx | (xx << 2u)) & 0x9249249u;
-    
-    yy = (yy | (yy << 16u)) & 0x30000FFu;
-    yy = (yy | (yy << 8u)) & 0x300F00Fu;
-    yy = (yy | (yy << 4u)) & 0x30C30C3u;
-    yy = (yy | (yy << 2u)) & 0x9249249u;
-    
-    zz = (zz | (zz << 16u)) & 0x30000FFu;
-    zz = (zz | (zz << 8u)) & 0x300F00Fu;
-    zz = (zz | (zz << 4u)) & 0x30C30C3u;
-    zz = (zz | (zz << 2u)) & 0x9249249u;
-    
-    return xx | (yy << 1u) | (zz << 2u);
-}
+// Morton encoding functions from unified GPU system
+#include "morton.wgsl"
 
 // Ray-AABB intersection
 fn ray_aabb_intersect(

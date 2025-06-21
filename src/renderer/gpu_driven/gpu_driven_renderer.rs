@@ -58,18 +58,14 @@ pub struct GpuDrivenRenderer {
     /// LOD system
     lod_system: LodSystem,
     
-    /// Mesh vertex/index buffers (simplified for example)
-    pub mesh_buffers: MeshBufferManager,
+    /// GPU meshing state reference for accessing GPU-generated meshes
+    pub gpu_meshing: Option<Arc<crate::renderer::gpu_meshing::GpuMeshingState>>,
     
     /// Render pipeline (might be None if creation failed)
     render_pipeline: Option<wgpu::RenderPipeline>,
     
     /// Statistics
     stats: RenderStats,
-    
-    /// Cached buffer references to ensure they stay alive during rendering
-    cached_vertex_buffer: Option<Arc<wgpu::Buffer>>,
-    cached_index_buffer: Option<Arc<wgpu::Buffer>>,
 }
 
 impl GpuDrivenRenderer {
@@ -85,7 +81,6 @@ impl GpuDrivenRenderer {
         let culling_pipeline = CullingPipeline::new(device.clone());
         let culling_data = CullingData::new(device.clone(), 100000);
         let lod_system = LodSystem::new();
-        let mesh_buffers = MeshBufferManager::new(device.clone());
         
         // Create render pipeline with error handling
         let shader_source = include_str!("../../shaders/rendering/gpu_driven.wgsl");
@@ -166,11 +161,9 @@ impl GpuDrivenRenderer {
             culling_pipeline,
             culling_data,
             lod_system,
-            mesh_buffers,
+            gpu_meshing: None,
             render_pipeline,
             stats: RenderStats::default(),
-            cached_vertex_buffer: None,
-            cached_index_buffer: None,
         }
     }
     
@@ -234,6 +227,9 @@ impl GpuDrivenRenderer {
         let camera_pos = Vector3::new(0.0, 0.0, 0.0); // Get from camera
         let initial_count = self.stats.objects_submitted;
         
+        // Clear previous frame's culling data
+        self.culling_data.clear();
+        
         // Track active instances for validation
         let instance_count_before = self.instance_manager.chunk_instances().count();
         log::debug!(
@@ -268,6 +264,13 @@ impl GpuDrivenRenderer {
                     instance_offset: instance_id,
                     flags: 1, // Visible
                 };
+                
+                log::trace!(
+                    "[GpuDrivenRenderer::submit_objects] Added metadata for object at {:?}: mesh_id={}, instance_id={}",
+                    object.position,
+                    object.mesh_id,
+                    instance_id
+                );
                 
                 self.culling_data.add_draw(metadata);
             } else {
@@ -390,22 +393,6 @@ impl GpuDrivenRenderer {
                   copy_duration.as_micros());
     }
     
-    /// Update cached buffer references before rendering
-    pub fn update_buffer_cache(&mut self) {
-        let start = Instant::now();
-        
-        if let Some((vb, ib)) = self.mesh_buffers.get_chunk_buffers() {
-            self.cached_vertex_buffer = Some(vb);
-            self.cached_index_buffer = Some(ib);
-            
-            log::debug!("[GPU_RENDER] Buffer cache updated with vertex and index buffers");
-        } else {
-            log::warn!("[GPU_RENDER] Failed to get chunk buffers for cache update");
-        }
-        
-        let duration = start.elapsed();
-        log::debug!("[GPU_RENDER] Buffer cache update completed in {:.1}μs", duration.as_micros());
-    }
     
     /// Execute rendering phase (must be called after execute_culling)
     pub fn render_draw<'a>(
@@ -429,16 +416,6 @@ impl GpuDrivenRenderer {
         render_pass.set_pipeline(render_pipeline);
         render_pass.set_bind_group(0, camera_bind_group, &[]);
         
-        // Bind mesh buffers from cache
-        if let (Some(vertex_buffer), Some(index_buffer)) = (&self.cached_vertex_buffer, &self.cached_index_buffer) {
-            render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
-            render_pass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-            log::debug!("[GPU_RENDER] Bound cached vertex and index buffers");
-        } else {
-            log::error!("[GPU_RENDER] No cached buffers available for rendering!");
-            return;
-        }
-        
         // Bind instance buffer
         let instance_count = self.instance_manager.chunk_instances().count();
         render_pass.set_vertex_buffer(1, self.instance_manager.chunk_instances().buffer().slice(..));
@@ -448,14 +425,19 @@ impl GpuDrivenRenderer {
         
         // Execute draws for each mesh
         // Following DOP principles - iterate through data, not objects
-        let mesh_infos = self.mesh_buffers.mesh_infos();
         
         // Group instances by mesh_id for efficient rendering
         // In a production implementation, this would be done during culling
         let mut instances_per_mesh: std::collections::HashMap<u32, Vec<u32>> = std::collections::HashMap::new();
         
+        // Log metadata state for debugging
+        log::debug!("[GPU_RENDER] Culling metadata count: {}", self.culling_data.metadata.len());
+        
         // Collect instance IDs for each mesh
         for (instance_idx, metadata) in self.culling_data.metadata.iter().enumerate() {
+            log::trace!("[GPU_RENDER] Metadata[{}]: mesh_id={}, flags={}, visible={}", 
+                       instance_idx, metadata.mesh_id, metadata.flags, metadata.flags & 1 != 0);
+            
             if metadata.flags & 1 != 0 { // Check visibility flag
                 instances_per_mesh
                     .entry(metadata.mesh_id)
@@ -464,37 +446,35 @@ impl GpuDrivenRenderer {
             }
         }
         
+        log::debug!("[GPU_RENDER] Instances per mesh: {} meshes with instances", instances_per_mesh.len());
+        
         // Draw each mesh with its instances
         let draw_start = Instant::now();
         let mut total_draw_calls = 0;
         let mut total_triangles = 0;
         
-        for (mesh_id, instance_indices) in instances_per_mesh.iter() {
-            if let Some(mesh_info) = self.mesh_buffers.get_mesh_info(*mesh_id) {
-                if mesh_info.index_count > 0 && !instance_indices.is_empty() {
-                    // Calculate index range for this mesh
-                    let start_index = mesh_info.index_start;
-                    let end_index = start_index + mesh_info.index_count;
+        // Check if GPU meshing is available
+        if let Some(gpu_meshing) = &self.gpu_meshing {
+            for (mesh_id, instance_indices) in instances_per_mesh.iter() {
+                // Get mesh buffer from GPU meshing system
+                if let Some(mesh_buffer) = crate::renderer::gpu_meshing::get_mesh_buffer(gpu_meshing, *mesh_id) {
+                    log::debug!("[GPU_RENDER] Drawing GPU mesh {} with {} instances", mesh_id, instance_indices.len());
                     
-                    log::debug!("[GPU_RENDER] Drawing mesh {} with {} instances (indices {}-{}, {} triangles)", 
-                               mesh_id, instance_indices.len(), start_index, end_index, mesh_info.index_count / 3);
+                    // Set GPU mesh buffers
+                    render_pass.set_vertex_buffer(0, mesh_buffer.vertices.slice(..));
+                    render_pass.set_index_buffer(mesh_buffer.indices.slice(..), wgpu::IndexFormat::Uint32);
                     
-                    // Draw all instances of this mesh
-                    // In a proper GPU-driven renderer, we'd use indirect drawing
-                    // For now, draw each instance separately
-                    for &instance_idx in instance_indices {
-                        render_pass.draw_indexed(
-                            start_index..end_index,
-                            mesh_info.vertex_start as i32,
-                            instance_idx..instance_idx + 1,
-                        );
-                        total_draw_calls += 1;
-                        total_triangles += mesh_info.index_count / 3;
-                    }
+                    // TODO: Draw using indirect command from mesh metadata
+                    // For now, draw a fixed number of indices
+                    render_pass.draw_indexed(0..36, 0, 0..instance_indices.len() as u32);
+                    total_draw_calls += 1;
+                    total_triangles += 12 * instance_indices.len() as u32; // 12 triangles per cube
+                } else {
+                    log::warn!("[GPU_RENDER] GPU mesh not found for mesh_id {} (buffer index)", mesh_id);
                 }
-            } else {
-                log::warn!("[GPU_RENDER] Mesh info not found for mesh_id {}", mesh_id);
             }
+        } else {
+            log::warn!("[GPU_RENDER] No GPU meshing state available for rendering");
         }
         
         let draw_duration = draw_start.elapsed();
@@ -577,6 +557,11 @@ impl GpuDrivenRenderer {
         &self.stats
     }
     
+    /// Set the GPU meshing state reference
+    pub fn set_gpu_meshing(&mut self, gpu_meshing: Arc<crate::renderer::gpu_meshing::GpuMeshingState>) {
+        self.gpu_meshing = Some(gpu_meshing);
+    }
+    
     /// Check if GPU-driven rendering is available
     pub fn is_available(&self) -> bool {
         self.render_pipeline.is_some() && self.culling_pipeline.is_available()
@@ -588,253 +573,7 @@ impl GpuDrivenRenderer {
     }
 }
 
-/// Information about a single mesh in the buffer
-#[derive(Debug, Clone, Copy)]
-pub struct MeshInfo {
-    /// Start index in the index buffer
-    pub index_start: u32,
-    /// Number of indices in this mesh
-    pub index_count: u32,
-    /// Start vertex in the vertex buffer
-    pub vertex_start: u32,
-    /// Number of vertices in this mesh
-    pub vertex_count: u32,
-}
 
-/// Simple mesh buffer manager
-pub struct MeshBufferManager {
-    device: Arc<wgpu::Device>,
-    chunk_vertex_buffer: Option<Arc<wgpu::Buffer>>,
-    chunk_index_buffer: Option<Arc<wgpu::Buffer>>,
-    /// Map from chunk position hash to mesh ID
-    chunk_mesh_ids: std::collections::HashMap<u64, u32>,
-    /// Mesh information for each mesh ID
-    mesh_infos: Vec<MeshInfo>,
-    /// Next available mesh ID
-    next_mesh_id: u32,
-    /// Maximum number of meshes that can be stored
-    max_meshes: u32,
-    /// Vertex data staging buffer for GPU upload
-    vertex_staging_buffer: Vec<crate::renderer::vertex::Vertex>,
-    /// Index data staging buffer for GPU upload
-    index_staging_buffer: Vec<u32>,
-    /// Current offset into vertex buffer
-    vertex_offset: usize,
-    /// Current offset into index buffer
-    index_offset: usize,
-}
-
-impl MeshBufferManager {
-    fn new(device: Arc<wgpu::Device>) -> Self {
-        // Pre-allocate GPU buffers for multiple chunk meshes
-        // GPU max buffer size is 2,147,483,648 bytes (2.14 GB)
-        // Vertex size is 44 bytes, so max vertices = 2.14GB / 44 = ~48.8M vertices
-        // We'll use 40M vertices to leave headroom
-        let max_total_vertices = 40_000_000usize;
-        let vertices_per_mesh = 40_000usize; // 40K vertices per mesh (reduced from 64K)
-        let max_meshes = (max_total_vertices / vertices_per_mesh) as u32; // 1000 meshes
-        let indices_per_mesh = vertices_per_mesh * 3 / 2; // 1.5x indices (60K)
-        
-        let total_vertices = (max_meshes as usize) * vertices_per_mesh;
-        let total_indices = (max_meshes as usize) * indices_per_mesh;
-        
-        // Calculate buffer sizes
-        let vertex_buffer_size = (total_vertices * std::mem::size_of::<crate::renderer::vertex::Vertex>()) as u64;
-        let index_buffer_size = (total_indices * std::mem::size_of::<u32>()) as u64;
-        
-        log::info!(
-            "[MeshBufferManager] Allocating buffers - Vertex: {:.2} GB, Index: {:.2} GB, Total meshes: {}",
-            vertex_buffer_size as f64 / (1024.0 * 1024.0 * 1024.0),
-            index_buffer_size as f64 / (1024.0 * 1024.0 * 1024.0),
-            max_meshes
-        );
-        
-        // Create large GPU buffers to hold all mesh data
-        let chunk_vertex_buffer = Some(Arc::new(device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Chunk Vertex Buffer"),
-            size: vertex_buffer_size,
-            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        })));
-        
-        let chunk_index_buffer = Some(Arc::new(device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Chunk Index Buffer"),
-            size: index_buffer_size,
-            usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        })));
-        
-        Self {
-            device,
-            chunk_vertex_buffer,
-            chunk_index_buffer,
-            chunk_mesh_ids: std::collections::HashMap::new(),
-            mesh_infos: Vec::with_capacity(max_meshes as usize),
-            next_mesh_id: 0,
-            max_meshes,
-            vertex_staging_buffer: Vec::with_capacity(vertices_per_mesh),
-            index_staging_buffer: Vec::with_capacity(indices_per_mesh),
-            vertex_offset: 0,
-            index_offset: 0,
-        }
-    }
-    
-    fn get_chunk_buffers(&self) -> Option<(Arc<wgpu::Buffer>, Arc<wgpu::Buffer>)> {
-        match (&self.chunk_vertex_buffer, &self.chunk_index_buffer) {
-            (Some(vb), Some(ib)) => Some((Arc::clone(vb), Arc::clone(ib))),
-            _ => None,
-        }
-    }
-    
-    /// Upload mesh data to GPU and return mesh ID
-    /// Following DOP principles - pure function that transforms mesh data to GPU representation
-    /// IMPORTANT: This function now takes ownership of queue reference to ensure proper lifetime
-    pub fn upload_mesh(
-        &mut self,
-        queue: &wgpu::Queue,
-        chunk_pos: crate::ChunkPos,
-        vertices: &[crate::renderer::vertex::Vertex],
-        indices: &[u32],
-    ) -> Option<u32> {
-        let start = Instant::now();
-        
-        if vertices.is_empty() || indices.is_empty() {
-            log::debug!("[GPU_RENDER] Skipping mesh upload for chunk {:?}: empty data (vertices: {}, indices: {})", 
-                       chunk_pos, vertices.len(), indices.len());
-            return None;
-        }
-        
-        log::info!("[GPU_RENDER] Uploading mesh for chunk {:?}: {} vertices, {} indices", 
-                  chunk_pos, vertices.len(), indices.len());
-        
-        // Check if we have space for another mesh
-        if self.next_mesh_id >= self.max_meshes {
-            log::error!("[GPU_RENDER] Mesh buffer full! Cannot upload mesh for chunk {:?} (used: {}/{})", 
-                       chunk_pos, self.next_mesh_id, self.max_meshes);
-            return None;
-        }
-        
-        log::debug!("[GPU_RENDER] Mesh buffer usage: {}/{} meshes allocated", self.next_mesh_id, self.max_meshes);
-        
-        // Calculate chunk position hash for lookup
-        let chunk_hash = chunk_pos_to_hash(chunk_pos);
-        
-        // Check if this chunk already has a mesh
-        if let Some(&existing_id) = self.chunk_mesh_ids.get(&chunk_hash) {
-            // For now, we'll overwrite the existing mesh
-            // In a real implementation, we'd handle this more gracefully
-            log::debug!("[GPU_RENDER] Overwriting existing mesh ID {} for chunk {:?}", existing_id, chunk_pos);
-        }
-        
-        let mesh_id = self.next_mesh_id;
-        self.next_mesh_id += 1;
-        
-        // Calculate offsets for this mesh
-        let vertex_byte_offset = self.vertex_offset * std::mem::size_of::<crate::renderer::vertex::Vertex>();
-        let index_byte_offset = self.index_offset * std::mem::size_of::<u32>();
-        
-        let vertex_upload_size = vertices.len() * std::mem::size_of::<crate::renderer::vertex::Vertex>();
-        let index_upload_size = indices.len() * std::mem::size_of::<u32>();
-        
-        log::debug!("[GPU_RENDER] Uploading to GPU: vertex offset {} bytes, index offset {} bytes", 
-                   vertex_byte_offset, index_byte_offset);
-        log::debug!("[GPU_RENDER] Upload sizes: {} bytes vertices, {} bytes indices", 
-                   vertex_upload_size, index_upload_size);
-        
-        // Upload vertex data
-        let vertex_upload_start = Instant::now();
-        if let Some(vertex_buffer) = &self.chunk_vertex_buffer {
-            queue.write_buffer(
-                vertex_buffer,
-                vertex_byte_offset as u64,
-                bytemuck::cast_slice(vertices),
-            );
-        } else {
-            log::error!("[GPU_RENDER] No vertex buffer available for upload!");
-            return None;
-        }
-        let vertex_upload_duration = vertex_upload_start.elapsed();
-        
-        // Upload index data
-        let index_upload_start = Instant::now();
-        if let Some(index_buffer) = &self.chunk_index_buffer {
-            queue.write_buffer(
-                index_buffer,
-                index_byte_offset as u64,
-                bytemuck::cast_slice(indices),
-            );
-        } else {
-            log::error!("[GPU_RENDER] No index buffer available for upload!");
-            return None;
-        }
-        let index_upload_duration = index_upload_start.elapsed();
-        
-        // Create mesh info
-        let mesh_info = MeshInfo {
-            index_start: self.index_offset as u32,
-            index_count: indices.len() as u32,
-            vertex_start: self.vertex_offset as u32,
-            vertex_count: vertices.len() as u32,
-        };
-        
-        // Store mesh info
-        if mesh_id as usize >= self.mesh_infos.len() {
-            self.mesh_infos.resize(mesh_id as usize + 1, MeshInfo {
-                index_start: 0,
-                index_count: 0,
-                vertex_start: 0,
-                vertex_count: 0,
-            });
-        }
-        self.mesh_infos[mesh_id as usize] = mesh_info;
-        
-        // Update offsets
-        self.vertex_offset += vertices.len();
-        self.index_offset += indices.len();
-        
-        // Store mesh ID for this chunk
-        self.chunk_mesh_ids.insert(chunk_hash, mesh_id);
-        
-        let total_duration = start.elapsed();
-        
-        // Calculate upload performance metrics
-        let total_upload_size = vertex_upload_size + index_upload_size;
-        let upload_bandwidth = if total_duration.as_secs_f64() > 0.0 {
-            (total_upload_size as f64 / total_duration.as_secs_f64()) / (1024.0 * 1024.0)
-        } else { 0.0 };
-        
-        log::info!("[GPU_RENDER] Mesh upload completed for chunk {:?}: mesh_id {}, {:.2}ms total ({:.1}MB/s)", 
-                  chunk_pos, mesh_id, total_duration.as_secs_f64() * 1000.0, upload_bandwidth);
-        
-        log::debug!("[GPU_RENDER] Upload breakdown: vertices {:.1}μs, indices {:.1}μs", 
-                   vertex_upload_duration.as_micros(), index_upload_duration.as_micros());
-        
-        // Update buffer usage statistics
-        let vertex_buffer_usage = (self.vertex_offset as f64 / (self.max_meshes * 40000) as f64) * 100.0;
-        let index_buffer_usage = (self.index_offset as f64 / (self.max_meshes * 60000) as f64) * 100.0;
-        
-        log::debug!("[GPU_RENDER] Buffer usage after upload: vertex {:.1}%, index {:.1}%", 
-                   vertex_buffer_usage, index_buffer_usage);
-        
-        Some(mesh_id)
-    }
-    
-    /// Get mesh ID for a chunk position
-    pub fn get_mesh_id(&self, chunk_pos: crate::ChunkPos) -> Option<u32> {
-        let chunk_hash = chunk_pos_to_hash(chunk_pos);
-        self.chunk_mesh_ids.get(&chunk_hash).copied()
-    }
-    
-    /// Get mesh info for a mesh ID
-    pub fn get_mesh_info(&self, mesh_id: u32) -> Option<&MeshInfo> {
-        self.mesh_infos.get(mesh_id as usize)
-    }
-    
-    /// Get all mesh infos
-    pub fn mesh_infos(&self) -> &[MeshInfo] {
-        &self.mesh_infos
-    }
-}
 
 /// Convert chunk position to hash for lookup
 /// Pure function following DOP principles

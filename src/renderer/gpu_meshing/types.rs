@@ -3,16 +3,10 @@
 
 use bytemuck::{Pod, Zeroable};
 
-/// GPU mesh buffer - Structure of Arrays for cache efficiency
+/// GPU mesh buffer - Now uses interleaved vertices
 pub struct GpuMeshBuffer {
-    /// Vertex positions (x, y, z interleaved)
-    pub positions: wgpu::Buffer,
-    /// Vertex normals (x, y, z interleaved)
-    pub normals: wgpu::Buffer,
-    /// Vertex UVs (u, v interleaved)
-    pub uvs: wgpu::Buffer,
-    /// Vertex colors (r, g, b, a interleaved)
-    pub colors: wgpu::Buffer,
+    /// Interleaved vertex buffer matching renderer format
+    pub vertices: wgpu::Buffer,
     /// Index buffer
     pub indices: wgpu::Buffer,
     /// Metadata buffer

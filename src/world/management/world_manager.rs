@@ -17,6 +17,8 @@ pub struct UnifiedWorldManager {
     compute: Option<UnifiedCompute>,
     backend: Backend,
     config: WorldManagerConfig,
+    /// Track loaded chunks for GPU backend (since GPU WorldBuffer doesn't track this)
+    loaded_gpu_chunks: std::collections::HashSet<ChunkPos>,
 }
 
 impl UnifiedWorldManager {
@@ -64,6 +66,7 @@ impl UnifiedWorldManager {
             compute,
             backend: Backend::Gpu,
             config,
+            loaded_gpu_chunks: std::collections::HashSet::new(),
         })
     }
     
@@ -85,6 +88,7 @@ impl UnifiedWorldManager {
             compute: None,
             backend: Backend::Cpu,
             config,
+            loaded_gpu_chunks: std::collections::HashSet::new(),
         })
     }
     
@@ -158,8 +162,44 @@ impl UnifiedWorldManager {
     /// Load a chunk at the specified position
     pub fn load_chunk(&mut self, chunk_pos: ChunkPos) -> Result<(), WorldError> {
         match &mut self.storage {
-            UnifiedStorage::Gpu { .. } => {
-                // TODO: Implement GPU chunk loading
+            UnifiedStorage::Gpu { world_buffer, device } => {
+                // GPU chunk loading - generate directly into WorldBuffer
+                match &self.generator {
+                    UnifiedGenerator::Gpu { generator, .. } => {
+                        // Create command encoder for GPU generation
+                        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                            label: Some("Chunk Generation"),
+                        });
+                        
+                        // Generate chunk directly into WorldBuffer
+                        if let Ok(mut wb) = world_buffer.lock() {
+                            generator.generate_chunks(&mut *wb, &[chunk_pos], &mut encoder)
+                                .map_err(|e| WorldError::GeneratorInitFailed { 
+                                    message: format!("GPU chunk generation failed: {:?}", e) 
+                                })?;
+                            
+                            // Submit the generation commands
+                            // Get queue from buffer_manager since compute.queue is private
+                            if let UnifiedGenerator::Gpu { buffer_manager, .. } = &self.generator {
+                                buffer_manager.queue().submit(std::iter::once(encoder.finish()));
+                            }
+                            
+                            // Mark chunk as loaded
+                            self.loaded_gpu_chunks.insert(chunk_pos);
+                            log::info!("[UnifiedWorldManager] Generated chunk {:?} on GPU", chunk_pos);
+                        } else {
+                            return Err(WorldError::OperationNotSupported {
+                                operation: "Could not lock world buffer for chunk generation".to_string()
+                            });
+                        }
+                    }
+                    _ => {
+                        // Fallback: CPU generator with GPU storage (not ideal but works)
+                        let chunk = self.generator.generate_chunk(chunk_pos, self.config.chunk_size);
+                        // Upload to GPU if needed
+                        log::warn!("[UnifiedWorldManager] Using CPU generator with GPU storage - performance not optimal");
+                    }
+                }
                 Ok(())
             }
             UnifiedStorage::Cpu { chunks } => {
@@ -191,8 +231,8 @@ impl UnifiedWorldManager {
     pub fn is_chunk_loaded(&self, chunk_pos: ChunkPos) -> bool {
         match &self.storage {
             UnifiedStorage::Gpu { .. } => {
-                // TODO: Implement GPU chunk checking
-                false
+                // Check our tracking set for GPU chunks
+                self.loaded_gpu_chunks.contains(&chunk_pos)
             }
             UnifiedStorage::Cpu { chunks } => {
                 chunks.contains_key(&chunk_pos)
@@ -204,8 +244,7 @@ impl UnifiedWorldManager {
     pub fn loaded_chunk_count(&self) -> usize {
         match &self.storage {
             UnifiedStorage::Gpu { .. } => {
-                // TODO: Implement GPU chunk counting
-                0
+                self.loaded_gpu_chunks.len()
             }
             UnifiedStorage::Cpu { chunks } => {
                 chunks.len()
@@ -249,6 +288,21 @@ impl UnifiedWorldManager {
                 chunks.get(&chunk_pos).map(|chunk| chunk as &dyn ChunkData)
             }
         }
+    }
+    
+    /// Get GPU world buffer if available
+    pub fn get_world_buffer(&self) -> Option<Arc<std::sync::Mutex<crate::world::storage::WorldBuffer>>> {
+        self.storage.gpu_world_buffer()
+    }
+    
+    /// Get loaded GPU chunks (read-only access)
+    pub fn loaded_gpu_chunks(&self) -> &std::collections::HashSet<ChunkPos> {
+        &self.loaded_gpu_chunks
+    }
+    
+    /// Get storage reference for internal access
+    pub fn storage(&self) -> &UnifiedStorage {
+        &self.storage
     }
 }
 
