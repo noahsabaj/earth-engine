@@ -6,7 +6,7 @@ use crate::morton::morton_encode;
 use crate::world::core::ChunkPos;
 use bytemuck::{Pod, Zeroable};
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 /// Packed voxel data format for GPU storage
@@ -98,9 +98,11 @@ pub struct WorldBuffer {
     total_voxels: u64,
 
     /// Chunk slot management: maps chunk position to buffer slot index
-    chunk_slots: HashMap<ChunkPos, u32>,
+    /// Protected by mutex to prevent race conditions during parallel generation
+    chunk_slots: Arc<Mutex<HashMap<ChunkPos, u32>>>,
     /// Next available slot (simple round-robin allocation)
-    next_slot: u32,
+    /// Protected by same mutex as chunk_slots
+    next_slot: Arc<Mutex<u32>>,
 }
 
 impl WorldBuffer {
@@ -226,8 +228,8 @@ impl WorldBuffer {
             max_chunks,
             view_distance,
             total_voxels,
-            chunk_slots: HashMap::new(),
-            next_slot: 0,
+            chunk_slots: Arc::new(Mutex::new(HashMap::new())),
+            next_slot: Arc::new(Mutex::new(0)),
         }
     }
 
@@ -264,7 +266,11 @@ impl WorldBuffer {
     /// Get or allocate a buffer slot for a chunk position
     /// CRITICAL: Prevents slot collisions that cause GPU readback failures
     pub fn get_chunk_slot(&mut self, chunk_pos: ChunkPos) -> u32 {
-        if let Some(&slot) = self.chunk_slots.get(&chunk_pos) {
+        // Lock both mutexes to ensure thread safety
+        let mut chunk_slots = self.chunk_slots.lock().unwrap();
+        let mut next_slot = self.next_slot.lock().unwrap();
+        
+        if let Some(&slot) = chunk_slots.get(&chunk_pos) {
             log::debug!(
                 "[WORLD_BUFFER] Reusing existing slot {} for chunk {:?}",
                 slot,
@@ -273,12 +279,12 @@ impl WorldBuffer {
             slot
         } else {
             // CRITICAL FIX: Find an unused slot instead of immediately overwriting
-            let mut slot = self.next_slot % self.max_chunks;
+            let mut slot = *next_slot % self.max_chunks;
             let mut attempts = 0;
 
             // Try to find an unused slot first to prevent race conditions
             while attempts < self.max_chunks {
-                let slot_in_use = self.chunk_slots.iter().any(|(_, &s)| s == slot);
+                let slot_in_use = chunk_slots.iter().any(|(_, &s)| s == slot);
                 if !slot_in_use {
                     log::debug!(
                         "[WORLD_BUFFER] Found unused slot {} for chunk {:?}",
@@ -293,28 +299,28 @@ impl WorldBuffer {
 
             // If all slots are used, only then overwrite the oldest one
             if attempts >= self.max_chunks {
-                slot = self.next_slot % self.max_chunks;
+                slot = *next_slot % self.max_chunks;
                 // Remove old chunk mapping for this slot
                 let old_chunk =
-                    self.chunk_slots
+                    chunk_slots
                         .iter()
                         .find_map(|(pos, &s)| if s == slot { Some(*pos) } else { None });
                 if let Some(old_pos) = old_chunk {
                     log::warn!("[WORLD_BUFFER] SLOT COLLISION: Evicting chunk {:?} from slot {} for chunk {:?} (buffer full)", 
                               old_pos, slot, chunk_pos);
-                    self.chunk_slots.remove(&old_pos);
+                    chunk_slots.remove(&old_pos);
                 }
             }
 
             // Map new chunk to slot
-            self.chunk_slots.insert(chunk_pos, slot);
-            self.next_slot = (slot + 1) % self.max_chunks;
+            chunk_slots.insert(chunk_pos, slot);
+            *next_slot = (slot + 1) % self.max_chunks;
 
             log::debug!(
                 "[WORLD_BUFFER] Allocated slot {} for chunk {:?} (usage: {}/{})",
                 slot,
                 chunk_pos,
-                self.chunk_slots.len(),
+                chunk_slots.len(),
                 self.max_chunks
             );
 

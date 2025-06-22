@@ -118,9 +118,43 @@ macro_rules! auto_wgsl {
                                 let field = std::ptr::addr_of!((*base).$field_name);
                                 field as usize as u32
                             },
-                            size: std::mem::size_of_val(unsafe {
-                                &(*std::ptr::null::<$type>()).$field_name
-                            }) as u32,
+                            size: {
+                                // Calculate field size using pointer offsets to avoid dereferencing
+                                // This creates a type with our field followed by a byte, then measures the gap
+                                #[repr(C)]
+                                struct FieldSizer<T> {
+                                    _before: [u8; 0],
+                                    field: T,
+                                    _after: u8,
+                                }
+                                
+                                unsafe {
+                                    // Get offset of the byte after our field
+                                    let base = std::ptr::null::<$type>();
+                                    
+                                    // Create an array of two identical structs to measure field size
+                                    let arr = std::ptr::null::<[$type; 2]>();
+                                    let field0 = std::ptr::addr_of!((*arr)[0].$field_name);
+                                    let field1 = std::ptr::addr_of!((*arr)[1].$field_name);
+                                    
+                                    // Size is the distance between the same field in adjacent array elements
+                                    let array_stride = field1 as usize - field0 as usize;
+                                    
+                                    // Get the actual field size by examining the specific field
+                                    // For the last field, array_stride might include padding
+                                    let next_field_offset = {
+                                        // This is a bit tricky - we use the struct size vs field offset
+                                        let struct_size = std::mem::size_of::<$type>();
+                                        let field_offset = std::ptr::addr_of!((*base).$field_name) as usize;
+                                        
+                                        // Conservative estimate: assume field extends to the array stride point
+                                        // unless it's the last field
+                                        array_stride.min(struct_size - field_offset)
+                                    };
+                                    
+                                    next_field_offset as u32
+                                }
+                            } as u32,
                             array_count: $crate::auto_wgsl!(@array_count $($array_count)?),
                         }
                     ),*
