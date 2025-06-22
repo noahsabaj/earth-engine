@@ -6,9 +6,8 @@
 //! buffer bindings with appropriate lifetimes.
 
 use std::sync::Arc;
-
-// Include constants from root constants.rs
-include!("../../../constants.rs");
+use crate::core::CHUNK_SIZE;
+use crate::buffer_layouts::CHUNK_METADATA_SIZE;
 
 /// Unified memory layout for all GPU world systems
 /// This ensures all systems can access world data efficiently without copies
@@ -40,35 +39,35 @@ pub struct UnifiedMemoryLayout {
 
 impl UnifiedMemoryLayout {
     pub fn new(world_size: u32, world_height: u32) -> Self {
-        let chunk_size = 32u32;
+        let chunk_size = CHUNK_SIZE as u32;
         let chunks_per_dimension = world_size;
         let total_chunks =
             chunks_per_dimension * chunks_per_dimension * (world_height / chunk_size);
         let voxels_per_chunk = chunk_size * chunk_size * chunk_size;
 
-        // Calculate region sizes
-        let voxel_data_size = (total_chunks * voxels_per_chunk * 4) as u64; // 4 bytes per voxel
-        let chunk_metadata_size = (total_chunks * 16) as u64; // 16 bytes per chunk metadata
-        let lighting_data_size = (total_chunks * voxels_per_chunk) as u64; // 1 byte per voxel for propagated light
+        // Calculate region sizes - use u64 to prevent overflow
+        let voxel_data_size = total_chunks as u64 * voxels_per_chunk as u64 * 4u64; // 4 bytes per voxel
+        let chunk_metadata_size = total_chunks as u64 * CHUNK_METADATA_SIZE; // Use constant for metadata size
+        let lighting_data_size = total_chunks as u64 * voxels_per_chunk as u64; // 1 byte per voxel for propagated light
         let entity_data_size = 100 * 1024 * 1024; // 100MB for entities
         let particle_data_size = 50 * 1024 * 1024; // 50MB for particles
 
         // Calculate offsets (aligned for GPU efficiency)
         let mut offset = 0u64;
         let voxel_data_offset = offset;
-        offset += align_to(voxel_data_size, alignment::UNIFORM_BUFFER_ALIGN);
+        offset += align_to(voxel_data_size, crate::alignment::UNIFORM_BUFFER_ALIGN);
 
         let chunk_metadata_offset = offset;
-        offset += align_to(chunk_metadata_size, alignment::UNIFORM_BUFFER_ALIGN);
+        offset += align_to(chunk_metadata_size, crate::alignment::UNIFORM_BUFFER_ALIGN);
 
         let lighting_data_offset = offset;
-        offset += align_to(lighting_data_size, alignment::UNIFORM_BUFFER_ALIGN);
+        offset += align_to(lighting_data_size, crate::alignment::UNIFORM_BUFFER_ALIGN);
 
         let entity_data_offset = offset;
-        offset += align_to(entity_data_size, alignment::UNIFORM_BUFFER_ALIGN);
+        offset += align_to(entity_data_size, crate::alignment::UNIFORM_BUFFER_ALIGN);
 
         let particle_data_offset = offset;
-        offset += align_to(particle_data_size, alignment::UNIFORM_BUFFER_ALIGN);
+        offset += align_to(particle_data_size, crate::alignment::UNIFORM_BUFFER_ALIGN);
 
         let total_size = offset;
 
@@ -92,17 +91,19 @@ impl UnifiedMemoryLayout {
 
     /// Get the byte offset for a specific chunk's voxel data
     pub fn get_chunk_voxel_offset(&self, chunk_x: u32, chunk_y: u32, chunk_z: u32) -> u64 {
-        let chunk_index =
-            chunk_x + chunk_y * self.world_size + chunk_z * self.world_size * self.world_size;
-        let voxels_per_chunk = self.chunk_size * self.chunk_size * self.chunk_size;
-        self.voxel_data_offset + (chunk_index * voxels_per_chunk * 4) as u64
+        let chunk_index = chunk_x as u64 
+            + chunk_y as u64 * self.world_size as u64 
+            + chunk_z as u64 * self.world_size as u64 * self.world_size as u64;
+        let voxels_per_chunk = self.chunk_size as u64 * self.chunk_size as u64 * self.chunk_size as u64;
+        self.voxel_data_offset + chunk_index * voxels_per_chunk * 4u64
     }
 
     /// Get the byte offset for a specific chunk's metadata
     pub fn get_chunk_metadata_offset(&self, chunk_x: u32, chunk_y: u32, chunk_z: u32) -> u64 {
-        let chunk_index =
-            chunk_x + chunk_y * self.world_size + chunk_z * self.world_size * self.world_size;
-        self.chunk_metadata_offset + (chunk_index * 16) as u64
+        let chunk_index = chunk_x as u64 
+            + chunk_y as u64 * self.world_size as u64 
+            + chunk_z as u64 * self.world_size as u64 * self.world_size as u64;
+        self.chunk_metadata_offset + chunk_index * CHUNK_METADATA_SIZE
     }
 }
 
