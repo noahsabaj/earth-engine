@@ -1,5 +1,5 @@
 //! Process subsystem error handling
-//! 
+//!
 //! This module provides type aliases and helper functions for process operations
 //! to replace unwrap() calls with proper error handling.
 
@@ -14,7 +14,6 @@ pub trait ProcessErrorContext<T> {
     where
         Self: Sized;
 }
-
 
 impl<T, E> ProcessErrorContext<T> for Result<T, E>
 where
@@ -48,7 +47,10 @@ pub fn thread_pool_error(error: impl std::fmt::Display) -> EngineError {
 }
 
 /// Create a process update error
-pub fn process_update_error(id: impl std::fmt::Display, error: impl std::fmt::Display) -> EngineError {
+pub fn process_update_error(
+    id: impl std::fmt::Display,
+    error: impl std::fmt::Display,
+) -> EngineError {
     EngineError::Internal {
         message: format!("Failed to update process {}: {}", id, error),
     }

@@ -10,21 +10,53 @@ pub fn create_mesh_generation_pipeline(
     // Process shader with includes
     let shader_source = include_str!("../../shaders/mesh/mesh_generation.wgsl");
     let base_path = std::path::Path::new("src/shaders/mesh/mesh_generation.wgsl");
-    
-    let processed_source = match crate::gpu::preprocessor::preprocess_shader_content(shader_source, base_path) {
-        Ok(content) => content,
+
+    log::info!("[GPU Meshing] Starting mesh generation pipeline creation");
+
+    let processed_source =
+        match crate::gpu::preprocessor::preprocess_shader_content(shader_source, base_path) {
+            Ok(content) => {
+                log::info!(
+                    "[GPU Meshing] Successfully preprocessed shader ({} bytes)",
+                    content.len()
+                );
+                content
+            }
+            Err(e) => {
+                log::error!(
+                    "[GPU Meshing] Failed to preprocess mesh generation shader: {}",
+                    e
+                );
+                shader_source.to_string()
+            }
+        };
+
+    // Create shader through unified GPU system
+    log::info!("[GPU Meshing] Creating shader through unified GPU system");
+    log::debug!(
+        "[GPU Meshing] Shader source length: {} bytes",
+        processed_source.len()
+    );
+
+    // Log first few lines of shader for debugging
+    let shader_lines: Vec<&str> = processed_source.lines().take(10).collect();
+    log::debug!(
+        "[GPU Meshing] First 10 lines of shader:\n{}",
+        shader_lines.join("\n")
+    );
+
+    let validated_shader = match crate::gpu::automation::create_gpu_shader(
+        device,
+        "mesh_generation",
+        &processed_source,
+    ) {
+        Ok(shader) => shader,
         Err(e) => {
-            log::error!("Failed to preprocess mesh generation shader: {}", e);
-            shader_source.to_string()
+            log::error!("[GPU Meshing] Failed to create shader: {:?}", e);
+            panic!("[GPU Meshing] Shader creation failed: {:?}", e);
         }
     };
-    
-    // Create shader module
-    let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-        label: Some("GPU Mesh Generation Shader"),
-        source: wgpu::ShaderSource::Wgsl(processed_source.into()),
-    });
-    
+
     // Create bind group layout using our macro
     let bind_group_layout = crate::create_bind_group_layout!(
         device,
@@ -37,22 +69,27 @@ pub fn create_mesh_generation_pipeline(
         5 => buffer(storage),       // Indirect commands output
         6 => buffer(uniform)        // Meshing parameters
     );
-    
+
     // Create pipeline layout
     let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: Some("Mesh Generation Pipeline Layout"),
         bind_group_layouts: &[&bind_group_layout],
         push_constant_ranges: &[],
     });
-    
+
     // Create compute pipeline
+    log::info!("[GPU Meshing] Creating compute pipeline with entry point 'generate_mesh'");
+
+    // Note: create_compute_pipeline can fail if the shader has validation errors
+    // The error will be reported through the device error handler
     let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
         label: Some("Mesh Generation Pipeline"),
         layout: Some(&pipeline_layout),
-        module: &shader,
+        module: &validated_shader.module,
         entry_point: "generate_mesh",
     });
-    
+
+    log::info!("[GPU Meshing] Successfully created mesh generation pipeline");
     (pipeline, bind_group_layout)
 }
 
@@ -64,18 +101,22 @@ pub fn create_gpu_mesh_buffer(device: &wgpu::Device, buffer_id: u32) -> GpuMeshB
     let vertices = device.create_buffer(&wgpu::BufferDescriptor {
         label: Some(&format!("Mesh {} Vertices", buffer_id)),
         size: (MAX_VERTICES_PER_CHUNK * vertex_size) as u64,
-        usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_SRC,
+        usage: wgpu::BufferUsages::STORAGE
+            | wgpu::BufferUsages::VERTEX
+            | wgpu::BufferUsages::COPY_SRC,
         mapped_at_creation: false,
     });
-    
+
     // Index buffer
     let indices = device.create_buffer(&wgpu::BufferDescriptor {
         label: Some(&format!("Mesh {} Indices", buffer_id)),
         size: (MAX_INDICES_PER_CHUNK * std::mem::size_of::<u32>()) as u64,
-        usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_SRC,
+        usage: wgpu::BufferUsages::STORAGE
+            | wgpu::BufferUsages::INDEX
+            | wgpu::BufferUsages::COPY_SRC,
         mapped_at_creation: false,
     });
-    
+
     // Metadata buffer
     let metadata = device.create_buffer(&wgpu::BufferDescriptor {
         label: Some(&format!("Mesh {} Metadata", buffer_id)),
@@ -83,7 +124,7 @@ pub fn create_gpu_mesh_buffer(device: &wgpu::Device, buffer_id: u32) -> GpuMeshB
         usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
         mapped_at_creation: false,
     });
-    
+
     GpuMeshBuffer {
         vertices,
         indices,
@@ -105,7 +146,7 @@ pub fn create_mesh_bind_group(
     // For simplicity, bind the first mesh buffer
     // In practice, you'd cycle through buffers
     let mesh = &mesh_buffers[0];
-    
+
     crate::create_bind_group!(
         device,
         "Mesh Generation Bind Group",
@@ -120,4 +161,4 @@ pub fn create_mesh_bind_group(
     )
 }
 
-use super::{MAX_VERTICES_PER_CHUNK, MAX_INDICES_PER_CHUNK};
+use super::{MAX_INDICES_PER_CHUNK, MAX_VERTICES_PER_CHUNK};

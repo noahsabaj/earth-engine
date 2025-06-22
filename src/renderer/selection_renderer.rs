@@ -1,6 +1,6 @@
-use wgpu::util::DeviceExt;
-use cgmath::{Vector3, Matrix4, SquareMatrix};
 use crate::RaycastHit;
+use cgmath::{Matrix4, SquareMatrix, Vector3};
+use wgpu::util::DeviceExt;
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
@@ -43,45 +43,67 @@ impl SelectionRenderer {
         // Create vertices for a unit cube wireframe
         let vertices = [
             // Bottom face corners
-            LineVertex { position: [0.0, 0.0, 0.0] },
-            LineVertex { position: [1.0, 0.0, 0.0] },
-            LineVertex { position: [1.0, 0.0, 1.0] },
-            LineVertex { position: [0.0, 0.0, 1.0] },
+            LineVertex {
+                position: [0.0, 0.0, 0.0],
+            },
+            LineVertex {
+                position: [1.0, 0.0, 0.0],
+            },
+            LineVertex {
+                position: [1.0, 0.0, 1.0],
+            },
+            LineVertex {
+                position: [0.0, 0.0, 1.0],
+            },
             // Top face corners
-            LineVertex { position: [0.0, 1.0, 0.0] },
-            LineVertex { position: [1.0, 1.0, 0.0] },
-            LineVertex { position: [1.0, 1.0, 1.0] },
-            LineVertex { position: [0.0, 1.0, 1.0] },
+            LineVertex {
+                position: [0.0, 1.0, 0.0],
+            },
+            LineVertex {
+                position: [1.0, 1.0, 0.0],
+            },
+            LineVertex {
+                position: [1.0, 1.0, 1.0],
+            },
+            LineVertex {
+                position: [0.0, 1.0, 1.0],
+            },
         ];
-        
+
         // Indices for line list (each pair forms a line)
         let indices: Vec<u16> = vec![
             // Bottom face
-            0, 1, 1, 2, 2, 3, 3, 0,
-            // Top face
-            4, 5, 5, 6, 6, 7, 7, 4,
-            // Vertical edges
+            0, 1, 1, 2, 2, 3, 3, 0, // Top face
+            4, 5, 5, 6, 6, 7, 7, 4, // Vertical edges
             0, 4, 1, 5, 2, 6, 3, 7,
         ];
-        
+
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Selection Vertex Buffer"),
             contents: bytemuck::cast_slice(&vertices),
             usage: wgpu::BufferUsages::VERTEX,
         });
-        
+
         let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Selection Index Buffer"),
             contents: bytemuck::cast_slice(&indices),
             usage: wgpu::BufferUsages::INDEX,
         });
-        
-        // Create shader
-        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("Selection Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/rendering/selection.wgsl").into()),
-        });
-        
+
+        // Create shader using unified GPU system
+        let shader_source = include_str!("../shaders/rendering/selection.wgsl");
+        let validated_shader =
+            match crate::gpu::automation::create_gpu_shader(device, "selection", shader_source) {
+                Ok(shader) => shader,
+                Err(e) => {
+                    log::error!(
+                        "[SelectionRenderer] Failed to create selection shader: {}",
+                        e
+                    );
+                    panic!("Cannot proceed without selection shader");
+                }
+            };
+
         // Create model uniform buffer and bind group
         let model_uniform = ModelUniform::new();
         let model_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -89,21 +111,22 @@ impl SelectionRenderer {
             contents: bytemuck::cast_slice(&[model_uniform]),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
-        
-        let model_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            entries: &[wgpu::BindGroupLayoutEntry {
-                binding: 0,
-                visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
-                },
-                count: None,
-            }],
-            label: Some("selection_model_bind_group_layout"),
-        });
-        
+
+        let model_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }],
+                label: Some("selection_model_bind_group_layout"),
+            });
+
         let model_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: &model_bind_group_layout,
             entries: &[wgpu::BindGroupEntry {
@@ -112,19 +135,20 @@ impl SelectionRenderer {
             }],
             label: Some("selection_model_bind_group"),
         });
-        
+
         // Create render pipeline
-        let render_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("Selection Pipeline Layout"),
-            bind_group_layouts: &[camera_bind_group_layout, &model_bind_group_layout],
-            push_constant_ranges: &[],
-        });
-        
+        let render_pipeline_layout =
+            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("Selection Pipeline Layout"),
+                bind_group_layouts: &[camera_bind_group_layout, &model_bind_group_layout],
+                push_constant_ranges: &[],
+            });
+
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Selection Pipeline"),
             layout: Some(&render_pipeline_layout),
             vertex: wgpu::VertexState {
-                module: &shader,
+                module: &validated_shader.module,
                 entry_point: "vs_main",
                 buffers: &[wgpu::VertexBufferLayout {
                     array_stride: std::mem::size_of::<LineVertex>() as wgpu::BufferAddress,
@@ -137,7 +161,7 @@ impl SelectionRenderer {
                 }],
             },
             fragment: Some(wgpu::FragmentState {
-                module: &shader,
+                module: &validated_shader.module,
                 entry_point: "fs_main",
                 targets: &[Some(wgpu::ColorTargetState {
                     format,
@@ -168,7 +192,7 @@ impl SelectionRenderer {
             },
             multiview: None,
         });
-        
+
         Self {
             vertex_buffer,
             index_buffer,
@@ -177,7 +201,7 @@ impl SelectionRenderer {
             model_bind_group,
         }
     }
-    
+
     pub fn render<'a>(
         &'a self,
         render_pass: &mut wgpu::RenderPass<'a>,
@@ -194,7 +218,7 @@ impl SelectionRenderer {
                 pos.y as f32 - 0.005,
                 pos.z as f32 - 0.005,
             )) * Matrix4::from_scale(1.01); // Slightly larger to avoid z-fighting
-            
+
             // Update model uniform with breaking progress
             let model_uniform = ModelUniform {
                 model: model_matrix.into(),
@@ -206,7 +230,7 @@ impl SelectionRenderer {
                 0,
                 bytemuck::cast_slice(&[model_uniform]),
             );
-            
+
             render_pass.set_pipeline(&self.render_pipeline);
             render_pass.set_bind_group(0, camera_bind_group, &[]);
             render_pass.set_bind_group(1, &self.model_bind_group, &[]);

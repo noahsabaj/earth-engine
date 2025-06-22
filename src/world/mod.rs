@@ -1,5 +1,5 @@
 //! Unified World Module - GPU-first with CPU fallbacks
-//! 
+//!
 //! This module consolidates all world functionality into a coherent GPU-first
 //! architecture while maintaining CPU fallbacks for compatibility and flexibility.
 //!
@@ -20,78 +20,99 @@
 //! 4. **DOP architecture**: Data-oriented design throughout
 //! 5. **Zero-copy**: Minimize CPU/GPU transfers where possible
 
-pub mod core;
-pub mod storage;
-pub mod generation;
-pub mod compute;
-pub mod management;
-pub mod interfaces;
 pub mod blocks;
-pub mod lighting;
+pub mod compute;
+pub mod core;
 pub mod error;
+pub mod generation;
+pub mod interfaces;
+pub mod lighting;
+pub mod management;
+pub mod storage;
+pub mod weather_manager;
 
 // Re-export core types for convenience
 pub use core::{
-    Block, BlockId, RenderData, PhysicsProperties,
-    ChunkPos, VoxelPos, 
-    Ray, RaycastHit, BlockFace,
-    BlockRegistry
+    Block, BlockFace, BlockId, BlockRegistry, ChunkPos, PhysicsProperties, Ray, RaycastHit,
+    RenderData, VoxelPos,
 };
 
 // Re-export storage systems
 pub use storage::{
-    // GPU-first storage
-    WorldBuffer, WorldBufferDescriptor, VoxelData,
+    ChunkMemoryStats,
     // CPU fallback storage
-    ChunkSoA as Chunk, ChunkMemoryStats,
-    GpuChunk, GpuChunkManager, GpuChunkStats
+    ChunkSoA as Chunk,
+    GpuChunk,
+    GpuChunkManager,
+    GpuChunkStats,
+    VoxelData,
+    // GPU-first storage
+    WorldBuffer,
+    WorldBufferDescriptor,
 };
 
 // Re-export generation systems
 pub use generation::{
+    CaveGenerator,
+    // CPU generators (fallback)
+    DefaultWorldGenerator,
+    OreGenerator,
+    TerrainGenerator,
+    // GPU generators (primary)
+    TerrainGeneratorSOA,
+    TerrainGeneratorSOABuilder,
     // Unified generation interface
     WorldGenerator,
-    // GPU generators (primary)
-    TerrainGeneratorSOA, TerrainGeneratorSOABuilder,
-    // CPU generators (fallback)
-    DefaultWorldGenerator, TerrainGenerator, CaveGenerator, OreGenerator
 };
 
 // Re-export compute systems
 pub use compute::{
-    // GPU kernels and optimization
-    UnifiedWorldKernel, UnifiedKernelConfig, SystemFlags,
     // GPU optimization structures will be added later
     // GPU lighting and effects
-    GpuLighting, WeatherGpu, WeatherData
+    GpuLighting,
+    PrecipitationParticle,
+    SystemFlags,
+    UnifiedKernelConfig,
+    // GPU kernels and optimization
+    UnifiedWorldKernel,
+    WeatherData,
+    WeatherGpu,
 };
 
 // Re-export management systems
 pub use management::{
-    // Unified managers
-    UnifiedWorldManager, WorldManagerConfig,
-    // Performance and statistics
-    WorldPerformanceMetrics, GenerationStats,
+    GenerationStats,
     // Parallel world support
-    ParallelWorld, ParallelWorldConfig, SpawnFinder
+    ParallelWorld,
+    ParallelWorldConfig,
+    SpawnFinder,
+    // Unified managers
+    UnifiedWorldManager,
+    WorldManagerConfig,
+    // Performance and statistics
+    WorldPerformanceMetrics,
 };
 
 // Re-export interfaces
 pub use interfaces::{
-    WorldInterface, ReadOnlyWorldInterface, UnifiedWorldInterface,
-    ChunkManagerInterface, GeneratorInterface,
-    WorldQuery, QueryResult, WorldOperation, OperationResult, WorldError,
-    WorldConfig, ChunkManager, DefaultChunkManager, ChunkData
+    ChunkData, ChunkManager, ChunkManagerInterface, DefaultChunkManager, GeneratorInterface,
+    OperationResult, QueryResult, ReadOnlyWorldInterface, UnifiedWorldInterface, WorldConfig,
+    WorldError, WorldInterface, WorldOperation, WorldQuery,
 };
 
 // Re-export block system
 pub use blocks::{
-    register_basic_blocks,
-    GrassBlock, DirtBlock, StoneBlock, WaterBlock, SandBlock, GlowstoneBlock
+    register_basic_blocks, DirtBlock, GlowstoneBlock, GrassBlock, SandBlock, StoneBlock, WaterBlock,
 };
 
 // Re-export lighting system
-pub use lighting::{SkylightCalculator, TimeOfDayData, DayNightCycleData, LightType, LightLevel, LightUpdate, LightingStats};
+pub use lighting::{
+    DayNightCycleData, LightLevel, LightType, LightUpdate, LightingStats, SkylightCalculator,
+    TimeOfDayData,
+};
+
+// Re-export weather system
+pub use weather_manager::{WeatherManager, WeatherZone};
 
 /// Helper function to convert voxel position to chunk position
 /// Following DOP principles - pure function that transforms data
@@ -117,18 +138,39 @@ pub async fn create_unified_world(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::CHUNK_SIZE;
 
     #[test]
     fn test_voxel_to_chunk_conversion() {
-        let voxel_pos = VoxelPos { x: 65, y: 32, z: -15 };
+        let voxel_pos = VoxelPos {
+            x: 65,
+            y: 32,
+            z: -15,
+        };
         let chunk_pos = voxel_to_chunk_pos(voxel_pos, 32);
-        
+
         // 65 / 32 = 2, 32 / 32 = 1, -15 / 32 = -1
         assert_eq!(chunk_pos.x, 2);
         assert_eq!(chunk_pos.y, 1);
         assert_eq!(chunk_pos.z, -1);
     }
-    
+
+    #[test]
+    fn test_voxel_to_chunk_conversion_with_constant() {
+        // Test with actual chunk size constant
+        let voxel_pos = VoxelPos {
+            x: 125,
+            y: 75,
+            z: -25,
+        };
+        let chunk_pos = voxel_to_chunk_pos(voxel_pos, CHUNK_SIZE);
+
+        // With CHUNK_SIZE=50: 125/50=2, 75/50=1, -25/50=-1
+        assert_eq!(chunk_pos.x, 2);
+        assert_eq!(chunk_pos.y, 1);
+        assert_eq!(chunk_pos.z, -1);
+    }
+
     #[test]
     fn test_block_id_constants() {
         assert_eq!(BlockId::AIR, BlockId(0));

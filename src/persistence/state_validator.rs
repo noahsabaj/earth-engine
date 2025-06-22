@@ -3,12 +3,12 @@
 //! This module validates state consistency between network-replicated data
 //! and persisted data to prevent corruption and ensure data integrity.
 
+use std::collections::hash_map::DefaultHasher;
 use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
-use std::collections::hash_map::DefaultHasher;
 use std::time::{Duration, Instant};
 
-use crate::persistence::{PersistenceResult, PersistenceError};
+use crate::persistence::{PersistenceError, PersistenceResult};
 use crate::{ChunkPos, World};
 
 /// Types of validation that can be performed
@@ -186,51 +186,75 @@ impl StateValidator {
             last_validation: None,
         }
     }
-    
+
     /// Take a snapshot of the current network state
-    pub fn take_network_snapshot(&mut self, world: &World, snapshot_id: String) -> PersistenceResult<()> {
+    pub fn take_network_snapshot(
+        &mut self,
+        world: &World,
+        snapshot_id: String,
+    ) -> PersistenceResult<()> {
         let snapshot = self.create_state_snapshot(world, true)?;
         self.network_snapshots.insert(snapshot_id, snapshot);
         Ok(())
     }
-    
+
     /// Take a snapshot of the current persistence state
-    pub fn take_persistence_snapshot(&mut self, world: &World, snapshot_id: String) -> PersistenceResult<()> {
+    pub fn take_persistence_snapshot(
+        &mut self,
+        world: &World,
+        snapshot_id: String,
+    ) -> PersistenceResult<()> {
         let snapshot = self.create_state_snapshot(world, false)?;
         self.persistence_snapshots.insert(snapshot_id, snapshot);
         Ok(())
     }
-    
+
     /// Validate consistency between network and persistence states
-    pub fn validate_consistency(&mut self, snapshot_id: &str) -> PersistenceResult<ValidationResult> {
+    pub fn validate_consistency(
+        &mut self,
+        snapshot_id: &str,
+    ) -> PersistenceResult<ValidationResult> {
         let start_time = Instant::now();
-        
-        let network_snapshot = self.network_snapshots.get(snapshot_id)
-            .ok_or_else(|| PersistenceError::CorruptedData(
-                format!("Network snapshot '{}' not found", snapshot_id)))?;
-        
-        let persistence_snapshot = self.persistence_snapshots.get(snapshot_id)
-            .ok_or_else(|| PersistenceError::CorruptedData(
-                format!("Persistence snapshot '{}' not found", snapshot_id)))?;
-        
+
+        let network_snapshot = self.network_snapshots.get(snapshot_id).ok_or_else(|| {
+            PersistenceError::CorruptedData(format!("Network snapshot '{}' not found", snapshot_id))
+        })?;
+
+        let persistence_snapshot =
+            self.persistence_snapshots.get(snapshot_id).ok_or_else(|| {
+                PersistenceError::CorruptedData(format!(
+                    "Persistence snapshot '{}' not found",
+                    snapshot_id
+                ))
+            })?;
+
         let mut errors = Vec::new();
         let mut warnings = Vec::new();
-        
+
         // Validate chunk consistency
-        self.validate_chunk_consistency(&network_snapshot.chunk_states, 
-                                      &persistence_snapshot.chunk_states, 
-                                      &mut errors, &mut warnings);
-        
+        self.validate_chunk_consistency(
+            &network_snapshot.chunk_states,
+            &persistence_snapshot.chunk_states,
+            &mut errors,
+            &mut warnings,
+        );
+
         // Validate player consistency
-        self.validate_player_consistency(&network_snapshot.player_states,
-                                       &persistence_snapshot.player_states,
-                                       &mut errors, &mut warnings);
-        
+        self.validate_player_consistency(
+            &network_snapshot.player_states,
+            &persistence_snapshot.player_states,
+            &mut errors,
+            &mut warnings,
+        );
+
         // Validate world metadata consistency
-        self.validate_metadata_consistency(&network_snapshot.world_metadata,
-                                         &persistence_snapshot.world_metadata,
-                                         &mut errors, &mut warnings);
-        
+        self.validate_metadata_consistency(
+            &network_snapshot.world_metadata,
+            &persistence_snapshot.world_metadata,
+            &mut errors,
+            &mut warnings,
+        );
+
         // Check overall checksums
         if self.config.enable_checksums {
             if network_snapshot.checksum != persistence_snapshot.checksum {
@@ -243,7 +267,7 @@ impl StateValidator {
                 });
             }
         }
-        
+
         let duration = start_time.elapsed();
         let result = ValidationResult {
             validation_type: ValidationType::Full,
@@ -254,25 +278,29 @@ impl StateValidator {
             checked_at: start_time,
             duration,
         };
-        
+
         self.validation_history.push(result.clone());
         self.last_validation = Some(start_time);
-        
+
         Ok(result)
     }
-    
+
     /// Validate a specific chunk's consistency
-    pub fn validate_chunk(&mut self, chunk_pos: ChunkPos, world: &World) -> PersistenceResult<ValidationResult> {
+    pub fn validate_chunk(
+        &mut self,
+        chunk_pos: ChunkPos,
+        world: &World,
+    ) -> PersistenceResult<ValidationResult> {
         let start_time = Instant::now();
         let mut errors = Vec::new();
         let mut warnings = Vec::new();
-        
+
         // Get network chunk state
         let network_state = self.get_chunk_state_from_world(chunk_pos, world, true)?;
-        
+
         // Get persistence chunk state (simulated for now)
         let persistence_state = self.get_chunk_state_from_world(chunk_pos, world, false)?;
-        
+
         // Compare states
         if network_state.blocks_checksum != persistence_state.blocks_checksum {
             errors.push(ValidationError {
@@ -283,7 +311,7 @@ impl StateValidator {
                 actual: Some(persistence_state.blocks_checksum.to_string()),
             });
         }
-        
+
         if network_state.entities_checksum != persistence_state.entities_checksum {
             errors.push(ValidationError {
                 error_type: ValidationErrorType::ChecksumMismatch,
@@ -293,7 +321,7 @@ impl StateValidator {
                 actual: Some(persistence_state.entities_checksum.to_string()),
             });
         }
-        
+
         // Check version consistency
         if network_state.network_version != persistence_state.persistence_version {
             warnings.push(ValidationWarning {
@@ -302,7 +330,7 @@ impl StateValidator {
                 field_path: Some("version".to_string()),
             });
         }
-        
+
         let duration = start_time.elapsed();
         let result = ValidationResult {
             validation_type: ValidationType::ChunkData,
@@ -313,23 +341,26 @@ impl StateValidator {
             checked_at: start_time,
             duration,
         };
-        
+
         self.validation_history.push(result.clone());
-        
+
         Ok(result)
     }
-    
+
     /// Auto-validate if needed
-    pub fn auto_validate_if_needed(&mut self, world: &World) -> PersistenceResult<Option<ValidationResult>> {
+    pub fn auto_validate_if_needed(
+        &mut self,
+        world: &World,
+    ) -> PersistenceResult<Option<ValidationResult>> {
         if !self.config.auto_validate {
             return Ok(None);
         }
-        
+
         let should_validate = match self.last_validation {
             Some(last) => Instant::now().duration_since(last) >= self.config.validation_interval,
             None => true,
         };
-        
+
         if should_validate {
             let snapshot_id = format!("auto_{}", Instant::now().elapsed().as_millis());
             self.take_network_snapshot(world, snapshot_id.clone())?;
@@ -340,25 +371,29 @@ impl StateValidator {
             Ok(None)
         }
     }
-    
+
     /// Create a state snapshot
-    fn create_state_snapshot(&self, world: &World, is_network_state: bool) -> PersistenceResult<StateSnapshot> {
+    fn create_state_snapshot(
+        &self,
+        world: &World,
+        is_network_state: bool,
+    ) -> PersistenceResult<StateSnapshot> {
         let mut chunk_states = HashMap::new();
         let mut player_states = HashMap::new();
-        
+
         // Get chunk positions (dummy implementation)
         let chunk_positions = vec![
             ChunkPos { x: 0, y: 0, z: 0 },
             ChunkPos { x: 1, y: 0, z: 0 },
             ChunkPos { x: 0, y: 0, z: 1 },
         ];
-        
+
         // Create chunk states
         for pos in chunk_positions {
             let chunk_state = self.get_chunk_state_from_world(pos, world, is_network_state)?;
             chunk_states.insert(pos, chunk_state);
         }
-        
+
         // Create dummy player states
         for i in 0..3 {
             let uuid = format!("player_{}", i);
@@ -374,7 +409,7 @@ impl StateValidator {
             };
             player_states.insert(uuid, player_state);
         }
-        
+
         // Create world metadata
         let world_metadata = WorldMetadataState {
             world_name: "test_world".to_string(),
@@ -386,10 +421,11 @@ impl StateValidator {
             created_at: Instant::now(),
             last_saved_at: Instant::now(),
         };
-        
+
         // Calculate overall checksum
-        let checksum = self.calculate_snapshot_checksum(&chunk_states, &player_states, &world_metadata);
-        
+        let checksum =
+            self.calculate_snapshot_checksum(&chunk_states, &player_states, &world_metadata);
+
         Ok(StateSnapshot {
             chunk_states,
             player_states,
@@ -398,14 +434,20 @@ impl StateValidator {
             checksum,
         })
     }
-    
+
     /// Get chunk state from world
-    fn get_chunk_state_from_world(&self, pos: ChunkPos, _world: &World, is_network: bool) -> PersistenceResult<ChunkState> {
+    fn get_chunk_state_from_world(
+        &self,
+        pos: ChunkPos,
+        _world: &World,
+        is_network: bool,
+    ) -> PersistenceResult<ChunkState> {
         // Dummy implementation - in real code would extract actual chunk data
         Ok(ChunkState {
             position: pos,
             blocks_checksum: self.calculate_hash(&format!("blocks_{}_{}_{}", pos.x, pos.y, pos.z)),
-            entities_checksum: self.calculate_hash(&format!("entities_{}_{}_{}", pos.x, pos.y, pos.z)),
+            entities_checksum: self
+                .calculate_hash(&format!("entities_{}_{}_{}", pos.x, pos.y, pos.z)),
             modified_at: Instant::now(),
             network_version: if is_network { 1 } else { 1 },
             persistence_version: 1,
@@ -413,14 +455,14 @@ impl StateValidator {
             entity_count: 5,
         })
     }
-    
+
     /// Calculate hash for data
     fn calculate_hash(&self, data: &str) -> u64 {
         let mut hasher = DefaultHasher::new();
         data.hash(&mut hasher);
         hasher.finish()
     }
-    
+
     /// Calculate snapshot checksum
     fn calculate_snapshot_checksum(
         &self,
@@ -429,29 +471,29 @@ impl StateValidator {
         metadata: &WorldMetadataState,
     ) -> u64 {
         let mut hasher = DefaultHasher::new();
-        
+
         // Hash chunk data
         for (pos, state) in chunks {
             pos.hash(&mut hasher);
             state.blocks_checksum.hash(&mut hasher);
             state.entities_checksum.hash(&mut hasher);
         }
-        
+
         // Hash player data
         for (uuid, state) in players {
             uuid.hash(&mut hasher);
             state.inventory_checksum.hash(&mut hasher);
             (state.health as u32).hash(&mut hasher);
         }
-        
+
         // Hash metadata
         metadata.world_name.hash(&mut hasher);
         metadata.seed.hash(&mut hasher);
         metadata.world_version.hash(&mut hasher);
-        
+
         hasher.finish()
     }
-    
+
     /// Validate chunk consistency
     fn validate_chunk_consistency(
         &self,
@@ -472,7 +514,7 @@ impl StateValidator {
                 });
             }
         }
-        
+
         // Check for extra chunks in persistence
         for pos in persistence_chunks.keys() {
             if !network_chunks.contains_key(pos) {
@@ -483,7 +525,7 @@ impl StateValidator {
                 });
             }
         }
-        
+
         // Compare existing chunks
         for (pos, network_chunk) in network_chunks {
             if let Some(persistence_chunk) = persistence_chunks.get(pos) {
@@ -496,7 +538,7 @@ impl StateValidator {
                         actual: Some(persistence_chunk.blocks_checksum.to_string()),
                     });
                 }
-                
+
                 if network_chunk.entities_checksum != persistence_chunk.entities_checksum {
                     errors.push(ValidationError {
                         error_type: ValidationErrorType::StateInconsistency,
@@ -509,7 +551,7 @@ impl StateValidator {
             }
         }
     }
-    
+
     /// Validate player consistency
     fn validate_player_consistency(
         &self,
@@ -530,7 +572,7 @@ impl StateValidator {
                         actual: Some(persistence_player.inventory_checksum.to_string()),
                     });
                 }
-                
+
                 // Check health consistency (with tolerance)
                 let health_diff = (network_player.health - persistence_player.health).abs();
                 if health_diff > 0.1 {
@@ -545,7 +587,7 @@ impl StateValidator {
             }
         }
     }
-    
+
     /// Validate metadata consistency
     fn validate_metadata_consistency(
         &self,
@@ -561,7 +603,7 @@ impl StateValidator {
                 field_path: Some("metadata.world_version".to_string()),
             });
         }
-        
+
         if network_metadata.seed != persistence_metadata.seed {
             errors.push(ValidationError {
                 error_type: ValidationErrorType::StateInconsistency,
@@ -572,23 +614,19 @@ impl StateValidator {
             });
         }
     }
-    
+
     /// Get validation statistics
     pub fn get_validation_stats(&self) -> ValidationStats {
         let total_validations = self.validation_history.len();
-        let successful_validations = self.validation_history.iter()
-            .filter(|r| r.success)
-            .count();
-        
+        let successful_validations = self.validation_history.iter().filter(|r| r.success).count();
+
         let average_duration = if total_validations > 0 {
-            let total_time: Duration = self.validation_history.iter()
-                .map(|r| r.duration)
-                .sum();
+            let total_time: Duration = self.validation_history.iter().map(|r| r.duration).sum();
             total_time / total_validations as u32
         } else {
             Duration::from_millis(0)
         };
-        
+
         ValidationStats {
             total_validations,
             successful_validations,
@@ -599,18 +637,16 @@ impl StateValidator {
             persistence_snapshots: self.persistence_snapshots.len(),
         }
     }
-    
+
     /// Clean up old snapshots
     pub fn cleanup_old_snapshots(&mut self) {
         let cutoff_time = Instant::now() - self.config.max_snapshot_age;
-        
-        self.network_snapshots.retain(|_, snapshot| {
-            snapshot.created_at > cutoff_time
-        });
-        
-        self.persistence_snapshots.retain(|_, snapshot| {
-            snapshot.created_at > cutoff_time
-        });
+
+        self.network_snapshots
+            .retain(|_, snapshot| snapshot.created_at > cutoff_time);
+
+        self.persistence_snapshots
+            .retain(|_, snapshot| snapshot.created_at > cutoff_time);
     }
 }
 
@@ -629,74 +665,80 @@ pub struct ValidationStats {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     fn create_test_world() -> World {
         World::new(16) // 16x16 chunk size
     }
-    
+
     #[test]
     fn test_state_validator_creation() {
         let config = ValidationConfig::default();
         let validator = StateValidator::new(config);
-        
+
         let stats = validator.get_validation_stats();
         assert_eq!(stats.total_validations, 0);
         assert_eq!(stats.network_snapshots, 0);
         assert_eq!(stats.persistence_snapshots, 0);
     }
-    
+
     #[test]
     fn test_take_snapshots() {
         let config = ValidationConfig::default();
         let mut validator = StateValidator::new(config);
         let world = create_test_world();
-        
+
         // Take snapshots
-        validator.take_network_snapshot(&world, "test_snapshot".to_string())
+        validator
+            .take_network_snapshot(&world, "test_snapshot".to_string())
             .expect("Failed to take network snapshot");
-        validator.take_persistence_snapshot(&world, "test_snapshot".to_string())
+        validator
+            .take_persistence_snapshot(&world, "test_snapshot".to_string())
             .expect("Failed to take persistence snapshot");
-        
+
         let stats = validator.get_validation_stats();
         assert_eq!(stats.network_snapshots, 1);
         assert_eq!(stats.persistence_snapshots, 1);
     }
-    
+
     #[test]
     fn test_validate_consistency() {
         let config = ValidationConfig::default();
         let mut validator = StateValidator::new(config);
         let world = create_test_world();
-        
+
         // Take snapshots
-        validator.take_network_snapshot(&world, "consistency_test".to_string())
+        validator
+            .take_network_snapshot(&world, "consistency_test".to_string())
             .expect("Failed to take network snapshot");
-        validator.take_persistence_snapshot(&world, "consistency_test".to_string())
+        validator
+            .take_persistence_snapshot(&world, "consistency_test".to_string())
             .expect("Failed to take persistence snapshot");
-        
+
         // Validate consistency
-        let result = validator.validate_consistency("consistency_test")
+        let result = validator
+            .validate_consistency("consistency_test")
             .expect("Failed to validate consistency");
-        
+
         // Should succeed since we're using the same world for both snapshots
         assert!(result.success);
         assert_eq!(result.validation_type, ValidationType::Full);
     }
-    
+
     #[test]
     fn test_chunk_validation() {
         let config = ValidationConfig::default();
         let mut validator = StateValidator::new(config);
         let world = create_test_world();
-        
+
         let chunk_pos = ChunkPos { x: 0, y: 0, z: 0 };
-        let result = validator.validate_chunk(chunk_pos, &world)
+        let result = validator
+            .validate_chunk(chunk_pos, &world)
             .expect("Failed to validate chunk");
-        
+
         assert_eq!(result.validation_type, ValidationType::ChunkData);
         assert!(result.target_id.contains("chunk_0_0_0"));
     }
-    
+
     #[test]
     fn test_cleanup_old_snapshots() {
         let config = ValidationConfig {
@@ -705,23 +747,25 @@ mod tests {
         };
         let mut validator = StateValidator::new(config);
         let world = create_test_world();
-        
+
         // Take a snapshot
-        validator.take_network_snapshot(&world, "old_snapshot".to_string())
+        validator
+            .take_network_snapshot(&world, "old_snapshot".to_string())
             .expect("Failed to take network snapshot");
-        
+
         // Wait for it to become old
         std::thread::sleep(Duration::from_millis(150));
-        
+
         // Take another snapshot
-        validator.take_network_snapshot(&world, "new_snapshot".to_string())
+        validator
+            .take_network_snapshot(&world, "new_snapshot".to_string())
             .expect("Failed to take network snapshot");
-        
+
         assert_eq!(validator.get_validation_stats().network_snapshots, 2);
-        
+
         // Cleanup old snapshots
         validator.cleanup_old_snapshots();
-        
+
         // Should only have the new snapshot
         assert_eq!(validator.get_validation_stats().network_snapshots, 1);
     }

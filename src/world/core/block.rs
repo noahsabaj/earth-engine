@@ -1,7 +1,6 @@
-
 #![allow(unused_variables, dead_code, unused_imports)]
 
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 // Re-export basic blocks from basic_blocks.rs
 // Basic blocks are now in a separate module
@@ -104,7 +103,7 @@ impl BlockId {
     pub const SUGAR_CANE: BlockId = BlockId(33);
     pub const VINES: BlockId = BlockId(34);
     pub const BRICK: BlockId = BlockId(35);
-    
+
     // Aliases for compatibility
     pub const Air: BlockId = Self::AIR;
     pub const Grass: BlockId = Self::GRASS;
@@ -118,7 +117,7 @@ impl BlockId {
     pub const Chest: BlockId = Self::CHEST;
     pub const Lava: BlockId = Self::LAVA;
     pub const Brick: BlockId = Self::BRICK;
-    
+
     /// Create a new BlockId from a raw u16 value
     pub const fn new(id: u16) -> Self {
         BlockId(id)
@@ -144,26 +143,26 @@ pub struct PhysicsProperties {
 pub trait Block: Send + Sync {
     /// Get the unique ID for this block type
     fn get_id(&self) -> BlockId;
-    
+
     /// Get rendering data for this block
     fn get_render_data(&self) -> RenderData;
-    
+
     /// Get physics properties for this block
     fn get_physics_properties(&self) -> PhysicsProperties;
-    
+
     /// Get display name for this block
     fn get_name(&self) -> &str;
-    
+
     /// Get the hardness of this block (time in seconds to break)
     fn get_hardness(&self) -> f32 {
         1.0 // Default 1 second to break
     }
-    
+
     /// Get the light level emitted by this block (0-15)
     fn get_light_emission(&self) -> u8 {
         0 // Most blocks don't emit light
     }
-    
+
     /// Check if this block is transparent (allows light through)
     fn is_transparent(&self) -> bool {
         false // Most blocks are opaque

@@ -15,12 +15,17 @@ For voxel rendering, this means:
 
 ## Hearth Engine Shader Architecture
 
-### 1. Rendering Pipeline (Active)
+Shaders are organized in `src/shaders/` with clear subdirectories:
+
+### 1. Rendering Pipeline (`src/shaders/rendering/`)
 
 **Core Shaders:**
 - `voxel.wgsl` - Standard voxel rendering with lighting, fog, AO
 - `gpu_driven.wgsl` - Advanced GPU-driven rendering with instancing
 - `gpu_culling.wgsl` - Frustum culling to skip invisible chunks
+- `hzb_build.wgsl` - Hierarchical Z-Buffer construction
+- `hzb_cull.wgsl` - HZB-based occlusion culling
+- `indirect_chunk.wgsl` - GPU-generated draw commands
 
 **How it works:**
 1. CPU submits chunk data to GPU
@@ -28,20 +33,21 @@ For voxel rendering, this means:
 3. GPU driven shader renders visible chunks with instancing
 4. Each pixel gets lighting, fog, and color applied
 
-### 2. Compute Shaders (GPU Processing)
+### 2. Compute Shaders (`src/shaders/compute/`)
 
 **World Generation:**
 - `terrain_generation.wgsl` - Generate terrain on GPU
 - `chunk_modification.wgsl` - Modify voxels on GPU
 - `ambient_occlusion.wgsl` - Calculate shadows in corners
+- `gpu_physics.wgsl` - Physics simulation on GPU
+- `hierarchical_physics.wgsl` - Multi-scale physics
+- `weather_compute.wgsl` - Weather system simulation
 
-**Fluid Simulation:**
-- 12 shaders for realistic water physics
-- Handles flow, pressure, viscosity entirely on GPU
+### 3. Mesh Generation (`src/shaders/mesh/`)
 
-**SDF Processing:**
-- 15 shaders for smooth terrain generation
-- Marching cubes algorithm for organic shapes
+**Mesh Processing:**
+- `mesh_generation.wgsl` - GPU-based mesh generation from voxel data
+- Supports greedy meshing for optimized geometry
 
 ### 3. Shader Language Basics
 
@@ -77,10 +83,12 @@ Your shaders enable:
 - **Real-time lighting and shadows**
 - **GPU-based frustum culling**
 
-### 5. Dead Code Found
+### 5. Shader Organization
 
-Only 1 unused shader:
-- `particles/gpu_update.wgsl` - Particle system never migrated to GPU
+All shaders are now properly organized in subdirectories:
+- `compute/` - World generation, physics, weather
+- `rendering/` - Culling, LOD, draw generation
+- `mesh/` - Mesh generation and optimization
 
 ### 6. Future Optimizations
 
@@ -102,6 +110,7 @@ Only 1 unused shader:
 @compute @workgroup_size(8, 8, 8)
 fn main(@builtin(global_invocation_id) id: vec3<u32>) {
     // Process 8x8x8 block in parallel
+    // Used extensively in terrain_generation.wgsl
 }
 ```
 

@@ -1,13 +1,12 @@
-/// Persistent Mapped Buffer Implementation
-/// 
-/// Provides buffers that stay mapped for efficient CPU-GPU communication
-/// with proper synchronization and multi-frame buffering.
-
-use std::sync::{Arc, Mutex};
-use wgpu::{Device, Buffer};
+use crate::error::EngineError;
 use crate::memory::memory_pool::PoolHandle;
 use crate::memory::MemoryResult;
-use crate::error::EngineError;
+/// Persistent Mapped Buffer Implementation
+///
+/// Provides buffers that stay mapped for efficient CPU-GPU communication
+/// with proper synchronization and multi-frame buffering.
+use std::sync::{Arc, Mutex};
+use wgpu::{Buffer, Device};
 
 /// Buffer usage patterns
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -29,7 +28,9 @@ impl BufferUsage {
         match self {
             BufferUsage::Uniform => wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             BufferUsage::DynamicVertex => wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-            BufferUsage::DynamicInstance => wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+            BufferUsage::DynamicInstance => {
+                wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST
+            }
             BufferUsage::TextureStaging => wgpu::BufferUsages::COPY_SRC,
             BufferUsage::Staging => wgpu::BufferUsages::COPY_SRC | wgpu::BufferUsages::COPY_DST,
         }
@@ -39,16 +40,16 @@ impl BufferUsage {
 /// A persistently mapped buffer with multi-frame support
 pub struct PersistentBuffer {
     device: Arc<Device>,
-    
+
     /// Current frame buffer index
     current_frame: usize,
-    
+
     /// All frame buffers (for multi-buffering)
     frame_buffers: Vec<FrameBuffer>,
-    
+
     /// Buffer size
     size: u64,
-    
+
     /// Usage pattern
     usage: BufferUsage,
 }
@@ -57,10 +58,10 @@ pub struct PersistentBuffer {
 struct FrameBuffer {
     /// Pool handle for memory management
     handle: PoolHandle,
-    
+
     /// Whether this buffer is currently mapped
     is_mapped: Mutex<bool>,
-    
+
     /// Fence for synchronization
     fence: Option<u64>,
 }
@@ -74,7 +75,7 @@ impl PersistentBuffer {
         frame_count: usize,
     ) -> Self {
         let mut frame_buffers = Vec::with_capacity(frame_count);
-        
+
         // Create all frame buffers
         for _ in 0..frame_count {
             // In a real implementation, we'd allocate from the pool
@@ -85,7 +86,7 @@ impl PersistentBuffer {
                 fence: None,
             });
         }
-        
+
         Self {
             device,
             current_frame: 0,
@@ -94,80 +95,94 @@ impl PersistentBuffer {
             usage,
         }
     }
-    
+
     /// Get the current frame's buffer
     pub fn current_buffer(&self) -> &Buffer {
         &self.frame_buffers[self.current_frame].handle.buffer()
     }
-    
+
     /// Map the buffer for writing
     pub async fn map_write(&self) -> MemoryResult<MappedBuffer> {
         let frame = &self.frame_buffers[self.current_frame];
-        
+
         // Check if already mapped
-        let is_mapped = frame.is_mapped.lock()
-            .map_err(|_| EngineError::LockPoisoned { resource: "persistent_buffer::is_mapped".to_string() })?;
+        let is_mapped = frame
+            .is_mapped
+            .lock()
+            .map_err(|_| EngineError::LockPoisoned {
+                resource: "persistent_buffer::is_mapped".to_string(),
+            })?;
         if *is_mapped {
             return Err(EngineError::Internal {
                 message: "Buffer already mapped".to_string(),
             });
         }
         drop(is_mapped);
-        
+
         let buffer = frame.handle.buffer();
         let buffer_slice = buffer.slice(..);
-        
+
         // Request mapping
         let (tx, rx) = futures::channel::oneshot::channel();
         buffer_slice.map_async(wgpu::MapMode::Write, move |result| {
             let _ = tx.send(result);
         });
-        
+
         // Wait for mapping
         self.device.poll(wgpu::Maintain::Wait);
-        rx.await.map_err(|_| EngineError::ChannelClosed {
-            name: "buffer_map".to_string(),
-        })?.map_err(|e| EngineError::Internal {
-            message: format!("Failed to map buffer: {:?}", e),
-        })?;
-        
+        rx.await
+            .map_err(|_| EngineError::ChannelClosed {
+                name: "buffer_map".to_string(),
+            })?
+            .map_err(|e| EngineError::Internal {
+                message: format!("Failed to map buffer: {:?}", e),
+            })?;
+
         // Get mapped view
         let view = buffer_slice.get_mapped_range_mut();
-        
-        let mut is_mapped = frame.is_mapped.lock()
-            .map_err(|_| EngineError::LockPoisoned { resource: "persistent_buffer::is_mapped".to_string() })?;
+
+        let mut is_mapped = frame
+            .is_mapped
+            .lock()
+            .map_err(|_| EngineError::LockPoisoned {
+                resource: "persistent_buffer::is_mapped".to_string(),
+            })?;
         *is_mapped = true;
         drop(is_mapped);
-        
+
         Ok(MappedBuffer {
             buffer: self,
             view,
             frame_index: self.current_frame,
         })
     }
-    
+
     /// Advance to next frame buffer
     pub fn advance_frame(&mut self) -> MemoryResult<()> {
         // Unmap current buffer if mapped
         let frame = &self.frame_buffers[self.current_frame];
-        let mut is_mapped = frame.is_mapped.lock()
-            .map_err(|_| EngineError::LockPoisoned { resource: "persistent_buffer::is_mapped".to_string() })?;
+        let mut is_mapped = frame
+            .is_mapped
+            .lock()
+            .map_err(|_| EngineError::LockPoisoned {
+                resource: "persistent_buffer::is_mapped".to_string(),
+            })?;
         if *is_mapped {
             frame.handle.buffer().unmap();
             *is_mapped = false;
         }
         drop(is_mapped);
-        
+
         // Move to next frame
         self.current_frame = (self.current_frame + 1) % self.frame_buffers.len();
         Ok(())
     }
-    
+
     /// Get buffer size
     pub fn size(&self) -> u64 {
         self.size
     }
-    
+
     /// Get usage pattern
     pub fn usage(&self) -> BufferUsage {
         self.usage
@@ -190,11 +205,11 @@ impl<'a> MappedBuffer<'a> {
                 size: self.buffer.size as usize,
             });
         }
-        
+
         self.view[offset as usize..offset as usize + data.len()].copy_from_slice(data);
         Ok(())
     }
-    
+
     /// Get mutable slice of the buffer
     pub fn as_mut_slice(&mut self) -> &mut [u8] {
         &mut self.view[..]
@@ -223,46 +238,46 @@ impl StreamingRingBuffer {
             BufferUsage::Staging,
             3, // Triple buffering
         );
-        
+
         Self {
             persistent_buffer,
             write_offset: 0,
             capacity,
         }
     }
-    
+
     /// Write data to the ring buffer
     pub async fn write(&mut self, data: &[u8]) -> MemoryResult<u64> {
         let data_size = data.len() as u64;
-        
+
         if data_size > self.capacity {
             return Err(EngineError::Internal {
                 message: "Data too large for ring buffer".to_string(),
             });
         }
-        
+
         // Wrap around if needed
         if self.write_offset + data_size > self.capacity {
             self.write_offset = 0;
         }
-        
+
         let offset = self.write_offset;
-        
+
         // Map and write
         let mut mapped = self.persistent_buffer.map_write().await?;
         mapped.write(offset, data)?;
         drop(mapped);
-        
+
         self.write_offset = (self.write_offset + data_size) % self.capacity;
-        
+
         Ok(offset)
     }
-    
+
     /// Get the underlying buffer
     pub fn buffer(&self) -> &Buffer {
         self.persistent_buffer.current_buffer()
     }
-    
+
     /// Advance to next frame
     pub fn advance_frame(&mut self) -> MemoryResult<()> {
         self.persistent_buffer.advance_frame()

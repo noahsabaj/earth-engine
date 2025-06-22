@@ -3,15 +3,15 @@
 //! This module provides abstract interfaces that work across both GPU and CPU
 //! implementations, allowing for seamless switching between backends.
 
-mod world_interface;
 mod generator_interface;
+mod world_interface;
 
+pub use generator_interface::{GenerationRequest, GenerationResult, GeneratorInterface};
 pub use world_interface::{
-    WorldInterface, ReadOnlyWorldInterface, UnifiedWorldInterface,
-    WorldQuery, QueryResult, WorldOperation, OperationResult, WorldError,
-    WorldConfig, ChunkManager, DefaultChunkManager, ChunkData
+    ChunkData, ChunkManager, DefaultChunkManager, OperationResult, QueryResult,
+    ReadOnlyWorldInterface, UnifiedWorldInterface, WorldConfig, WorldError, WorldInterface,
+    WorldOperation, WorldQuery,
 };
-pub use generator_interface::{GeneratorInterface, GenerationRequest, GenerationResult};
 
 // Re-export chunk manager interface from management
 pub use crate::world::management::{ChunkManagerInterface, ChunkStats};
@@ -20,10 +20,10 @@ pub use crate::world::management::{ChunkManagerInterface, ChunkStats};
 pub trait UnifiedInterface: Send + Sync {
     /// Get the backend type this interface is using
     fn backend_type(&self) -> &str;
-    
+
     /// Check if this interface supports a specific capability
     fn supports_capability(&self, capability: &str) -> bool;
-    
+
     /// Get performance metrics if available
     fn performance_metrics(&self) -> Option<std::collections::HashMap<String, f64>> {
         None
@@ -54,12 +54,15 @@ pub enum QueryType {
     /// Check if chunk is loaded
     IsChunkLoaded { pos: crate::world::core::ChunkPos },
     /// Get chunks in radius
-    GetChunksInRadius { center: crate::world::core::ChunkPos, radius: u32 },
+    GetChunksInRadius {
+        center: crate::world::core::ChunkPos,
+        radius: u32,
+    },
     /// Raycast from origin in direction
-    Raycast { 
-        origin: [f32; 3], 
-        direction: [f32; 3], 
-        max_distance: f32 
+    Raycast {
+        origin: [f32; 3],
+        direction: [f32; 3],
+        max_distance: f32,
     },
 }
 
@@ -69,16 +72,18 @@ pub struct InterfaceFactory;
 impl InterfaceFactory {
     /// Create a world interface from a unified world manager
     pub fn create_world_interface(
-        manager: std::sync::Arc<std::sync::Mutex<crate::world::management::UnifiedWorldManager>>
+        manager: std::sync::Arc<std::sync::Mutex<crate::world::management::UnifiedWorldManager>>,
     ) -> Box<dyn WorldInterface> {
         Box::new(world_interface::UnifiedWorldInterface::new(manager))
     }
-    
+
     /// Create a generator interface from a unified generator
     pub fn create_generator_interface(
-        generator: std::sync::Arc<crate::world::generation::UnifiedGenerator>
+        generator: std::sync::Arc<crate::world::generation::UnifiedGenerator>,
     ) -> Box<dyn GeneratorInterface> {
-        Box::new(generator_interface::UnifiedGeneratorInterface::new(generator))
+        Box::new(generator_interface::UnifiedGeneratorInterface::new(
+            generator,
+        ))
     }
 }
 
@@ -91,13 +96,13 @@ mod tests {
         assert_eq!(capabilities::REAL_TIME_GENERATION, "real_time_generation");
         assert_eq!(capabilities::GPU_ACCELERATION, "gpu_acceleration");
     }
-    
+
     #[test]
     fn test_query_type_creation() {
-        let query = QueryType::GetBlock { 
-            pos: crate::world::core::VoxelPos { x: 0, y: 0, z: 0 }
+        let query = QueryType::GetBlock {
+            pos: crate::world::core::VoxelPos { x: 0, y: 0, z: 0 },
         };
-        
+
         match query {
             QueryType::GetBlock { pos } => {
                 assert_eq!(pos.x, 0);

@@ -1,10 +1,10 @@
 //! Macros for simplified bind group creation
-//! 
+//!
 //! These macros reduce boilerplate for common bind group patterns while maintaining
 //! type safety and clarity.
 
 /// Create a bind group with minimal boilerplate
-/// 
+///
 /// # Example
 /// ```rust
 /// let bind_group = create_bind_group!(
@@ -35,7 +35,7 @@ macro_rules! create_bind_group {
 }
 
 /// Create a bind group layout with minimal boilerplate
-/// 
+///
 /// # Example
 /// ```rust
 /// let layout = create_bind_group_layout!(
@@ -64,7 +64,7 @@ macro_rules! create_bind_group_layout {
             ],
         })
     };
-    
+
     // Resource type patterns
     (@resource_type buffer(storage)) => {
         wgpu::BindingType::Buffer {
@@ -73,7 +73,7 @@ macro_rules! create_bind_group_layout {
             min_binding_size: None,
         }
     };
-    
+
     (@resource_type buffer(storage_read)) => {
         wgpu::BindingType::Buffer {
             ty: wgpu::BufferBindingType::Storage { read_only: true },
@@ -81,7 +81,7 @@ macro_rules! create_bind_group_layout {
             min_binding_size: None,
         }
     };
-    
+
     (@resource_type buffer(uniform)) => {
         wgpu::BindingType::Buffer {
             ty: wgpu::BufferBindingType::Uniform,
@@ -89,7 +89,7 @@ macro_rules! create_bind_group_layout {
             min_binding_size: None,
         }
     };
-    
+
     (@resource_type texture(2d)) => {
         wgpu::BindingType::Texture {
             multisampled: false,
@@ -97,7 +97,7 @@ macro_rules! create_bind_group_layout {
             sample_type: wgpu::TextureSampleType::Float { filterable: true },
         }
     };
-    
+
     (@resource_type texture(3d)) => {
         wgpu::BindingType::Texture {
             multisampled: false,
@@ -105,18 +105,18 @@ macro_rules! create_bind_group_layout {
             sample_type: wgpu::TextureSampleType::Float { filterable: true },
         }
     };
-    
+
     (@resource_type sampler(filtering)) => {
         wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering)
     };
-    
+
     (@resource_type sampler(non_filtering)) => {
         wgpu::BindingType::Sampler(wgpu::SamplerBindingType::NonFiltering)
     };
 }
 
 /// Define a struct that automatically implements bind group creation
-/// 
+///
 /// # Example
 /// ```rust
 /// define_bind_group_data! {
@@ -145,7 +145,7 @@ macro_rules! define_bind_group_data {
         pub struct $name {
             $(pub $field: $field_ty,)+
         }
-        
+
         impl $name {
             /// Create the bind group layout for this binding set
             pub fn create_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
@@ -155,7 +155,7 @@ macro_rules! define_bind_group_data {
                     $($binding => buffer($ty)),+
                 )
             }
-            
+
             /// Create a bind group from this data
             pub fn create_bind_group(
                 &self,
@@ -174,7 +174,7 @@ macro_rules! define_bind_group_data {
 }
 
 /// Helper for creating compute pipelines with automatic bind group layouts
-/// 
+///
 /// # Example
 /// ```rust
 /// let pipeline = create_compute_pipeline!(
@@ -199,13 +199,13 @@ macro_rules! create_compute_pipeline {
             label: Some(concat!($label, " Shader")),
             source: wgpu::ShaderSource::Wgsl($shader_source.into()),
         });
-        
+
         let pipeline_layout = $device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some(concat!($label, " Layout")),
             bind_group_layouts: &[$($bind_group_layout,)*],
             push_constant_ranges: &[],
         });
-        
+
         $device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
             label: Some($label),
             layout: Some(&pipeline_layout),
@@ -218,7 +218,7 @@ macro_rules! create_compute_pipeline {
 }
 
 /// Simplified buffer creation
-/// 
+///
 /// # Example
 /// ```rust
 /// let buffer = create_buffer!(
@@ -248,7 +248,7 @@ macro_rules! create_buffer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_macros_compile() {
         // This test just ensures the macros compile correctly

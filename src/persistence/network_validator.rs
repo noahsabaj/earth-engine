@@ -5,15 +5,15 @@
 //! checks for conflicts, and ensures synchronization between multiple clients.
 
 use std::collections::{HashMap, HashSet};
-use std::time::{Instant, Duration};
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
-use serde::{Serialize, Deserialize};
 use glam::Vec3;
+use serde::{Deserialize, Serialize};
 
-use crate::{ChunkPos, VoxelPos, BlockId};
-use crate::persistence::{PersistenceResult, PersistenceError};
-use crate::network::{SaveStatus, LoadStatus, ChunkSaveStatus};
+use crate::network::{ChunkSaveStatus, LoadStatus, SaveStatus};
+use crate::persistence::{PersistenceError, PersistenceResult};
+use crate::{BlockId, ChunkPos, VoxelPos};
 
 /// World consistency validation result
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -206,8 +206,12 @@ impl NetworkValidator {
     }
 
     /// Validate chunk save operation
-    pub fn validate_chunk_save(&self, chunk_pos: ChunkPos, checksum: u64, 
-                              save_state: ChunkSaveStatus) -> PersistenceResult<ValidationResult> {
+    pub fn validate_chunk_save(
+        &self,
+        chunk_pos: ChunkPos,
+        checksum: u64,
+        save_state: ChunkSaveStatus,
+    ) -> PersistenceResult<ValidationResult> {
         let operation_id = self.get_next_operation_id()?;
         let start_time = std::time::SystemTime::now();
 
@@ -230,7 +234,11 @@ impl NetworkValidator {
     }
 
     /// Validate chunk load operation  
-    pub fn validate_chunk_load(&self, chunk_pos: ChunkPos, checksum: u64) -> PersistenceResult<ValidationResult> {
+    pub fn validate_chunk_load(
+        &self,
+        chunk_pos: ChunkPos,
+        checksum: u64,
+    ) -> PersistenceResult<ValidationResult> {
         let operation_id = self.get_next_operation_id()?;
         let start_time = std::time::SystemTime::now();
 
@@ -253,8 +261,12 @@ impl NetworkValidator {
     }
 
     /// Validate player save operation
-    pub fn validate_player_save(&self, player_id: u32, position: Vec3, 
-                               timestamp: u64) -> PersistenceResult<ValidationResult> {
+    pub fn validate_player_save(
+        &self,
+        player_id: u32,
+        position: Vec3,
+        timestamp: u64,
+    ) -> PersistenceResult<ValidationResult> {
         let operation_id = self.get_next_operation_id()?;
         let start_time = std::time::SystemTime::now();
 
@@ -274,10 +286,14 @@ impl NetworkValidator {
     }
 
     /// Validate network synchronization state
-    pub fn validate_network_sync(&self, chunk_states: &HashMap<ChunkPos, ChunkSaveStatus>) -> PersistenceResult<Vec<ValidationResult>> {
+    pub fn validate_network_sync(
+        &self,
+        chunk_states: &HashMap<ChunkPos, ChunkSaveStatus>,
+    ) -> PersistenceResult<Vec<ValidationResult>> {
         let mut results = Vec::new();
-        let mut state = self.state.lock()
-            .map_err(|_| PersistenceError::LockPoisoned("validator state lock poisoned".to_string()))?;
+        let mut state = self.state.lock().map_err(|_| {
+            PersistenceError::LockPoisoned("validator state lock poisoned".to_string())
+        })?;
 
         for (chunk_pos, network_state) in chunk_states {
             if let Some(chunk_data) = state.chunks.get(chunk_pos) {
@@ -288,7 +304,7 @@ impl NetworkValidator {
                         disk_state: chunk_data.save_state,
                     };
                     results.push(ValidationResult::Invalid(error.clone()));
-                    
+
                     // Store error
                     state.validation_errors.push(error);
                     if state.validation_errors.len() > self.config.max_stored_errors {
@@ -310,8 +326,9 @@ impl NetworkValidator {
         let operation_id = self.get_next_operation_id()?;
         let start_time = std::time::SystemTime::now();
 
-        let mut state = self.state.lock()
-            .map_err(|_| PersistenceError::LockPoisoned("validator state lock poisoned".to_string()))?;
+        let mut state = self.state.lock().map_err(|_| {
+            PersistenceError::LockPoisoned("validator state lock poisoned".to_string())
+        })?;
 
         let mut errors = Vec::new();
         let mut warnings = Vec::new();
@@ -335,7 +352,7 @@ impl NetworkValidator {
             if self.config.enable_movement_validation {
                 self.validate_player_movement(*player_id, player_data, &mut warnings);
             }
-            
+
             self.validate_player_position(*player_id, player_data.last_position, &mut errors);
         }
 
@@ -352,11 +369,15 @@ impl NetworkValidator {
         // Trim stored results
         let error_len = state.validation_errors.len();
         if error_len > self.config.max_stored_errors {
-            state.validation_errors.drain(0..error_len - self.config.max_stored_errors);
+            state
+                .validation_errors
+                .drain(0..error_len - self.config.max_stored_errors);
         }
         let warning_len = state.validation_warnings.len();
         if warning_len > self.config.max_stored_warnings {
-            state.validation_warnings.drain(0..warning_len - self.config.max_stored_warnings);
+            state
+                .validation_warnings
+                .drain(0..warning_len - self.config.max_stored_warnings);
         }
 
         let result = if !errors.is_empty() {
@@ -385,10 +406,15 @@ impl NetworkValidator {
     }
 
     /// Register chunk data for validation
-    pub fn register_chunk(&self, chunk_pos: ChunkPos, checksum: u64, 
-                         save_state: ChunkSaveStatus) -> PersistenceResult<()> {
-        let mut state = self.state.lock()
-            .map_err(|_| PersistenceError::LockPoisoned("validator state lock poisoned".to_string()))?;
+    pub fn register_chunk(
+        &self,
+        chunk_pos: ChunkPos,
+        checksum: u64,
+        save_state: ChunkSaveStatus,
+    ) -> PersistenceResult<()> {
+        let mut state = self.state.lock().map_err(|_| {
+            PersistenceError::LockPoisoned("validator state lock poisoned".to_string())
+        })?;
 
         let chunk_data = ChunkValidationData {
             chunk_pos,
@@ -414,9 +440,15 @@ impl NetworkValidator {
     }
 
     /// Register player data for validation
-    pub fn register_player(&self, player_id: u32, uuid: String, position: Vec3) -> PersistenceResult<()> {
-        let mut state = self.state.lock()
-            .map_err(|_| PersistenceError::LockPoisoned("validator state lock poisoned".to_string()))?;
+    pub fn register_player(
+        &self,
+        player_id: u32,
+        uuid: String,
+        position: Vec3,
+    ) -> PersistenceResult<()> {
+        let mut state = self.state.lock().map_err(|_| {
+            PersistenceError::LockPoisoned("validator state lock poisoned".to_string())
+        })?;
 
         let current_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -424,7 +456,7 @@ impl NetworkValidator {
             .as_secs();
 
         let player_data = PlayerValidationData {
-            player_id, 
+            player_id,
             uuid,
             last_position: position,
             last_update: current_time,
@@ -438,8 +470,9 @@ impl NetworkValidator {
 
     /// Get validation statistics
     pub fn get_validation_stats(&self) -> PersistenceResult<ValidationStats> {
-        let state = self.state.lock()
-            .map_err(|_| PersistenceError::LockPoisoned("validator state lock poisoned".to_string()))?;
+        let state = self.state.lock().map_err(|_| {
+            PersistenceError::LockPoisoned("validator state lock poisoned".to_string())
+        })?;
 
         Ok(ValidationStats {
             total_chunks: state.chunks.len(),
@@ -453,8 +486,9 @@ impl NetworkValidator {
 
     /// Get recent validation errors
     pub fn get_recent_errors(&self, limit: usize) -> PersistenceResult<Vec<ValidationError>> {
-        let state = self.state.lock()
-            .map_err(|_| PersistenceError::LockPoisoned("validator state lock poisoned".to_string()))?;
+        let state = self.state.lock().map_err(|_| {
+            PersistenceError::LockPoisoned("validator state lock poisoned".to_string())
+        })?;
 
         let start = if state.validation_errors.len() > limit {
             state.validation_errors.len() - limit
@@ -467,8 +501,9 @@ impl NetworkValidator {
 
     /// Get recent validation warnings
     pub fn get_recent_warnings(&self, limit: usize) -> PersistenceResult<Vec<ValidationWarning>> {
-        let state = self.state.lock()
-            .map_err(|_| PersistenceError::LockPoisoned("validator state lock poisoned".to_string()))?;
+        let state = self.state.lock().map_err(|_| {
+            PersistenceError::LockPoisoned("validator state lock poisoned".to_string())
+        })?;
 
         let start = if state.validation_warnings.len() > limit {
             state.validation_warnings.len() - limit
@@ -480,10 +515,15 @@ impl NetworkValidator {
     }
 
     // Internal validation methods
-    fn validate_chunk_internal(&self, chunk_pos: ChunkPos, checksum: u64, 
-                              save_state: ChunkSaveStatus) -> PersistenceResult<ValidationResult> {
-        let mut state = self.state.lock()
-            .map_err(|_| PersistenceError::LockPoisoned("validator state lock poisoned".to_string()))?;
+    fn validate_chunk_internal(
+        &self,
+        chunk_pos: ChunkPos,
+        checksum: u64,
+        save_state: ChunkSaveStatus,
+    ) -> PersistenceResult<ValidationResult> {
+        let mut state = self.state.lock().map_err(|_| {
+            PersistenceError::LockPoisoned("validator state lock poisoned".to_string())
+        })?;
 
         if let Some(existing_data) = state.chunks.get(&chunk_pos) {
             if self.config.enable_chunk_checksums && existing_data.checksum != checksum {
@@ -521,10 +561,15 @@ impl NetworkValidator {
         Ok(ValidationResult::Valid)
     }
 
-    fn validate_player_internal(&self, player_id: u32, position: Vec3, 
-                               timestamp: u64) -> PersistenceResult<ValidationResult> {
-        let mut state = self.state.lock()
-            .map_err(|_| PersistenceError::LockPoisoned("validator state lock poisoned".to_string()))?;
+    fn validate_player_internal(
+        &self,
+        player_id: u32,
+        position: Vec3,
+        timestamp: u64,
+    ) -> PersistenceResult<ValidationResult> {
+        let mut state = self.state.lock().map_err(|_| {
+            PersistenceError::LockPoisoned("validator state lock poisoned".to_string())
+        })?;
 
         // Check position bounds
         if self.is_position_out_of_bounds(position) {
@@ -565,7 +610,7 @@ impl NetworkValidator {
             player_data.last_position = position;
             player_data.last_update = timestamp;
             player_data.movement_history.push((position, timestamp));
-            
+
             // Keep movement history bounded
             if player_data.movement_history.len() > 100 {
                 player_data.movement_history.remove(0);
@@ -575,8 +620,12 @@ impl NetworkValidator {
         Ok(ValidationResult::Valid)
     }
 
-    fn validate_player_movement(&self, player_id: u32, player_data: &PlayerValidationData, 
-                               warnings: &mut Vec<ValidationWarning>) {
+    fn validate_player_movement(
+        &self,
+        player_id: u32,
+        player_data: &PlayerValidationData,
+        warnings: &mut Vec<ValidationWarning>,
+    ) {
         if player_data.movement_history.len() < 2 {
             return;
         }
@@ -602,8 +651,12 @@ impl NetworkValidator {
         }
     }
 
-    fn validate_player_position(&self, player_id: u32, position: Vec3, 
-                               errors: &mut Vec<ValidationError>) {
+    fn validate_player_position(
+        &self,
+        player_id: u32,
+        position: Vec3,
+        errors: &mut Vec<ValidationError>,
+    ) {
         if self.is_position_out_of_bounds(position) {
             errors.push(ValidationError::PlayerPositionOutOfBounds {
                 player_id,
@@ -619,24 +672,29 @@ impl NetworkValidator {
         const MIN_Y: f32 = -64.0;
         const MAX_Y: f32 = 320.0;
 
-        position.x < MIN_COORD || position.x > MAX_COORD ||
-        position.z < MIN_COORD || position.z > MAX_COORD ||
-        position.y < MIN_Y || position.y > MAX_Y
+        position.x < MIN_COORD
+            || position.x > MAX_COORD
+            || position.z < MIN_COORD
+            || position.z > MAX_COORD
+            || position.y < MIN_Y
+            || position.y > MAX_Y
     }
 
     fn get_next_operation_id(&self) -> PersistenceResult<u32> {
-        let mut id = self.next_operation_id.lock()
-            .map_err(|_| PersistenceError::LockPoisoned("operation_id lock poisoned".to_string()))?;
+        let mut id = self.next_operation_id.lock().map_err(|_| {
+            PersistenceError::LockPoisoned("operation_id lock poisoned".to_string())
+        })?;
         *id += 1;
         Ok(*id)
     }
 
     fn record_operation(&self, operation: ValidationOperation) -> PersistenceResult<()> {
-        let mut state = self.state.lock()
-            .map_err(|_| PersistenceError::LockPoisoned("validator state lock poisoned".to_string()))?;
+        let mut state = self.state.lock().map_err(|_| {
+            PersistenceError::LockPoisoned("validator state lock poisoned".to_string())
+        })?;
 
         state.operation_history.push(operation);
-        
+
         // Keep history bounded
         if state.operation_history.len() > 1000 {
             state.operation_history.remove(0);
@@ -665,8 +723,10 @@ mod tests {
     fn test_validator_creation() {
         let config = ValidationConfig::default();
         let validator = NetworkValidator::new(config);
-        
-        let stats = validator.get_validation_stats().expect("Failed to get validation stats");
+
+        let stats = validator
+            .get_validation_stats()
+            .expect("Failed to get validation stats");
         assert_eq!(stats.total_chunks, 0);
         assert_eq!(stats.total_players, 0);
         assert_eq!(stats.total_errors, 0);
@@ -676,12 +736,15 @@ mod tests {
     fn test_chunk_registration() {
         let config = ValidationConfig::default();
         let validator = NetworkValidator::new(config);
-        
+
         let chunk_pos = ChunkPos { x: 0, y: 0, z: 0 };
-        validator.register_chunk(chunk_pos, 12345, ChunkSaveStatus::Saved)
+        validator
+            .register_chunk(chunk_pos, 12345, ChunkSaveStatus::Saved)
             .expect("Failed to register chunk");
-        
-        let stats = validator.get_validation_stats().expect("Failed to get validation stats");
+
+        let stats = validator
+            .get_validation_stats()
+            .expect("Failed to get validation stats");
         assert_eq!(stats.total_chunks, 1);
     }
 
@@ -689,11 +752,14 @@ mod tests {
     fn test_player_registration() {
         let config = ValidationConfig::default();
         let validator = NetworkValidator::new(config);
-        
-        validator.register_player(1, "test-uuid".to_string(), Vec3::new(0.0, 100.0, 0.0))
+
+        validator
+            .register_player(1, "test-uuid".to_string(), Vec3::new(0.0, 100.0, 0.0))
             .expect("Failed to register player");
-        
-        let stats = validator.get_validation_stats().expect("Failed to get validation stats");
+
+        let stats = validator
+            .get_validation_stats()
+            .expect("Failed to get validation stats");
         assert_eq!(stats.total_players, 1);
     }
 
@@ -701,21 +767,24 @@ mod tests {
     fn test_chunk_validation() {
         let config = ValidationConfig::default();
         let validator = NetworkValidator::new(config);
-        
+
         let chunk_pos = ChunkPos { x: 0, y: 0, z: 0 };
-        
+
         // First save should be valid
-        let result = validator.validate_chunk_save(chunk_pos, 12345, ChunkSaveStatus::Saved)
+        let result = validator
+            .validate_chunk_save(chunk_pos, 12345, ChunkSaveStatus::Saved)
             .expect("Failed to validate chunk save");
         assert_eq!(result, ValidationResult::Valid);
-        
+
         // Same checksum should be valid
-        let result = validator.validate_chunk_save(chunk_pos, 12345, ChunkSaveStatus::Saved)
+        let result = validator
+            .validate_chunk_save(chunk_pos, 12345, ChunkSaveStatus::Saved)
             .expect("Failed to validate chunk save");
         assert_eq!(result, ValidationResult::Valid);
-        
+
         // Different checksum should be invalid
-        let result = validator.validate_chunk_save(chunk_pos, 54321, ChunkSaveStatus::Saved)
+        let result = validator
+            .validate_chunk_save(chunk_pos, 54321, ChunkSaveStatus::Saved)
             .expect("Failed to validate chunk save");
         if let ValidationResult::Invalid(ValidationError::ChunkChecksumMismatch { .. }) = result {
             // Expected
@@ -728,21 +797,24 @@ mod tests {
     fn test_player_position_validation() {
         let config = ValidationConfig::default();
         let validator = NetworkValidator::new(config);
-        
+
         let current_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs();
-        
+
         // Valid position
-        let result = validator.validate_player_save(1, Vec3::new(100.0, 64.0, 200.0), current_time)
+        let result = validator
+            .validate_player_save(1, Vec3::new(100.0, 64.0, 200.0), current_time)
             .expect("Failed to validate player save");
         assert_eq!(result, ValidationResult::Valid);
-        
+
         // Out of bounds position
-        let result = validator.validate_player_save(1, Vec3::new(50_000_000.0, 64.0, 200.0), current_time)
+        let result = validator
+            .validate_player_save(1, Vec3::new(50_000_000.0, 64.0, 200.0), current_time)
             .expect("Failed to validate player save");
-        if let ValidationResult::Invalid(ValidationError::PlayerPositionOutOfBounds { .. }) = result {
+        if let ValidationResult::Invalid(ValidationError::PlayerPositionOutOfBounds { .. }) = result
+        {
             // Expected
         } else {
             panic!("Expected position out of bounds error, got: {:?}", result);
@@ -753,14 +825,18 @@ mod tests {
     fn test_full_world_validation() {
         let config = ValidationConfig::default();
         let validator = NetworkValidator::new(config);
-        
+
         // Add some test data
-        validator.register_chunk(ChunkPos { x: 0, y: 0, z: 0 }, 12345, ChunkSaveStatus::Saved)
+        validator
+            .register_chunk(ChunkPos { x: 0, y: 0, z: 0 }, 12345, ChunkSaveStatus::Saved)
             .expect("Failed to register chunk");
-        validator.register_player(1, "test-uuid".to_string(), Vec3::new(0.0, 100.0, 0.0))
+        validator
+            .register_player(1, "test-uuid".to_string(), Vec3::new(0.0, 100.0, 0.0))
             .expect("Failed to register player");
-        
-        let result = validator.validate_full_world().expect("Failed to validate full world");
+
+        let result = validator
+            .validate_full_world()
+            .expect("Failed to validate full world");
         assert_eq!(result, ValidationResult::Valid);
     }
 }

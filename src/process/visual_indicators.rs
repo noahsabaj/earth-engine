@@ -1,26 +1,25 @@
 /// Visual Process Indicators
-/// 
+///
 /// Visual representation of process progress and status.
 /// Generates data for rendering progress bars, status icons, etc.
-
 use crate::process::{ProcessStatus, QualityLevel};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 /// Visual indicator for a process
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ProcessVisual {
     /// Progress bar data
     pub progress_bar: ProgressBar,
-    
+
     /// Status icon
     pub status_icon: StatusIcon,
-    
+
     /// Text overlays
     pub text_overlays: Vec<TextOverlay>,
-    
+
     /// Particle effects
     pub particles: Vec<ParticleEffect>,
-    
+
     /// Animation state
     pub animation: AnimationState,
 }
@@ -30,7 +29,7 @@ impl ProcessVisual {
     pub fn update_progress(&mut self, progress: f32) {
         self.progress_bar.progress = progress;
         self.progress_bar.segments = Self::calculate_segments(progress);
-        
+
         // Update animation based on progress
         if progress < 0.25 {
             self.animation = AnimationState::Starting;
@@ -40,7 +39,7 @@ impl ProcessVisual {
             self.animation = AnimationState::Finishing;
         }
     }
-    
+
     /// Update status
     pub fn update_status(&mut self, status: ProcessStatus) {
         self.status_icon = match status {
@@ -52,12 +51,12 @@ impl ProcessVisual {
             ProcessStatus::Cancelled => StatusIcon::Cancelled,
         };
     }
-    
+
     /// Calculate progress bar segments
     fn calculate_segments(progress: f32) -> u8 {
         (progress * 10.0) as u8
     }
-    
+
     /// Add text overlay
     pub fn add_text(&mut self, text: String, duration: f32) {
         self.text_overlays.push(TextOverlay {
@@ -68,7 +67,7 @@ impl ProcessVisual {
             style: TextStyle::Normal,
         });
     }
-    
+
     /// Add particle effect
     pub fn add_particle(&mut self, particle_type: ParticleType) {
         self.particles.push(ParticleEffect {
@@ -78,7 +77,7 @@ impl ProcessVisual {
             elapsed: 0.0,
         });
     }
-    
+
     /// Update visuals (called each frame)
     pub fn update(&mut self, delta_time: f32) {
         // Update text overlays
@@ -86,7 +85,7 @@ impl ProcessVisual {
             overlay.elapsed += delta_time;
             overlay.elapsed < overlay.duration
         });
-        
+
         // Update particles
         self.particles.retain_mut(|particle| {
             particle.elapsed += delta_time;
@@ -100,16 +99,16 @@ impl ProcessVisual {
 pub struct ProgressBar {
     /// Progress value (0.0 - 1.0)
     pub progress: f32,
-    
+
     /// Number of filled segments (0-10)
     pub segments: u8,
-    
+
     /// Bar color
     pub color: ProgressColor,
-    
+
     /// Show percentage text
     pub show_percentage: bool,
-    
+
     /// Animation style
     pub animation: BarAnimation,
 }
@@ -246,18 +245,16 @@ impl VisualTemplates {
             },
             status_icon: StatusIcon::Working,
             text_overlays: vec![],
-            particles: vec![
-                ParticleEffect {
-                    particle_type: ParticleType::Sparkle,
-                    intensity: 0.5,
-                    duration: 10.0,
-                    elapsed: 0.0,
-                }
-            ],
+            particles: vec![ParticleEffect {
+                particle_type: ParticleType::Sparkle,
+                intensity: 0.5,
+                duration: 10.0,
+                elapsed: 0.0,
+            }],
             animation: AnimationState::Running,
         }
     }
-    
+
     /// Smelting process visuals
     pub fn smelting() -> ProcessVisual {
         ProcessVisual {
@@ -280,12 +277,12 @@ impl VisualTemplates {
                     intensity: 0.3,
                     duration: 10.0,
                     elapsed: 0.0,
-                }
+                },
             ],
             animation: AnimationState::Running,
         }
     }
-    
+
     /// Growth process visuals
     pub fn growth() -> ProcessVisual {
         ProcessVisual {
@@ -297,14 +294,12 @@ impl VisualTemplates {
             },
             status_icon: StatusIcon::None,
             text_overlays: vec![],
-            particles: vec![
-                ParticleEffect {
-                    particle_type: ParticleType::Magic,
-                    intensity: 0.2,
-                    duration: 10.0,
-                    elapsed: 0.0,
-                }
-            ],
+            particles: vec![ParticleEffect {
+                particle_type: ParticleType::Magic,
+                intensity: 0.2,
+                duration: 10.0,
+                elapsed: 0.0,
+            }],
             animation: AnimationState::Running,
         }
     }
@@ -316,8 +311,14 @@ pub fn quality_to_visual(quality: QualityLevel) -> (ProgressColor, Vec<ParticleT
         QualityLevel::Poor => (ProgressColor::Red, vec![]),
         QualityLevel::Normal => (ProgressColor::Green, vec![]),
         QualityLevel::Good => (ProgressColor::Blue, vec![ParticleType::Sparkle]),
-        QualityLevel::Excellent => (ProgressColor::Purple, vec![ParticleType::Sparkle, ParticleType::Magic]),
-        QualityLevel::Perfect => (ProgressColor::Custom(255, 215, 0), vec![ParticleType::Sparkle, ParticleType::Magic]), // Gold
+        QualityLevel::Excellent => (
+            ProgressColor::Purple,
+            vec![ParticleType::Sparkle, ParticleType::Magic],
+        ),
+        QualityLevel::Perfect => (
+            ProgressColor::Custom(255, 215, 0),
+            vec![ParticleType::Sparkle, ParticleType::Magic],
+        ), // Gold
     }
 }
 
@@ -332,22 +333,46 @@ impl VisualRenderer {
         size: [f32; 2],
     ) -> Vec<f32> {
         let mut vertices = Vec::new();
-        
+
         // Background quad
         let x = position[0];
         let y = position[1];
         let z = position[2];
         let w = size[0];
         let h = size[1];
-        
+
         // Background vertices (darker)
         vertices.extend_from_slice(&[
-            x, y, z, 0.2, 0.2, 0.2, 1.0,
-            x + w, y, z, 0.2, 0.2, 0.2, 1.0,
-            x + w, y + h, z, 0.2, 0.2, 0.2, 1.0,
-            x, y + h, z, 0.2, 0.2, 0.2, 1.0,
+            x,
+            y,
+            z,
+            0.2,
+            0.2,
+            0.2,
+            1.0,
+            x + w,
+            y,
+            z,
+            0.2,
+            0.2,
+            0.2,
+            1.0,
+            x + w,
+            y + h,
+            z,
+            0.2,
+            0.2,
+            0.2,
+            1.0,
+            x,
+            y + h,
+            z,
+            0.2,
+            0.2,
+            0.2,
+            1.0,
         ]);
-        
+
         // Progress fill
         let fill_width = w * bar.progress;
         let (r, g, b) = match bar.color {
@@ -356,16 +381,42 @@ impl VisualRenderer {
             ProgressColor::Yellow => (1.0, 1.0, 0.0),
             ProgressColor::Red => (1.0, 0.0, 0.0),
             ProgressColor::Purple => (0.5, 0.0, 1.0),
-            ProgressColor::Custom(r, g, b) => (r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0),
+            ProgressColor::Custom(r, g, b) => {
+                (r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0)
+            }
         };
-        
+
         vertices.extend_from_slice(&[
-            x, y, z + 0.01, r, g, b, 1.0,
-            x + fill_width, y, z + 0.01, r, g, b, 1.0,
-            x + fill_width, y + h, z + 0.01, r, g, b, 1.0,
-            x, y + h, z + 0.01, r, g, b, 1.0,
+            x,
+            y,
+            z + 0.01,
+            r,
+            g,
+            b,
+            1.0,
+            x + fill_width,
+            y,
+            z + 0.01,
+            r,
+            g,
+            b,
+            1.0,
+            x + fill_width,
+            y + h,
+            z + 0.01,
+            r,
+            g,
+            b,
+            1.0,
+            x,
+            y + h,
+            z + 0.01,
+            r,
+            g,
+            b,
+            1.0,
         ]);
-        
+
         vertices
     }
 }
@@ -373,33 +424,33 @@ impl VisualRenderer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_progress_update() {
         let mut visual = ProcessVisual::default();
-        
+
         visual.update_progress(0.5);
         assert_eq!(visual.progress_bar.progress, 0.5);
         assert_eq!(visual.progress_bar.segments, 5);
         assert_eq!(visual.animation, AnimationState::Running);
-        
+
         visual.update_progress(1.0);
         assert_eq!(visual.progress_bar.segments, 10);
         assert_eq!(visual.animation, AnimationState::Finishing);
     }
-    
+
     #[test]
     fn test_text_overlay_lifetime() {
         let mut visual = ProcessVisual::default();
-        
+
         visual.add_text("Test".to_string(), 1.0);
         assert_eq!(visual.text_overlays.len(), 1);
-        
+
         // Update past duration
         visual.update(1.5);
         assert_eq!(visual.text_overlays.len(), 0);
     }
-    
+
     #[test]
     fn test_quality_visuals() {
         let (color, particles) = quality_to_visual(QualityLevel::Perfect);

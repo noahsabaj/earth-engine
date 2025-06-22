@@ -10,16 +10,41 @@ pub struct UIColor {
 }
 
 impl UIColor {
-    pub const WHITE: UIColor = UIColor { r: 1.0, g: 1.0, b: 1.0, a: 1.0 };
-    pub const BLACK: UIColor = UIColor { r: 0.0, g: 0.0, b: 0.0, a: 1.0 };
-    pub const RED: UIColor = UIColor { r: 1.0, g: 0.0, b: 0.0, a: 1.0 };
-    pub const GREEN: UIColor = UIColor { r: 0.0, g: 1.0, b: 0.0, a: 1.0 };
-    pub const BLUE: UIColor = UIColor { r: 0.0, g: 0.0, b: 1.0, a: 1.0 };
-    
+    pub const WHITE: UIColor = UIColor {
+        r: 1.0,
+        g: 1.0,
+        b: 1.0,
+        a: 1.0,
+    };
+    pub const BLACK: UIColor = UIColor {
+        r: 0.0,
+        g: 0.0,
+        b: 0.0,
+        a: 1.0,
+    };
+    pub const RED: UIColor = UIColor {
+        r: 1.0,
+        g: 0.0,
+        b: 0.0,
+        a: 1.0,
+    };
+    pub const GREEN: UIColor = UIColor {
+        r: 0.0,
+        g: 1.0,
+        b: 0.0,
+        a: 1.0,
+    };
+    pub const BLUE: UIColor = UIColor {
+        r: 0.0,
+        g: 0.0,
+        b: 1.0,
+        a: 1.0,
+    };
+
     pub fn new(r: f32, g: f32, b: f32, a: f32) -> Self {
         Self { r, g, b, a }
     }
-    
+
     pub fn to_array(&self) -> [f32; 4] {
         [self.r, self.g, self.b, self.a]
     }
@@ -36,12 +61,16 @@ pub struct UIRect {
 
 impl UIRect {
     pub fn new(x: f32, y: f32, width: f32, height: f32) -> Self {
-        Self { x, y, width, height }
+        Self {
+            x,
+            y,
+            width,
+            height,
+        }
     }
-    
+
     pub fn contains(&self, x: f32, y: f32) -> bool {
-        x >= self.x && x <= self.x + self.width &&
-        y >= self.y && y <= self.y + self.height
+        x >= self.x && x <= self.x + self.width && y >= self.y && y <= self.y + self.height
     }
 }
 
@@ -79,15 +108,15 @@ impl UIRenderer {
             screen_size: Vec2::new(width, height),
         }
     }
-    
+
     pub fn resize(&mut self, width: f32, height: f32) {
         self.screen_size = Vec2::new(width, height);
     }
-    
+
     pub fn begin_frame(&mut self) {
         self.elements.clear();
     }
-    
+
     pub fn draw_rect(&mut self, rect: UIRect, color: UIColor) {
         self.elements.push(UIElement::Rect {
             rect,
@@ -96,7 +125,7 @@ impl UIRenderer {
             border_width: 0.0,
         });
     }
-    
+
     pub fn draw_rect_outline(&mut self, rect: UIRect, color: UIColor, border_width: f32) {
         self.elements.push(UIElement::Rect {
             rect,
@@ -105,7 +134,7 @@ impl UIRenderer {
             border_width,
         });
     }
-    
+
     pub fn draw_text(&mut self, text: &str, x: f32, y: f32, size: f32, color: UIColor) {
         self.elements.push(UIElement::Text {
             text: text.to_string(),
@@ -114,7 +143,7 @@ impl UIRenderer {
             color,
         });
     }
-    
+
     pub fn render(&self, encoder: &mut wgpu::CommandEncoder, view: &wgpu::TextureView) {
         // TODO: Implement actual rendering
         // For now, this is a placeholder

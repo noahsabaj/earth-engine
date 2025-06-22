@@ -1,9 +1,8 @@
 /// Data-Oriented Time of Day Functions
-/// 
+///
 /// Pure functions for time calculations. No methods, no self, just data transformations.
 /// Follows DOP principles - migrated from CPU to GPU world lighting system.
-
-use cgmath::{Vector3, InnerSpace};
+use cgmath::{InnerSpace, Vector3};
 
 /// Time of day data (DOP - no methods)
 /// Pure data structure for time state
@@ -57,22 +56,14 @@ pub fn calculate_moon_angle(time: &TimeOfDayData) -> f32 {
 /// Pure function - transforms time data to 3D sun direction
 pub fn calculate_sun_direction(time: &TimeOfDayData) -> Vector3<f32> {
     let angle = calculate_sun_angle(time);
-    Vector3::new(
-        angle.cos(),
-        angle.sin(),
-        0.0,
-    ).normalize()
+    Vector3::new(angle.cos(), angle.sin(), 0.0).normalize()
 }
 
 /// Get moon direction vector  
 /// Pure function - transforms time data to 3D moon direction
 pub fn calculate_moon_direction(time: &TimeOfDayData) -> Vector3<f32> {
     let angle = calculate_moon_angle(time);
-    Vector3::new(
-        angle.cos(),
-        angle.sin(),
-        0.0,
-    ).normalize()
+    Vector3::new(angle.cos(), angle.sin(), 0.0).normalize()
 }
 
 /// Get ambient light level (0.0 - 1.0)
@@ -126,7 +117,7 @@ pub fn advance_time(time: &mut TimeOfDayData, delta_seconds: f32, day_length_sec
     // Convert delta to hours based on day length
     let hours_per_second = 24.0 / day_length_seconds;
     time.hours += delta_seconds * hours_per_second;
-    
+
     // Wrap around at 24 hours
     while time.hours >= 24.0 {
         time.hours -= 24.0;
@@ -159,7 +150,10 @@ pub struct DayNightCycleData {
 
 /// Create new day/night cycle data
 /// Pure function - returns data structure, no behavior
-pub fn create_day_night_cycle(starting_time: TimeOfDayData, day_length_seconds: f32) -> DayNightCycleData {
+pub fn create_day_night_cycle(
+    starting_time: TimeOfDayData,
+    day_length_seconds: f32,
+) -> DayNightCycleData {
     DayNightCycleData {
         time: starting_time,
         day_length_seconds,
@@ -176,7 +170,11 @@ pub fn create_default_day_night_cycle() -> DayNightCycleData {
 /// Update the time of day
 /// Function - transforms cycle data by advancing time
 pub fn update_day_night_cycle(cycle: &mut DayNightCycleData, delta_time: f32) {
-    advance_time(&mut cycle.time, delta_time * cycle.time_scale, cycle.day_length_seconds);
+    advance_time(
+        &mut cycle.time,
+        delta_time * cycle.time_scale,
+        cycle.day_length_seconds,
+    );
 }
 
 /// Get the current global light level (0-15)

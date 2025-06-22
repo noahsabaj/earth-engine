@@ -1,192 +1,327 @@
 //! Comprehensive error handling for Hearth Engine
-//! 
+//!
 //! This module provides a unified error type that replaces all unwrap() calls
 //! with proper error handling, ensuring the engine never panics in production.
 
-use std::fmt;
 use std::error::Error as StdError;
-use std::sync::{MutexGuard, RwLockReadGuard, RwLockWriteGuard, PoisonError};
+use std::fmt;
+use std::sync::{MutexGuard, PoisonError, RwLockReadGuard, RwLockWriteGuard};
 
 /// Main error type for Hearth Engine
 #[derive(Debug)]
 pub enum EngineError {
     // Resource Errors
-    BufferAccess { index: usize, size: usize },
-    TextureNotFound { id: String },
-    ShaderCompilation { source: String, error: String },
-    MeshGeneration { chunk_pos: (i32, i32, i32), error: String },
-    
+    BufferAccess {
+        index: usize,
+        size: usize,
+    },
+    TextureNotFound {
+        id: String,
+    },
+    ShaderCompilation {
+        source: String,
+        error: String,
+    },
+    MeshGeneration {
+        chunk_pos: (i32, i32, i32),
+        error: String,
+    },
+
     // World Errors
-    ChunkNotLoaded { pos: (i32, i32, i32) },
-    BlockOutOfBounds { pos: (i32, i32, i32), chunk_size: u32 },
-    InvalidBlockType { id: u32 },
-    BiomeNotFound { id: u32 },
-    
+    ChunkNotLoaded {
+        pos: (i32, i32, i32),
+    },
+    BlockOutOfBounds {
+        pos: (i32, i32, i32),
+        chunk_size: u32,
+    },
+    InvalidBlockType {
+        id: u32,
+    },
+    BiomeNotFound {
+        id: u32,
+    },
+
     // Persistence Errors
-    SaveFailed { path: String, error: String },
-    LoadFailed { path: String, error: String },
-    CorruptedData { reason: String },
-    VersionMismatch { expected: u32, found: u32 },
-    
+    SaveFailed {
+        path: String,
+        error: String,
+    },
+    LoadFailed {
+        path: String,
+        error: String,
+    },
+    CorruptedData {
+        reason: String,
+    },
+    VersionMismatch {
+        expected: u32,
+        found: u32,
+    },
+
     // Network Errors
-    ConnectionFailed { addr: String, error: String },
-    ProtocolError { message: String },
-    PacketTooLarge { size: usize, max_size: usize },
-    PlayerNotFound { id: u64 },
-    
+    ConnectionFailed {
+        addr: String,
+        error: String,
+    },
+    ProtocolError {
+        message: String,
+    },
+    PacketTooLarge {
+        size: usize,
+        max_size: usize,
+    },
+    PlayerNotFound {
+        id: u64,
+    },
+
     // Threading Errors
-    LockPoisoned { resource: String },
-    ChannelClosed { name: String },
-    TaskJoinError { task: String },
-    
+    LockPoisoned {
+        resource: String,
+    },
+    ChannelClosed {
+        name: String,
+    },
+    TaskJoinError {
+        task: String,
+    },
+
     // GPU Errors
     DeviceNotFound,
-    BufferCreationFailed { size: u64, usage: String },
-    BindGroupLayoutMismatch { expected: String, found: String },
-    RenderPipelineError { error: String },
-    
+    BufferCreationFailed {
+        size: u64,
+        usage: String,
+    },
+    BindGroupLayoutMismatch {
+        expected: String,
+        found: String,
+    },
+    RenderPipelineError {
+        error: String,
+    },
+
     // Memory Errors
-    AllocationFailed { size: usize, reason: String },
-    OutOfMemory { requested: usize, available: usize },
-    
+    AllocationFailed {
+        size: usize,
+        reason: String,
+    },
+    OutOfMemory {
+        requested: usize,
+        available: usize,
+    },
+
     // Configuration Errors
-    InvalidConfig { field: String, value: String, reason: String },
-    MissingConfig { field: String },
-    
+    InvalidConfig {
+        field: String,
+        value: String,
+        reason: String,
+    },
+    MissingConfig {
+        field: String,
+    },
+
     // System Errors
-    IoError { path: String, error: String },
-    Utf8Error { context: String },
-    ParseError { value: String, expected_type: String },
-    
+    IoError {
+        path: String,
+        error: String,
+    },
+    Utf8Error {
+        context: String,
+    },
+    ParseError {
+        value: String,
+        expected_type: String,
+    },
+
     // Hot Reload Errors
-    AssetWatchError { path: String, error: String },
-    ShaderReloadFailed { name: String, error: String },
-    
+    AssetWatchError {
+        path: String,
+        error: String,
+    },
+    ShaderReloadFailed {
+        name: String,
+        error: String,
+    },
+
     // System Errors (continued)
-    SystemError { component: String, error: String },
-    BufferError { operation: String, error: String },
-    StateError { expected: String, actual: String },
-    ResourceNotFound { resource_type: String, id: String },
-    GpuOperationFailed { operation: String, error: String },
-    SerializationError { context: String, error: String },
-    DeserializationError { context: String, error: String },
-    
+    SystemError {
+        component: String,
+        error: String,
+    },
+    BufferError {
+        operation: String,
+        error: String,
+    },
+    StateError {
+        expected: String,
+        actual: String,
+    },
+    ResourceNotFound {
+        resource_type: String,
+        id: String,
+    },
+    GpuOperationFailed {
+        operation: String,
+        error: String,
+    },
+    SerializationError {
+        context: String,
+        error: String,
+    },
+    DeserializationError {
+        context: String,
+        error: String,
+    },
+
     // Additional integration errors
     ValidationFailed(String),
     TimeoutError(String),
     ProcessingFailed(String),
     ResourceExhausted(String),
     FeatureDisabled(String),
-    
+
     // Generic fallback for unexpected errors
-    Internal { message: String },
+    Internal {
+        message: String,
+    },
 }
 
 impl fmt::Display for EngineError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            EngineError::BufferAccess { index, size } => 
-                write!(f, "Buffer access out of bounds: index {} >= size {}", index, size),
-            EngineError::TextureNotFound { id } => 
-                write!(f, "Texture not found: {}", id),
-            EngineError::ShaderCompilation { source, error } => 
-                write!(f, "Shader compilation failed for {}: {}", source, error),
-            EngineError::MeshGeneration { chunk_pos, error } => 
-                write!(f, "Mesh generation failed for chunk {:?}: {}", chunk_pos, error),
-            
-            EngineError::ChunkNotLoaded { pos } => 
-                write!(f, "Chunk not loaded at position {:?}", pos),
-            EngineError::BlockOutOfBounds { pos, chunk_size } => 
-                write!(f, "Block position {:?} out of bounds for chunk size {}", pos, chunk_size),
-            EngineError::InvalidBlockType { id } => 
-                write!(f, "Invalid block type ID: {}", id),
-            EngineError::BiomeNotFound { id } => 
-                write!(f, "Biome not found: {}", id),
-            
-            EngineError::SaveFailed { path, error } => 
-                write!(f, "Save failed for {}: {}", path, error),
-            EngineError::LoadFailed { path, error } => 
-                write!(f, "Load failed for {}: {}", path, error),
-            EngineError::CorruptedData { reason } => 
-                write!(f, "Data corrupted: {}", reason),
-            EngineError::VersionMismatch { expected, found } => 
-                write!(f, "Version mismatch: expected {}, found {}", expected, found),
-            
-            EngineError::ConnectionFailed { addr, error } => 
-                write!(f, "Connection failed to {}: {}", addr, error),
-            EngineError::ProtocolError { message } => 
-                write!(f, "Protocol error: {}", message),
-            EngineError::PacketTooLarge { size, max_size } => 
-                write!(f, "Packet too large: {} bytes (max: {})", size, max_size),
-            EngineError::PlayerNotFound { id } => 
-                write!(f, "Player not found: {}", id),
-            
-            EngineError::LockPoisoned { resource } => 
-                write!(f, "Lock poisoned for resource: {}", resource),
-            EngineError::ChannelClosed { name } => 
-                write!(f, "Channel closed: {}", name),
-            EngineError::TaskJoinError { task } => 
-                write!(f, "Task join error: {}", task),
-            
-            EngineError::DeviceNotFound => 
-                write!(f, "GPU device not found"),
-            EngineError::BufferCreationFailed { size, usage } => 
-                write!(f, "Buffer creation failed: size={}, usage={}", size, usage),
-            EngineError::BindGroupLayoutMismatch { expected, found } => 
-                write!(f, "Bind group layout mismatch: expected {}, found {}", expected, found),
-            EngineError::RenderPipelineError { error } => 
-                write!(f, "Render pipeline error: {}", error),
-            
-            EngineError::AllocationFailed { size, reason } => 
-                write!(f, "Allocation failed for {} bytes: {}", size, reason),
-            EngineError::OutOfMemory { requested, available } => 
-                write!(f, "Out of memory: requested {} bytes, available {}", requested, available),
-            
-            EngineError::InvalidConfig { field, value, reason } => 
-                write!(f, "Invalid config: {} = {} ({})", field, value, reason),
-            EngineError::MissingConfig { field } => 
-                write!(f, "Missing required config: {}", field),
-            
-            EngineError::IoError { path, error } => 
-                write!(f, "IO error for {}: {}", path, error),
-            EngineError::Utf8Error { context } => 
-                write!(f, "UTF-8 error in {}", context),
-            EngineError::ParseError { value, expected_type } => 
-                write!(f, "Parse error: '{}' is not a valid {}", value, expected_type),
-            
-            EngineError::AssetWatchError { path, error } => 
-                write!(f, "Asset watch error for {}: {}", path, error),
-            EngineError::ShaderReloadFailed { name, error } => 
-                write!(f, "Shader reload failed for {}: {}", name, error),
-            
-            EngineError::SystemError { component, error } => 
-                write!(f, "System error in {}: {}", component, error),
-            EngineError::BufferError { operation, error } => 
-                write!(f, "Buffer error during {}: {}", operation, error),
-            EngineError::StateError { expected, actual } => 
-                write!(f, "State error: expected {}, actual {}", expected, actual),
-            EngineError::ResourceNotFound { resource_type, id } => 
-                write!(f, "Resource not found: {} '{}'", resource_type, id),
-            EngineError::GpuOperationFailed { operation, error } => 
-                write!(f, "GPU operation '{}' failed: {}", operation, error),
-            EngineError::SerializationError { context, error } => 
-                write!(f, "Serialization error in {}: {}", context, error),
-            EngineError::DeserializationError { context, error } => 
-                write!(f, "Deserialization error in {}: {}", context, error),
-            
-            EngineError::ValidationFailed(msg) => 
-                write!(f, "Validation failed: {}", msg),
-            EngineError::TimeoutError(msg) => 
-                write!(f, "Timeout error: {}", msg),
-            EngineError::ProcessingFailed(msg) => 
-                write!(f, "Processing failed: {}", msg),
-            EngineError::ResourceExhausted(msg) => 
-                write!(f, "Resource exhausted: {}", msg),
-            EngineError::FeatureDisabled(msg) => 
-                write!(f, "Feature disabled: {}", msg),
-            
-            EngineError::Internal { message } => 
-                write!(f, "Internal error: {}", message),
+            EngineError::BufferAccess { index, size } => write!(
+                f,
+                "Buffer access out of bounds: index {} >= size {}",
+                index, size
+            ),
+            EngineError::TextureNotFound { id } => write!(f, "Texture not found: {}", id),
+            EngineError::ShaderCompilation { source, error } => {
+                write!(f, "Shader compilation failed for {}: {}", source, error)
+            }
+            EngineError::MeshGeneration { chunk_pos, error } => write!(
+                f,
+                "Mesh generation failed for chunk {:?}: {}",
+                chunk_pos, error
+            ),
+
+            EngineError::ChunkNotLoaded { pos } => {
+                write!(f, "Chunk not loaded at position {:?}", pos)
+            }
+            EngineError::BlockOutOfBounds { pos, chunk_size } => write!(
+                f,
+                "Block position {:?} out of bounds for chunk size {}",
+                pos, chunk_size
+            ),
+            EngineError::InvalidBlockType { id } => write!(f, "Invalid block type ID: {}", id),
+            EngineError::BiomeNotFound { id } => write!(f, "Biome not found: {}", id),
+
+            EngineError::SaveFailed { path, error } => {
+                write!(f, "Save failed for {}: {}", path, error)
+            }
+            EngineError::LoadFailed { path, error } => {
+                write!(f, "Load failed for {}: {}", path, error)
+            }
+            EngineError::CorruptedData { reason } => write!(f, "Data corrupted: {}", reason),
+            EngineError::VersionMismatch { expected, found } => write!(
+                f,
+                "Version mismatch: expected {}, found {}",
+                expected, found
+            ),
+
+            EngineError::ConnectionFailed { addr, error } => {
+                write!(f, "Connection failed to {}: {}", addr, error)
+            }
+            EngineError::ProtocolError { message } => write!(f, "Protocol error: {}", message),
+            EngineError::PacketTooLarge { size, max_size } => {
+                write!(f, "Packet too large: {} bytes (max: {})", size, max_size)
+            }
+            EngineError::PlayerNotFound { id } => write!(f, "Player not found: {}", id),
+
+            EngineError::LockPoisoned { resource } => {
+                write!(f, "Lock poisoned for resource: {}", resource)
+            }
+            EngineError::ChannelClosed { name } => write!(f, "Channel closed: {}", name),
+            EngineError::TaskJoinError { task } => write!(f, "Task join error: {}", task),
+
+            EngineError::DeviceNotFound => write!(f, "GPU device not found"),
+            EngineError::BufferCreationFailed { size, usage } => {
+                write!(f, "Buffer creation failed: size={}, usage={}", size, usage)
+            }
+            EngineError::BindGroupLayoutMismatch { expected, found } => write!(
+                f,
+                "Bind group layout mismatch: expected {}, found {}",
+                expected, found
+            ),
+            EngineError::RenderPipelineError { error } => {
+                write!(f, "Render pipeline error: {}", error)
+            }
+
+            EngineError::AllocationFailed { size, reason } => {
+                write!(f, "Allocation failed for {} bytes: {}", size, reason)
+            }
+            EngineError::OutOfMemory {
+                requested,
+                available,
+            } => write!(
+                f,
+                "Out of memory: requested {} bytes, available {}",
+                requested, available
+            ),
+
+            EngineError::InvalidConfig {
+                field,
+                value,
+                reason,
+            } => write!(f, "Invalid config: {} = {} ({})", field, value, reason),
+            EngineError::MissingConfig { field } => write!(f, "Missing required config: {}", field),
+
+            EngineError::IoError { path, error } => write!(f, "IO error for {}: {}", path, error),
+            EngineError::Utf8Error { context } => write!(f, "UTF-8 error in {}", context),
+            EngineError::ParseError {
+                value,
+                expected_type,
+            } => write!(
+                f,
+                "Parse error: '{}' is not a valid {}",
+                value, expected_type
+            ),
+
+            EngineError::AssetWatchError { path, error } => {
+                write!(f, "Asset watch error for {}: {}", path, error)
+            }
+            EngineError::ShaderReloadFailed { name, error } => {
+                write!(f, "Shader reload failed for {}: {}", name, error)
+            }
+
+            EngineError::SystemError { component, error } => {
+                write!(f, "System error in {}: {}", component, error)
+            }
+            EngineError::BufferError { operation, error } => {
+                write!(f, "Buffer error during {}: {}", operation, error)
+            }
+            EngineError::StateError { expected, actual } => {
+                write!(f, "State error: expected {}, actual {}", expected, actual)
+            }
+            EngineError::ResourceNotFound { resource_type, id } => {
+                write!(f, "Resource not found: {} '{}'", resource_type, id)
+            }
+            EngineError::GpuOperationFailed { operation, error } => {
+                write!(f, "GPU operation '{}' failed: {}", operation, error)
+            }
+            EngineError::SerializationError { context, error } => {
+                write!(f, "Serialization error in {}: {}", context, error)
+            }
+            EngineError::DeserializationError { context, error } => {
+                write!(f, "Deserialization error in {}: {}", context, error)
+            }
+
+            EngineError::ValidationFailed(msg) => write!(f, "Validation failed: {}", msg),
+            EngineError::TimeoutError(msg) => write!(f, "Timeout error: {}", msg),
+            EngineError::ProcessingFailed(msg) => write!(f, "Processing failed: {}", msg),
+            EngineError::ResourceExhausted(msg) => write!(f, "Resource exhausted: {}", msg),
+            EngineError::FeatureDisabled(msg) => write!(f, "Feature disabled: {}", msg),
+
+            EngineError::Internal { message } => write!(f, "Internal error: {}", message),
         }
     }
 }
@@ -274,22 +409,17 @@ impl From<crate::persistence::PersistenceError> for EngineError {
             PersistenceError::CompressionError(e) => EngineError::Internal {
                 message: format!("Compression error: {}", e),
             },
-            PersistenceError::VersionMismatch { expected, found } => EngineError::VersionMismatch {
-                expected,
-                found,
-            },
-            PersistenceError::CorruptedData(e) => EngineError::CorruptedData {
-                reason: e,
-            },
+            PersistenceError::VersionMismatch { expected, found } => {
+                EngineError::VersionMismatch { expected, found }
+            }
+            PersistenceError::CorruptedData(e) => EngineError::CorruptedData { reason: e },
             PersistenceError::MigrationError(e) => EngineError::Internal {
                 message: format!("Migration error: {}", e),
             },
             PersistenceError::BackupError(e) => EngineError::Internal {
                 message: format!("Backup error: {}", e),
             },
-            PersistenceError::LockPoisoned(e) => EngineError::LockPoisoned {
-                resource: e,
-            },
+            PersistenceError::LockPoisoned(e) => EngineError::LockPoisoned { resource: e },
             PersistenceError::PlayerNotFound(e) => EngineError::Internal {
                 message: format!("Player not found: {}", e),
             },

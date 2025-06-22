@@ -1,34 +1,33 @@
+pub mod error;
+pub mod parallel_processor;
+pub mod process_control;
 /// Process & Transform System
-/// 
+///
 /// Generic time-based transformation framework for any gameplay system.
 /// Can handle crafting, building, growth, training, or any multi-stage process.
 /// Purely data-oriented - no process "objects", just tables of data.
-/// 
+///
 /// Part of Sprint 31: Process & Transform System
-
 pub mod process_data;
-pub mod state_machine;
-pub mod transform_stage;
 pub mod process_executor;
-pub mod parallel_processor;
-pub mod process_control;
-pub mod visual_indicators;
-pub mod error;
+pub mod state_machine;
 pub mod system_coordinator;
+pub mod transform_stage;
+pub mod visual_indicators;
 
-pub use process_data::{ProcessId, ProcessData, ProcessType, ProcessStatus};
-pub use state_machine::{ProcessState, StateTransition, StateMachine, TransitionAction};
-pub use transform_stage::{
-    TransformStage, StageRequirement, StageOutput, StageValidator, 
-    ValidationContext, ActualOutput, OutputType
-};
-pub use process_executor::{ProcessExecutor, ExecutionResult};
 pub use parallel_processor::{ParallelProcessor, ProcessBatch};
-pub use process_control::{ProcessControl, InterruptReason};
+pub use process_control::{InterruptReason, ProcessControl};
+pub use process_data::{ProcessData, ProcessId, ProcessStatus, ProcessType};
+pub use process_executor::{ExecutionResult, ProcessExecutor};
+pub use state_machine::{ProcessState, StateMachine, StateTransition, TransitionAction};
+pub use transform_stage::{
+    ActualOutput, OutputType, StageOutput, StageRequirement, StageValidator, TransformStage,
+    ValidationContext,
+};
 pub use visual_indicators::{ProcessVisual, ProgressBar, StatusIcon};
 
 use crate::instance::InstanceId;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 /// Maximum concurrent processes
 pub const MAX_PROCESSES: usize = 1 << 16; // 65k
@@ -50,11 +49,11 @@ pub enum ProcessCategory {
 /// Time units for processes
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum TimeUnit {
-    Ticks(u64),      // Game ticks
-    Seconds(f32),    // Real-time seconds
-    Minutes(f32),    // Real-time minutes
-    Hours(f32),      // Real-time hours
-    GameDays(f32),   // In-game days
+    Ticks(u64),    // Game ticks
+    Seconds(f32),  // Real-time seconds
+    Minutes(f32),  // Real-time minutes
+    Hours(f32),    // Real-time hours
+    GameDays(f32), // In-game days
 }
 
 impl TimeUnit {
@@ -95,22 +94,22 @@ pub enum QualityLevel {
 pub struct ProcessManager {
     /// Process data tables
     pub processes: ProcessData,
-    
+
     /// State machines for each process
     pub state_machines: Vec<StateMachine>,
-    
+
     /// Transform stages for complex processes
     pub transform_stages: Vec<Vec<TransformStage>>,
-    
+
     /// Visual indicators
     pub visuals: Vec<ProcessVisual>,
-    
+
     /// Process executor
     pub executor: ProcessExecutor,
-    
+
     /// Parallel processor for batch updates
     pub parallel: ParallelProcessor,
-    
+
     /// Control system for interrupts
     pub control: ProcessControl,
 }
@@ -127,7 +126,7 @@ impl ProcessManager {
             control: ProcessControl::new(),
         })
     }
-    
+
     /// Start a new process
     pub fn start_process(
         &mut self,
@@ -137,20 +136,22 @@ impl ProcessManager {
         duration: TimeUnit,
     ) -> ProcessId {
         let id = ProcessId::new();
-        let index = self.processes.add(id, process_type, owner, duration.to_ticks());
-        
+        let index = self
+            .processes
+            .add(id, process_type, owner, duration.to_ticks());
+
         // Initialize state machine
         self.state_machines.push(StateMachine::new());
-        
+
         // Initialize transform stages (empty for now)
         self.transform_stages.push(Vec::new());
-        
+
         // Initialize visual
         self.visuals.push(ProcessVisual::default());
-        
+
         id
     }
-    
+
     /// Update all processes (called each tick)
     pub fn update(&mut self, delta_ticks: u64) {
         // Use parallel processor for batch updates
@@ -158,9 +159,10 @@ impl ProcessManager {
             indices: (0..self.processes.len()).collect(),
             delta_ticks,
         };
-        
-        self.parallel.process_batch(&mut self.processes, &mut self.state_machines, batch);
-        
+
+        self.parallel
+            .process_batch(&mut self.processes, &mut self.state_machines, batch);
+
         // Update visuals based on progress
         for i in 0..self.processes.len() {
             if self.processes.active[i] {
@@ -169,11 +171,11 @@ impl ProcessManager {
             }
         }
     }
-    
+
     /// Get process info
     pub fn get_process(&self, id: ProcessId) -> Option<ProcessInfo> {
         let index = self.processes.find_index(id)?;
-        
+
         Some(ProcessInfo {
             id,
             process_type: self.processes.types[index],
@@ -201,27 +203,29 @@ pub struct ProcessInfo {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_time_conversion() {
         assert_eq!(TimeUnit::Seconds(1.0).to_ticks(), 20);
         assert_eq!(TimeUnit::Minutes(1.0).to_ticks(), 1200);
         assert_eq!(TimeUnit::GameDays(1.0).to_ticks(), 24000);
     }
-    
+
     #[test]
     fn test_process_creation() {
         let mut manager = ProcessManager::new().expect("Failed to create manager");
         let owner = InstanceId::new();
-        
+
         let process_id = manager.start_process(
             ProcessType::default(),
             owner,
             vec![],
             TimeUnit::Seconds(5.0),
         );
-        
-        let info = manager.get_process(process_id).expect("Process should exist in test");
+
+        let info = manager
+            .get_process(process_id)
+            .expect("Process should exist in test");
         assert_eq!(info.owner, owner);
         assert_eq!(info.time_remaining, 100); // 5 seconds * 20 ticks
     }

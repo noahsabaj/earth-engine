@@ -1,7 +1,7 @@
 //! Performance monitoring for unified world system
 
-use std::time::{Duration, Instant};
 use std::collections::VecDeque;
+use std::time::{Duration, Instant};
 
 /// Performance metrics for the world system
 #[derive(Debug, Clone)]
@@ -69,7 +69,7 @@ impl PerformanceMonitor {
     /// Create a new performance monitor
     pub fn new(config: MonitorConfig) -> Self {
         let now = Instant::now();
-        
+
         Self {
             start_time: now,
             last_update: now,
@@ -80,122 +80,127 @@ impl PerformanceMonitor {
             config,
         }
     }
-    
+
     /// Record a chunk generation time
     pub fn record_generation_time(&mut self, duration: Duration) {
         self.generation_times.push_back(duration);
         if self.generation_times.len() > self.config.sample_size {
             self.generation_times.pop_front();
         }
-        
+
         self.update_generation_stats();
     }
-    
+
     /// Record a compute pass time
     pub fn record_compute_time(&mut self, duration: Duration) {
         self.compute_times.push_back(duration);
         if self.compute_times.len() > self.config.sample_size {
             self.compute_times.pop_front();
         }
-        
+
         self.update_compute_stats();
     }
-    
+
     /// Record a frame time
     pub fn record_frame_time(&mut self, duration: Duration) {
         self.frame_times.push_back(duration);
         if self.frame_times.len() > self.config.sample_size {
             self.frame_times.pop_front();
         }
-        
+
         self.update_overall_stats();
     }
-    
+
     /// Update storage statistics
     pub fn update_storage_stats(&mut self, stats: StorageStats) {
         self.metrics.storage_stats = stats;
     }
-    
+
     /// Get current metrics
     pub fn metrics(&self) -> &WorldPerformanceMetrics {
         &self.metrics
     }
-    
+
     /// Get metrics with auto-update
     pub fn get_current_metrics(&mut self) -> &WorldPerformanceMetrics {
         self.update_all_stats();
         &self.metrics
     }
-    
+
     /// Update all statistics
     fn update_all_stats(&mut self) {
         self.update_generation_stats();
         self.update_compute_stats();
         self.update_overall_stats();
     }
-    
+
     /// Update generation statistics
     fn update_generation_stats(&mut self) {
         if !self.generation_times.is_empty() {
-            let total_ms: f64 = self.generation_times
+            let total_ms: f64 = self
+                .generation_times
                 .iter()
                 .map(|d| d.as_secs_f64() * 1000.0)
                 .sum();
-            
+
             let avg_ms = total_ms / self.generation_times.len() as f64;
-            let peak_ms = self.generation_times
+            let peak_ms = self
+                .generation_times
                 .iter()
                 .map(|d| d.as_secs_f64() * 1000.0)
                 .fold(0.0, f64::max);
-            
+
             self.metrics.generation_stats.avg_generation_time_ms = avg_ms;
             self.metrics.generation_stats.peak_generation_time_ms = peak_ms;
         }
     }
-    
+
     /// Update compute statistics
     fn update_compute_stats(&mut self) {
         if !self.compute_times.is_empty() {
-            let total_ms: f64 = self.compute_times
+            let total_ms: f64 = self
+                .compute_times
                 .iter()
                 .map(|d| d.as_secs_f64() * 1000.0)
                 .sum();
-            
+
             let avg_ms = total_ms / self.compute_times.len() as f64;
-            
+
             self.metrics.compute_stats.avg_compute_time_ms = avg_ms;
             self.metrics.compute_stats.compute_passes += 1;
         }
     }
-    
+
     /// Update overall statistics
     fn update_overall_stats(&mut self) {
         let now = Instant::now();
         self.metrics.overall_stats.uptime = now - self.start_time;
-        
+
         if !self.frame_times.is_empty() {
-            let total_ms: f64 = self.frame_times
+            let total_ms: f64 = self
+                .frame_times
                 .iter()
                 .map(|d| d.as_secs_f64() * 1000.0)
                 .sum();
-            
+
             let avg_ms = total_ms / self.frame_times.len() as f64;
-            let peak_ms = self.frame_times
+            let peak_ms = self
+                .frame_times
                 .iter()
                 .map(|d| d.as_secs_f64() * 1000.0)
                 .fold(0.0, f64::max);
-            
+
             self.metrics.overall_stats.avg_frame_time_ms = avg_ms;
             self.metrics.overall_stats.peak_frame_time_ms = peak_ms;
         }
-        
+
         self.last_update = now;
     }
-    
+
     /// Generate a performance report
     pub fn generate_report(&mut self) -> String {
         self.update_all_stats();
-        
+
         format!(
             "World Performance Report\n\
              ========================\n\
@@ -308,13 +313,13 @@ mod tests {
         let monitor = PerformanceMonitor::new(MonitorConfig::default());
         assert_eq!(monitor.metrics().generation_stats.chunks_generated, 0);
     }
-    
+
     #[test]
     fn test_generation_time_recording() {
         let mut monitor = PerformanceMonitor::new(MonitorConfig::default());
         monitor.record_generation_time(Duration::from_millis(10));
         monitor.record_generation_time(Duration::from_millis(20));
-        
+
         let metrics = monitor.get_current_metrics();
         assert_eq!(metrics.generation_stats.avg_generation_time_ms, 15.0);
         assert_eq!(metrics.generation_stats.peak_generation_time_ms, 20.0);

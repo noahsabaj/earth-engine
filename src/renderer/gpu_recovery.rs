@@ -1,5 +1,5 @@
-use wgpu::{Adapter, Device, Instance, Surface};
 use std::time::Duration;
+use wgpu::{Adapter, Device, Instance, Surface};
 
 /// GPU recovery strategies for initialization failures
 pub struct GpuRecovery;
@@ -11,17 +11,21 @@ impl GpuRecovery {
         surface: &Surface<'static>,
     ) -> Option<Adapter> {
         log::warn!("[GPU Recovery] Attempting adapter recovery strategies...");
-        
+
         // Strategy 1: Try different power preferences
         let power_preferences = [
             wgpu::PowerPreference::LowPower,
             wgpu::PowerPreference::HighPerformance,
             wgpu::PowerPreference::None,
         ];
-        
+
         for (i, power_pref) in power_preferences.iter().enumerate() {
-            log::info!("[GPU Recovery] Strategy {}: Trying {:?} power preference", i + 1, power_pref);
-            
+            log::info!(
+                "[GPU Recovery] Strategy {}: Trying {:?} power preference",
+                i + 1,
+                power_pref
+            );
+
             let adapter = instance
                 .request_adapter(&wgpu::RequestAdapterOptions {
                     power_preference: *power_pref,
@@ -29,13 +33,13 @@ impl GpuRecovery {
                     force_fallback_adapter: false,
                 })
                 .await;
-                
+
             if let Some(adapter) = adapter {
                 log::info!("[GPU Recovery] Success with {:?} preference", power_pref);
                 return Some(adapter);
             }
         }
-        
+
         // Strategy 2: Try without surface compatibility
         log::info!("[GPU Recovery] Strategy 4: Trying without surface compatibility");
         let adapter = instance
@@ -45,12 +49,14 @@ impl GpuRecovery {
                 force_fallback_adapter: false,
             })
             .await;
-            
+
         if adapter.is_some() {
-            log::warn!("[GPU Recovery] Found adapter without surface compatibility - may have issues");
+            log::warn!(
+                "[GPU Recovery] Found adapter without surface compatibility - may have issues"
+            );
             return adapter;
         }
-        
+
         // Strategy 3: Force fallback adapter
         log::info!("[GPU Recovery] Strategy 5: Forcing fallback adapter");
         let adapter = instance
@@ -60,26 +66,24 @@ impl GpuRecovery {
                 force_fallback_adapter: true,
             })
             .await;
-            
+
         if adapter.is_some() {
             log::warn!("[GPU Recovery] Using fallback adapter - performance will be limited");
             return adapter;
         }
-        
+
         log::error!("[GPU Recovery] All adapter recovery strategies failed");
         None
     }
-    
+
     /// Try to recover from device creation failure
-    pub async fn recover_device_creation(
-        adapter: &Adapter,
-    ) -> Option<(Device, wgpu::Queue)> {
+    pub async fn recover_device_creation(adapter: &Adapter) -> Option<(Device, wgpu::Queue)> {
         log::warn!("[GPU Recovery] Attempting device creation recovery...");
-        
+
         // Strategy 1: Try with minimal limits
         log::info!("[GPU Recovery] Strategy 1: Using minimal limits");
         let minimal_limits = wgpu::Limits::downlevel_defaults();
-        
+
         match adapter
             .request_device(
                 &wgpu::DeviceDescriptor {
@@ -99,7 +103,7 @@ impl GpuRecovery {
                 log::error!("[GPU Recovery] Failed with minimal limits: {}", e);
             }
         }
-        
+
         // Strategy 2: Try with downlevel limits
         log::info!("[GPU Recovery] Strategy 2: Using downlevel WebGL2 limits");
         match adapter
@@ -121,37 +125,39 @@ impl GpuRecovery {
                 log::error!("[GPU Recovery] Failed with WebGL2 limits: {}", e);
             }
         }
-        
+
         log::error!("[GPU Recovery] All device creation recovery strategies failed");
         None
     }
-    
+
     /// Check if we can use a fallback rendering mode
     pub fn can_use_fallback_rendering(adapter: &Adapter) -> bool {
         let info = adapter.get_info();
-        
+
         // Check if we're on a software renderer
         if info.device_type == wgpu::DeviceType::Cpu {
-            log::warn!("[GPU Recovery] CPU/Software renderer detected - fallback rendering recommended");
+            log::warn!(
+                "[GPU Recovery] CPU/Software renderer detected - fallback rendering recommended"
+            );
             return true;
         }
-        
+
         // Check for known problematic configurations
         if cfg!(target_os = "linux") && info.backend == wgpu::Backend::Gl {
             log::warn!("[GPU Recovery] OpenGL on Linux detected - may need fallback rendering");
             return true;
         }
-        
+
         false
     }
-    
+
     /// Get recommended settings for problematic GPUs
     pub fn get_fallback_settings(adapter: &Adapter) -> FallbackSettings {
         let info = adapter.get_info();
         let limits = adapter.limits();
-        
+
         let mut settings = FallbackSettings::default();
-        
+
         // Adjust based on device type
         match info.device_type {
             wgpu::DeviceType::Cpu => {
@@ -171,19 +177,22 @@ impl GpuRecovery {
             }
             _ => {}
         }
-        
+
         // Adjust based on memory limits
         if limits.max_buffer_size < 256 * 1024 * 1024 {
             settings.chunk_size = settings.chunk_size.min(16);
             settings.render_distance = settings.render_distance.min(4);
         }
-        
+
         // Adjust based on texture limits
         if limits.max_texture_dimension_2d < 4096 {
             settings.texture_quality = TextureQuality::Low;
         }
-        
-        log::info!("[GPU Recovery] Recommended fallback settings: {:?}", settings);
+
+        log::info!(
+            "[GPU Recovery] Recommended fallback settings: {:?}",
+            settings
+        );
         settings
     }
 }
@@ -234,26 +243,29 @@ impl GpuHealthMonitor {
             recovery_attempts: 0,
         }
     }
-    
+
     pub fn record_error(&mut self) {
         self.error_count += 1;
         self.last_error_time = Some(std::time::Instant::now());
-        
-        log::warn!("[GPU Health] Error recorded. Total errors: {}", self.error_count);
+
+        log::warn!(
+            "[GPU Health] Error recorded. Total errors: {}",
+            self.error_count
+        );
     }
-    
+
     pub fn record_recovery_attempt(&mut self) {
         self.recovery_attempts += 1;
         log::info!("[GPU Health] Recovery attempt #{}", self.recovery_attempts);
     }
-    
+
     pub fn should_attempt_recovery(&self) -> bool {
         // Don't attempt too many recoveries
         if self.recovery_attempts >= 3 {
             log::error!("[GPU Health] Maximum recovery attempts reached");
             return false;
         }
-        
+
         // Check if errors are happening too frequently
         if let Some(last_error) = self.last_error_time {
             if last_error.elapsed() < Duration::from_secs(5) && self.error_count > 5 {
@@ -261,10 +273,10 @@ impl GpuHealthMonitor {
                 return false;
             }
         }
-        
+
         true
     }
-    
+
     pub fn reset(&mut self) {
         self.error_count = 0;
         self.last_error_time = None;

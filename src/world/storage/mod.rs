@@ -3,15 +3,15 @@
 //! This module consolidates both GPU-resident and CPU-based world storage,
 //! providing a unified interface that can operate in either mode.
 
-mod world_buffer;
 mod cpu_chunks;
 mod gpu_chunks;
+mod world_buffer;
 
 // GPU-first storage (primary)
-pub use world_buffer::{WorldBuffer, WorldBufferDescriptor, VoxelData};
+pub use world_buffer::{VoxelData, WorldBuffer, WorldBufferDescriptor};
 
 // CPU fallback storage
-pub use cpu_chunks::{ChunkSoA, ChunkMemoryStats};
+pub use cpu_chunks::{ChunkMemoryStats, ChunkSoA};
 
 // GPU chunk management
 pub use gpu_chunks::{GpuChunk, GpuChunkManager, GpuChunkStats};
@@ -41,19 +41,19 @@ impl UnifiedStorage {
             device,
         })
     }
-    
+
     /// Create CPU-based storage
     pub fn new_cpu() -> Self {
         UnifiedStorage::Cpu {
             chunks: std::collections::HashMap::new(),
         }
     }
-    
+
     /// Check if this storage uses GPU backend
     pub fn is_gpu(&self) -> bool {
         matches!(self, UnifiedStorage::Gpu { .. })
     }
-    
+
     /// Get GPU world buffer if in GPU mode
     pub fn gpu_world_buffer(&self) -> Option<std::sync::Arc<std::sync::Mutex<WorldBuffer>>> {
         match self {
@@ -68,13 +68,13 @@ impl UnifiedStorage {
 pub enum StorageError {
     #[error("GPU initialization failed: {message}")]
     GpuInitFailed { message: String },
-    
+
     #[error("Memory allocation failed: {size} bytes")]
     MemoryAllocationFailed { size: u64 },
-    
+
     #[error("Invalid chunk position: {x}, {y}, {z}")]
     InvalidChunkPosition { x: i32, y: i32, z: i32 },
-    
+
     #[error("Backend mismatch: operation requires {required} but storage is {actual}")]
     BackendMismatch { required: String, actual: String },
 }

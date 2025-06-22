@@ -1,46 +1,46 @@
 //! SOA-optimized terrain generator
-//! 
+//!
 //! This module provides a Structure of Arrays version of the terrain generator
 //! for maximum GPU performance and memory bandwidth efficiency.
 
+use crate::gpu::types::terrain::TerrainParams;
+use crate::core::CHUNK_SIZE;
+use crate::gpu::{
+    buffer_layouts::{bindings, layouts, usage},
+    soa::{
+        BlockDistributionSOA, BufferLayoutPreference, CpuGpuBridge, SoaBufferBuilder,
+        TerrainParamsSOA, UnifiedGpuBuffer,
+    },
+    types::TypedGpuBuffer,
+    GpuBufferManager, GpuError,
+};
+use crate::world::core::ChunkPos;
+use crate::world::storage::WorldBuffer;
 use std::sync::Arc;
 use std::time::Instant;
 use wgpu::util::DeviceExt;
-use crate::world::core::ChunkPos;
-use crate::gpu::{
-    GpuBufferManager, GpuError,
-    types::TypedGpuBuffer,
-    soa::{
-        SoaBufferBuilder, TerrainParamsSOA, BlockDistributionSOA,
-        UnifiedGpuBuffer, BufferLayoutPreference, CpuGpuBridge,
-    },
-    buffer_layouts::{bindings, usage, layouts, constants::*},
-};
-use crate::gpu::types::terrain::TerrainParams;
-use crate::world::storage::WorldBuffer;
 
 /// SOA-optimized GPU terrain generator
 pub struct TerrainGeneratorSOA {
     device: Arc<wgpu::Device>,
-    
+
     /// GPU buffer manager
     buffer_manager: Arc<GpuBufferManager>,
-    
+
     /// Compute pipeline for SOA terrain generation
     generate_pipeline: wgpu::ComputePipeline,
-    
+
     /// SOA parameters buffer
     params_buffer: TypedGpuBuffer<TerrainParamsSOA>,
-    
+
     /// Bind group layout for SOA terrain generation
     bind_group_layout: wgpu::BindGroupLayout,
-    
+
     /// Whether to use vectorized shader variant
     use_vectorized: bool,
 }
 
 impl TerrainGeneratorSOA {
-    
     /// Validate that a shader entry point exists in the shader source
     fn validate_shader_entry_point(shader_source: &str, entry_point: &str) -> Result<(), String> {
         // Check for the entry point function definition
@@ -52,12 +52,12 @@ impl TerrainGeneratorSOA {
                 Self::extract_function_names(shader_source).join(", ")
             ));
         }
-        
+
         // Check for @compute annotation
         let lines: Vec<&str> = shader_source.lines().collect();
         let mut found_entry_point = false;
         let mut has_compute_annotation = false;
-        
+
         for (i, line) in lines.iter().enumerate() {
             if line.contains(&fn_pattern) {
                 found_entry_point = true;
@@ -72,29 +72,34 @@ impl TerrainGeneratorSOA {
                         break;
                     }
                     // If we hit another function or non-annotation, stop looking
-                    if prev_line.contains("fn ") || (!prev_line.starts_with("@") && !prev_line.starts_with("//")) {
+                    if prev_line.contains("fn ")
+                        || (!prev_line.starts_with("@") && !prev_line.starts_with("//"))
+                    {
                         break;
                     }
                 }
                 break;
             }
         }
-        
+
         if !found_entry_point {
             return Err(format!("Entry point function '{}' not found", entry_point));
         }
-        
+
         if !has_compute_annotation {
             return Err(format!(
                 "Entry point '{}' found but missing @compute annotation. Compute shaders require @compute.",
                 entry_point
             ));
         }
-        
-        log::debug!("[TerrainGeneratorSOA] Shader validation passed for entry point: {}", entry_point);
+
+        log::debug!(
+            "[TerrainGeneratorSOA] Shader validation passed for entry point: {}",
+            entry_point
+        );
         Ok(())
     }
-    
+
     /// Extract function names from shader source for debugging
     fn extract_function_names(shader_source: &str) -> Vec<String> {
         let mut functions = Vec::new();
@@ -113,24 +118,27 @@ impl TerrainGeneratorSOA {
         }
         functions
     }
-    
+
     /// Validate shader contains required compute logic
     fn validate_compute_shader(shader_source: &str) -> Result<(), String> {
         let mut issues = Vec::new();
-        
+
         // Check for compute logic patterns (not bindings, which are auto-generated)
         if !shader_source.contains("world_data[") {
             issues.push("Shader missing world_data array access pattern".to_string());
         }
-        
+
         if !shader_source.contains("pack_voxel") {
             issues.push("Shader missing pack_voxel function".to_string());
         }
-        
+
         if !issues.is_empty() {
-            return Err(format!("Compute shader validation failed: {}", issues.join(", ")));
+            return Err(format!(
+                "Compute shader validation failed: {}",
+                issues.join(", ")
+            ));
         }
-        
+
         log::debug!("[TerrainGeneratorSOA] Compute shader validation passed");
         Ok(())
     }
@@ -142,8 +150,11 @@ impl TerrainGeneratorSOA {
         shader: &wgpu::ShaderModule,
         entry_point: &str,
     ) -> Result<wgpu::ComputePipeline, String> {
-        log::debug!("[TerrainGeneratorSOA] Attempting to create compute pipeline with entry point: {}", entry_point);
-        
+        log::debug!(
+            "[TerrainGeneratorSOA] Attempting to create compute pipeline with entry point: {}",
+            entry_point
+        );
+
         // Create pipeline descriptor
         let descriptor = wgpu::ComputePipelineDescriptor {
             label: Some("SOA Terrain Generation Pipeline"),
@@ -151,23 +162,23 @@ impl TerrainGeneratorSOA {
             module: shader,
             entry_point,
         };
-        
+
         // Attempt pipeline creation
         // Note: wgpu doesn't return Result from create_compute_pipeline, but it can panic
         // We'll use std::panic::catch_unwind to catch any panics during creation
         let pipeline_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             device.create_compute_pipeline(&descriptor)
         }));
-        
+
         match pipeline_result {
             Ok(pipeline) => {
                 log::debug!("[TerrainGeneratorSOA] Compute pipeline created successfully");
-                
+
                 // Additional validation - check pipeline is not null/invalid
                 // wgpu pipelines don't have a direct "is_valid" method, but we can check basic properties
                 log::debug!("[TerrainGeneratorSOA] Pipeline validation complete");
                 Ok(pipeline)
-            },
+            }
             Err(panic_payload) => {
                 let error_msg = if let Some(s) = panic_payload.downcast_ref::<String>() {
                     s.clone()
@@ -176,53 +187,70 @@ impl TerrainGeneratorSOA {
                 } else {
                     "Unknown panic during pipeline creation".to_string()
                 };
-                
+
                 Err(format!("Pipeline creation panicked: {}", error_msg))
             }
         }
     }
 
     /// Create a new SOA terrain generator with its own buffer manager
-    pub fn new(device: Arc<wgpu::Device>, queue: Arc<wgpu::Queue>) -> Self {
+    pub fn new(device: Arc<wgpu::Device>, queue: Arc<wgpu::Queue>) -> Result<Self, GpuError> {
         let buffer_manager = Arc::new(GpuBufferManager::new(device.clone(), queue));
         Self::new_with_manager(device, buffer_manager, false)
     }
-    
+
     /// Create a new SOA terrain generator
     pub fn new_with_manager(
-        device: Arc<wgpu::Device>, 
+        device: Arc<wgpu::Device>,
         buffer_manager: Arc<GpuBufferManager>,
         use_vectorized: bool,
-    ) -> Self {
+    ) -> Result<Self, GpuError> {
         log::info!("[TerrainGeneratorSOA] Initializing SOA-optimized terrain generator");
         log::info!("[TerrainGeneratorSOA] Vectorized mode: {}", use_vectorized);
-        
+
         // Log SOA sizes for debugging
-        log::info!("[TerrainGeneratorSOA] BlockDistributionSOA size: {} bytes", 
-                  std::mem::size_of::<BlockDistributionSOA>());
-        log::info!("[TerrainGeneratorSOA] TerrainParamsSOA size: {} bytes", 
-                  std::mem::size_of::<TerrainParamsSOA>());
-        
+        log::info!(
+            "[TerrainGeneratorSOA] BlockDistributionSOA size: {} bytes",
+            std::mem::size_of::<BlockDistributionSOA>()
+        );
+        log::info!(
+            "[TerrainGeneratorSOA] TerrainParamsSOA size: {} bytes",
+            std::mem::size_of::<TerrainParamsSOA>()
+        );
+
         // Load shader code - contains ONLY compute logic, no types/bindings/constants
         let shader_code = include_str!("../../shaders/compute/terrain_generation.wgsl");
+
+        log::info!("[TerrainGeneratorSOA] Creating shader through unified GPU system with error recovery");
+
+        // Create error recovery system for shader creation
+        let error_recovery = crate::gpu::error_recovery::GpuErrorRecovery::new(
+            device.clone(),
+            buffer_manager.queue().clone(),
+        );
         
-        log::info!("[TerrainGeneratorSOA] Creating shader through unified GPU system");
-        
-        // Create shader through unified system which adds all types automatically
-        let validated_shader = match crate::gpu::automation::create_gpu_shader(
-            &device,
-            "terrain_generation_soa",
-            &shader_code,
-        ) {
+        // Create shader through unified system with error recovery
+        let validated_shader = match error_recovery.execute_with_recovery(|| {
+            crate::gpu::automation::create_gpu_shader(
+                &device,
+                "terrain_generation_soa",
+                &shader_code,
+            )
+            .map_err(|e| crate::gpu::error_recovery::GpuRecoveryError::OperationFailed {
+                message: format!("Shader creation failed: {:?}", e),
+            })
+        }) {
             Ok(shader) => shader,
             Err(e) => {
-                log::error!("[TerrainGeneratorSOA] Failed to create shader: {:?}", e);
-                panic!("[TerrainGeneratorSOA] Shader creation failed: {:?}", e);
+                log::error!("[TerrainGeneratorSOA] Failed to create shader with error recovery: {:?}", e);
+                return Err(GpuError::ShaderCompilation {
+                    message: format!("Failed to create terrain generation shader: {:?}", e),
+                });
             }
         };
-        
+
         let shader = &validated_shader.module;
-        
+
         // Create bind group layout for SOA shader using centralized definitions
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("SOA Terrain Generator Bind Group Layout"),
@@ -247,37 +275,42 @@ impl TerrainGeneratorSOA {
                 ),
             ],
         });
-        
+
         // Create pipeline layout
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("SOA Terrain Generation Pipeline Layout"),
             bind_group_layouts: &[&bind_group_layout],
             push_constant_ranges: &[],
         });
-        
+
         // Create compute pipeline with comprehensive error handling
         let entry_point = if use_vectorized {
             "generate_terrain_vectorized"
         } else {
             "generate_terrain"
         };
-        
+
         log::info!("[TerrainGeneratorSOA] Using entry point: {}", entry_point);
-        
+
         // Validate shader entry point exists before pipeline creation
-        Self::validate_shader_entry_point(shader_code, entry_point)
-            .unwrap_or_else(|e| {
-                log::error!("[TerrainGeneratorSOA] Shader validation failed: {}", e);
-                panic!("[TerrainGeneratorSOA] Cannot create pipeline with invalid shader: {}", e);
+        if let Err(e) = Self::validate_shader_entry_point(shader_code, entry_point) {
+            log::error!("[TerrainGeneratorSOA] Shader validation failed: {}", e);
+            return Err(GpuError::ShaderCompilation {
+                message: format!("Shader validation failed: {}", e),
             });
-        
+        }
+
         // Validate shader contains required compute logic
-        Self::validate_compute_shader(shader_code)
-            .unwrap_or_else(|e| {
-                log::error!("[TerrainGeneratorSOA] Compute shader validation failed: {}", e);
-                panic!("[TerrainGeneratorSOA] Cannot create pipeline with invalid compute logic: {}", e);
+        if let Err(e) = Self::validate_compute_shader(shader_code) {
+            log::error!(
+                "[TerrainGeneratorSOA] Compute shader validation failed: {}",
+                e
+            );
+            return Err(GpuError::ShaderCompilation {
+                message: format!("Compute shader validation failed: {}", e),
             });
-        
+        }
+
         // Log detailed pipeline creation parameters for debugging
         log::info!(
             "[TerrainGeneratorSOA] Creating compute pipeline - Entry: {}, Shader size: {} chars, Layout bindings: {}",
@@ -285,78 +318,96 @@ impl TerrainGeneratorSOA {
             shader_code.len(),
             3  // We have 3 bindings: voxel_buffer, metadata_buffer, params_buffer
         );
-        
-        // Attempt pipeline creation with error catching
-        let generate_pipeline = Self::create_compute_pipeline_with_validation(
-            &device,
-            &pipeline_layout,
-            &shader,
-            entry_point,
-        ).unwrap_or_else(|e| {
-            log::error!("[TerrainGeneratorSOA] Pipeline creation failed: {}", e);
-            log::error!("[TerrainGeneratorSOA] Shader source (first 500 chars): {}", 
-                       &shader_code[..shader_code.len().min(500)]);
-            log::error!("[TerrainGeneratorSOA] Entry point requested: {}", entry_point);
-            log::error!("[TerrainGeneratorSOA] Pipeline layout: {:?}", pipeline_layout);
-            panic!("[TerrainGeneratorSOA] Cannot continue without valid compute pipeline: {}", e);
-        });
-        
+
+        // Attempt pipeline creation with error recovery
+        let generate_pipeline = match error_recovery.execute_with_recovery(|| {
+            Self::create_compute_pipeline_with_validation(
+                &device,
+                &pipeline_layout,
+                &shader,
+                entry_point,
+            )
+            .map_err(|e| crate::gpu::error_recovery::GpuRecoveryError::OperationFailed {
+                message: format!("Pipeline creation failed: {}", e),
+            })
+        }) {
+            Ok(pipeline) => pipeline,
+            Err(e) => {
+                log::error!("[TerrainGeneratorSOA] Pipeline creation failed with error recovery: {:?}", e);
+                log::error!(
+                    "[TerrainGeneratorSOA] Shader source (first 500 chars): {}",
+                    &shader_code[..shader_code.len().min(500)]
+                );
+                log::error!(
+                    "[TerrainGeneratorSOA] Entry point requested: {}",
+                    entry_point
+                );
+                return Err(GpuError::ShaderCompilation {
+                    message: format!("Pipeline creation failed: {:?}", e),
+                });
+            }
+        };
+
         log::info!("[TerrainGeneratorSOA] Compute pipeline created successfully");
-        
+
         // Create SOA parameters buffer
         let default_params = TerrainParams::default();
         let soa_params = TerrainParamsSOA::from_aos(&default_params);
-        
+
         log::info!("[TerrainGeneratorSOA] Creating SOA parameters buffer");
-        
+
         let params_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("SOA Terrain Parameters"),
             contents: bytemuck::bytes_of(&soa_params),
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
         });
-        
+
         let params_buffer = TypedGpuBuffer::new(
             params_buffer,
             std::mem::size_of::<TerrainParamsSOA>() as u64,
         );
-        
+
         log::info!("[TerrainGeneratorSOA] SOA terrain generator ready!");
-        
-        Self {
+
+        Ok(Self {
             device,
             buffer_manager,
             generate_pipeline,
             params_buffer,
             bind_group_layout,
             use_vectorized,
-        }
+        })
     }
-    
+
     /// Update terrain parameters (converts from AOS to SOA)
     pub fn update_params(&self, params: &TerrainParams) -> Result<(), GpuError> {
         let queue = &self.buffer_manager.queue();
-        
+
         // Convert AOS to SOA
         let soa_params = CpuGpuBridge::pack_terrain_params(params);
-        
+
         // Update GPU buffer
-        queue.write_buffer(&self.params_buffer.buffer, 0, bytemuck::bytes_of(&soa_params));
-        
+        queue.write_buffer(
+            &self.params_buffer.buffer,
+            0,
+            bytemuck::bytes_of(&soa_params),
+        );
+
         log::debug!("[TerrainGeneratorSOA] Updated SOA parameters from AOS");
         Ok(())
     }
-    
+
     /// Update terrain parameters directly with SOA data
     pub fn update_params_soa(&self, params: &TerrainParamsSOA) -> Result<(), GpuError> {
         let queue = &self.buffer_manager.queue();
-        
+
         // Update GPU buffer directly with SOA data
         queue.write_buffer(&self.params_buffer.buffer, 0, bytemuck::bytes_of(params));
-        
+
         log::debug!("[TerrainGeneratorSOA] Updated SOA parameters directly");
         Ok(())
     }
-    
+
     /// Generate chunks using SOA layout
     pub fn generate_chunks(
         &self,
@@ -367,35 +418,52 @@ impl TerrainGeneratorSOA {
         if chunk_positions.is_empty() {
             return Ok(());
         }
-        
+
         let start = Instant::now();
         let batch_size = chunk_positions.len();
-        
-        log::info!("[TerrainGeneratorSOA] Generating {} chunks with SOA layout", batch_size);
-        
+
+        log::info!(
+            "[TerrainGeneratorSOA] Generating {} chunks with SOA layout",
+            batch_size
+        );
+
         // Create metadata buffer for chunk generation
         // Each chunk needs a full ChunkMetadata struct (4 u32 values)
-        let metadata_data: Vec<u32> = chunk_positions.iter()
+        let metadata_data: Vec<u32> = chunk_positions
+            .iter()
             .enumerate()
             .flat_map(|(idx, pos)| {
                 // Get the slot assignment from WorldBuffer
                 let slot = world_buffer.get_chunk_slot(*pos);
-                
+
                 // Create ChunkMetadata for each chunk
                 let flags = ((pos.x & 0xFFFF) as u32) << 16 | (pos.z & 0xFFFF) as u32;
                 let timestamp = 0u32;
-                let checksum = slot; // Store slot index in checksum field for now
-                let reserved = pos.y as u32; // Store Y position in reserved field
-                vec![flags, timestamp, checksum, reserved]
+                let checksum = 0u32; // Proper checksum would be calculated from chunk data
+                let y_position = pos.y as u32;
+                let slot_index = slot;
+                let _reserved = [0u32; 3];
+                vec![
+                    flags,
+                    timestamp,
+                    checksum,
+                    y_position,
+                    slot_index,
+                    _reserved[0],
+                    _reserved[1],
+                    _reserved[2],
+                ]
             })
             .collect();
-        
-        let metadata_buffer = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("SOA Chunk Metadata"),
-            contents: bytemuck::cast_slice(&metadata_data),
-            usage: usage::STORAGE,
-        });
-        
+
+        let metadata_buffer = self
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("SOA Chunk Metadata"),
+                contents: bytemuck::cast_slice(&metadata_data),
+                usage: usage::STORAGE,
+            });
+
         // Create bind group
         let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("SOA Terrain Generation Bind Group"),
@@ -415,68 +483,75 @@ impl TerrainGeneratorSOA {
                 },
             ],
         });
-        
+
         // Record compute pass with comprehensive error handling
         {
             log::debug!(
-                "[TerrainGeneratorSOA] Starting compute pass for {} chunks", 
+                "[TerrainGeneratorSOA] Starting compute pass for {} chunks",
                 chunk_positions.len()
             );
-            
+
             let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("SOA Terrain Generation Pass"),
                 timestamp_writes: None,
             });
-            
+
             // Validate pipeline before use
             log::debug!("[TerrainGeneratorSOA] Setting compute pipeline");
             compute_pass.set_pipeline(&self.generate_pipeline);
-            
+
             // Validate bind group before use
-            log::debug!("[TerrainGeneratorSOA] Setting bind group with {} entries", 3);
+            log::debug!(
+                "[TerrainGeneratorSOA] Setting bind group with {} entries",
+                3
+            );
             compute_pass.set_bind_group(0, &bind_group, &[]);
-            
+
             // Calculate workgroups needed based on chunk size and workgroup size
-            let chunk_size = 50u32; // TODO: Get from config
+            let chunk_size = CHUNK_SIZE;
             let workgroup_size_x = if self.use_vectorized { 16 } else { 8 };
             let workgroup_size_y = if self.use_vectorized { 2 } else { 4 };
             let workgroup_size_z = if self.use_vectorized { 2 } else { 4 };
-            
+
             let workgroups_per_chunk_x = (chunk_size + workgroup_size_x - 1) / workgroup_size_x;
             let workgroups_per_chunk_y = (chunk_size + workgroup_size_y - 1) / workgroup_size_y;
             let workgroups_per_chunk_z = (chunk_size + workgroup_size_z - 1) / workgroup_size_z;
-            
+
             // Total workgroups in X = workgroups per chunk * number of chunks
             let total_workgroups_x = workgroups_per_chunk_x * chunk_positions.len() as u32;
-            
+
             log::debug!(
                 "[TerrainGeneratorSOA] Dispatching workgroups for {} chunks: {} x {} x {} (total: {} workgroups)",
                 chunk_positions.len(),
                 total_workgroups_x, workgroups_per_chunk_y, workgroups_per_chunk_z,
                 total_workgroups_x * workgroups_per_chunk_y * workgroups_per_chunk_z
             );
-            
+
             // Dispatch all chunks at once - shader will calculate chunk index from workgroup_id.x
             compute_pass.dispatch_workgroups(
                 total_workgroups_x,
                 workgroups_per_chunk_y,
-                workgroups_per_chunk_z
+                workgroups_per_chunk_z,
             );
-            
+
             log::debug!("[TerrainGeneratorSOA] Compute pass dispatch completed successfully");
         }
-        
+
         let elapsed = start.elapsed();
         log::info!(
             "[TerrainGeneratorSOA] Generated {} chunks in {:?} ({} mode)",
             batch_size,
             elapsed,
-            if self.use_vectorized { "vectorized" } else { "scalar" }
+            if self.use_vectorized {
+                "vectorized"
+            } else {
+                "scalar"
+            }
         );
-        
+
         Ok(())
     }
-    
+
     /// Generate a single chunk (convenience method)
     pub fn generate_chunk(
         &self,
@@ -501,19 +576,19 @@ impl TerrainGeneratorSOABuilder {
             use_vectorized: false,
         }
     }
-    
+
     /// Enable vectorized shader variant
     pub fn with_vectorization(mut self, enabled: bool) -> Self {
         self.use_vectorized = enabled;
         self
     }
-    
+
     /// Build the SOA terrain generator
     pub fn build(
         self,
         device: Arc<wgpu::Device>,
         buffer_manager: Arc<GpuBufferManager>,
-    ) -> TerrainGeneratorSOA {
+    ) -> Result<TerrainGeneratorSOA, GpuError> {
         TerrainGeneratorSOA::new_with_manager(device, buffer_manager, self.use_vectorized)
     }
 }

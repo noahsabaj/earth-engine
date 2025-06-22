@@ -1,12 +1,14 @@
 //! Type-safe GPU binding system with automatic WGSL generation
-//! 
+//!
 //! This module provides a type-safe binding system that automatically generates
 //! binding indices and WGSL declarations from Rust types.
 
-use std::marker::PhantomData;
-use wgpu::{BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, Device, BufferBinding};
-use crate::gpu::types::core::GpuData;
 use crate::gpu::automation::auto_wgsl::AutoWgsl;
+use crate::gpu::types::core::GpuData;
+use std::marker::PhantomData;
+use wgpu::{
+    BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BufferBinding, Device,
+};
 
 /// Type-safe binding slot
 #[derive(Debug, Clone, Copy)]
@@ -43,12 +45,12 @@ impl<'a> TypedBindGroupBuilder<'a> {
             label: None,
         }
     }
-    
+
     pub fn label(mut self, label: &'a str) -> Self {
         self.label = Some(label);
         self
     }
-    
+
     /// Add a typed buffer binding
     pub fn buffer<T: GpuData>(
         mut self,
@@ -67,7 +69,7 @@ impl<'a> TypedBindGroupBuilder<'a> {
         });
         self
     }
-    
+
     /// Build the bind group
     pub fn build(self) -> BindGroup {
         self.device.create_bind_group(&BindGroupDescriptor {
@@ -92,16 +94,16 @@ macro_rules! typed_bindings {
         $vis mod $mod_name {
             use super::*;
             use $crate::gpu::automation::typed_bindings::BindingSlot;
-            
+
             $(
                 pub const $binding_name: BindingSlot<$type> = BindingSlot::new($group, $binding_idx);
             )*
-            
+
             /// Generate WGSL binding declarations
             pub fn generate_wgsl() -> String {
                 let mut wgsl = String::new();
                 wgsl.push_str(&format!("// Bind group {}\n", $group));
-                
+
                 $(
                     wgsl.push_str(&$crate::gpu::automation::typed_bindings::generate_binding_wgsl::<$type>(
                         $group,
@@ -110,10 +112,10 @@ macro_rules! typed_bindings {
                     ));
                     wgsl.push('\n');
                 )*
-                
+
                 wgsl
             }
-            
+
             /// Get the bind group index
             pub const fn group() -> u32 {
                 $group
@@ -141,9 +143,9 @@ pub fn generate_binding_wgsl<T: GpuData + AutoWgsl>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::gpu::types::terrain::TerrainParams;
     use crate::gpu::buffer_layouts::CameraUniform;
-    
+    use crate::gpu::types::terrain::TerrainParams;
+
     typed_bindings! {
         pub mod render_bindings {
             group = 0;
@@ -151,13 +153,13 @@ mod tests {
             TERRAIN: TerrainParams = 1;
         }
     }
-    
+
     #[test]
     fn test_typed_bindings() {
         assert_eq!(render_bindings::CAMERA.group, 0);
         assert_eq!(render_bindings::CAMERA.binding, 0);
         assert_eq!(render_bindings::TERRAIN.binding, 1);
-        
+
         let wgsl = render_bindings::generate_wgsl();
         assert!(wgsl.contains("@group(0) @binding(0)"));
         assert!(wgsl.contains("@group(0) @binding(1)"));

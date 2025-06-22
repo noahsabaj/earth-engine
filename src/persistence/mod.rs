@@ -1,33 +1,42 @@
 //! Persistence system for saving and loading game data
 
+pub mod atomic_save;
+pub mod backup;
 pub mod chunk_serializer;
-pub mod world_save;
-pub mod player_data_dop;
 pub mod compression;
+pub mod error;
 pub mod metadata;
 pub mod migration;
-pub mod backup;
-pub mod error;
-pub mod atomic_save;
-pub mod state_validator;
 pub mod network_validator;
+pub mod player_data_dop;
+pub mod state_validator;
+pub mod world_save;
 
-pub use chunk_serializer::{ChunkSerializer, ChunkFormat};
-pub use world_save::{WorldSave, WorldSaveError};
-pub use player_data_dop::{PlayerDataBuffer, PlayerHotData, PlayerColdData, PlayerBufferMemoryStats, CACHE_LINE_SIZE, MAX_PLAYERS};
-pub use compression::{CompressionType, CompressionLevel, Compressor};
-pub use metadata::{WorldMetadata, SaveVersion};
-pub use migration::{MigrationManager, Migration};
-pub use backup::{BackupManager, BackupPolicy};
-pub use error::{atomic_write, PersistenceErrorContext, LockResultExt};
-pub use atomic_save::{AtomicSaveManager, AtomicSaveConfig, SaveOperation, SavePriority, SaveOperationResult, AtomicSaveStats};
-pub use state_validator::{StateValidator, ValidationConfig, ValidationResult, ValidationError, ValidationWarning, StateSnapshot, ValidationStats};
-pub use network_validator::{
-    NetworkValidator, ValidationConfig as NetworkValidationConfig, ValidationResult as NetworkValidationResult, 
-    ValidationError as NetworkValidationError, ValidationWarning as NetworkValidationWarning, 
-    ValidationStats as NetworkValidationStats, ValidationType, ChunkValidationData,
-    PlayerValidationData, WorldValidationState,
+pub use atomic_save::{
+    AtomicSaveConfig, AtomicSaveManager, AtomicSaveStats, SaveOperation, SaveOperationResult,
+    SavePriority,
 };
+pub use backup::{BackupManager, BackupPolicy};
+pub use chunk_serializer::{ChunkFormat, ChunkSerializer};
+pub use compression::{CompressionLevel, CompressionType, Compressor};
+pub use error::{atomic_write, LockResultExt, PersistenceErrorContext};
+pub use metadata::{SaveVersion, WorldMetadata};
+pub use migration::{Migration, MigrationManager};
+pub use network_validator::{
+    ChunkValidationData, NetworkValidator, PlayerValidationData,
+    ValidationConfig as NetworkValidationConfig, ValidationError as NetworkValidationError,
+    ValidationResult as NetworkValidationResult, ValidationStats as NetworkValidationStats,
+    ValidationType, ValidationWarning as NetworkValidationWarning, WorldValidationState,
+};
+pub use player_data_dop::{
+    PlayerBufferMemoryStats, PlayerColdData, PlayerDataBuffer, PlayerHotData, CACHE_LINE_SIZE,
+    MAX_PLAYERS,
+};
+pub use state_validator::{
+    StateSnapshot, StateValidator, ValidationConfig, ValidationError, ValidationResult,
+    ValidationStats, ValidationWarning,
+};
+pub use world_save::{WorldSave, WorldSaveError};
 
 /// Result type for persistence operations
 pub type PersistenceResult<T> = Result<T, PersistenceError>;
@@ -56,7 +65,11 @@ impl std::fmt::Display for PersistenceError {
             PersistenceError::DeserializationError(e) => write!(f, "Deserialization error: {}", e),
             PersistenceError::CompressionError(e) => write!(f, "Compression error: {}", e),
             PersistenceError::VersionMismatch { expected, found } => {
-                write!(f, "Version mismatch: expected {}, found {}", expected, found)
+                write!(
+                    f,
+                    "Version mismatch: expected {}, found {}",
+                    expected, found
+                )
             }
             PersistenceError::CorruptedData(e) => write!(f, "Corrupted data: {}", e),
             PersistenceError::MigrationError(e) => write!(f, "Migration error: {}", e),

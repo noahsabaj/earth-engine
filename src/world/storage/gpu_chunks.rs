@@ -1,3 +1,4 @@
+use crate::core::VOXELS_PER_CHUNK;
 use crate::world::core::ChunkPos;
 use crate::world::storage::ChunkSoA;
 use crate::Chunk;
@@ -7,15 +8,15 @@ use wgpu::util::DeviceExt;
 pub struct GpuChunk {
     position: ChunkPos,
     size: u32,
-    
+
     // GPU buffers
     block_buffer: wgpu::Buffer,
     light_buffer: wgpu::Buffer,
     metadata_buffer: wgpu::Buffer,
-    
+
     // Bind group for compute shaders
     bind_group: Option<wgpu::BindGroup>,
-    
+
     // Track if CPU data has changed
     dirty: bool,
 }
@@ -25,7 +26,7 @@ impl GpuChunk {
     pub fn new(device: &wgpu::Device, chunk: &Chunk) -> Self {
         let size = chunk.size();
         let block_count = (size * size * size) as usize;
-        
+
         // Create block buffer
         let blocks = chunk.blocks();
         let block_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -33,7 +34,7 @@ impl GpuChunk {
             contents: bytemuck::cast_slice(&blocks),
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
         });
-        
+
         // Create light buffer (placeholder for now)
         let light_data = vec![0u8; block_count * 2]; // 2 bytes per block for light
         let light_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -41,10 +42,15 @@ impl GpuChunk {
             contents: &light_data,
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
         });
-        
+
         // Create metadata buffer
         let metadata = ChunkMetadata {
-            position: [chunk.position().x, chunk.position().y, chunk.position().z, 0],
+            position: [
+                chunk.position().x,
+                chunk.position().y,
+                chunk.position().z,
+                0,
+            ],
             size: size,
             block_count: block_count as u32,
             flags: 0,
@@ -55,7 +61,7 @@ impl GpuChunk {
             contents: bytemuck::bytes_of(&metadata),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
-        
+
         Self {
             position: chunk.position(),
             size,
@@ -66,18 +72,18 @@ impl GpuChunk {
             dirty: false,
         }
     }
-    
+
     /// Update GPU buffers from CPU chunk data
     pub fn update(&mut self, queue: &wgpu::Queue, chunk: &Chunk) {
         // Update block data
         let blocks = chunk.blocks();
         queue.write_buffer(&self.block_buffer, 0, bytemuck::cast_slice(&blocks));
-        
+
         // TODO: Update light data when available
-        
+
         self.dirty = false;
     }
-    
+
     /// Create bind group for compute shaders
     pub fn create_bind_group(&mut self, device: &wgpu::Device, layout: &wgpu::BindGroupLayout) {
         self.bind_group = Some(device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -99,22 +105,22 @@ impl GpuChunk {
             ],
         }));
     }
-    
+
     /// Get the bind group for rendering/compute
     pub fn bind_group(&self) -> Option<&wgpu::BindGroup> {
         self.bind_group.as_ref()
     }
-    
+
     /// Mark chunk as dirty (needs update from CPU)
     pub fn mark_dirty(&mut self) {
         self.dirty = true;
     }
-    
+
     /// Check if chunk needs update
     pub fn is_dirty(&self) -> bool {
         self.dirty
     }
-    
+
     pub fn position(&self) -> ChunkPos {
         self.position
     }
@@ -178,17 +184,17 @@ impl GpuChunkManager {
                 },
             ],
         });
-        
+
         Self {
             chunks: std::collections::HashMap::new(),
             bind_group_layout,
         }
     }
-    
+
     /// Add or update a chunk on GPU
     pub fn update_chunk(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, chunk: &Chunk) {
         let pos = chunk.position();
-        
+
         if let Some(gpu_chunk) = self.chunks.get_mut(&pos) {
             // Update existing chunk
             gpu_chunk.update(queue, chunk);
@@ -199,37 +205,39 @@ impl GpuChunkManager {
             self.chunks.insert(pos, gpu_chunk);
         }
     }
-    
+
     /// Remove a chunk from GPU
     pub fn remove_chunk(&mut self, pos: ChunkPos) {
         self.chunks.remove(&pos);
     }
-    
+
     /// Get a GPU chunk
     pub fn get_chunk(&self, pos: &ChunkPos) -> Option<&GpuChunk> {
         self.chunks.get(pos)
     }
-    
+
     /// Get mutable GPU chunk
     pub fn get_chunk_mut(&mut self, pos: &ChunkPos) -> Option<&mut GpuChunk> {
         self.chunks.get_mut(pos)
     }
-    
+
     /// Get bind group layout for creating pipelines
     pub fn bind_group_layout(&self) -> &wgpu::BindGroupLayout {
         &self.bind_group_layout
     }
-    
+
     /// Get statistics
     pub fn stats(&self) -> GpuChunkStats {
         let chunk_count = self.chunks.len();
-        let total_blocks = chunk_count * 32 * 32 * 32;
-        let memory_usage = chunk_count * (
-            32 * 32 * 32 * 2 + // blocks
-            32 * 32 * 32 * 2 + // light
-            16                  // metadata
-        );
-        
+        let total_blocks = chunk_count * VOXELS_PER_CHUNK as usize;
+        let memory_usage = chunk_count
+            * (
+                VOXELS_PER_CHUNK as usize * 2 + // blocks
+            VOXELS_PER_CHUNK as usize * 2 + // light
+            16
+                // metadata
+            );
+
         GpuChunkStats {
             chunk_count,
             total_blocks,

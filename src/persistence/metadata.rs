@@ -1,6 +1,6 @@
-use std::collections::HashMap;
-use serde::{Serialize, Deserialize};
 use glam::Vec3;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 /// Current save version
 pub const SAVE_VERSION: SaveVersion = SaveVersion {
@@ -20,24 +20,28 @@ pub struct SaveVersion {
 impl SaveVersion {
     /// Create a new version
     pub const fn new(major: u16, minor: u16, patch: u16) -> Self {
-        Self { major, minor, patch }
+        Self {
+            major,
+            minor,
+            patch,
+        }
     }
-    
+
     /// Check if this version is compatible with another
     pub fn is_compatible_with(&self, other: &SaveVersion) -> bool {
         // Major version must match
         if self.major != other.major {
             return false;
         }
-        
+
         // Can load older minor versions
         if self.minor < other.minor {
             return false;
         }
-        
+
         true
     }
-    
+
     /// Check if migration is needed
     pub fn needs_migration(&self, other: &SaveVersion) -> bool {
         self.major != other.major || self.minor != other.minor
@@ -150,7 +154,7 @@ impl WorldMetadata {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_else(|_| std::time::Duration::from_secs(0))
             .as_secs();
-        
+
         Self {
             version: SAVE_VERSION,
             name,
@@ -166,7 +170,7 @@ impl WorldMetadata {
             custom_properties: HashMap::new(),
         }
     }
-    
+
     /// Update modified timestamp
     pub fn touch(&mut self) {
         self.modified_at = std::time::SystemTime::now()
@@ -174,32 +178,32 @@ impl WorldMetadata {
             .unwrap_or_else(|_| std::time::Duration::from_secs(0))
             .as_secs();
     }
-    
+
     /// Add play time
     pub fn add_play_time(&mut self, seconds: u64) {
         self.play_time += seconds;
     }
-    
+
     /// Set custom property
     pub fn set_property(&mut self, key: String, value: String) {
         self.custom_properties.insert(key, value);
     }
-    
+
     /// Get custom property
     pub fn get_property(&self, key: &str) -> Option<&String> {
         self.custom_properties.get(key)
     }
-    
+
     /// Check if world is compatible with current version
     pub fn is_compatible(&self) -> bool {
         SAVE_VERSION.is_compatible_with(&self.version)
     }
-    
+
     /// Check if world needs migration
     pub fn needs_migration(&self) -> bool {
         SAVE_VERSION.needs_migration(&self.version)
     }
-    
+
     /// Get world age in seconds
     pub fn age(&self) -> u64 {
         let now = std::time::SystemTime::now()
@@ -268,82 +272,75 @@ pub fn validate_metadata(metadata: &WorldMetadata) -> Result<(), String> {
     if metadata.name.is_empty() {
         return Err("World name cannot be empty".to_string());
     }
-    
+
     if metadata.name.len() > 255 {
         return Err("World name too long".to_string());
     }
-    
+
     // Validate game rules
     if metadata.game_rules.max_players == 0 {
         return Err("Max players must be at least 1".to_string());
     }
-    
+
     if metadata.game_rules.view_distance > 32 {
         return Err("View distance too large".to_string());
     }
-    
+
     // Validate spawn point
     if !metadata.spawn_point.is_finite() {
         return Err("Invalid spawn point".to_string());
     }
-    
+
     // Validate world bounds if present
     if let Some(bounds) = &metadata.world_bounds {
-        if bounds.min_x >= bounds.max_x || 
-           bounds.min_y >= bounds.max_y || 
-           bounds.min_z >= bounds.max_z {
+        if bounds.min_x >= bounds.max_x
+            || bounds.min_y >= bounds.max_y
+            || bounds.min_z >= bounds.max_z
+        {
             return Err("Invalid world bounds".to_string());
         }
     }
-    
+
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_save_version_compatibility() {
         let v1 = SaveVersion::new(1, 0, 0);
         let v2 = SaveVersion::new(1, 0, 5);
         let v3 = SaveVersion::new(1, 1, 0);
         let v4 = SaveVersion::new(2, 0, 0);
-        
+
         assert!(v1.is_compatible_with(&v1));
         assert!(v1.is_compatible_with(&v2)); // Same major.minor
         assert!(!v1.is_compatible_with(&v3)); // Newer minor
         assert!(!v1.is_compatible_with(&v4)); // Different major
     }
-    
+
     #[test]
     fn test_world_metadata_creation() {
-        let metadata = WorldMetadata::new(
-            "Test World".to_string(),
-            12345,
-            "1.0.0".to_string(),
-        );
-        
+        let metadata = WorldMetadata::new("Test World".to_string(), 12345, "1.0.0".to_string());
+
         assert_eq!(metadata.name, "Test World");
         assert_eq!(metadata.seed, 12345);
         assert_eq!(metadata.play_time, 0);
         assert!(metadata.is_compatible());
     }
-    
+
     #[test]
     fn test_metadata_validation() {
-        let mut metadata = WorldMetadata::new(
-            "Valid World".to_string(),
-            42,
-            "1.0.0".to_string(),
-        );
-        
+        let mut metadata = WorldMetadata::new("Valid World".to_string(), 42, "1.0.0".to_string());
+
         assert!(validate_metadata(&metadata).is_ok());
-        
+
         // Test invalid cases
         metadata.name = "".to_string();
         assert!(validate_metadata(&metadata).is_err());
-        
+
         metadata.name = "Valid".to_string();
         metadata.game_rules.max_players = 0;
         assert!(validate_metadata(&metadata).is_err());

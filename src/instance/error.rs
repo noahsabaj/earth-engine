@@ -1,5 +1,5 @@
 //! Instance subsystem error handling
-//! 
+//!
 //! This module provides type aliases and helper functions for instance operations
 //! to replace unwrap() calls with proper error handling.
 
@@ -14,7 +14,6 @@ pub trait InstanceErrorContext<T> {
     where
         Self: Sized;
 }
-
 
 impl<T, E> InstanceErrorContext<T> for Result<T, E>
 where

@@ -124,7 +124,7 @@ pub fn pack_position_ao(x: f32, y: f32, z: f32, ao: f32) -> u32 {
     let y_bits = ((y * 1023.0) as u32) & 0x3FF;
     let z_bits = ((z * 1023.0) as u32) & 0x3FF;
     let ao_bits = ((ao * 3.0) as u32) & 0x3;
-    
+
     (x_bits << 22) | (y_bits << 12) | (z_bits << 2) | ao_bits
 }
 
@@ -134,7 +134,7 @@ pub fn pack_normal_uv(nx: f32, ny: f32, nz: f32, u: f32, v: f32) -> u32 {
     let ny_bits = (((ny + 1.0) * 511.5) as u32) & 0x3FF;
     let u_bits = ((u * 63.0) as u32) & 0x3F;
     let v_bits = ((v * 63.0) as u32) & 0x3F;
-    
+
     (nx_bits << 22) | (ny_bits << 12) | (u_bits << 6) | v_bits
 }
 
@@ -144,6 +144,6 @@ pub fn pack_color_light(r: f32, g: f32, b: f32, light: f32) -> u32 {
     let g_bits = ((g * 255.0) as u32) & 0xFF;
     let b_bits = ((b * 255.0) as u32) & 0xFF;
     let light_bits = ((light * 255.0) as u32) & 0xFF;
-    
+
     (r_bits << 24) | (g_bits << 16) | (b_bits << 8) | light_bits
 }

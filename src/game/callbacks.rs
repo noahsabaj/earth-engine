@@ -1,10 +1,11 @@
 //! Game callback system for DOP-style game integration
-//! 
+//!
 //! This provides a way for games to register their logic with the engine
 //! without using OOP patterns. All callbacks are pure functions.
 
-use crate::{BlockId, BlockRegistry, VoxelPos};
 use super::GameContext;
+use crate::typed_blocks;
+use crate::{BlockId, BlockRegistry, VoxelPos};
 
 /// Game callbacks structure - holds function pointers for game logic
 /// This is pure data (function pointers are data in DOP)
@@ -12,16 +13,16 @@ use super::GameContext;
 pub struct GameCallbacks {
     /// Register game-specific blocks
     pub register_blocks: fn(&mut BlockRegistry),
-    
+
     /// Update game state each frame
     pub update_game: fn(&mut dyn std::any::Any, &mut GameContext, f32),
-    
+
     /// Handle when a block is broken
     pub on_block_break: fn(&mut dyn std::any::Any, VoxelPos, BlockId),
-    
+
     /// Handle when a block is placed
     pub on_block_place: fn(&mut dyn std::any::Any, VoxelPos, BlockId),
-    
+
     /// Get the currently active block for placement
     pub get_active_block: fn(&dyn std::any::Any) -> BlockId,
 }
@@ -43,24 +44,30 @@ fn default_register_blocks(_registry: &mut BlockRegistry) {}
 fn default_update_game(_game: &mut dyn std::any::Any, _ctx: &mut GameContext, _delta: f32) {}
 fn default_on_block_break(_game: &mut dyn std::any::Any, _pos: VoxelPos, _block: BlockId) {}
 fn default_on_block_place(_game: &mut dyn std::any::Any, _pos: VoxelPos, _block: BlockId) {}
-fn default_get_active_block(_game: &dyn std::any::Any) -> BlockId { BlockId(1) }
+fn default_get_active_block(_game: &dyn std::any::Any) -> BlockId {
+    BlockId(typed_blocks::GRASS)
+}
 
-/// Global callback storage
-static mut GAME_CALLBACKS: Option<GameCallbacks> = None;
+use std::sync::Mutex;
+
+/// Global callback storage - thread-safe
+static GAME_CALLBACKS: Mutex<Option<GameCallbacks>> = Mutex::new(None);
 
 /// Register game callbacks
 /// This should be called once during game initialization
 pub fn register_game_callbacks(callbacks: GameCallbacks) {
-    unsafe {
-        GAME_CALLBACKS = Some(callbacks);
-    }
+    let mut guard = GAME_CALLBACKS
+        .lock()
+        .expect("[GameCallbacks] Failed to acquire callback lock");
+    *guard = Some(callbacks);
 }
 
 /// Get the registered callbacks, or defaults if none registered
 pub fn get_game_callbacks() -> GameCallbacks {
-    unsafe {
-        GAME_CALLBACKS.clone().unwrap_or_default()
-    }
+    let guard = GAME_CALLBACKS
+        .lock()
+        .expect("[GameCallbacks] Failed to acquire callback lock");
+    guard.clone().unwrap_or_default()
 }
 
 /// Execute block registration through callbacks

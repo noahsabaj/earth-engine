@@ -53,7 +53,7 @@ impl InputState {
                 // Calculate actual delta from position difference
                 let real_delta_x = current_pos.0 - last_pos.0;
                 let real_delta_y = current_pos.1 - last_pos.1;
-                
+
                 // Only accumulate reasonable deltas
                 if real_delta_x.abs() < 100.0 && real_delta_y.abs() < 100.0 {
                     self.mouse_delta.0 += real_delta_x;
@@ -83,7 +83,7 @@ impl InputState {
     pub fn clear_mouse_delta(&mut self) {
         self.mouse_delta = (0.0, 0.0);
     }
-    
+
     pub fn reset_mouse_tracking(&mut self) {
         self.last_mouse_pos = None;
         self.mouse_delta = (0.0, 0.0);

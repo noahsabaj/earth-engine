@@ -1,7 +1,7 @@
 # Git Setup Instructions for Hearth Engine
 
 ## Current Status
-- Git repository initialized locally in WSL (Linux)
+- Git repository initialized locally in Linux Mint
 - Initial commit made with all project files
 - Ready to connect to remote repository
 
@@ -12,7 +12,7 @@
 2. Name it `hearth-engine` or similar
 3. Do NOT initialize with README, .gitignore, or license (we already have these)
 
-### Step 2: Connect Local to Remote (Run in WSL)
+### Step 2: Connect Local to Remote
 ```bash
 # Add remote origin (replace URL with your repository URL)
 git remote add origin https://github.com/YOUR_USERNAME/hearth-engine.git
@@ -24,23 +24,9 @@ git remote -v
 git push -u origin master
 ```
 
-## Working Between Windows and Linux
+## Development Workflow
 
-### On Windows (Initial Setup)
-```bash
-# Clone the repository
-cd C:\hearth-engine-workspace
-git clone https://github.com/YOUR_USERNAME/hearth-engine.git
-
-# Enter the directory
-cd hearth-engine
-
-# You're ready to work!
-```
-
-### Workflow: Linux Development, Windows Testing
-
-#### On Linux (WSL) - Development
+### Working with Git
 ```bash
 # Make changes in code...
 
@@ -57,18 +43,6 @@ git commit -m "Description of changes"
 git push
 ```
 
-#### On Windows - Testing/Viewing
-```bash
-# Pull latest changes
-git pull
-
-# Build and run
-cargo build --release
-cargo run --release --bin engine_test
-
-# For GPU testing
-cargo run --release --bin gpu_test
-```
 
 ## Best Practices
 
@@ -84,10 +58,10 @@ cargo run --release --bin gpu_test
    git commit -m "perf: Optimize instance buffer updates"
    ```
 
-3. **Keep Windows and Linux in sync**
-   - Develop in Linux (WSL) for speed
-   - Pull and test in Windows for GPU performance
-   - Never edit the same files in both environments simultaneously
+3. **Work directly in Linux Mint**
+   - Full native performance
+   - Direct GPU access
+   - No synchronization needed
 
 4. **Use branches for major features**
    ```bash

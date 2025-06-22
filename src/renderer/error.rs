@@ -1,5 +1,5 @@
 //! Renderer subsystem error handling
-//! 
+//!
 //! This module provides type aliases and helper functions for renderer operations
 //! to replace unwrap() calls with proper error handling.
 

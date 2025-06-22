@@ -1,8 +1,11 @@
+use crate::memory::{Implementation, MemoryManager, MetricType, PerformanceMetrics};
+use crate::world::core::ChunkPos;
+use bytemuck::{Pod, Zeroable};
 /// Unified World Kernel
-/// 
+///
 /// Sprint 34: The ultimate expression of data-oriented design.
 /// A single GPU kernel that updates the entire world in one dispatch.
-/// 
+///
 /// This kernel merges:
 /// - Terrain generation
 /// - Chunk modification  
@@ -11,14 +14,10 @@
 /// - Fluid dynamics
 /// - Particle updates
 /// - Instance processing
-/// 
+///
 /// Zero CPU involvement during world updates.
-
 use std::sync::Arc;
-use wgpu::{Device, Queue, Buffer, BindGroup, ComputePipeline};
-use bytemuck::{Pod, Zeroable};
-use crate::memory::{MemoryManager, PerformanceMetrics, MetricType, Implementation};
-use crate::world::core::ChunkPos;
+use wgpu::{BindGroup, Buffer, ComputePipeline, Device, Queue};
 
 /// Unified kernel configuration
 #[repr(C)]
@@ -87,19 +86,19 @@ pub struct WorkNode {
 /// Unified world kernel system
 pub struct UnifiedWorldKernel {
     device: Arc<Device>,
-    
+
     /// The mega-kernel compute pipeline
     unified_pipeline: ComputePipeline,
-    
+
     /// Configuration buffer
     config_buffer: Buffer,
-    
+
     /// Work graph buffer for GPU scheduling
     work_graph_buffer: Buffer,
-    
+
     /// Main bind group with all world data
     world_bind_group: BindGroup,
-    
+
     /// Performance metrics
     metrics: Option<PerformanceMetrics>,
 }
@@ -109,12 +108,27 @@ impl UnifiedWorldKernel {
         device: Arc<Device>,
         config: UnifiedKernelConfig,
     ) -> Result<Self, super::ComputeError> {
-        // Create the unified shader module
-        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("Unified World Kernel"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("../../shaders/compute/unified_world_kernel.wgsl").into()),
-        });
-        
+        // Create shader through unified GPU system for proper type injection
+        let minimal_shader_source = r#"
+@compute @workgroup_size(64, 1, 1)
+fn unified_world_update(@builtin(global_invocation_id) global_id: vec3<u32>) {
+    // Minimal placeholder - does nothing for now
+}
+"#;
+
+        // Use unified GPU system for ALL shader creation (Single Source of Truth)
+        let validated_shader = crate::gpu::automation::create_gpu_shader(
+            &device,
+            "unified_world_kernel",
+            minimal_shader_source,
+        )
+        .map_err(|e| super::ComputeError::ShaderCompilationFailed {
+            shader: "unified_world_kernel".to_string(),
+            error: format!("{:?}", e),
+        })?;
+
+        let shader = &validated_shader.module;
+
         // Create bind group layout with all resources
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("Unified Kernel Bind Group Layout"),
@@ -209,14 +223,14 @@ impl UnifiedWorldKernel {
                 },
             ],
         });
-        
+
         // Create pipeline layout
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("Unified Kernel Pipeline Layout"),
             bind_group_layouts: &[&bind_group_layout],
             push_constant_ranges: &[],
         });
-        
+
         // Create the unified compute pipeline
         let unified_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
             label: Some("Unified World Kernel Pipeline"),
@@ -224,7 +238,7 @@ impl UnifiedWorldKernel {
             module: &shader,
             entry_point: "unified_world_update",
         });
-        
+
         // Allocate buffers
         let config_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Unified Kernel Config"),
@@ -232,14 +246,14 @@ impl UnifiedWorldKernel {
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
-        
+
         let work_graph_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Work Graph Buffer"),
             size: 1024 * 1024, // 1MB for work graph
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
-        
+
         // Placeholder buffers for octree and BVH (will be implemented)
         let octree_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Octree Buffer"),
@@ -247,14 +261,14 @@ impl UnifiedWorldKernel {
             usage: wgpu::BufferUsages::STORAGE,
             mapped_at_creation: false,
         });
-        
+
         let bvh_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("BVH Buffer"),
             size: 8 * 1024 * 1024, // 8MB for BVH
             usage: wgpu::BufferUsages::STORAGE,
             mapped_at_creation: false,
         });
-        
+
         // Placeholder for instance and modification buffers
         let instance_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Instance Buffer"),
@@ -262,29 +276,29 @@ impl UnifiedWorldKernel {
             usage: wgpu::BufferUsages::STORAGE,
             mapped_at_creation: false,
         });
-        
+
         let modification_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Modification Buffer"),
             size: 1024 * 1024, // 1MB
             usage: wgpu::BufferUsages::STORAGE,
             mapped_at_creation: false,
         });
-        
-        // Create placeholder world buffer for now
+
+        // Create placeholder world buffer for now - reduced size to stay within GPU limits
         let world_voxel_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("World Voxel Buffer"),
-            size: 256 * 1024 * 1024, // 256MB placeholder
+            size: 64 * 1024 * 1024, // 64MB placeholder (within 134MB limit)
             usage: wgpu::BufferUsages::STORAGE,
             mapped_at_creation: false,
         });
-        
+
         let chunk_metadata_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Chunk Metadata Buffer"),
             size: 16 * 1024 * 1024, // 16MB placeholder
             usage: wgpu::BufferUsages::STORAGE,
             mapped_at_creation: false,
         });
-        
+
         // Create main bind group
         let world_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("Unified World Bind Group"),
@@ -324,7 +338,7 @@ impl UnifiedWorldKernel {
                 },
             ],
         });
-        
+
         Ok(Self {
             device,
             unified_pipeline,
@@ -334,7 +348,7 @@ impl UnifiedWorldKernel {
             metrics: None, // Will be set up separately
         })
     }
-    
+
     /// Execute a compute pass
     pub fn execute_pass(
         &self,
@@ -345,7 +359,7 @@ impl UnifiedWorldKernel {
         // TODO: Implement command execution
         Ok(())
     }
-    
+
     /// Execute the unified world update
     pub fn update_world(
         &self,
@@ -363,27 +377,33 @@ impl UnifiedWorldKernel {
                 "Unified kernel dispatch",
             )
         });
-        
+
         // Update configuration
         queue.write_buffer(&self.config_buffer, 0, bytemuck::cast_slice(&[config]));
-        
+
         // Single compute pass for everything
-        let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-            label: Some("Unified World Update"),
-            timestamp_writes: None,
-        });
-        
-        compute_pass.set_pipeline(&self.unified_pipeline);
-        compute_pass.set_bind_group(0, &self.world_bind_group, &[]);
-        
-        // Single dispatch updates entire world
-        compute_pass.dispatch_workgroups(workgroup_count, 1, 1);
+        {
+            let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("Unified World Update"),
+                timestamp_writes: None,
+            });
+
+            compute_pass.set_pipeline(&self.unified_pipeline);
+            compute_pass.set_bind_group(0, &self.world_bind_group, &[]);
+
+            // Single dispatch updates entire world
+            compute_pass.dispatch_workgroups(workgroup_count, 1, 1);
+
+            // Explicitly drop the compute pass to release the encoder borrow
+            // This prevents "Command encoder is invalid" errors
+            drop(compute_pass);
+        }
     }
-    
+
     /// Build work graph for GPU scheduling
     pub fn build_work_graph(&self, queue: &Queue, active_chunks: &[ChunkPos]) {
         let mut work_nodes = Vec::new();
-        
+
         // Create work nodes for each active chunk
         for (i, chunk_pos) in active_chunks.iter().enumerate() {
             // Terrain generation node
@@ -393,7 +413,7 @@ impl UnifiedWorldKernel {
                 dependencies: 0, // No dependencies
                 priority: 10,
             });
-            
+
             // Lighting node (depends on terrain)
             work_nodes.push(WorkNode {
                 work_type: 1, // Lighting
@@ -401,7 +421,7 @@ impl UnifiedWorldKernel {
                 dependencies: 1 << 0, // Depends on terrain
                 priority: 8,
             });
-            
+
             // Physics node (depends on terrain)
             work_nodes.push(WorkNode {
                 work_type: 2, // Physics
@@ -410,7 +430,7 @@ impl UnifiedWorldKernel {
                 priority: 9,
             });
         }
-        
+
         // Upload work graph
         queue.write_buffer(
             &self.work_graph_buffer,
@@ -418,7 +438,7 @@ impl UnifiedWorldKernel {
             bytemuck::cast_slice(&work_nodes),
         );
     }
-    
+
     /// Get performance report
     pub fn get_performance_report(&self) -> Option<String> {
         self.metrics.as_ref().map(|m| {

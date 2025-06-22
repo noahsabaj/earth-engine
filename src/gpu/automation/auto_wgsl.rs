@@ -1,11 +1,11 @@
 //! Automatic WGSL generation using encase metadata
-//! 
+//!
 //! This module provides automatic, type-safe WGSL generation from Rust types,
 //! eliminating all manual string generation and ensuring perfect type alignment.
 
-use std::fmt::Write as FmtWrite;
-use encase::{ShaderType, ShaderSize};
 use crate::gpu::types::core::GpuData;
+use encase::{ShaderSize, ShaderType};
+use std::fmt::Write as FmtWrite;
 
 /// Metadata for WGSL type generation
 #[derive(Debug, Clone)]
@@ -21,49 +21,59 @@ pub struct WgslFieldMetadata {
 pub trait AutoWgsl: GpuData {
     /// Get WGSL type name
     fn wgsl_name() -> &'static str;
-    
+
     /// Get field metadata for WGSL generation
     fn wgsl_fields() -> Vec<WgslFieldMetadata>;
-    
+
     /// Generate complete WGSL struct definition
     fn generate_wgsl() -> String {
         let mut wgsl = String::new();
-        
+
         // Struct header with size/alignment info
         let size = Self::SHADER_SIZE.get();
-        writeln!(&mut wgsl, "// Size: {} bytes, Alignment: 16 bytes", size).expect("[AutoWgsl] writeln! to String should never fail");
-        writeln!(&mut wgsl, "struct {} {{", Self::wgsl_name()).expect("[AutoWgsl] writeln! to String should never fail");
-        
+        writeln!(&mut wgsl, "// Size: {} bytes, Alignment: 16 bytes", size)
+            .expect("[AutoWgsl] writeln! to String should never fail");
+        writeln!(&mut wgsl, "struct {} {{", Self::wgsl_name())
+            .expect("[AutoWgsl] writeln! to String should never fail");
+
         // Generate fields
         let fields = Self::wgsl_fields();
         let mut current_offset = 0u32;
-        
+
         for (i, field) in fields.iter().enumerate() {
             // Add padding if needed
             if field.offset > current_offset {
                 let padding_size = field.offset - current_offset;
                 let padding_type = padding_to_wgsl_type(padding_size);
-                writeln!(&mut wgsl, "    _pad{}: {},", i, padding_type).expect("[AutoWgsl] writeln! to String should never fail");
+                writeln!(&mut wgsl, "    _pad{}: {},", i, padding_type)
+                    .expect("[AutoWgsl] writeln! to String should never fail");
             }
-            
+
             // Add field
             if let Some(count) = field.array_count {
-                writeln!(&mut wgsl, "    {}: array<{}, {}>,", field.name, field.wgsl_type, count).expect("[AutoWgsl] writeln! to String should never fail");
+                writeln!(
+                    &mut wgsl,
+                    "    {}: array<{}, {}>,",
+                    field.name, field.wgsl_type, count
+                )
+                .expect("[AutoWgsl] writeln! to String should never fail");
             } else {
-                writeln!(&mut wgsl, "    {}: {},", field.name, field.wgsl_type).expect("[AutoWgsl] writeln! to String should never fail");
+                writeln!(&mut wgsl, "    {}: {},", field.name, field.wgsl_type)
+                    .expect("[AutoWgsl] writeln! to String should never fail");
             }
-            
+
             current_offset = field.offset + field.size;
         }
-        
+
         // Final padding to match struct size
         let final_size = size as u32;
         if current_offset < final_size {
             let padding_size = final_size - current_offset;
             let padding_type = padding_to_wgsl_type(padding_size);
-            writeln!(&mut wgsl, "    _pad_final: {},", padding_type).expect("[AutoWgsl] writeln! to String should never fail");
+            writeln!(&mut wgsl, "    _pad_final: {},", padding_type)
+                .expect("[AutoWgsl] writeln! to String should never fail");
         }
-        
+
         wgsl.push_str("}");
         wgsl
     }
@@ -96,20 +106,20 @@ macro_rules! auto_wgsl {
             fn wgsl_name() -> &'static str {
                 $wgsl_name
             }
-            
+
             fn wgsl_fields() -> Vec<$crate::gpu::automation::auto_wgsl::WgslFieldMetadata> {
                 vec![
                     $(
                         $crate::gpu::automation::auto_wgsl::WgslFieldMetadata {
                             name: stringify!($field_name),
                             wgsl_type: $wgsl_type,
-                            offset: unsafe { 
+                            offset: unsafe {
                                 let base = std::ptr::null::<$type>();
                                 let field = std::ptr::addr_of!((*base).$field_name);
                                 field as usize as u32
                             },
-                            size: std::mem::size_of_val(unsafe { 
-                                &(*std::ptr::null::<$type>()).$field_name 
+                            size: std::mem::size_of_val(unsafe {
+                                &(*std::ptr::null::<$type>()).$field_name
                             }) as u32,
                             array_count: $crate::auto_wgsl!(@array_count $($array_count)?),
                         }
@@ -118,7 +128,7 @@ macro_rules! auto_wgsl {
             }
         }
     };
-    
+
     (@array_count) => { None };
     (@array_count $count:expr) => { Some($count) };
 }
@@ -139,7 +149,7 @@ pub fn generate_bindings<T: AutoWgsl>(group: u32, binding: u32, access: &str) ->
 pub fn generate_accessor_function<T: AutoWgsl>(field_name: &str) -> Option<String> {
     let fields = T::wgsl_fields();
     let field = fields.iter().find(|f| f.name == field_name)?;
-    
+
     Some(format!(
         "fn get_{}_{} (data: ptr<storage, {}, read>) -> {} {{
     return (*data).{};
@@ -157,7 +167,7 @@ mod tests {
     use super::*;
     use bytemuck::{Pod, Zeroable};
     use encase::ShaderType;
-    
+
     #[repr(C)]
     #[derive(ShaderType, Pod, Zeroable, Copy, Clone)]
     struct TestStruct {
@@ -166,7 +176,7 @@ mod tests {
         position: [f32; 3],
         scale: f32,
     }
-    
+
     auto_wgsl!(
         TestStruct,
         name = "TestStruct",
@@ -176,7 +186,7 @@ mod tests {
             scale: "f32",
         ]
     );
-    
+
     #[test]
     fn test_auto_wgsl_generation() {
         let wgsl = TestStruct::generate_wgsl();
@@ -185,7 +195,7 @@ mod tests {
         assert!(wgsl.contains("position: vec3<f32>"));
         assert!(wgsl.contains("scale: f32"));
     }
-    
+
     #[test]
     fn test_binding_generation() {
         let binding = generate_bindings::<TestStruct>(0, 1, "read");

@@ -13,7 +13,7 @@ struct WeatherData {
 
 struct WeatherTransition {
     current: WeatherData,
-    target: WeatherData,
+    target_weather: WeatherData,
     progress: u32, // Actually u16
     speed: u32,    // Actually u16
     change_timer: u32,
@@ -161,30 +161,30 @@ fn get_biome_weather(biome: u32, variant: u32) -> WeatherData {
 }
 
 // Interpolate weather data
-fn interpolate_weather(current: WeatherData, target: WeatherData, t: f32) -> WeatherData {
+fn interpolate_weather(current: WeatherData, target_weather: WeatherData, t: f32) -> WeatherData {
     var result: WeatherData;
     
-    // Discrete values use target when t > 0.5
+    // Discrete values use target_weather when t > 0.5
     if (t < 0.5) {
         result.weather_type_intensity = current.weather_type_intensity;
     } else {
-        result.weather_type_intensity = target.weather_type_intensity;
+        result.weather_type_intensity = target_weather.weather_type_intensity;
     }
     
     // Interpolate continuous values
-    result.temperature = i32(mix(f32(current.temperature), f32(target.temperature), t));
-    result.humidity = u32(mix(f32(current.humidity), f32(target.humidity), t));
-    result.wind_speed = u32(mix(f32(current.wind_speed), f32(target.wind_speed), t));
+    result.temperature = i32(mix(f32(current.temperature), f32(target_weather.temperature), t));
+    result.humidity = u32(mix(f32(current.humidity), f32(target_weather.humidity), t));
+    result.wind_speed = u32(mix(f32(current.wind_speed), f32(target_weather.wind_speed), t));
     
     // Angle interpolation for wind direction
     let current_angle = f32(current.wind_direction) * 3.14159 / 180.0;
-    let target_angle = f32(target.wind_direction) * 3.14159 / 180.0;
+    let target_angle = f32(target_weather.wind_direction) * 3.14159 / 180.0;
     let x = mix(cos(current_angle), cos(target_angle), t);
     let y = mix(sin(current_angle), sin(target_angle), t);
     result.wind_direction = u32((atan2(y, x) * 180.0 / 3.14159 + 360.0) % 360.0);
     
-    result.visibility = u32(mix(f32(current.visibility), f32(target.visibility), t));
-    result.precipitation_rate = u32(mix(f32(current.precipitation_rate), f32(target.precipitation_rate), t));
+    result.visibility = u32(mix(f32(current.visibility), f32(target_weather.visibility), t));
+    result.precipitation_rate = u32(mix(f32(current.precipitation_rate), f32(target_weather.precipitation_rate), t));
     
     return result;
 }
@@ -255,7 +255,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
             
             // Interpolate weather
             let t = f32(transition.progress) / 65535.0;
-            weather_data[region_idx] = interpolate_weather(transition.current, transition.target, t);
+            weather_data[region_idx] = interpolate_weather(transition.current, transition.target_weather, t);
         }
         
         // Check for weather change
@@ -267,7 +267,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
             let variant = u32(random(seed) * 5.0);
             
             transition.current = weather_data[region_idx];
-            transition.target = get_biome_weather(transition.biome_type, variant);
+            transition.target_weather = get_biome_weather(transition.biome_type, variant);
             transition.progress = 0u;
             transition.speed = 10u; // Transition over ~6.5 seconds
             

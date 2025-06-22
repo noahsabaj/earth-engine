@@ -1,7 +1,7 @@
 use glam::Vec3;
 use std::time::Duration;
 
-use crate::particles::{ParticleEmitter, EmitterShape, ParticleType};
+use crate::particles::{EmitterShape, ParticleEmitter, ParticleType};
 
 /// Pre-configured particle effects
 #[derive(Debug, Clone)]
@@ -21,29 +21,29 @@ pub enum EffectPreset {
     Explosion,
     Smoke,
     Steam,
-    
+
     // Combat
     Hit,
     CriticalHit,
     Heal,
     Shield,
-    
+
     // Magic
     Teleport,
     Enchant,
     Portal,
     Spell,
-    
+
     // Block effects
     BlockBreak,
     BlockPlace,
     Mining,
-    
+
     // Weather
     RainSplash,
     SnowFall,
     Lightning,
-    
+
     // Liquid
     WaterSplash,
     LavaBubble,
@@ -65,7 +65,7 @@ impl ParticleEffect {
             _ => Self::default(position),
         }
     }
-    
+
     /// Campfire effect
     fn campfire(position: Vec3) -> Self {
         let mut fire = ParticleEmitter::fire(position);
@@ -74,16 +74,16 @@ impl ParticleEffect {
             normal: Vec3::Y,
         };
         fire.emission_rate = 40.0;
-        
+
         let mut smoke = ParticleEmitter::smoke(position + Vec3::Y * 0.5);
         smoke.emission_rate = 3.0;
         smoke.velocity_range = (Vec3::new(-0.2, 1.0, -0.2), Vec3::new(0.2, 2.0, 0.2));
-        
+
         let mut sparks = ParticleEmitter::new(position, ParticleType::Spark);
         sparks.emission_rate = 2.0;
         sparks.velocity_range = (Vec3::new(-1.0, 2.0, -1.0), Vec3::new(1.0, 4.0, 1.0));
         sparks.lifetime_range = (0.5, 1.0);
-        
+
         Self {
             emitters: vec![fire, smoke, sparks],
             name: "Campfire".to_string(),
@@ -91,7 +91,7 @@ impl ParticleEffect {
             looping: true,
         }
     }
-    
+
     /// Torch effect
     fn torch(position: Vec3) -> Self {
         let mut fire = ParticleEmitter::fire(position);
@@ -99,11 +99,11 @@ impl ParticleEffect {
         fire.emission_rate = 15.0;
         fire.velocity_range = (Vec3::new(-0.2, 0.5, -0.2), Vec3::new(0.2, 1.5, 0.2));
         fire.size_range = (0.1, 0.2);
-        
+
         let mut smoke = ParticleEmitter::smoke(position + Vec3::Y * 0.3);
         smoke.emission_rate = 1.0;
         smoke.size_range = (0.2, 0.3);
-        
+
         Self {
             emitters: vec![fire, smoke],
             name: "Torch".to_string(),
@@ -111,7 +111,7 @@ impl ParticleEffect {
             looping: true,
         }
     }
-    
+
     /// Explosion effect
     fn explosion(position: Vec3) -> Self {
         // Initial flash
@@ -122,7 +122,7 @@ impl ParticleEffect {
         flash.lifetime_range = (0.2, 0.4);
         flash.size_range = (0.5, 1.0);
         flash.duration = Some(Duration::from_millis(100));
-        
+
         // Debris
         let mut debris = ParticleEmitter::new(position, ParticleType::BlockBreak);
         debris.shape = EmitterShape::Sphere { radius: 0.5 };
@@ -130,7 +130,7 @@ impl ParticleEffect {
         debris.velocity_range = (Vec3::new(-5.0, 2.0, -5.0), Vec3::new(5.0, 8.0, 5.0));
         debris.lifetime_range = (1.0, 2.0);
         debris.duration = Some(Duration::from_millis(200));
-        
+
         // Smoke
         let mut smoke = ParticleEmitter::smoke(position);
         smoke.shape = EmitterShape::Sphere { radius: 1.0 };
@@ -138,7 +138,7 @@ impl ParticleEffect {
         smoke.velocity_range = (Vec3::new(-2.0, 1.0, -2.0), Vec3::new(2.0, 4.0, 2.0));
         smoke.size_range = (0.5, 1.5);
         smoke.duration = Some(Duration::from_secs(3));
-        
+
         Self {
             emitters: vec![flash, debris, smoke],
             name: "Explosion".to_string(),
@@ -146,7 +146,7 @@ impl ParticleEffect {
             looping: false,
         }
     }
-    
+
     /// Hit effect
     fn hit(position: Vec3) -> Self {
         let mut impact = ParticleEmitter::new(position, ParticleType::Damage);
@@ -156,7 +156,7 @@ impl ParticleEffect {
         impact.lifetime_range = (0.3, 0.6);
         impact.size_range = (0.1, 0.2);
         impact.duration = Some(Duration::from_millis(200));
-        
+
         Self {
             emitters: vec![impact],
             name: "Hit".to_string(),
@@ -164,7 +164,7 @@ impl ParticleEffect {
             looping: false,
         }
     }
-    
+
     /// Heal effect
     fn heal(position: Vec3) -> Self {
         let mut particles = ParticleEmitter::new(position, ParticleType::Heal);
@@ -177,7 +177,7 @@ impl ParticleEffect {
         particles.lifetime_range = (1.0, 1.5);
         particles.size_range = (0.1, 0.3);
         particles.duration = Some(Duration::from_secs(2));
-        
+
         Self {
             emitters: vec![particles],
             name: "Heal".to_string(),
@@ -185,7 +185,7 @@ impl ParticleEffect {
             looping: false,
         }
     }
-    
+
     /// Teleport effect
     fn teleport(position: Vec3) -> Self {
         let mut portal = ParticleEmitter::new(position, ParticleType::Portal);
@@ -197,12 +197,12 @@ impl ParticleEffect {
         portal.velocity_range = (Vec3::ZERO, Vec3::Y * 0.5);
         portal.lifetime_range = (1.0, 2.0);
         portal.duration = Some(Duration::from_secs(1));
-        
+
         let mut magic = ParticleEmitter::magic(position);
         magic.shape = EmitterShape::Sphere { radius: 1.0 };
         magic.emission_rate = 50.0;
         magic.duration = Some(Duration::from_secs(1));
-        
+
         Self {
             emitters: vec![portal, magic],
             name: "Teleport".to_string(),
@@ -210,7 +210,7 @@ impl ParticleEffect {
             looping: false,
         }
     }
-    
+
     /// Block break effect
     fn block_break(position: Vec3) -> Self {
         let mut particles = ParticleEmitter::new(position, ParticleType::BlockBreak);
@@ -221,7 +221,7 @@ impl ParticleEffect {
         particles.velocity_range = (Vec3::new(-2.0, 0.0, -2.0), Vec3::new(2.0, 4.0, 2.0));
         particles.lifetime_range = (0.5, 1.0);
         particles.duration = Some(Duration::from_millis(200));
-        
+
         let mut dust = ParticleEmitter::new(position, ParticleType::BlockDust);
         dust.shape = EmitterShape::Box {
             size: Vec3::splat(1.0),
@@ -230,7 +230,7 @@ impl ParticleEffect {
         dust.velocity_range = (Vec3::new(-1.0, -0.5, -1.0), Vec3::new(1.0, 1.0, 1.0));
         dust.lifetime_range = (1.0, 2.0);
         dust.duration = Some(Duration::from_millis(500));
-        
+
         Self {
             emitters: vec![particles, dust],
             name: "Block Break".to_string(),
@@ -238,7 +238,7 @@ impl ParticleEffect {
             looping: false,
         }
     }
-    
+
     /// Water splash effect
     fn water_splash(position: Vec3) -> Self {
         let mut splash = ParticleEmitter::new(position, ParticleType::WaterSplash);
@@ -251,7 +251,7 @@ impl ParticleEffect {
         splash.lifetime_range = (0.5, 1.0);
         splash.size_range = (0.05, 0.15);
         splash.duration = Some(Duration::from_millis(300));
-        
+
         let mut ripples = ParticleEmitter::new(position, ParticleType::WaterSplash);
         ripples.shape = EmitterShape::Disc {
             radius: 0.1,
@@ -262,7 +262,7 @@ impl ParticleEffect {
         ripples.lifetime_range = (1.0, 1.5);
         ripples.size_range = (0.5, 1.0);
         ripples.duration = Some(Duration::from_millis(100));
-        
+
         Self {
             emitters: vec![splash, ripples],
             name: "Water Splash".to_string(),
@@ -270,11 +270,11 @@ impl ParticleEffect {
             looping: false,
         }
     }
-    
+
     /// Default effect
     fn default(position: Vec3) -> Self {
         let emitter = ParticleEmitter::new(position, ParticleType::Dust);
-        
+
         Self {
             emitters: vec![emitter],
             name: "Default".to_string(),
@@ -282,18 +282,18 @@ impl ParticleEffect {
             looping: false,
         }
     }
-    
+
     /// Update all emitters
     pub fn update(&mut self, dt: Duration) -> Vec<crate::particles::Particle> {
         let mut particles = Vec::new();
-        
+
         for emitter in &mut self.emitters {
             particles.extend(emitter.update(dt));
         }
-        
+
         particles
     }
-    
+
     /// Check if effect is finished
     pub fn is_finished(&self) -> bool {
         if self.looping {
@@ -302,7 +302,7 @@ impl ParticleEffect {
             self.emitters.iter().all(|e| e.is_finished())
         }
     }
-    
+
     /// Reset the effect
     pub fn reset(&mut self) {
         for emitter in &mut self.emitters {
@@ -310,7 +310,7 @@ impl ParticleEffect {
             emitter.start();
         }
     }
-    
+
     /// Stop the effect
     pub fn stop(&mut self) {
         for emitter in &mut self.emitters {
@@ -322,13 +322,13 @@ impl ParticleEffect {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_effect_presets() {
         let explosion = ParticleEffect::from_preset(EffectPreset::Explosion, Vec3::ZERO);
         assert_eq!(explosion.emitters.len(), 3); // Flash, debris, smoke
         assert!(!explosion.looping);
-        
+
         let campfire = ParticleEffect::from_preset(EffectPreset::Campfire, Vec3::ZERO);
         assert!(campfire.looping);
     }

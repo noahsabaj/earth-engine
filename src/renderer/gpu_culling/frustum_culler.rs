@@ -1,34 +1,44 @@
+use super::{DrawCommand, GpuCamera};
+use wgpu::util::DeviceExt;
 /// GPU Frustum Culling Implementation
-/// 
+///
 /// Performs frustum culling entirely on GPU using compute shaders.
 /// Part of Sprint 28: GPU-Driven Rendering Optimization
-
-use wgpu::{Device, Buffer, ComputePipeline};
-use wgpu::util::DeviceExt;
-use super::{GpuCamera, DrawCommand};
+use wgpu::{Buffer, ComputePipeline, Device};
 
 pub struct FrustumCuller {
     pipeline: ComputePipeline,
     clear_pipeline: ComputePipeline,
     bind_group_layout: wgpu::BindGroupLayout,
-    
+
     // Buffers
     camera_buffer: Buffer,
     draw_commands_buffer: Buffer,
     visible_instances_buffer: Buffer,
     draw_count_buffer: Buffer,
-    
+
     max_chunks: usize,
 }
 
 impl FrustumCuller {
     pub fn new(device: &Device, max_chunks: usize) -> Self {
-        // Create shader module
-        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("Frustum Cull Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("../../shaders/rendering/frustum_cull.wgsl").into()),
-        });
-        
+        // Create shader module using unified GPU system
+        let shader_source = include_str!("../../shaders/rendering/frustum_cull.wgsl");
+        let validated_shader = match crate::gpu::automation::create_gpu_shader(
+            device,
+            "frustum_cull",
+            shader_source,
+        ) {
+            Ok(shader) => shader,
+            Err(e) => {
+                log::error!(
+                    "[FrustumCuller] Failed to create frustum cull shader: {}",
+                    e
+                );
+                panic!("Cannot proceed without frustum cull shader");
+            }
+        };
+
         // Create bind group layout
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("Frustum Cull Bind Group Layout"),
@@ -101,29 +111,29 @@ impl FrustumCuller {
                 },
             ],
         });
-        
+
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("Frustum Cull Pipeline Layout"),
             bind_group_layouts: &[&bind_group_layout],
             push_constant_ranges: &[],
         });
-        
+
         // Create main culling pipeline
         let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
             label: Some("Frustum Cull Pipeline"),
             layout: Some(&pipeline_layout),
-            module: &shader,
+            module: &validated_shader.module,
             entry_point: "main",
         });
-        
+
         // Create clear counters pipeline
         let clear_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
             label: Some("Clear Counters Pipeline"),
             layout: Some(&pipeline_layout),
-            module: &shader,
+            module: &validated_shader.module,
             entry_point: "clear_counters",
         });
-        
+
         // Create buffers
         let camera_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Camera Buffer"),
@@ -131,27 +141,27 @@ impl FrustumCuller {
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
-        
+
         let draw_commands_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Draw Commands Buffer"),
             size: (std::mem::size_of::<DrawCommand>() * max_chunks) as u64,
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::INDIRECT,
             mapped_at_creation: false,
         });
-        
+
         let visible_instances_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Visible Instances Buffer"),
             size: (std::mem::size_of::<u32>() * max_chunks) as u64,
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::VERTEX,
             mapped_at_creation: false,
         });
-        
+
         let draw_count_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Draw Count Buffer"),
             contents: bytemuck::cast_slice(&[0u32]),
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
         });
-        
+
         Self {
             pipeline,
             clear_pipeline,
@@ -163,7 +173,7 @@ impl FrustumCuller {
             max_chunks,
         }
     }
-    
+
     /// Perform frustum culling
     pub fn cull(
         &self,
@@ -182,7 +192,7 @@ impl FrustumCuller {
             0,
             std::mem::size_of::<GpuCamera>() as u64,
         );
-        
+
         // Create bind group
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("Frustum Cull Bind Group"),
@@ -214,30 +224,30 @@ impl FrustumCuller {
                 },
             ],
         });
-        
+
         let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
             label: Some("Frustum Culling Pass"),
             timestamp_writes: None,
         });
-        
+
         // Clear counters
         compute_pass.set_pipeline(&self.clear_pipeline);
         compute_pass.set_bind_group(0, &bind_group, &[]);
         compute_pass.dispatch_workgroups(1, 1, 1);
-        
+
         // Perform culling
         compute_pass.set_pipeline(&self.pipeline);
         compute_pass.set_bind_group(0, &bind_group, &[]);
-        
+
         let workgroups = (chunk_count + 127) / 128; // WORKGROUP_SIZE = 128
         compute_pass.dispatch_workgroups(workgroups, 1, 1);
-        
+
         drop(compute_pass);
-        
+
         // Return buffer containing visible instance indices
         &self.visible_instances_buffer
     }
-    
+
     fn create_temp_camera_buffer(&self, device: &Device, camera: &GpuCamera) -> Buffer {
         device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Temp Camera Buffer"),
@@ -245,12 +255,12 @@ impl FrustumCuller {
             usage: wgpu::BufferUsages::COPY_SRC,
         })
     }
-    
+
     /// Get draw commands buffer for indirect rendering
     pub fn get_draw_commands_buffer(&self) -> &Buffer {
         &self.draw_commands_buffer
     }
-    
+
     /// Get draw count for indirect multi-draw
     pub fn get_draw_count_buffer(&self) -> &Buffer {
         &self.draw_count_buffer

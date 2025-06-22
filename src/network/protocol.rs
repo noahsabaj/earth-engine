@@ -29,32 +29,38 @@ impl Protocol {
         if username.is_empty() {
             return Err("Username cannot be empty".to_string());
         }
-        
+
         if username.len() > MAX_USERNAME_LENGTH {
-            return Err(format!("Username too long (max {} characters)", MAX_USERNAME_LENGTH));
+            return Err(format!(
+                "Username too long (max {} characters)",
+                MAX_USERNAME_LENGTH
+            ));
         }
-        
+
         // Check for valid characters (alphanumeric and underscore)
         if !username.chars().all(|c| c.is_alphanumeric() || c == '_') {
             return Err("Username can only contain letters, numbers, and underscores".to_string());
         }
-        
+
         Ok(())
     }
-    
+
     /// Validate chat message
     pub fn validate_chat_message(message: &str) -> Result<(), String> {
         if message.is_empty() {
             return Err("Message cannot be empty".to_string());
         }
-        
+
         if message.len() > MAX_CHAT_MESSAGE_LENGTH {
-            return Err(format!("Message too long (max {} characters)", MAX_CHAT_MESSAGE_LENGTH));
+            return Err(format!(
+                "Message too long (max {} characters)",
+                MAX_CHAT_MESSAGE_LENGTH
+            ));
         }
-        
+
         Ok(())
     }
-    
+
     /// Calculate network tick from timestamp
     pub fn calculate_tick(start_time: std::time::Instant) -> u32 {
         let elapsed = start_time.elapsed();

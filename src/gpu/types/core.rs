@@ -1,26 +1,28 @@
 //! Core GPU type system traits and utilities
 
-use encase::{ShaderType, ShaderSize, internal::WriteInto};
 use bytemuck::{Pod, Zeroable};
+use encase::{internal::WriteInto, ShaderSize, ShaderType};
 use std::marker::PhantomData;
 
 /// Marker trait combining bytemuck and encase requirements for GPU data
-/// 
+///
 /// This trait ensures that types can be:
 /// - Safely cast to bytes (Pod + Zeroable)
 /// - Properly aligned for GPU (ShaderType)
 /// - Sent between threads (Send + Sync)
-pub trait GpuData: ShaderType + ShaderSize + WriteInto + Pod + Zeroable + Send + Sync + 'static {}
+pub trait GpuData:
+    ShaderType + ShaderSize + WriteInto + Pod + Zeroable + Send + Sync + 'static
+{
+}
 
 /// Auto-implement GpuData for types that meet all requirements
-impl<T> GpuData for T 
-where 
-    T: ShaderType + ShaderSize + WriteInto + Pod + Zeroable + Send + Sync + 'static,
+impl<T> GpuData for T where
+    T: ShaderType + ShaderSize + WriteInto + Pod + Zeroable + Send + Sync + 'static
 {
 }
 
 /// Type-safe wrapper for GPU buffers
-/// 
+///
 /// Ensures compile-time type safety and prevents buffer type mismatches
 pub struct TypedGpuBuffer<T: GpuData> {
     /// The underlying WGPU buffer
@@ -40,12 +42,12 @@ impl<T: GpuData> TypedGpuBuffer<T> {
             _phantom: PhantomData,
         }
     }
-    
+
     /// Get the buffer size
     pub fn size(&self) -> wgpu::BufferAddress {
         self.size
     }
-    
+
     /// Get a reference to the underlying buffer
     pub fn raw(&self) -> &wgpu::Buffer {
         &self.buffer
@@ -83,11 +85,17 @@ macro_rules! validate_gpu_type {
     ($type:ty, $expected_size:expr) => {
         const _: () = {
             let size = std::mem::size_of::<$type>();
-            assert!(size == $expected_size, concat!(
-                "GPU type ", stringify!($type), 
-                " has incorrect size. Expected ", stringify!($expected_size),
-                " but got ", stringify!(size)
-            ));
+            assert!(
+                size == $expected_size,
+                concat!(
+                    "GPU type ",
+                    stringify!($type),
+                    " has incorrect size. Expected ",
+                    stringify!($expected_size),
+                    " but got ",
+                    stringify!(size)
+                )
+            );
         };
     };
 }

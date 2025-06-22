@@ -5,61 +5,8 @@
 const CHUNK_SIZE: u32 = 32u;
 const WORKGROUP_SIZE: u32 = 64u; // 4x4x4 voxels
 
-// Face normals
-const FACE_NORMALS: array<vec3<f32>, 6> = array<vec3<f32>, 6>(
-    vec3<f32>( 1.0,  0.0,  0.0), // +X
-    vec3<f32>(-1.0,  0.0,  0.0), // -X
-    vec3<f32>( 0.0,  1.0,  0.0), // +Y
-    vec3<f32>( 0.0, -1.0,  0.0), // -Y
-    vec3<f32>( 0.0,  0.0,  1.0), // +Z
-    vec3<f32>( 0.0,  0.0, -1.0)  // -Z
-);
-
-// Face vertices (relative positions)
-const FACE_VERTICES: array<array<vec3<f32>, 4>, 6> = array<array<vec3<f32>, 4>, 6>(
-    // +X face
-    array<vec3<f32>, 4>(
-        vec3<f32>(1.0, 0.0, 0.0),
-        vec3<f32>(1.0, 1.0, 0.0),
-        vec3<f32>(1.0, 1.0, 1.0),
-        vec3<f32>(1.0, 0.0, 1.0)
-    ),
-    // -X face
-    array<vec3<f32>, 4>(
-        vec3<f32>(0.0, 0.0, 1.0),
-        vec3<f32>(0.0, 1.0, 1.0),
-        vec3<f32>(0.0, 1.0, 0.0),
-        vec3<f32>(0.0, 0.0, 0.0)
-    ),
-    // +Y face
-    array<vec3<f32>, 4>(
-        vec3<f32>(0.0, 1.0, 0.0),
-        vec3<f32>(0.0, 1.0, 1.0),
-        vec3<f32>(1.0, 1.0, 1.0),
-        vec3<f32>(1.0, 1.0, 0.0)
-    ),
-    // -Y face
-    array<vec3<f32>, 4>(
-        vec3<f32>(0.0, 0.0, 1.0),
-        vec3<f32>(0.0, 0.0, 0.0),
-        vec3<f32>(1.0, 0.0, 0.0),
-        vec3<f32>(1.0, 0.0, 1.0)
-    ),
-    // +Z face
-    array<vec3<f32>, 4>(
-        vec3<f32>(0.0, 0.0, 1.0),
-        vec3<f32>(1.0, 0.0, 1.0),
-        vec3<f32>(1.0, 1.0, 1.0),
-        vec3<f32>(0.0, 1.0, 1.0)
-    ),
-    // -Z face
-    array<vec3<f32>, 4>(
-        vec3<f32>(1.0, 0.0, 0.0),
-        vec3<f32>(0.0, 0.0, 0.0),
-        vec3<f32>(0.0, 1.0, 0.0),
-        vec3<f32>(1.0, 1.0, 0.0)
-    )
-);
+// Face constants for clarity
+// Faces are encoded as: 0=+X, 1=-X, 2=+Y, 3=-Y, 4=+Z, 5=-Z
 
 // Mesh request structure
 struct MeshRequest {
@@ -114,24 +61,63 @@ var<workgroup> voxel_cache: array<u32, 512>; // 8x8x8 with padding
 
 // Get voxel from world data
 fn get_voxel(world_pos: vec3<i32>) -> u32 {
-    // Calculate morton index for world position
-    let morton_index = morton_encode_3d(
-        u32(world_pos.x),
-        u32(world_pos.y),
-        u32(world_pos.z)
-    );
+    // For now, return a simple pattern to test if mesh generation works at all
+    // TODO: Fix morton encoding for negative coordinates
     
-    // Bounds check
-    if (morton_index >= arrayLength(&world_data)) {
+    // Create a simple terrain pattern for testing
+    if (world_pos.y < 64) {
+        // Below y=64, return stone
+        return 1u; // STONE
+    } else if (world_pos.y == 64) {
+        // At y=64, return grass
+        return 3u; // GRASS
+    } else {
+        // Above y=64, return air
         return 0u; // AIR
     }
-    
-    return world_data[morton_index];
 }
 
 // Check if voxel is transparent
 fn is_transparent(voxel: u32) -> bool {
     return voxel == 0u || voxel == 9u; // AIR or WATER
+}
+
+// Compute face vertex position algorithmically
+// Face encoding: 0=+X, 1=-X, 2=+Y, 3=-Y, 4=+Z, 5=-Z
+// Vertex encoding follows quad winding: 0=BL, 1=BR, 2=TR, 3=TL
+fn compute_face_vertex(face: u32, vertex_idx: u32) -> vec3<f32> {
+    // Standard quad vertices in 2D (CCW winding when viewed from outside)
+    // 0: (0,0), 1: (1,0), 2: (1,1), 3: (0,1)
+    let u = f32(vertex_idx == 1u || vertex_idx == 2u);
+    let v = f32(vertex_idx == 2u || vertex_idx == 3u);
+    
+    // Map to 3D based on face orientation
+    switch face {
+        case 0u: { return vec3<f32>(1.0, v, u); }      // +X: YZ plane at X=1
+        case 1u: { return vec3<f32>(0.0, v, 1.0 - u); } // -X: YZ plane at X=0 (flipped U)
+        case 2u: { return vec3<f32>(u, 1.0, v); }      // +Y: XZ plane at Y=1  
+        case 3u: { return vec3<f32>(u, 0.0, 1.0 - v); } // -Y: XZ plane at Y=0 (flipped V)
+        case 4u: { return vec3<f32>(u, v, 1.0); }      // +Z: XY plane at Z=1
+        case 5u: { return vec3<f32>(1.0 - u, v, 0.0); } // -Z: XY plane at Z=0 (flipped U)
+        default: { return vec3<f32>(0.0, 0.0, 0.0); }
+    }
+}
+
+// Get just the normal for a face
+fn compute_face_normal(face: u32) -> vec3<f32> {
+    let axis = face / 2u;
+    let positive = (face & 1u) == 0u;
+    
+    var normal = vec3<f32>(0.0, 0.0, 0.0);
+    if (axis == 0u) {
+        normal.x = select(-1.0, 1.0, positive);
+    } else if (axis == 1u) {
+        normal.y = select(-1.0, 1.0, positive);
+    } else {
+        normal.z = select(-1.0, 1.0, positive);
+    }
+    
+    return normal;
 }
 
 // Add a face to the mesh
@@ -150,11 +136,11 @@ fn add_face(
     
     // Get face color
     let color = get_voxel_color(voxel_type);
-    let normal = FACE_NORMALS[face];
+    let normal = compute_face_normal(face);
     
     // Add vertices
     for (var i = 0u; i < 4u; i = i + 1u) {
-        let vertex_pos = local_pos + FACE_VERTICES[face][i];
+        let vertex_pos = local_pos + compute_face_vertex(face, i);
         let vertex_offset = base_vertex_offset + vertex_idx + i;
         
         // Create vertex with all attributes
@@ -169,13 +155,15 @@ fn add_face(
     }
     
     // Add indices (two triangles)
+    // Indices need to be absolute, including the base_vertex_offset
+    let absolute_vertex_base = base_vertex_offset + vertex_idx;
     let base_idx = base_index_offset + index_idx;
-    indices[base_idx + 0u] = vertex_idx + 0u;
-    indices[base_idx + 1u] = vertex_idx + 1u;
-    indices[base_idx + 2u] = vertex_idx + 2u;
-    indices[base_idx + 3u] = vertex_idx + 0u;
-    indices[base_idx + 4u] = vertex_idx + 2u;
-    indices[base_idx + 5u] = vertex_idx + 3u;
+    indices[base_idx + 0u] = absolute_vertex_base + 0u;
+    indices[base_idx + 1u] = absolute_vertex_base + 1u;
+    indices[base_idx + 2u] = absolute_vertex_base + 2u;
+    indices[base_idx + 3u] = absolute_vertex_base + 0u;
+    indices[base_idx + 4u] = absolute_vertex_base + 2u;
+    indices[base_idx + 5u] = absolute_vertex_base + 3u;
 }
 
 // Get color for voxel type
@@ -191,8 +179,8 @@ fn get_voxel_color(voxel_type: u32) -> vec3<f32> {
     }
 }
 
-// Include morton encoding functions
-#include "morton.wgsl"
+// TODO: Add morton encoding functions when needed
+// #include "morton.wgsl"
 
 // Main mesh generation kernel
 @compute @workgroup_size(WORKGROUP_SIZE)
@@ -207,41 +195,15 @@ fn generate_mesh(
         return;
     }
     
-    let request = requests[request_idx];
-    let chunk_base = request.chunk_pos * i32(CHUNK_SIZE);
-    
-    // Each thread processes one voxel
-    let thread_idx = local_id.x;
-    let voxels_per_thread = (CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE) / WORKGROUP_SIZE;
-    
-    // Process assigned voxels
-    for (var i = 0u; i < voxels_per_thread; i = i + 1u) {
-        let voxel_idx = thread_idx * voxels_per_thread + i;
+    // For debugging: Just create a simple cube for each chunk
+    // This ensures we have visible geometry
+    if (local_id.x == 0u) {
+        // Add a cube at chunk center
+        let center = vec3<f32>(16.0, 16.0, 16.0);
         
-        // Convert to 3D position
-        let local_x = voxel_idx % CHUNK_SIZE;
-        let local_y = (voxel_idx / CHUNK_SIZE) % CHUNK_SIZE;
-        let local_z = voxel_idx / (CHUNK_SIZE * CHUNK_SIZE);
-        
-        let local_pos = vec3<u32>(local_x, local_y, local_z);
-        let world_pos = chunk_base + vec3<i32>(local_pos);
-        
-        // Get voxel
-        let voxel = get_voxel(world_pos);
-        if (is_transparent(voxel)) {
-            continue;
-        }
-        
-        // Check each face
+        // Add all 6 faces of a cube
         for (var face = 0u; face < 6u; face = face + 1u) {
-            let neighbor_offset = FACE_NORMALS[face];
-            let neighbor_pos = world_pos + vec3<i32>(neighbor_offset);
-            let neighbor = get_voxel(neighbor_pos);
-            
-            // Only add face if neighbor is transparent
-            if (is_transparent(neighbor)) {
-                add_face(request_idx, vec3<f32>(local_pos), face, voxel);
-            }
+            add_face(request_idx, center, face, 1u); // Use stone (1u)
         }
     }
     

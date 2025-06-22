@@ -1,9 +1,7 @@
-use std::collections::VecDeque;
-use glam::{Vec3, Quat};
 use crate::network::packet::MovementState;
-
-/// Maximum number of inputs to buffer
-const MAX_INPUT_BUFFER: usize = 120; // 6 seconds at 20Hz
+use crate::network_constants::MAX_INPUT_BUFFER;
+use glam::{Quat, Vec3};
+use std::collections::VecDeque;
 
 /// Input state from the player
 #[derive(Debug, Clone)]
@@ -57,7 +55,7 @@ impl ClientPrediction {
             movement_state: MovementState::Normal,
             on_ground: false,
         };
-        
+
         Self {
             input_buffer: VecDeque::with_capacity(MAX_INPUT_BUFFER),
             last_server_state: initial_state.clone(),
@@ -66,12 +64,12 @@ impl ClientPrediction {
             error_smoothing: ErrorSmoothing::new(),
         }
     }
-    
+
     /// Calculate prediction error
     fn calculate_prediction_error(&self, server_state: &PredictedState) -> f32 {
         (server_state.position - self.current_state.position).length()
     }
-    
+
     /// Get current predicted state
     pub fn get_state(&self) -> &PredictedState {
         &self.current_state
@@ -99,42 +97,58 @@ impl PhysicsSimulator {
             friction: 10.0,
         }
     }
-    
+
     fn simulate_input(&self, state: &PredictedState, input: &PlayerInput) -> PredictedState {
         let mut new_state = state.clone();
         new_state.sequence = input.sequence;
-        
+
         // Update rotation
         new_state.rotation = Quat::from_euler(
             glam::EulerRot::YXZ,
             input.yaw.to_radians(),
             input.pitch.to_radians(),
-            0.0
+            0.0,
         );
-        
+
         // Calculate movement direction
         let mut move_dir = Vec3::ZERO;
-        if input.forward { move_dir.z -= 1.0; }
-        if input.backward { move_dir.z += 1.0; }
-        if input.left { move_dir.x -= 1.0; }
-        if input.right { move_dir.x += 1.0; }
-        
+        if input.forward {
+            move_dir.z -= 1.0;
+        }
+        if input.backward {
+            move_dir.z += 1.0;
+        }
+        if input.left {
+            move_dir.x -= 1.0;
+        }
+        if input.right {
+            move_dir.x += 1.0;
+        }
+
         // Normalize and rotate by yaw
         if move_dir.length_squared() > 0.0 {
             move_dir = move_dir.normalize();
             let yaw_rotation = Quat::from_rotation_y(input.yaw.to_radians());
             move_dir = yaw_rotation * move_dir;
         }
-        
+
         // Apply movement
-        let speed = if input.sprint { self.sprint_speed } else { self.walk_speed };
-        let control = if state.on_ground { 1.0 } else { self.air_control };
-        
+        let speed = if input.sprint {
+            self.sprint_speed
+        } else {
+            self.walk_speed
+        };
+        let control = if state.on_ground {
+            1.0
+        } else {
+            self.air_control
+        };
+
         if state.on_ground {
             // Ground movement
             new_state.velocity.x = move_dir.x * speed;
             new_state.velocity.z = move_dir.z * speed;
-            
+
             // Jump
             if input.jump {
                 new_state.velocity.y = self.jump_velocity;
@@ -145,13 +159,13 @@ impl PhysicsSimulator {
             new_state.velocity.x += move_dir.x * speed * control * input.delta_time;
             new_state.velocity.z += move_dir.z * speed * control * input.delta_time;
         }
-        
+
         // Apply gravity
         new_state.velocity += self.gravity * input.delta_time;
-        
+
         // Update position
         new_state.position += new_state.velocity * input.delta_time;
-        
+
         // Simple ground check (would use actual collision in real implementation)
         if new_state.position.y <= 0.0 {
             new_state.position.y = 0.0;
@@ -160,7 +174,7 @@ impl PhysicsSimulator {
         } else {
             new_state.on_ground = false;
         }
-        
+
         // Update movement state
         new_state.movement_state = if input.crouch {
             MovementState::Crouching
@@ -169,7 +183,7 @@ impl PhysicsSimulator {
         } else {
             MovementState::Normal
         };
-        
+
         new_state
     }
 }
@@ -199,10 +213,10 @@ impl MoveValidator {
     pub fn new() -> Self {
         Self {
             max_move_delta: 10.0, // Maximum distance per update
-            max_speed: 15.0, // Maximum possible speed (sprint + some margin)
+            max_speed: 15.0,      // Maximum possible speed (sprint + some margin)
         }
     }
-    
+
     /// Validate a player move
     pub fn validate_move(
         &self,
@@ -213,18 +227,18 @@ impl MoveValidator {
     ) -> Result<Vec3, MoveValidationError> {
         let delta = new_position - old_position;
         let distance = delta.length();
-        
+
         // Check maximum move distance
         if distance > self.max_move_delta {
             return Err(MoveValidationError::TooFarMove { distance });
         }
-        
+
         // Check speed
         let speed = distance / delta_time;
         if speed > self.max_speed {
             return Err(MoveValidationError::TooFast { speed });
         }
-        
+
         // Additional checks based on movement state
         match movement_state {
             MovementState::Normal => {
@@ -244,32 +258,40 @@ impl MoveValidator {
             }
             _ => {}
         }
-        
+
         Ok(new_position)
     }
 }
 
 /// Add a new input and predict the result
-pub fn client_prediction_add_input(prediction: &mut ClientPrediction, input: PlayerInput) -> PredictedState {
+pub fn client_prediction_add_input(
+    prediction: &mut ClientPrediction,
+    input: PlayerInput,
+) -> PredictedState {
     // Add to buffer
     prediction.input_buffer.push_back(input.clone());
-    
+
     // Limit buffer size
     while prediction.input_buffer.len() > MAX_INPUT_BUFFER {
         prediction.input_buffer.pop_front();
     }
-    
+
     // Apply input to current state
-    prediction.current_state = prediction.physics.simulate_input(&prediction.current_state, &input);
-    
+    prediction.current_state = prediction
+        .physics
+        .simulate_input(&prediction.current_state, &input);
+
     prediction.current_state.clone()
 }
 
 /// Receive server state and reconcile
-pub fn client_prediction_receive_server_state(prediction: &mut ClientPrediction, server_state: PredictedState) {
+pub fn client_prediction_receive_server_state(
+    prediction: &mut ClientPrediction,
+    server_state: PredictedState,
+) {
     // Store server state
     prediction.last_server_state = server_state.clone();
-    
+
     // Remove acknowledged inputs
     while let Some(input) = prediction.input_buffer.front() {
         if input.sequence <= server_state.sequence {
@@ -278,10 +300,10 @@ pub fn client_prediction_receive_server_state(prediction: &mut ClientPrediction,
             break;
         }
     }
-    
+
     // Calculate prediction error
     let error = prediction.calculate_prediction_error(&server_state);
-    
+
     // If error is significant, re-simulate from server state
     if error > 0.1 {
         client_prediction_reconcile_from_server(prediction, server_state);
@@ -289,26 +311,32 @@ pub fn client_prediction_receive_server_state(prediction: &mut ClientPrediction,
         // Small error - use smoothing
         error_smoothing_add_error(
             &mut prediction.error_smoothing,
-            server_state.position - prediction.current_state.position
+            server_state.position - prediction.current_state.position,
         );
     }
 }
 
 /// Reconcile by re-simulating from server state
-pub fn client_prediction_reconcile_from_server(prediction: &mut ClientPrediction, server_state: PredictedState) {
+pub fn client_prediction_reconcile_from_server(
+    prediction: &mut ClientPrediction,
+    server_state: PredictedState,
+) {
     // Start from server state
     prediction.current_state = server_state;
-    
+
     // Re-apply all unacknowledged inputs
     let inputs: Vec<PlayerInput> = prediction.input_buffer.iter().cloned().collect();
     for input in inputs {
-        prediction.current_state = prediction.physics.simulate_input(&prediction.current_state, &input);
+        prediction.current_state = prediction
+            .physics
+            .simulate_input(&prediction.current_state, &input);
     }
 }
 
 /// Get current predicted position with smoothing applied
 pub fn client_prediction_get_position(prediction: &mut ClientPrediction) -> Vec3 {
-    prediction.current_state.position + error_smoothing_get_correction(&mut prediction.error_smoothing)
+    prediction.current_state.position
+        + error_smoothing_get_correction(&mut prediction.error_smoothing)
 }
 
 /// Clear all predictions
@@ -331,7 +359,7 @@ pub fn error_smoothing_get_correction(smoothing: &mut ErrorSmoothing) -> Vec3 {
     // Exponentially decay the error
     let correction = smoothing.error;
     smoothing.error *= 0.9; // Decay factor
-    
+
     // Return a portion of the error as correction
     correction * 0.1
 }

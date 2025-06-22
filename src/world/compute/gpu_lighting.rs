@@ -1,30 +1,38 @@
-use std::sync::Arc;
-use wgpu::util::DeviceExt;
 use crate::world::core::ChunkPos;
 use crate::world::storage::WorldBuffer;
+use std::sync::Arc;
+use wgpu::util::DeviceExt;
 
 /// GPU-based ambient occlusion and lighting system
 pub struct GpuLighting {
     device: Arc<wgpu::Device>,
-    
+
     /// Pipeline for calculating ambient occlusion
     ao_pipeline: wgpu::ComputePipeline,
-    
+
     /// Pipeline for smoothing AO values
     smooth_pipeline: wgpu::ComputePipeline,
-    
+
     /// Bind group layout for lighting operations
     bind_group_layout: wgpu::BindGroupLayout,
 }
 
 impl GpuLighting {
     pub fn new(device: Arc<wgpu::Device>) -> Self {
-        // Create shader module
-        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("Ambient Occlusion Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("../../shaders/compute/ambient_occlusion.wgsl").into()),
-        });
-        
+        // Create shader module using unified GPU system
+        let shader_source = include_str!("../../shaders/compute/ambient_occlusion.wgsl");
+        let validated_shader = match crate::gpu::automation::create_gpu_shader(
+            &device,
+            "ambient_occlusion",
+            shader_source,
+        ) {
+            Ok(shader) => shader,
+            Err(e) => {
+                log::error!("Failed to create ambient occlusion shader: {}", e);
+                panic!("Failed to create ambient occlusion shader: {}", e);
+            }
+        };
+
         // Create bind group layout
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("GPU Lighting Bind Group Layout"),
@@ -53,29 +61,29 @@ impl GpuLighting {
                 },
             ],
         });
-        
+
         // Create pipeline layout
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("GPU Lighting Pipeline Layout"),
             bind_group_layouts: &[&bind_group_layout],
             push_constant_ranges: &[],
         });
-        
+
         // Create pipelines
         let ao_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
             label: Some("AO Calculation Pipeline"),
             layout: Some(&pipeline_layout),
-            module: &shader,
+            module: &validated_shader.module,
             entry_point: "calculate_ao",
         });
-        
+
         let smooth_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
             label: Some("AO Smoothing Pipeline"),
             layout: Some(&pipeline_layout),
-            module: &shader,
+            module: &validated_shader.module,
             entry_point: "smooth_ao",
         });
-        
+
         Self {
             device,
             ao_pipeline,
@@ -83,7 +91,7 @@ impl GpuLighting {
             bind_group_layout,
         }
     }
-    
+
     /// Calculate ambient occlusion for chunks
     pub fn calculate_ambient_occlusion(
         &self,
@@ -95,19 +103,21 @@ impl GpuLighting {
         if chunk_positions.is_empty() {
             return;
         }
-        
+
         // Create buffer for chunk positions
         let positions_data: Vec<[i32; 4]> = chunk_positions
             .iter()
             .map(|pos| [pos.x, pos.y, pos.z, 0])
             .collect();
-        
-        let positions_buffer = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("AO Chunk Positions Buffer"),
-            contents: bytemuck::cast_slice(&positions_data),
-            usage: wgpu::BufferUsages::STORAGE,
-        });
-        
+
+        let positions_buffer = self
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("AO Chunk Positions Buffer"),
+                contents: bytemuck::cast_slice(&positions_data),
+                usage: wgpu::BufferUsages::STORAGE,
+            });
+
         // Create bind group
         let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("AO Calculation Bind Group"),
@@ -123,43 +133,35 @@ impl GpuLighting {
                 },
             ],
         });
-        
+
         // Calculate initial AO values
         {
             let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("AO Calculation Pass"),
                 timestamp_writes: None,
             });
-            
+
             compute_pass.set_pipeline(&self.ao_pipeline);
             compute_pass.set_bind_group(0, &bind_group, &[]);
-            
+
             // Process chunks in parallel
-            compute_pass.dispatch_workgroups(
-                chunk_positions.len() as u32,
-                1,
-                1,
-            );
+            compute_pass.dispatch_workgroups(chunk_positions.len() as u32, 1, 1);
         }
-        
+
         // Apply smoothing passes
         for pass in 0..smooth_passes {
             let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some(&format!("AO Smoothing Pass {}", pass)),
                 timestamp_writes: None,
             });
-            
+
             compute_pass.set_pipeline(&self.smooth_pipeline);
             compute_pass.set_bind_group(0, &bind_group, &[]);
-            
-            compute_pass.dispatch_workgroups(
-                chunk_positions.len() as u32,
-                1,
-                1,
-            );
+
+            compute_pass.dispatch_workgroups(chunk_positions.len() as u32, 1, 1);
         }
     }
-    
+
     /// Calculate AO for newly generated chunks
     pub fn update_chunk_lighting(
         &self,
@@ -170,7 +172,7 @@ impl GpuLighting {
         // When updating a single chunk, we need to also update neighbors
         // to ensure smooth AO transitions at chunk boundaries
         let mut chunks_to_update = vec![chunk_pos];
-        
+
         // Add neighboring chunks
         for dx in -1..=1 {
             for dy in -1..=1 {
@@ -186,7 +188,7 @@ impl GpuLighting {
                 }
             }
         }
-        
+
         // Calculate AO with smoothing
         self.calculate_ambient_occlusion(
             encoder,
@@ -195,7 +197,7 @@ impl GpuLighting {
             2, // 2 smoothing passes for quality
         );
     }
-    
+
     /// Batch update lighting for multiple chunks
     pub fn batch_update_lighting(
         &self,
@@ -206,13 +208,13 @@ impl GpuLighting {
         // Collect all chunks including neighbors
         let mut all_chunks = Vec::new();
         let mut chunk_set = std::collections::HashSet::new();
-        
+
         for chunk_pos in chunk_positions {
             // Add the chunk itself
             if chunk_set.insert(*chunk_pos) {
                 all_chunks.push(*chunk_pos);
             }
-            
+
             // Add immediate neighbors for smooth transitions
             for dx in -1..=1 {
                 for dy in -1..=1 {
@@ -232,7 +234,7 @@ impl GpuLighting {
                 }
             }
         }
-        
+
         // Process in batches to avoid GPU memory limits
         const BATCH_SIZE: usize = 1000;
         for batch in all_chunks.chunks(BATCH_SIZE) {

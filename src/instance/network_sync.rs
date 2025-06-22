@@ -1,12 +1,11 @@
 #![allow(unused_variables, dead_code)]
 /// Network-Friendly Instance Syncing
-/// 
+///
 /// Efficient synchronization of instances across network.
 /// Uses delta compression and batching for minimal bandwidth.
 /// Supports both reliable and unreliable transport.
-
 use crate::instance::{InstanceId, InstanceType, MetadataValue};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 /// Sync packet types
@@ -87,19 +86,19 @@ impl SyncState {
             stats: SyncStats::default(),
         }
     }
-    
+
     /// Get next sequence number
     pub fn next_sequence(&mut self) -> u64 {
         let seq = self.next_seq;
         self.next_seq += 1;
         seq
     }
-    
+
     /// Record sent instances
     pub fn record_sent(&mut self, seq: u64, instances: Vec<InstanceId>) {
         self.pending_acks.insert(seq, instances);
     }
-    
+
     /// Process acknowledgment
     pub fn process_ack(&mut self, seq: u64) {
         if let Some(instances) = self.pending_acks.remove(&seq) {
@@ -109,10 +108,12 @@ impl SyncState {
             }
         }
     }
-    
+
     /// Check if peer needs update
     pub fn needs_update(&self, id: &InstanceId, current_version: u32) -> bool {
-        self.peer_versions.get(id).map_or(true, |&v| v < current_version)
+        self.peer_versions
+            .get(id)
+            .map_or(true, |&v| v < current_version)
     }
 }
 
@@ -134,17 +135,17 @@ impl InstanceSync {
             max_batch_size: 100,
         }
     }
-    
+
     /// Add new peer
     pub fn add_peer(&mut self, peer_id: String) {
         self.peers.insert(peer_id, SyncState::new());
     }
-    
+
     /// Remove peer
     pub fn remove_peer(&mut self, peer_id: &str) {
         self.peers.remove(peer_id);
     }
-    
+
     /// Generate sync packet for peer
     pub fn generate_sync_packet(
         &mut self,
@@ -153,7 +154,7 @@ impl InstanceSync {
     ) -> Option<SyncPacket> {
         let mut packets = Vec::new();
         let mut updates_needed = Vec::new();
-        
+
         // First pass: determine what updates are needed
         if let Some(state) = self.peers.get(peer_id) {
             for (id, snapshot, current_version) in instances {
@@ -165,7 +166,7 @@ impl InstanceSync {
         } else {
             return None;
         }
-        
+
         // Second pass: generate packets (no active borrows)
         for (id, snapshot, current_version, peer_version) in updates_needed {
             if peer_version == 0 {
@@ -173,7 +174,9 @@ impl InstanceSync {
                 packets.push(SyncPacket::Snapshot(snapshot.clone()));
             } else {
                 // Send delta if possible
-                if let Some(delta) = self.generate_delta(id, peer_version, *current_version, snapshot) {
+                if let Some(delta) =
+                    self.generate_delta(id, peer_version, *current_version, snapshot)
+                {
                     packets.push(SyncPacket::Delta(delta));
                 } else {
                     // Fall back to snapshot
@@ -181,7 +184,7 @@ impl InstanceSync {
                 }
             }
         }
-        
+
         // Update stats
         if let Some(state) = self.peers.get_mut(peer_id) {
             for packet in &packets {
@@ -192,7 +195,7 @@ impl InstanceSync {
                 }
             }
         }
-        
+
         if packets.is_empty() {
             None
         } else if packets.len() == 1 {
@@ -202,7 +205,7 @@ impl InstanceSync {
             Some(SyncPacket::Batch(packets))
         }
     }
-    
+
     /// Generate delta between versions
     fn generate_delta(
         &self,
@@ -215,37 +218,37 @@ impl InstanceSync {
         // For now, return None to force snapshot
         None
     }
-    
+
     /// Process received sync packet
     pub fn process_packet(&mut self, peer_id: &str, packet: SyncPacket) -> Vec<InstanceUpdate> {
         let mut updates = Vec::new();
-        
+
         match packet {
             SyncPacket::Snapshot(snapshot) => {
                 updates.push(InstanceUpdate::Snapshot(snapshot));
             }
-            
+
             SyncPacket::Delta(delta) => {
                 updates.push(InstanceUpdate::Delta(delta));
             }
-            
+
             SyncPacket::Batch(packets) => {
                 for p in packets {
                     updates.extend(self.process_packet(peer_id, p));
                 }
             }
-            
+
             SyncPacket::Request(ids) => {
                 updates.push(InstanceUpdate::RequestReceived(ids));
             }
-            
+
             SyncPacket::Ack(seq) => {
                 if let Some(state) = self.peers.get_mut(peer_id) {
                     state.process_ack(seq);
                 }
             }
         }
-        
+
         updates
     }
 }
@@ -266,19 +269,19 @@ impl NetworkSerializer {
     pub fn serialize(packet: &SyncPacket) -> Result<Vec<u8>, &'static str> {
         bincode::serialize(packet).map_err(|_| "Serialization failed")
     }
-    
+
     /// Deserialize packet from bytes
     pub fn deserialize(data: &[u8]) -> Result<SyncPacket, &'static str> {
         bincode::deserialize(data).map_err(|_| "Deserialization failed")
     }
-    
+
     /// Compress if beneficial
     pub fn compress(data: &[u8]) -> Vec<u8> {
         // Would use lz4 or similar for real-time compression
         // For now, return as-is
         data.to_vec()
     }
-    
+
     /// Decompress data
     pub fn decompress(data: &[u8]) -> Result<Vec<u8>, &'static str> {
         // Would decompress here
@@ -304,44 +307,44 @@ impl UpdateQueue {
             low: Vec::new(),
         }
     }
-    
+
     pub fn push_high(&mut self, id: InstanceId, version: u32) {
         self.high.push((id, version));
     }
-    
+
     pub fn push_medium(&mut self, id: InstanceId, version: u32) {
         self.medium.push((id, version));
     }
-    
+
     pub fn push_low(&mut self, id: InstanceId, version: u32) {
         self.low.push((id, version));
     }
-    
+
     /// Get next batch respecting priorities
     pub fn next_batch(&mut self, max_size: usize) -> Vec<(InstanceId, u32)> {
         let mut batch = Vec::new();
-        
+
         // Take from high priority first
         while !self.high.is_empty() && batch.len() < max_size {
             if let Some(item) = self.high.pop() {
                 batch.push(item);
             }
         }
-        
+
         // Then medium
         while !self.medium.is_empty() && batch.len() < max_size {
             if let Some(item) = self.medium.pop() {
                 batch.push(item);
             }
         }
-        
+
         // Finally low
         while !self.low.is_empty() && batch.len() < max_size {
             if let Some(item) = self.low.pop() {
                 batch.push(item);
             }
         }
-        
+
         batch
     }
 }
@@ -349,25 +352,25 @@ impl UpdateQueue {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_sync_state() {
         let mut state = SyncState::new();
         let id = InstanceId::new();
-        
+
         // Should need update for unknown instance
         assert!(state.needs_update(&id, 1));
-        
+
         // Record version
         state.peer_versions.insert(id, 1);
-        
+
         // Should not need update for same version
         assert!(!state.needs_update(&id, 1));
-        
+
         // Should need update for newer version
         assert!(state.needs_update(&id, 2));
     }
-    
+
     #[test]
     fn test_packet_serialization() {
         let snapshot = InstanceSnapshot {
@@ -378,17 +381,17 @@ mod tests {
             created_at: 12345,
             created_by: InstanceId::new(),
         };
-        
+
         let packet = SyncPacket::Snapshot(snapshot);
-        
+
         // Serialize
         let bytes = NetworkSerializer::serialize(&packet)
             .expect("Packet serialization should succeed in test");
-        
+
         // Deserialize
         let restored = NetworkSerializer::deserialize(&bytes)
             .expect("Packet deserialization should succeed in test");
-        
+
         match restored {
             SyncPacket::Snapshot(s) => {
                 assert_eq!(s.version, 1);
@@ -397,21 +400,21 @@ mod tests {
             _ => panic!("Wrong packet type"),
         }
     }
-    
+
     #[test]
     fn test_update_queue() {
         let mut queue = UpdateQueue::new();
-        
+
         let id1 = InstanceId::new();
         let id2 = InstanceId::new();
         let id3 = InstanceId::new();
-        
+
         queue.push_low(id1, 1);
         queue.push_high(id2, 2);
         queue.push_medium(id3, 3);
-        
+
         let batch = queue.next_batch(2);
-        
+
         // Should get high priority first
         assert_eq!(batch.len(), 2);
         assert_eq!(batch[0].0, id2); // high priority

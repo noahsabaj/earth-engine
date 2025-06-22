@@ -1,5 +1,5 @@
 //! Network-specific error handling
-//! 
+//!
 //! This module provides type aliases and helper functions for network operations
 //! to replace unwrap() calls with proper error handling.
 

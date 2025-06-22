@@ -1,36 +1,35 @@
 /// Transform Stage System
-/// 
+///
 /// Multi-stage transformations with requirements and outputs.
 /// Each stage can have different inputs, outputs, and conditions.
-
 use crate::instance::InstanceId;
 use crate::process::{QualityLevel, TimeUnit};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 /// Stage in a transformation process
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TransformStage {
     /// Stage name/identifier
     pub name: String,
-    
+
     /// Stage index (order)
     pub index: u16,
-    
+
     /// Requirements to start this stage
     pub requirements: Vec<StageRequirement>,
-    
+
     /// Expected outputs from this stage
     pub outputs: Vec<StageOutput>,
-    
+
     /// Duration of this stage
     pub duration: TimeUnit,
-    
+
     /// Quality impact of this stage
     pub quality_modifier: f32,
-    
+
     /// Can this stage be skipped?
     pub optional: bool,
-    
+
     /// Can this stage be repeated?
     pub repeatable: bool,
 }
@@ -40,19 +39,19 @@ pub struct TransformStage {
 pub enum StageRequirement {
     /// Specific items required
     Items(Vec<ItemRequirement>),
-    
+
     /// Minimum skill level
     SkillLevel(String, u32),
-    
+
     /// Tool requirement
     Tool(ToolRequirement),
-    
+
     /// Environmental condition
     Environment(EnvironmentRequirement),
-    
+
     /// Previous stage completion
     PreviousStage(u16),
-    
+
     /// Custom requirement
     Custom(String),
 }
@@ -79,16 +78,16 @@ pub struct ToolRequirement {
 pub enum EnvironmentRequirement {
     /// Near specific block type
     NearBlock(u32, u32), // (block_type, max_distance)
-    
+
     /// Temperature range
     Temperature(f32, f32), // (min, max)
-    
+
     /// Light level
     LightLevel(u8, u8), // (min, max)
-    
+
     /// In specific biome
     Biome(u32),
-    
+
     /// Weather condition
     Weather(WeatherType),
 }
@@ -107,14 +106,14 @@ pub enum WeatherType {
 pub struct StageOutput {
     /// Output type
     pub output_type: OutputType,
-    
+
     /// Quantity range
     pub quantity_min: u32,
     pub quantity_max: u32,
-    
+
     /// Quality impact
     pub quality_bonus: f32,
-    
+
     /// Probability (0.0-1.0)
     pub probability: f32,
 }
@@ -124,16 +123,16 @@ pub struct StageOutput {
 pub enum OutputType {
     /// Produce items
     Item(u32), // item_type
-    
+
     /// Grant experience
     Experience(String, u32), // (skill, amount)
-    
+
     /// Apply effect
     Effect(String, u32), // (effect_id, duration)
-    
+
     /// Unlock recipe/ability
     Unlock(String),
-    
+
     /// Trigger event
     Event(String),
 }
@@ -154,7 +153,7 @@ impl StageValidator {
             missing_requirements: Vec::new(),
             consumed_items: Vec::new(),
         };
-        
+
         for req in &stage.requirements {
             match req {
                 StageRequirement::Items(items) => {
@@ -163,11 +162,11 @@ impl StageValidator {
                         // In real implementation, would check against inventory
                         if item_req.quantity > available_items.len() as u32 {
                             result.valid = false;
-                            result.missing_requirements.push(
-                                format!("Missing {} items of type {}", 
-                                    item_req.quantity - available_items.len() as u32,
-                                    item_req.item_type)
-                            );
+                            result.missing_requirements.push(format!(
+                                "Missing {} items of type {}",
+                                item_req.quantity - available_items.len() as u32,
+                                item_req.item_type
+                            ));
                         } else if item_req.consume {
                             // Mark items for consumption
                             for i in 0..item_req.quantity {
@@ -176,55 +175,57 @@ impl StageValidator {
                         }
                     }
                 }
-                
+
                 StageRequirement::SkillLevel(skill, level) => {
                     // Check skill level from context
                     if let Some(&player_level) = context.skill_levels.get(skill.as_str()) {
                         if player_level < *level {
                             result.valid = false;
-                            result.missing_requirements.push(
-                                format!("Requires {} level {}", skill, level)
-                            );
+                            result
+                                .missing_requirements
+                                .push(format!("Requires {} level {}", skill, level));
                         }
                     } else {
                         result.valid = false;
-                        result.missing_requirements.push(
-                            format!("Missing skill: {}", skill)
-                        );
+                        result
+                            .missing_requirements
+                            .push(format!("Missing skill: {}", skill));
                     }
                 }
-                
+
                 StageRequirement::Environment(env_req) => {
                     match env_req {
                         EnvironmentRequirement::Temperature(min, max) => {
                             if context.temperature < *min || context.temperature > *max {
                                 result.valid = false;
-                                result.missing_requirements.push(
-                                    format!("Temperature must be between {} and {}", min, max)
-                                );
+                                result.missing_requirements.push(format!(
+                                    "Temperature must be between {} and {}",
+                                    min, max
+                                ));
                             }
                         }
-                        
+
                         EnvironmentRequirement::LightLevel(min, max) => {
                             if context.light_level < *min || context.light_level > *max {
                                 result.valid = false;
-                                result.missing_requirements.push(
-                                    format!("Light level must be between {} and {}", min, max)
-                                );
+                                result.missing_requirements.push(format!(
+                                    "Light level must be between {} and {}",
+                                    min, max
+                                ));
                             }
                         }
-                        
+
                         _ => {} // Other environment checks
                     }
                 }
-                
+
                 _ => {} // Other requirements
             }
         }
-        
+
         result
     }
-    
+
     /// Calculate outputs for a completed stage
     pub fn calculate_outputs(
         stage: &TransformStage,
@@ -232,31 +233,31 @@ impl StageValidator {
         rng: &mut impl rand::Rng,
     ) -> Vec<ActualOutput> {
         let mut outputs = Vec::new();
-        
+
         for output in &stage.outputs {
             // Check probability
             if rng.gen::<f32>() > output.probability {
                 continue;
             }
-            
+
             // Calculate quantity
             let quantity = if output.quantity_min == output.quantity_max {
                 output.quantity_min
             } else {
                 rng.gen_range(output.quantity_min..=output.quantity_max)
             };
-            
+
             // Apply quality modifier
             let quality_multiplier = 1.0 + output.quality_bonus * (quality as u8 as f32 / 4.0);
             let final_quantity = (quantity as f32 * quality_multiplier) as u32;
-            
+
             outputs.push(ActualOutput {
                 output_type: output.output_type.clone(),
                 quantity: final_quantity,
                 quality,
             });
         }
-        
+
         outputs
     }
 }
@@ -314,23 +315,21 @@ impl StageTemplates {
             repeatable: false,
         }
     }
-    
+
     /// Smelting stage template
     pub fn smelting_stage() -> TransformStage {
         TransformStage {
             name: "Smelting".to_string(),
             index: 0,
             requirements: vec![
-                StageRequirement::Items(vec![
-                    ItemRequirement {
-                        item_type: 1, // Iron ore
-                        quantity: 1,
-                        min_quality: None,
-                        consume: true,
-                    }
-                ]),
+                StageRequirement::Items(vec![ItemRequirement {
+                    item_type: 1, // Iron ore
+                    quantity: 1,
+                    min_quality: None,
+                    consume: true,
+                }]),
                 StageRequirement::Environment(
-                    EnvironmentRequirement::NearBlock(100, 3) // Furnace within 3 blocks
+                    EnvironmentRequirement::NearBlock(100, 3), // Furnace within 3 blocks
                 ),
             ],
             outputs: vec![
@@ -360,21 +359,19 @@ impl StageTemplates {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_requirement_validation() {
         let stage = TransformStage {
             name: "Test Stage".to_string(),
             index: 0,
             requirements: vec![
-                StageRequirement::Items(vec![
-                    ItemRequirement {
-                        item_type: 1,
-                        quantity: 5,
-                        min_quality: None,
-                        consume: true,
-                    }
-                ]),
+                StageRequirement::Items(vec![ItemRequirement {
+                    item_type: 1,
+                    quantity: 5,
+                    min_quality: None,
+                    consume: true,
+                }]),
                 StageRequirement::SkillLevel("crafting".to_string(), 10),
             ],
             outputs: vec![],
@@ -383,46 +380,44 @@ mod tests {
             optional: false,
             repeatable: false,
         };
-        
+
         let owner = InstanceId::new();
         let items = vec![InstanceId::new(); 3]; // Only 3 items
-        
+
         let mut context = ValidationContext::default();
         context.skill_levels.insert("crafting".to_string(), 15); // High enough
-        
+
         let result = StageValidator::validate_requirements(&stage, owner, &items, &context);
-        
+
         assert!(!result.valid);
         assert_eq!(result.missing_requirements.len(), 1);
         assert!(result.missing_requirements[0].contains("Missing 2 items"));
     }
-    
+
     #[test]
     fn test_output_calculation() {
         use rand::SeedableRng;
         let mut rng = rand::rngs::StdRng::seed_from_u64(42);
-        
+
         let stage = TransformStage {
             name: "Test".to_string(),
             index: 0,
             requirements: vec![],
-            outputs: vec![
-                StageOutput {
-                    output_type: OutputType::Item(1),
-                    quantity_min: 1,
-                    quantity_max: 3,
-                    quality_bonus: 0.5,
-                    probability: 1.0,
-                }
-            ],
+            outputs: vec![StageOutput {
+                output_type: OutputType::Item(1),
+                quantity_min: 1,
+                quantity_max: 3,
+                quality_bonus: 0.5,
+                probability: 1.0,
+            }],
             duration: TimeUnit::Seconds(1.0),
             quality_modifier: 1.0,
             optional: false,
             repeatable: false,
         };
-        
+
         let outputs = StageValidator::calculate_outputs(&stage, QualityLevel::Excellent, &mut rng);
-        
+
         assert_eq!(outputs.len(), 1);
         assert!(outputs[0].quantity >= 1);
         assert_eq!(outputs[0].quality, QualityLevel::Excellent);

@@ -11,10 +11,12 @@
 
 ### `/architecture`
 Technical architecture documentation
+- [Overview](architecture/OVERVIEW.md) - Current architecture state
 - [Data-Oriented Design](architecture/DATA_ORIENTED_DESIGN.md) - Complete DOP architecture
 - [GPU-Driven Architecture](architecture/GPU_DRIVEN_ARCHITECTURE.md) - GPU-first design
-- [Spatial Index Architecture](architecture/SPATIAL_INDEX_ARCHITECTURE.md) - Spatial systems
+- [Spatial Index Architecture](architecture/SPATIAL_INDEX_ARCHITECTURE.md) - Spatial systems with Morton encoding
 - [Physics Data Layout](architecture/PHYSICS_DATA_LAYOUT.md) - Physics architecture
+- [DOP Callback System](architecture/DOP_CALLBACK_SYSTEM.md) - Pure function callbacks replacing Gateway
 
 ### `/guides`  
 Developer guides and how-tos
@@ -22,6 +24,7 @@ Developer guides and how-tos
 - [Git Setup](guides/GIT_SETUP_INSTRUCTIONS.md) - Repository setup
 - [Cargo Commands](guides/CARGO_COMMANDS_GUIDE.md) - Build and test commands
 - [Documentation Guide](guides/DOCUMENTATION_GUIDE.md) - How to write docs
+- [World Guide](WORLD_GUIDE.md) - World system architecture
 - [WGSL Shader Guide](WGSL_SHADER_GUIDE.md) - Shader development
 
 ### `/sprints`

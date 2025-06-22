@@ -1,5 +1,5 @@
 //! Physics data subsystem error handling
-//! 
+//!
 //! This module provides type aliases and helper functions for physics data operations
 //! to replace unwrap() calls with proper error handling.
 

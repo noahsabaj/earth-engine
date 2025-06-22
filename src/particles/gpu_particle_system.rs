@@ -1,43 +1,47 @@
+use crate::gpu::error_recovery::{GpuErrorRecovery, GpuRecoveryError, GpuResultExt};
+use anyhow::{anyhow, Result};
+use glam::Vec3;
 use std::sync::Arc;
 use std::time::Duration;
 use wgpu::util::DeviceExt;
-use glam::Vec3;
-use anyhow::{Result, anyhow};
 
-use crate::particles::{ParticleType, ParticleGPUData};
 use crate::particles::particle_data::MAX_PARTICLES;
+use crate::particles::{ParticleGPUData, ParticleType};
 
 /// GPU-accelerated particle system
 /// Offloads all particle updates to GPU compute shaders
 pub struct GpuParticleSystem {
     device: Arc<wgpu::Device>,
     queue: Arc<wgpu::Queue>,
-    
+
     // GPU buffers
     particle_buffer: wgpu::Buffer,
     emitter_buffer: wgpu::Buffer,
     spawn_queue_buffer: wgpu::Buffer,
     params_buffer: wgpu::Buffer,
-    
+
     // Compute pipelines
     update_pipeline: wgpu::ComputePipeline,
     spawn_pipeline: wgpu::ComputePipeline,
     force_pipeline: wgpu::ComputePipeline,
-    
+
     // Bind groups
     update_bind_group: wgpu::BindGroup,
     spawn_bind_group: wgpu::BindGroup,
-    
+
+    // Error recovery
+    error_recovery: Arc<GpuErrorRecovery>,
+
     // CPU-side data for rendering
     render_data: Vec<ParticleGPUData>,
     staging_buffer: wgpu::Buffer,
-    
+
     // System state
     max_particles: u32,
     active_particles: u32,
     emitter_count: u32,
     next_emitter_id: u64,
-    
+
     // Physics parameters
     wind_velocity: Vec3,
     gravity: f32,
@@ -93,9 +97,11 @@ impl GpuParticleSystem {
         device: Arc<wgpu::Device>,
         queue: Arc<wgpu::Queue>,
         max_particles: usize,
-    ) -> Self {
+    ) -> Result<Self> {
+        // Create error recovery system
+        let error_recovery = Arc::new(GpuErrorRecovery::new(device.clone(), queue.clone()));
         let max_particles = (max_particles as u32).min(MAX_PARTICLES as u32);
-        
+
         // Create GPU buffers
         let particle_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Particle Buffer"),
@@ -103,138 +109,141 @@ impl GpuParticleSystem {
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
             mapped_at_creation: false,
         });
-        
+
         let emitter_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Emitter Buffer"),
             size: (std::mem::size_of::<GpuEmitterData>() * 128) as u64,
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
-        
+
         let spawn_queue_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Spawn Queue Buffer"),
             size: (std::mem::size_of::<GpuParticleData>() * 1024) as u64,
             usage: wgpu::BufferUsages::STORAGE,
             mapped_at_creation: false,
         });
-        
+
         let params_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Params Buffer"),
             size: std::mem::size_of::<SimParams>() as u64,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
-        
+
         let staging_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Particle Staging Buffer"),
             size: (std::mem::size_of::<GpuParticleData>() * max_particles as usize) as u64,
             usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
-        
+
         // Load shader
-        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("Particle Update Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/compute/gpu_update.wgsl").into()),
-        });
-        
+        let shader_source = include_str!("../shaders/compute/gpu_update.wgsl");
+        let validated_shader =
+            crate::gpu::automation::create_gpu_shader(&device, "particle_update", shader_source)?;
+
         // Create bind group layouts
-        let update_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("Particle Update Bind Group Layout"),
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: false },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
+        let update_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("Particle Update Bind Group Layout"),
+                entries: &[
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: false },
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
                     },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
                     },
-                    count: None,
-                },
-            ],
-        });
-        
-        let spawn_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("Particle Spawn Bind Group Layout"),
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
+                ],
+            });
+
+        let spawn_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("Particle Spawn Bind Group Layout"),
+                entries: &[
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: true },
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
                     },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: false },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: false },
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
                     },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 2,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: false },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 2,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: false },
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
                     },
-                    count: None,
-                },
-            ],
-        });
-        
+                ],
+            });
+
         // Create compute pipelines
-        let update_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("Particle Update Pipeline Layout"),
-            bind_group_layouts: &[&update_bind_group_layout],
-            push_constant_ranges: &[],
-        });
-        
+        let update_pipeline_layout =
+            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("Particle Update Pipeline Layout"),
+                bind_group_layouts: &[&update_bind_group_layout],
+                push_constant_ranges: &[],
+            });
+
         let update_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
             label: Some("Particle Update Pipeline"),
             layout: Some(&update_pipeline_layout),
-            module: &shader,
+            module: &validated_shader.module,
             entry_point: "update_particles",
         });
-        
-        let spawn_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("Particle Spawn Pipeline Layout"),
-            bind_group_layouts: &[&update_bind_group_layout, &spawn_bind_group_layout],
-            push_constant_ranges: &[],
-        });
-        
+
+        let spawn_pipeline_layout =
+            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("Particle Spawn Pipeline Layout"),
+                bind_group_layouts: &[&update_bind_group_layout, &spawn_bind_group_layout],
+                push_constant_ranges: &[],
+            });
+
         let spawn_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
             label: Some("Particle Spawn Pipeline"),
             layout: Some(&spawn_pipeline_layout),
-            module: &shader,
+            module: &validated_shader.module,
             entry_point: "spawn_from_emitters",
         });
-        
+
         let force_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
             label: Some("Particle Force Pipeline"),
             layout: Some(&update_pipeline_layout),
-            module: &shader,
+            module: &validated_shader.module,
             entry_point: "apply_force_field",
         });
-        
+
         // Create bind groups
         let update_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("Particle Update Bind Group"),
@@ -250,14 +259,14 @@ impl GpuParticleSystem {
                 },
             ],
         });
-        
+
         // Create spawn counter buffer
         let spawn_count_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Spawn Count Buffer"),
             contents: bytemuck::cast_slice(&[0u32]),
             usage: wgpu::BufferUsages::STORAGE,
         });
-        
+
         let spawn_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("Particle Spawn Bind Group"),
             layout: &spawn_bind_group_layout,
@@ -276,8 +285,8 @@ impl GpuParticleSystem {
                 },
             ],
         });
-        
-        Self {
+
+        Ok(Self {
             device,
             queue,
             particle_buffer,
@@ -297,13 +306,14 @@ impl GpuParticleSystem {
             next_emitter_id: 0,
             wind_velocity: Vec3::ZERO,
             gravity: 9.8,
-        }
+            error_recovery,
+        })
     }
-    
+
     /// Update the particle system on GPU
-    pub fn update(&mut self, dt: Duration, time: f32) {
+    pub fn update(&mut self, dt: Duration, time: f32) -> Result<()> {
         let dt_secs = dt.as_secs_f32();
-        
+
         // Update simulation parameters
         let params = SimParams {
             dt: dt_secs,
@@ -313,14 +323,19 @@ impl GpuParticleSystem {
             particle_count: self.active_particles,
             _padding: [0.0; 3],
         };
-        
-        self.queue.write_buffer(&self.params_buffer, 0, bytemuck::cast_slice(&[params]));
-        
-        // Create command encoder
-        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("Particle Update Encoder"),
-        });
-        
+
+        self.queue
+            .write_buffer(&self.params_buffer, 0, bytemuck::cast_slice(&[params]));
+
+        // Create safe command encoder with error recovery
+        let mut safe_encoder =
+            self.error_recovery
+                .create_safe_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("Particle Update Encoder"),
+                });
+
+        let encoder = safe_encoder.encoder()?;
+
         // Spawn new particles from emitters
         if self.emitter_count > 0 {
             let mut spawn_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
@@ -332,7 +347,7 @@ impl GpuParticleSystem {
             spawn_pass.set_bind_group(1, &self.spawn_bind_group, &[]);
             spawn_pass.dispatch_workgroups((self.emitter_count + 31) / 32, 1, 1);
         }
-        
+
         // Update existing particles
         {
             let mut update_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
@@ -344,7 +359,7 @@ impl GpuParticleSystem {
             let workgroups = (self.active_particles + 63) / 64;
             update_pass.dispatch_workgroups(workgroups, 1, 1);
         }
-        
+
         // Copy particle data to staging buffer for CPU readback
         encoder.copy_buffer_to_buffer(
             &self.particle_buffer,
@@ -353,11 +368,15 @@ impl GpuParticleSystem {
             0,
             (std::mem::size_of::<GpuParticleData>() * self.active_particles as usize) as u64,
         );
-        
-        // Submit GPU commands
-        self.queue.submit(std::iter::once(encoder.finish()));
+
+        // Finish encoder and submit with error recovery
+        let command_buffer = safe_encoder.finish()?;
+        self.error_recovery
+            .submit_with_recovery(vec![command_buffer])?;
+
+        Ok(())
     }
-    
+
     /// Add an emitter
     pub fn add_emitter(
         &mut self,
@@ -367,7 +386,7 @@ impl GpuParticleSystem {
     ) -> u64 {
         let id = self.next_emitter_id;
         self.next_emitter_id += 1;
-        
+
         let emitter = GpuEmitterData {
             position: position.into(),
             emission_rate,
@@ -378,18 +397,18 @@ impl GpuParticleSystem {
             shape_param1: 0.0,
             shape_param2: 0.0,
         };
-        
+
         // Upload emitter to GPU
         self.queue.write_buffer(
             &self.emitter_buffer,
             (std::mem::size_of::<GpuEmitterData>() * self.emitter_count as usize) as u64,
             bytemuck::cast_slice(&[emitter]),
         );
-        
+
         self.emitter_count += 1;
         id
     }
-    
+
     /// Read back particle data for rendering
     pub async fn read_render_data(&mut self) -> Result<&[ParticleGPUData]> {
         // Map staging buffer and read data
@@ -400,17 +419,23 @@ impl GpuParticleSystem {
                 // Channel receiver was dropped - this is expected in some shutdown scenarios
             }
         });
-        
+
         self.device.poll(wgpu::Maintain::Wait);
-        
-        let map_result = rx.await
-            .map_err(|_| anyhow!("Failed to receive GPU buffer mapping result - channel was closed"))?;
-        map_result.map_err(|e| anyhow!("Failed to map GPU buffer for particle data reading: {:?}", e))?;
-        
+
+        let map_result = rx.await.map_err(|_| {
+            anyhow!("Failed to receive GPU buffer mapping result - channel was closed")
+        })?;
+        map_result.map_err(|e| {
+            anyhow!(
+                "Failed to map GPU buffer for particle data reading: {:?}",
+                e
+            )
+        })?;
+
         {
             let data = buffer_slice.get_mapped_range();
             let gpu_particles: &[GpuParticleData] = bytemuck::cast_slice(&data);
-            
+
             // Convert to render format
             self.render_data.clear();
             for particle in &gpu_particles[..self.active_particles as usize] {
@@ -426,21 +451,21 @@ impl GpuParticleSystem {
                 }
             }
         }
-        
+
         self.staging_buffer.unmap();
         Ok(&self.render_data)
     }
-    
+
     /// Get particle count
     pub fn particle_count(&self) -> usize {
         self.active_particles as usize
     }
-    
+
     /// Set wind velocity
     pub fn set_wind(&mut self, velocity: Vec3) {
         self.wind_velocity = velocity;
     }
-    
+
     /// Set gravity
     pub fn set_gravity(&mut self, gravity: f32) {
         self.gravity = gravity;

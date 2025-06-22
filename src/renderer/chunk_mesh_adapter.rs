@@ -1,19 +1,19 @@
 /// Chunk Mesh Adapter - Connects data_mesh_builder to the rendering pipeline
-/// 
+///
 /// Sprint 35: Integration layer following DOP principles
 /// No allocations in hot paths, uses buffer pools
-
 use crate::{
-    ChunkPos, BlockId,
-    world::{storage::ChunkSoA, BlockRegistry},
     renderer::{
-        data_mesh_builder::{MeshBuffer, MESH_BUFFER_POOL, operations},
+        data_mesh_builder::{operations, MeshBuffer, MESH_BUFFER_POOL},
+        mesh::{chunk_mesh_ops, ChunkMesh},
         vertex::Vertex,
-        mesh::{ChunkMesh, chunk_mesh_ops},
-    }
+    },
+    typed_blocks,
+    world::{storage::ChunkSoA, BlockRegistry},
+    BlockId, ChunkPos,
 };
-use std::sync::Arc;
 use parking_lot::RwLock;
+use std::sync::Arc;
 
 /// Neighbor chunk data for face culling
 pub struct NeighborData<'a> {
@@ -28,11 +28,11 @@ pub struct NeighborData<'a> {
 /// Convert MeshBuffer to ChunkMesh (for compatibility with existing code)
 pub fn mesh_buffer_to_chunk_mesh(buffer: &MeshBuffer) -> ChunkMesh {
     let mut mesh = chunk_mesh_ops::create_empty();
-    
+
     // Copy only the used portion of the buffers
     mesh.vertices.reserve(buffer.vertex_count);
     mesh.indices.reserve(buffer.index_count);
-    
+
     // Convert vertices
     for i in 0..buffer.vertex_count {
         let src = &buffer.vertices[i];
@@ -44,10 +44,11 @@ pub fn mesh_buffer_to_chunk_mesh(buffer: &MeshBuffer) -> ChunkMesh {
             ao: src.ao,
         });
     }
-    
+
     // Copy indices
-    mesh.indices.extend_from_slice(&buffer.indices[0..buffer.index_count]);
-    
+    mesh.indices
+        .extend_from_slice(&buffer.indices[0..buffer.index_count]);
+
     mesh
 }
 
@@ -58,23 +59,18 @@ pub fn build_chunk_mesh_dop(
     registry: &BlockRegistry,
 ) -> MeshBuffer {
     let mut buffer = MESH_BUFFER_POOL.acquire();
-    
+
     let chunk_size = chunk.size();
-    
+
     // Build mesh using the operations module
-    operations::build_chunk_mesh(
-        &mut buffer,
-        chunk.position(),
-        chunk_size,
-        |x, y, z| {
-            // Get block from chunk
-            chunk.get_block(x, y, z)
-        },
-    );
-    
+    operations::build_chunk_mesh(&mut buffer, chunk.position(), chunk_size, |x, y, z| {
+        // Get block from chunk
+        chunk.get_block(x, y, z)
+    });
+
     // Enhanced version with neighbor culling
     build_chunk_mesh_with_neighbors(&mut buffer, chunk, neighbors, registry);
-    
+
     buffer
 }
 
@@ -86,14 +82,10 @@ fn build_chunk_mesh_with_neighbors(
     registry: &BlockRegistry,
 ) {
     let start = std::time::Instant::now();
-    buffer.metadata.chunk_pos = [
-        chunk.position().x,
-        chunk.position().y,
-        chunk.position().z,
-    ];
-    
+    buffer.metadata.chunk_pos = [chunk.position().x, chunk.position().y, chunk.position().z];
+
     let chunk_size = chunk.size();
-    
+
     // Iterate through all blocks
     for y in 0..chunk_size {
         for z in 0..chunk_size {
@@ -102,89 +94,101 @@ fn build_chunk_mesh_with_neighbors(
                 if block == BlockId::AIR {
                     continue;
                 }
-                
+
                 // Get block properties from registry if needed
                 let is_opaque = true; // For now, assume all non-air blocks are opaque
-                
+
                 let world_x = x as f32;
                 let world_y = y as f32;
                 let world_z = z as f32;
-                
+
                 // Get lighting info
                 let light_level = chunk.get_light(x, y, z);
                 let light = light_level.sky.max(light_level.block);
-                
+
                 // Simple AO calculation (can be enhanced)
                 let ao = [255; 4]; // No AO for now
-                
+
                 // Check each face visibility
-                
+
                 // Top face
                 if should_render_face(chunk, neighbors.up, x, y, z, 0, 1, 0, chunk_size) {
                     let _ = operations::add_quad(
                         buffer,
                         operations::BlockFace::Top,
-                        world_x, world_y, world_z,
+                        world_x,
+                        world_y,
+                        world_z,
                         block,
                         light,
                         ao,
                     );
                 }
-                
+
                 // Bottom face
                 if should_render_face(chunk, neighbors.down, x, y, z, 0, -1, 0, chunk_size) {
                     let _ = operations::add_quad(
                         buffer,
                         operations::BlockFace::Bottom,
-                        world_x, world_y, world_z,
+                        world_x,
+                        world_y,
+                        world_z,
                         block,
                         light,
                         ao,
                     );
                 }
-                
+
                 // North face (-Z)
                 if should_render_face(chunk, neighbors.north, x, y, z, 0, 0, -1, chunk_size) {
                     let _ = operations::add_quad(
                         buffer,
                         operations::BlockFace::North,
-                        world_x, world_y, world_z,
+                        world_x,
+                        world_y,
+                        world_z,
                         block,
                         light,
                         ao,
                     );
                 }
-                
+
                 // South face (+Z)
                 if should_render_face(chunk, neighbors.south, x, y, z, 0, 0, 1, chunk_size) {
                     let _ = operations::add_quad(
                         buffer,
                         operations::BlockFace::South,
-                        world_x, world_y, world_z,
+                        world_x,
+                        world_y,
+                        world_z,
                         block,
                         light,
                         ao,
                     );
                 }
-                
+
                 // East face (+X)
                 if should_render_face(chunk, neighbors.east, x, y, z, 1, 0, 0, chunk_size) {
                     let _ = operations::add_quad(
                         buffer,
                         operations::BlockFace::East,
-                        world_x, world_y, world_z,
+                        world_x,
+                        world_y,
+                        world_z,
                         block,
                         light,
                         ao,
                     );
                 }
-                
+
                 // West face (-X)
                 if should_render_face(chunk, neighbors.west, x, y, z, -1, 0, 0, chunk_size) {
                     let _ = operations::add_quad(
                         buffer,
                         operations::BlockFace::West,
-                        world_x, world_y, world_z,
+                        world_x,
+                        world_y,
+                        world_z,
                         block,
                         light,
                         ao,
@@ -193,7 +197,7 @@ fn build_chunk_mesh_with_neighbors(
             }
         }
     }
-    
+
     // Update metadata
     buffer.metadata.vertex_count = buffer.vertex_count as u32;
     buffer.metadata.index_count = buffer.index_count as u32;
@@ -215,17 +219,40 @@ fn should_render_face(
     let nx = x as i32 + dx;
     let ny = y as i32 + dy;
     let nz = z as i32 + dz;
-    
+
     // Check if we need to look at neighbor chunk
-    if nx < 0 || ny < 0 || nz < 0 || 
-       nx >= chunk_size as i32 || ny >= chunk_size as i32 || nz >= chunk_size as i32 {
+    if nx < 0
+        || ny < 0
+        || nz < 0
+        || nx >= chunk_size as i32
+        || ny >= chunk_size as i32
+        || nz >= chunk_size as i32
+    {
         // Check neighbor chunk
         if let Some(neighbor) = neighbor {
             // Calculate position in neighbor chunk
-            let neighbor_x = if nx < 0 { chunk_size - 1 } else if nx >= chunk_size as i32 { 0 } else { nx as u32 };
-            let neighbor_y = if ny < 0 { chunk_size - 1 } else if ny >= chunk_size as i32 { 0 } else { ny as u32 };
-            let neighbor_z = if nz < 0 { chunk_size - 1 } else if nz >= chunk_size as i32 { 0 } else { nz as u32 };
-            
+            let neighbor_x = if nx < 0 {
+                chunk_size - 1
+            } else if nx >= chunk_size as i32 {
+                0
+            } else {
+                nx as u32
+            };
+            let neighbor_y = if ny < 0 {
+                chunk_size - 1
+            } else if ny >= chunk_size as i32 {
+                0
+            } else {
+                ny as u32
+            };
+            let neighbor_z = if nz < 0 {
+                chunk_size - 1
+            } else if nz >= chunk_size as i32 {
+                0
+            } else {
+                nz as u32
+            };
+
             let neighbor_block = neighbor.get_block(neighbor_x, neighbor_y, neighbor_z);
             neighbor_block == BlockId::AIR
         } else {
@@ -252,17 +279,18 @@ impl ChunkMeshBatch {
             meshes: Vec::with_capacity(capacity),
         }
     }
-    
+
     pub fn add_chunk(&mut self, pos: ChunkPos, chunk: Arc<RwLock<ChunkSoA>>) {
         self.chunks.push((pos, chunk));
     }
-    
+
     /// Build all meshes in parallel
     pub fn build_all(&mut self, registry: &BlockRegistry) {
         use rayon::prelude::*;
-        
+
         // Build meshes in parallel
-        let meshes: Vec<_> = self.chunks
+        let meshes: Vec<_> = self
+            .chunks
             .par_iter()
             .map(|(pos, chunk)| {
                 let chunk_guard = chunk.read();
@@ -274,14 +302,14 @@ impl ChunkMeshBatch {
                     up: None,
                     down: None,
                 };
-                
+
                 build_chunk_mesh_dop(&*chunk_guard, neighbors, registry)
             })
             .collect();
-        
+
         self.meshes = meshes;
     }
-    
+
     /// Get the built meshes
     pub fn take_meshes(self) -> Vec<MeshBuffer> {
         self.meshes
@@ -291,25 +319,27 @@ impl ChunkMeshBatch {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_mesh_buffer_conversion() {
         let mut buffer = MESH_BUFFER_POOL.acquire();
-        
+
         // Add a simple quad
         let _ = operations::add_quad(
             &mut buffer,
             operations::BlockFace::Top,
-            0.0, 0.0, 0.0,
-            BlockId(1),
+            0.0,
+            0.0,
+            0.0,
+            typed_blocks::GRASS,
             15,
             [255; 4],
         );
-        
+
         let mesh = mesh_buffer_to_chunk_mesh(&buffer);
         assert_eq!(mesh.vertices.len(), 4);
         assert_eq!(mesh.indices.len(), 6);
-        
+
         MESH_BUFFER_POOL.release(buffer);
     }
 }

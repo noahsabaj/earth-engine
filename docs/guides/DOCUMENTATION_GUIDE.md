@@ -12,7 +12,6 @@ hearth-engine/
 ├── ENGINE_VISION.md                   # High-level vision and USPs
 ├── HEARTH_ENGINE_VISION_2025.md        # Revolutionary game design vision
 ├── DATA_ORIENTED_TRANSITION_PLAN.md   # Architecture transition strategy
-├── ENVIRONMENT_COHERENCE.md           # Dev/test environment guide
 ├── DUPLICATE_FILES_ANALYSIS.md        # Code cleanup tracking
 └── docs/
     ├── DOCUMENTATION_GUIDE.md         # This file
@@ -57,10 +56,6 @@ Future structure:
    - Sprint 21 as pivot point
    - Migration approach
 
-6. **ENVIRONMENT_COHERENCE.md**
-   - WSL/Windows sync
-   - Development workflow
-   - GPU testing guide
 
 7. **DUPLICATE_FILES_ANALYSIS.md**
    - Code cleanup decisions

@@ -1,5 +1,5 @@
 //! Terrain generation buffer layout definitions
-//! 
+//!
 //! Defines GPU buffer structures for terrain generation parameters.
 
 use bytemuck::{Pod, Zeroable};
@@ -12,25 +12,25 @@ use encase::ShaderType;
 pub struct BlockDistribution {
     /// Block ID to place
     pub block_id: u32,
-    
+
     /// Minimum Y level (inclusive)
     pub min_y: i32,
-    
+
     /// Maximum Y level (inclusive)
     pub max_y: i32,
-    
+
     /// Noise threshold for placement (0.0 to 1.0)
     pub threshold: f32,
-    
+
     /// Noise scale factor
     pub scale: f32,
-    
+
     /// Octaves for fractal noise
     pub octaves: u32,
-    
+
     /// Persistence for fractal noise
     pub persistence: f32,
-    
+
     /// Lacunarity for fractal noise
     pub lacunarity: f32,
 }
@@ -57,25 +57,25 @@ impl Default for BlockDistribution {
 pub struct TerrainParams {
     /// Random seed for generation
     pub seed: u32,
-    
+
     /// Sea level height
     pub sea_level: i32,
-    
+
     /// Maximum terrain height
     pub max_height: i32,
-    
+
     /// Base terrain scale
     pub terrain_scale: f32,
-    
+
     /// Height scale multiplier
     pub height_scale: f32,
-    
+
     /// Number of active block distributions
     pub distribution_count: u32,
-    
+
     /// Padding for alignment
     pub _padding: [u32; 2],
-    
+
     /// Block distribution parameters (up to 16)
     pub distributions: [BlockDistribution; 16],
 }
@@ -83,7 +83,7 @@ pub struct TerrainParams {
 impl Default for TerrainParams {
     fn default() -> Self {
         let mut distributions = [BlockDistribution::default(); 16];
-        
+
         // Default terrain layers
         distributions[0] = BlockDistribution {
             block_id: 1, // Stone
@@ -95,7 +95,7 @@ impl Default for TerrainParams {
             persistence: 0.5,
             lacunarity: 2.0,
         };
-        
+
         distributions[1] = BlockDistribution {
             block_id: 2, // Dirt
             min_y: 60,
@@ -106,7 +106,7 @@ impl Default for TerrainParams {
             persistence: 0.5,
             lacunarity: 2.0,
         };
-        
+
         distributions[2] = BlockDistribution {
             block_id: 3, // Grass
             min_y: 65,
@@ -117,7 +117,7 @@ impl Default for TerrainParams {
             persistence: 0.6,
             lacunarity: 2.0,
         };
-        
+
         Self {
             seed: 12345,
             sea_level: 64,
@@ -144,7 +144,7 @@ pub struct TerrainParamsSOA {
     pub height_scale: f32,
     pub distribution_count: u32,
     pub _padding: [u32; 2],
-    
+
     /// Arrays for each field (SOA layout)
     pub block_ids: [u32; 16],
     pub min_y_values: [i32; 16],
@@ -176,7 +176,7 @@ impl TerrainParamsSOA {
             persistence_values: [0.0; 16],
             lacunarity_values: [0.0; 16],
         };
-        
+
         // Transpose the data
         for (i, dist) in params.distributions.iter().enumerate() {
             soa.block_ids[i] = dist.block_id;
@@ -188,10 +188,10 @@ impl TerrainParamsSOA {
             soa.persistence_values[i] = dist.persistence;
             soa.lacunarity_values[i] = dist.lacunarity;
         }
-        
+
         soa
     }
-    
+
     /// Convert from SOA back to AOS layout
     pub fn to_aos(&self) -> TerrainParams {
         let mut params = TerrainParams {
@@ -204,7 +204,7 @@ impl TerrainParamsSOA {
             _padding: [0; 2],
             distributions: [BlockDistribution::default(); 16],
         };
-        
+
         // Transpose the data back
         for i in 0..16 {
             params.distributions[i] = BlockDistribution {
@@ -218,7 +218,7 @@ impl TerrainParamsSOA {
                 lacunarity: self.lacunarity_values[i],
             };
         }
-        
+
         params
     }
 }
@@ -229,16 +229,16 @@ impl TerrainParamsSOA {
 pub struct BiomeParams {
     /// Temperature range (min, max)
     pub temperature_range: [f32; 2],
-    
+
     /// Humidity range (min, max)
     pub humidity_range: [f32; 2],
-    
+
     /// Primary block distributions for this biome
     pub primary_blocks: [u32; 4],
-    
+
     /// Biome blend factor
     pub blend_factor: f32,
-    
+
     /// Padding
     pub _padding: [f32; 3],
 }
@@ -249,10 +249,10 @@ pub struct TerrainBufferLayout;
 impl TerrainBufferLayout {
     /// Size of AOS terrain parameters
     pub const PARAMS_SIZE: u64 = std::mem::size_of::<TerrainParams>() as u64;
-    
+
     /// Size of SOA terrain parameters
     pub const PARAMS_SOA_SIZE: u64 = std::mem::size_of::<TerrainParamsSOA>() as u64;
-    
+
     /// Size of biome parameters
     pub const BIOME_SIZE: u64 = std::mem::size_of::<BiomeParams>() as u64;
 }

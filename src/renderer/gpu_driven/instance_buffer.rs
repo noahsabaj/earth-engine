@@ -1,10 +1,7 @@
-use std::sync::Arc;
+use crate::buffer_layouts::INSTANCE_DATA_SIZE;
+use crate::gpu::buffer_layouts::{calculations, usage};
 use bytemuck::{Pod, Zeroable};
-use crate::gpu::buffer_layouts::{
-    calculations,
-    usage,
-    constants::INSTANCE_DATA_SIZE,
-};
+use std::sync::Arc;
 
 // Re-export InstanceData for public use
 pub use crate::gpu::buffer_layouts::InstanceData;
@@ -13,19 +10,19 @@ pub use crate::gpu::buffer_layouts::InstanceData;
 pub struct InstanceBuffer {
     /// The GPU buffer storing instance data
     buffer: wgpu::Buffer,
-    
+
     /// CPU-side copy of instance data for updates
     instances: Vec<InstanceData>,
-    
+
     /// Maximum number of instances
     capacity: u32,
-    
+
     /// Current number of active instances
     count: u32,
-    
+
     /// Dirty flag for updates
     dirty: bool,
-    
+
     /// Reference to device that created this buffer
     device: Arc<wgpu::Device>,
 }
@@ -34,14 +31,14 @@ impl InstanceBuffer {
     /// Create a new instance buffer
     pub fn new(device: Arc<wgpu::Device>, capacity: u32) -> Self {
         let buffer_size = calculations::instance_buffer_size(capacity);
-        
+
         let buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Instance Buffer"),
             size: buffer_size,
             usage: usage::VERTEX | usage::STORAGE,
             mapped_at_creation: false,
         });
-        
+
         Self {
             buffer,
             instances: Vec::with_capacity(capacity as usize),
@@ -51,38 +48,39 @@ impl InstanceBuffer {
             device,
         }
     }
-    
+
     /// Add an instance
     pub fn add_instance(&mut self, instance: InstanceData) -> Option<u32> {
         if self.count >= self.capacity {
             return None;
         }
-        
+
         let index = self.count;
         self.instances.push(instance);
         self.count += 1;
         self.dirty = true;
-        
+
         Some(index)
     }
-    
+
     /// Add multiple instances in batch (DOP compliant)
     pub fn add_instances_batch(&mut self, instances: &[InstanceData]) -> Vec<Option<u32>> {
         let mut indices = Vec::with_capacity(instances.len());
         let available_space = (self.capacity - self.count) as usize;
         let instances_to_add = instances.len().min(available_space);
-        
+
         if instances_to_add > 0 {
             let start_index = self.count;
-            self.instances.extend_from_slice(&instances[..instances_to_add]);
+            self.instances
+                .extend_from_slice(&instances[..instances_to_add]);
             self.count += instances_to_add as u32;
             self.dirty = true;
-            
+
             // Generate indices for successfully added instances
             for i in 0..instances_to_add {
                 indices.push(Some(start_index + i as u32));
             }
-            
+
             // Mark remaining instances as rejected
             for _ in instances_to_add..instances.len() {
                 indices.push(None);
@@ -91,10 +89,10 @@ impl InstanceBuffer {
             // All instances rejected
             indices.resize(instances.len(), None);
         }
-        
+
         indices
     }
-    
+
     /// Update an instance
     pub fn update_instance(&mut self, index: u32, instance: InstanceData) {
         if index < self.count {
@@ -104,15 +102,15 @@ impl InstanceBuffer {
             }
         }
     }
-    
+
     /// Remove an instance (swap with last)
     pub fn remove_instance(&mut self, index: u32) -> Option<u32> {
         if index >= self.count {
             return None;
         }
-        
+
         self.count -= 1;
-        
+
         // Swap with last instance
         if index < self.count {
             self.instances.swap(index as usize, self.count as usize);
@@ -124,14 +122,14 @@ impl InstanceBuffer {
             None
         }
     }
-    
+
     /// Clear all instances
     pub fn clear(&mut self) {
         self.instances.clear();
         self.count = 0;
         self.dirty = true;
     }
-    
+
     /// Upload dirty data to GPU
     pub fn upload_to_gpu(&mut self, queue: &wgpu::Queue) {
         if self.dirty && self.count > 0 {
@@ -143,17 +141,17 @@ impl InstanceBuffer {
             self.dirty = false;
         }
     }
-    
+
     /// Get the GPU buffer
     pub fn buffer(&self) -> &wgpu::Buffer {
         &self.buffer
     }
-    
+
     /// Get the number of active instances
     pub fn count(&self) -> u32 {
         self.count
     }
-    
+
     /// Get vertex buffer layout for instances
     pub fn desc<'a>() -> wgpu::VertexBufferLayout<'a> {
         wgpu::VertexBufferLayout {
@@ -201,7 +199,7 @@ impl InstanceBuffer {
 /// Manages multiple instance buffers for different object types
 pub struct InstanceManager {
     device: Arc<wgpu::Device>,
-    
+
     /// Instance buffers by mesh type
     chunk_instances: InstanceBuffer,
     entity_instances: InstanceBuffer,
@@ -217,38 +215,38 @@ impl InstanceManager {
             device,
         }
     }
-    
+
     pub fn chunk_instances(&self) -> &InstanceBuffer {
         &self.chunk_instances
     }
-    
+
     pub fn chunk_instances_mut(&mut self) -> &mut InstanceBuffer {
         &mut self.chunk_instances
     }
-    
+
     pub fn entity_instances(&self) -> &InstanceBuffer {
         &self.entity_instances
     }
-    
+
     pub fn entity_instances_mut(&mut self) -> &mut InstanceBuffer {
         &mut self.entity_instances
     }
-    
+
     pub fn particle_instances(&self) -> &InstanceBuffer {
         &self.particle_instances
     }
-    
+
     pub fn particle_instances_mut(&mut self) -> &mut InstanceBuffer {
         &mut self.particle_instances
     }
-    
+
     /// Upload all dirty buffers to GPU
     pub fn upload_all(&mut self, queue: &wgpu::Queue) {
         self.chunk_instances.upload_to_gpu(queue);
         self.entity_instances.upload_to_gpu(queue);
         self.particle_instances.upload_to_gpu(queue);
     }
-    
+
     /// Clear all instance buffers
     pub fn clear_all(&mut self) {
         self.chunk_instances.clear();
@@ -269,16 +267,16 @@ impl InstanceManager {
 pub struct CullingInstanceData {
     /// World position
     pub position: [f32; 3],
-    
+
     /// Bounding radius
     pub radius: f32,
-    
+
     /// Instance ID (index into full instance buffer)
     pub instance_id: u32,
-    
+
     /// Flags and metadata
     pub flags: u32,
-    
+
     /// Padding for alignment
     pub _padding: [u32; 2],
 }
@@ -291,7 +289,7 @@ impl CullingInstanceData {
             instance.model_matrix[3][1],
             instance.model_matrix[3][2],
         ];
-        
+
         Self {
             position,
             radius,

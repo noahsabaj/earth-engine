@@ -23,7 +23,13 @@ pub fn create_vertex(position: [f32; 3], color: [f32; 3], normal: [f32; 3]) -> V
     }
 }
 
-pub fn create_vertex_with_lighting(position: [f32; 3], color: [f32; 3], normal: [f32; 3], light: f32, ao: f32) -> Vertex {
+pub fn create_vertex_with_lighting(
+    position: [f32; 3],
+    color: [f32; 3],
+    normal: [f32; 3],
+    light: f32,
+    ao: f32,
+) -> Vertex {
     Vertex {
         position,
         color,

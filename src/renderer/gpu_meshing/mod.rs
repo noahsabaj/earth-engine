@@ -1,14 +1,14 @@
 //! GPU Mesh Generation System - Pure DOP design
-//! 
+//!
 //! All mesh generation happens on GPU with zero CPU involvement
 
-pub mod types;
-pub mod pipeline;
 pub mod dispatch;
+pub mod pipeline;
+pub mod types;
 
-pub use types::*;
-pub use pipeline::*;
 pub use dispatch::*;
+pub use pipeline::*;
+pub use types::*;
 
 use std::sync::Arc;
 
@@ -17,20 +17,20 @@ pub struct GpuMeshingState {
     /// GPU device
     pub device: Arc<wgpu::Device>,
     pub queue: Arc<wgpu::Queue>,
-    
+
     /// Compute pipeline for mesh generation
     pub mesh_pipeline: wgpu::ComputePipeline,
     pub bind_group_layout: wgpu::BindGroupLayout,
-    
+
     /// Pre-allocated mesh output buffers
     pub mesh_buffers: Vec<GpuMeshBuffer>,
-    
+
     /// Indirect draw command buffer
     pub indirect_buffer: wgpu::Buffer,
-    
+
     /// Mesh generation statistics
     pub stats: MeshingStats,
-    
+
     /// Track buffer allocation (wrapped in Mutex for interior mutability)
     pub allocator: std::sync::Mutex<BufferAllocator>,
 }
@@ -48,28 +48,34 @@ pub fn create_gpu_meshing_state(
     device: Arc<wgpu::Device>,
     queue: Arc<wgpu::Queue>,
 ) -> GpuMeshingState {
+    log::info!("[create_gpu_meshing_state] 🚀 Initializing GPU meshing system");
+
     // Create compute pipeline
+    log::info!("[create_gpu_meshing_state] Creating mesh generation pipeline...");
     let (mesh_pipeline, bind_group_layout) = pipeline::create_mesh_generation_pipeline(&device);
-    
+    log::info!("[create_gpu_meshing_state] ✅ Pipeline created successfully");
+
     // Pre-allocate mesh buffers
     let mesh_buffers = (0..MAX_CONCURRENT_MESHES)
         .map(|i| create_gpu_mesh_buffer(&device, i as u32))
         .collect();
-    
+
     // Create indirect command buffer
     let indirect_buffer = device.create_buffer(&wgpu::BufferDescriptor {
         label: Some("Indirect Mesh Commands"),
         size: (std::mem::size_of::<IndirectDrawCommand>() * MAX_CONCURRENT_MESHES) as u64,
-        usage: wgpu::BufferUsages::INDIRECT | wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+        usage: wgpu::BufferUsages::INDIRECT
+            | wgpu::BufferUsages::STORAGE
+            | wgpu::BufferUsages::COPY_DST,
         mapped_at_creation: false,
     });
-    
+
     // Initialize allocator
     let allocator = std::sync::Mutex::new(BufferAllocator {
         allocated_buffers: std::collections::HashMap::new(),
         free_buffers: (0..MAX_CONCURRENT_MESHES as u32).collect(),
     });
-    
+
     GpuMeshingState {
         device,
         queue,

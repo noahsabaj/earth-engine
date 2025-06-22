@@ -1,11 +1,10 @@
+use crate::process::error::ProcessResult;
 /// Parallel Process Processor
-/// 
+///
 /// Handles batch processing of multiple processes in parallel.
 /// Uses thread pools for CPU-intensive operations.
-
 use crate::process::{ProcessData, ProcessStatus, StateMachine};
-use crate::process::error::ProcessResult;
-use crate::thread_pool::{ThreadPoolManager, PoolCategory};
+use crate::thread_pool::{PoolCategory, ThreadPoolManager};
 use rayon::prelude::*;
 use std::sync::{Arc, Mutex};
 
@@ -21,7 +20,7 @@ pub struct ProcessBatch {
 pub struct ParallelProcessor {
     /// Batch size for parallel processing
     batch_size: usize,
-    
+
     /// Performance metrics
     metrics: ProcessingMetrics,
 }
@@ -41,7 +40,7 @@ impl ParallelProcessor {
             metrics: ProcessingMetrics::default(),
         })
     }
-    
+
     /// Process a batch of processes in parallel
     pub fn process_batch(
         &mut self,
@@ -50,32 +49,32 @@ impl ParallelProcessor {
         batch: ProcessBatch,
     ) {
         let start = std::time::Instant::now();
-        
+
         // Split into smaller batches for parallel processing
         let chunks: Vec<_> = batch.indices.chunks(self.batch_size).collect();
-        
+
         // Get raw pointers before the closure
         let data_ptr = data as *mut ProcessData;
         let state_ptr = state_machines.as_mut_ptr();
         let data_len = data.len();
         let delta_ticks = batch.delta_ticks;
-        
+
         // Wrap pointers in atomic for thread safety
         use std::sync::atomic::{AtomicPtr, Ordering};
         let data_atomic = AtomicPtr::new(data_ptr);
         let state_atomic = AtomicPtr::new(state_ptr);
-        
+
         // Process each chunk in parallel
         ThreadPoolManager::global().execute(PoolCategory::Compute, move || {
             chunks.par_iter().for_each(|chunk| {
                 let data_ptr = data_atomic.load(Ordering::Relaxed);
                 let state_ptr = state_atomic.load(Ordering::Relaxed);
-                
+
                 for &index in *chunk {
                     if index >= data_len {
                         continue;
                     }
-                    
+
                     // SAFETY: Thread-safe parallel access is guaranteed because:
                     // - Each thread processes unique indices (no overlap between chunks)
                     // - data_ptr points to valid ProcessData for entire batch processing lifetime
@@ -94,15 +93,15 @@ impl ParallelProcessor {
                 }
             });
         });
-        
+
         // Update metrics
         let elapsed = start.elapsed();
         self.metrics.total_processed += batch.indices.len() as u64;
         self.metrics.total_time_ms += elapsed.as_millis() as u64;
-        self.metrics.avg_per_process_us = 
+        self.metrics.avg_per_process_us =
             (elapsed.as_micros() as f64) / (batch.indices.len() as f64);
     }
-    
+
     /// Update a single process
     fn update_single_process(
         data: &mut ProcessData,
@@ -113,32 +112,33 @@ impl ParallelProcessor {
         if !data.active[index] {
             return;
         }
-        
+
         match data.status[index] {
             ProcessStatus::Active => {
                 // Update elapsed time
                 data.update(index, delta_ticks);
-                
+
                 // Update state machine
                 let progress = data.get_progress(index);
                 let _actions = state_machine.update(delta_ticks, progress);
-                
+
                 // Actions are handled by the executor, not here
             }
             _ => {}
         }
     }
-    
+
     /// Process multiple batches concurrently
     pub fn process_concurrent_batches(
         &mut self,
         batches: Vec<(Arc<Mutex<ProcessData>>, Vec<usize>, u64)>,
     ) {
         let start = std::time::Instant::now();
-        
+
         ThreadPoolManager::global().execute(PoolCategory::Compute, || {
-            batches.par_iter().for_each(|(data_arc, indices, delta_ticks)| {
-                match data_arc.lock() {
+            batches
+                .par_iter()
+                .for_each(|(data_arc, indices, delta_ticks)| match data_arc.lock() {
                     Ok(mut data) => {
                         for &index in indices {
                             if index < data.len() && data.active[index] {
@@ -149,14 +149,13 @@ impl ParallelProcessor {
                     Err(e) => {
                         eprintln!("Failed to lock process data: {}. Skipping batch.", e);
                     }
-                }
-            });
+                });
         });
-        
+
         let elapsed = start.elapsed();
         println!("Processed {} batches in {:?}", batches.len(), elapsed);
     }
-    
+
     /// Get processing metrics
     pub fn metrics(&self) -> String {
         format!(
@@ -166,7 +165,7 @@ impl ParallelProcessor {
             self.metrics.avg_per_process_us
         )
     }
-    
+
     /// Set batch size for parallel processing
     pub fn set_batch_size(&mut self, size: usize) {
         self.batch_size = size.max(1);
@@ -177,10 +176,10 @@ impl ParallelProcessor {
 pub struct ParallelStageProcessor {
     /// Worker threads for stage processing
     workers: Vec<std::thread::JoinHandle<()>>,
-    
+
     /// Channel for sending work
     sender: crossbeam_channel::Sender<StageWork>,
-    
+
     /// Channel for receiving results
     receiver: crossbeam_channel::Receiver<StageResult>,
 }
@@ -204,16 +203,16 @@ impl ParallelStageProcessor {
     pub fn new(num_workers: usize) -> Self {
         let (send_work, recv_work) = crossbeam_channel::unbounded::<StageWork>();
         let (send_result, recv_result) = crossbeam_channel::unbounded::<StageResult>();
-        
+
         let mut workers = Vec::new();
-        
+
         for i in 0..num_workers {
             let recv = recv_work.clone();
             let send = send_result.clone();
-            
+
             let handle = std::thread::spawn(move || {
                 println!("Stage worker {} started", i);
-                
+
                 while let Ok(work) = recv.recv() {
                     // Process stage (simplified)
                     let result = StageResult {
@@ -222,23 +221,23 @@ impl ParallelStageProcessor {
                         success: true,
                         outputs: vec![1, 2, 3], // Dummy outputs
                     };
-                    
+
                     let _ = send.send(result);
                 }
-                
+
                 println!("Stage worker {} stopped", i);
             });
-            
+
             workers.push(handle);
         }
-        
+
         Self {
             workers,
             sender: send_work,
             receiver: recv_result,
         }
     }
-    
+
     /// Submit work for stage processing
     pub fn submit_stage(&self, process_id: usize, stage_index: u16, inputs: Vec<u32>) {
         let work = StageWork {
@@ -246,18 +245,18 @@ impl ParallelStageProcessor {
             stage_index,
             inputs,
         };
-        
+
         let _ = self.sender.send(work);
     }
-    
+
     /// Collect completed stage results
     pub fn collect_results(&self) -> Vec<StageResult> {
         let mut results = Vec::new();
-        
+
         while let Ok(result) = self.receiver.try_recv() {
             results.push(result);
         }
-        
+
         results
     }
 }
@@ -266,7 +265,7 @@ impl Drop for ParallelStageProcessor {
     fn drop(&mut self) {
         // Signal workers to stop
         drop(self.sender.clone());
-        
+
         // Wait for workers to finish
         for worker in self.workers.drain(..) {
             let _ = worker.join();
@@ -277,15 +276,15 @@ impl Drop for ParallelStageProcessor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::process::{ProcessId, ProcessType};
     use crate::instance::InstanceId;
-    
+    use crate::process::{ProcessId, ProcessType};
+
     #[test]
     fn test_parallel_batch_processing() {
         let mut processor = ParallelProcessor::new().expect("Failed to create processor");
         let mut data = ProcessData::new();
         let mut state_machines = Vec::new();
-        
+
         // Create test processes
         for _ in 0..100 {
             let id = ProcessId::new();
@@ -296,33 +295,33 @@ mod tests {
             }
             state_machines.push(StateMachine::new());
         }
-        
+
         // Process batch
         let batch = ProcessBatch {
             indices: (0..100).collect(),
             delta_ticks: 10,
         };
-        
+
         processor.process_batch(&mut data, &mut state_machines, batch);
-        
+
         // Check all processes were updated
         for i in 0..100 {
             assert_eq!(data.elapsed[i], 10);
         }
-        
+
         println!("Metrics: {}", processor.metrics());
     }
-    
+
     #[test]
     fn test_concurrent_batches() {
         let mut processor = ParallelProcessor::new().expect("Failed to create processor");
-        
+
         // Create multiple data sets
         let mut batches = Vec::new();
-        
+
         for _ in 0..4 {
             let mut data = ProcessData::new();
-            
+
             for _ in 0..25 {
                 let id = ProcessId::new();
                 let owner = InstanceId::new();
@@ -331,12 +330,12 @@ mod tests {
                     status.clone_from(&ProcessStatus::Active);
                 }
             }
-            
+
             let data_arc = Arc::new(Mutex::new(data));
             let indices = (0..25).collect();
             batches.push((data_arc, indices, 5));
         }
-        
+
         processor.process_concurrent_batches(batches);
     }
 }

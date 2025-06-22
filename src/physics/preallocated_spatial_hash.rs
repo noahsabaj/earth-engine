@@ -1,9 +1,8 @@
 /// Pre-allocated spatial hash implementation using fixed-size arrays
 /// Replaces HashMap-based spatial hash with zero-allocation lookups
-
-use super::{EntityId, physics_tables::AABB, MAX_ENTITIES};
-use rayon::prelude::*;
+use super::{physics_tables::AABB, EntityId, MAX_ENTITIES};
 use parking_lot::RwLock;
+use rayon::prelude::*;
 
 /// Spatial hash configuration
 #[derive(Debug, Clone)]
@@ -41,11 +40,11 @@ impl CellCoord {
     fn new(x: u16, y: u16, z: u16) -> Self {
         Self { x, y, z }
     }
-    
+
     fn to_index(self) -> usize {
-        self.x as usize + 
-        self.y as usize * MAX_CELLS_PER_DIM + 
-        self.z as usize * MAX_CELLS_PER_DIM * MAX_CELLS_PER_DIM
+        self.x as usize
+            + self.y as usize * MAX_CELLS_PER_DIM
+            + self.z as usize * MAX_CELLS_PER_DIM * MAX_CELLS_PER_DIM
     }
 }
 
@@ -62,12 +61,12 @@ impl Cell {
             count: 0,
         }
     }
-    
+
     fn clear(&mut self) {
         self.count = 0;
         self.entities.clear();
     }
-    
+
     fn add(&mut self, entity: EntityId) {
         if self.count < self.entities.capacity() {
             if self.count < self.entities.len() {
@@ -78,9 +77,12 @@ impl Cell {
             self.count += 1;
         }
     }
-    
+
     fn remove(&mut self, entity: EntityId) {
-        if let Some(pos) = self.entities[..self.count].iter().position(|&e| e == entity) {
+        if let Some(pos) = self.entities[..self.count]
+            .iter()
+            .position(|&e| e == entity)
+        {
             // Swap with last element for O(1) removal
             self.count -= 1;
             if pos < self.count {
@@ -88,11 +90,11 @@ impl Cell {
             }
         }
     }
-    
+
     fn contains(&self, entity: EntityId) -> bool {
         self.entities[..self.count].contains(&entity)
     }
-    
+
     fn iter(&self) -> &[EntityId] {
         &self.entities[..self.count]
     }
@@ -114,21 +116,20 @@ impl PreallocatedSpatialHash {
             ((config.world_max[1] - config.world_min[1]) / config.cell_size).ceil() as u16,
             ((config.world_max[2] - config.world_min[2]) / config.cell_size).ceil() as u16,
         ];
-        
+
         // Ensure we don't exceed maximum dimensions
         assert!(grid_dimensions[0] as usize <= MAX_CELLS_PER_DIM);
         assert!(grid_dimensions[1] as usize <= MAX_CELLS_PER_DIM);
         assert!(grid_dimensions[2] as usize <= MAX_CELLS_PER_DIM);
-        
-        let total_cells = grid_dimensions[0] as usize * 
-                         grid_dimensions[1] as usize * 
-                         grid_dimensions[2] as usize;
-        
+
+        let total_cells =
+            grid_dimensions[0] as usize * grid_dimensions[1] as usize * grid_dimensions[2] as usize;
+
         let mut cells = Vec::with_capacity(total_cells);
         for _ in 0..total_cells {
             cells.push(Cell::new(config.expected_entities_per_cell));
         }
-        
+
         Self {
             config,
             cells: RwLock::new(cells),
@@ -136,43 +137,47 @@ impl PreallocatedSpatialHash {
             grid_dimensions,
         }
     }
-    
+
     /// Clear all spatial hash data
     pub fn clear(&self) {
         let mut cells = self.cells.write();
         for cell in cells.iter_mut() {
             cell.clear();
         }
-        
+
         let mut entity_cells = self.entity_cells.write();
         for entity_cell in entity_cells.iter_mut() {
             *entity_cell = [None; 8];
         }
     }
-    
+
     /// Convert world position to cell coordinate
     fn world_to_cell(&self, pos: [f32; 3]) -> Option<CellCoord> {
         let x = ((pos[0] - self.config.world_min[0]) / self.config.cell_size).floor() as i32;
         let y = ((pos[1] - self.config.world_min[1]) / self.config.cell_size).floor() as i32;
         let z = ((pos[2] - self.config.world_min[2]) / self.config.cell_size).floor() as i32;
-        
-        if x >= 0 && x < self.grid_dimensions[0] as i32 &&
-           y >= 0 && y < self.grid_dimensions[1] as i32 &&
-           z >= 0 && z < self.grid_dimensions[2] as i32 {
+
+        if x >= 0
+            && x < self.grid_dimensions[0] as i32
+            && y >= 0
+            && y < self.grid_dimensions[1] as i32
+            && z >= 0
+            && z < self.grid_dimensions[2] as i32
+        {
             Some(CellCoord::new(x as u16, y as u16, z as u16))
         } else {
             None
         }
     }
-    
+
     /// Get all cell coordinates that an AABB overlaps (up to 8 cells)
     fn get_overlapping_cells(&self, aabb: &AABB) -> [Option<CellCoord>; 8] {
         let mut result = [None; 8];
         let mut count = 0;
-        
-        if let (Some(min_cell), Some(max_cell)) = 
-            (self.world_to_cell(aabb.min), self.world_to_cell(aabb.max)) {
-            
+
+        if let (Some(min_cell), Some(max_cell)) =
+            (self.world_to_cell(aabb.min), self.world_to_cell(aabb.max))
+        {
             for x in min_cell.x..=max_cell.x.min(min_cell.x + 1) {
                 for y in min_cell.y..=max_cell.y.min(min_cell.y + 1) {
                     for z in min_cell.z..=max_cell.z.min(min_cell.z + 1) {
@@ -184,18 +189,18 @@ impl PreallocatedSpatialHash {
                 }
             }
         }
-        
+
         result
     }
-    
+
     /// Insert an entity into the spatial hash
     pub fn insert(&self, entity: EntityId, aabb: &AABB) {
         if !entity.is_valid() {
             return;
         }
-        
+
         let cells_to_insert = self.get_overlapping_cells(aabb);
-        
+
         // Update cells
         {
             let mut cells = self.cells.write();
@@ -206,7 +211,7 @@ impl PreallocatedSpatialHash {
                 }
             }
         }
-        
+
         // Track which cells this entity is in
         {
             let mut entity_cells = self.entity_cells.write();
@@ -215,13 +220,13 @@ impl PreallocatedSpatialHash {
             }
         }
     }
-    
+
     /// Remove an entity from the spatial hash
     pub fn remove(&self, entity: EntityId) {
         if !entity.is_valid() {
             return;
         }
-        
+
         // Get cells this entity was in
         let cells_to_remove = {
             let mut entity_cells = self.entity_cells.write();
@@ -233,7 +238,7 @@ impl PreallocatedSpatialHash {
                 return;
             }
         };
-        
+
         // Remove from cells
         let mut cells = self.cells.write();
         for &cell_coord in cells_to_remove.iter().flatten() {
@@ -243,15 +248,15 @@ impl PreallocatedSpatialHash {
             }
         }
     }
-    
+
     /// Update an entity's position in the spatial hash
     pub fn update(&self, entity: EntityId, aabb: &AABB) {
         if !entity.is_valid() {
             return;
         }
-        
+
         let new_cells = self.get_overlapping_cells(aabb);
-        
+
         // Get current cells
         let old_cells = {
             let entity_cells = self.entity_cells.read();
@@ -261,14 +266,14 @@ impl PreallocatedSpatialHash {
                 return;
             }
         };
-        
+
         // Quick check: if cells haven't changed, nothing to do
         if old_cells == new_cells {
             return;
         }
-        
+
         let mut cells = self.cells.write();
-        
+
         // Remove from old cells that are no longer occupied
         for &old_cell in old_cells.iter().flatten() {
             if !new_cells.iter().any(|&c| c == Some(old_cell)) {
@@ -278,7 +283,7 @@ impl PreallocatedSpatialHash {
                 }
             }
         }
-        
+
         // Add to new cells
         for &new_cell in new_cells.iter().flatten() {
             if !old_cells.iter().any(|&c| c == Some(new_cell)) {
@@ -288,7 +293,7 @@ impl PreallocatedSpatialHash {
                 }
             }
         }
-        
+
         // Update entity's cell list
         drop(cells);
         let mut entity_cells = self.entity_cells.write();
@@ -296,13 +301,13 @@ impl PreallocatedSpatialHash {
             entity_cells[entity.index()] = new_cells;
         }
     }
-    
+
     /// Query entities in a region
     pub fn query_region(&self, aabb: &AABB) -> Vec<EntityId> {
         let cells_to_check = self.get_overlapping_cells(aabb);
         let mut entities = Vec::new();
         let mut seen = [false; MAX_ENTITIES];
-        
+
         let cells = self.cells.read();
         for &cell_coord in cells_to_check.iter().flatten() {
             let index = cell_coord.to_index();
@@ -317,16 +322,16 @@ impl PreallocatedSpatialHash {
                 }
             }
         }
-        
+
         entities
     }
-    
+
     /// Get potential collision pairs for a single entity
     pub fn get_potential_collisions(&self, entity: EntityId) -> Vec<EntityId> {
         if !entity.is_valid() {
             return Vec::new();
         }
-        
+
         let entity_cells_data = self.entity_cells.read();
         let cells_to_check = if entity.index() < entity_cells_data.len() {
             entity_cells_data[entity.index()]
@@ -334,10 +339,10 @@ impl PreallocatedSpatialHash {
             return Vec::new();
         };
         drop(entity_cells_data);
-        
+
         let mut potential = Vec::new();
         let mut seen = [false; MAX_ENTITIES];
-        
+
         let cells = self.cells.read();
         for &cell_coord in cells_to_check.iter().flatten() {
             let index = cell_coord.to_index();
@@ -352,16 +357,17 @@ impl PreallocatedSpatialHash {
                 }
             }
         }
-        
+
         potential
     }
-    
+
     /// Get all potential collision pairs (for parallel processing)
     pub fn get_all_potential_pairs(&self) -> Vec<(EntityId, EntityId)> {
         let cells = self.cells.read();
-        
+
         // Collect all pairs from each cell
-        let cell_pairs: Vec<_> = (0..cells.len()).into_par_iter()
+        let cell_pairs: Vec<_> = (0..cells.len())
+            .into_par_iter()
             .flat_map(|cell_idx| {
                 let mut pairs = Vec::new();
                 let entities = cells[cell_idx].iter();
@@ -377,31 +383,31 @@ impl PreallocatedSpatialHash {
                 pairs
             })
             .collect();
-        
+
         // Remove duplicates by sorting
         let mut unique_pairs = cell_pairs;
         unique_pairs.par_sort_unstable();
         unique_pairs.dedup();
-        
+
         unique_pairs
     }
-    
+
     /// Update multiple entities in parallel
     pub fn batch_update(&self, updates: &[(EntityId, AABB)]) {
         updates.par_iter().for_each(|(entity, aabb)| {
             self.update(*entity, aabb);
         });
     }
-    
+
     /// Get statistics about the spatial hash
     pub fn get_stats(&self) -> SpatialHashStats {
         let cells = self.cells.read();
         let entity_cells = self.entity_cells.read();
-        
+
         let mut max_entities_per_cell = 0;
         let mut total_entities_in_cells = 0;
         let mut non_empty_cells = 0;
-        
+
         for cell in cells.iter() {
             let count = cell.count;
             if count > 0 {
@@ -410,20 +416,21 @@ impl PreallocatedSpatialHash {
                 total_entities_in_cells += count;
             }
         }
-        
-        let active_entities = entity_cells.iter()
+
+        let active_entities = entity_cells
+            .iter()
             .filter(|ec| ec.iter().any(|c| c.is_some()))
             .count();
-        
+
         SpatialHashStats {
             total_cells: cells.len(),
             non_empty_cells,
             total_entities: active_entities,
             max_entities_per_cell,
-            avg_entities_per_cell: if non_empty_cells > 0 { 
-                total_entities_in_cells as f32 / non_empty_cells as f32 
-            } else { 
-                0.0 
+            avg_entities_per_cell: if non_empty_cells > 0 {
+                total_entities_in_cells as f32 / non_empty_cells as f32
+            } else {
+                0.0
             },
         }
     }

@@ -1,17 +1,17 @@
 //! GPU-driven culling pipeline
-//! 
+//!
 //! This file uses deprecated Camera but will be migrated to data-oriented design
 //! in a future sprint.
 
 #![allow(deprecated)]
 
+pub use super::indirect_commands::DrawMetadata;
+use crate::camera::data_camera::{build_camera_uniform, CameraData as CameraCameraData};
+use crate::gpu::buffer_layouts::{bindings, layouts};
+use bytemuck::{Pod, Zeroable};
+use cgmath::Matrix4;
 use std::sync::Arc;
 use wgpu::util::DeviceExt;
-use bytemuck::{Pod, Zeroable};
-use cgmath::{Matrix4};
-pub use super::indirect_commands::{DrawMetadata};
-use crate::camera::data_camera::{CameraData as CameraCameraData, build_camera_uniform};
-use crate::gpu::buffer_layouts::{bindings, layouts};
 
 /// Camera data for culling shader
 #[repr(C)]
@@ -19,16 +19,16 @@ use crate::gpu::buffer_layouts::{bindings, layouts};
 pub struct CameraData {
     /// View-projection matrix
     pub view_proj: [[f32; 4]; 4],
-    
+
     /// Camera world position
     pub position: [f32; 3],
-    
+
     /// Padding for alignment
     pub _padding0: f32,
-    
+
     /// Frustum planes for GPU culling (6 planes)
     pub frustum_planes: [[f32; 4]; 6],
-    
+
     /// Additional padding to reach 208 bytes total
     pub _padding1: [f32; 8],
 }
@@ -44,53 +44,53 @@ impl CameraData {
             _padding1: [0.0; 8],
         }
     }
-    
+
     /// Calculate frustum planes from view-projection matrix
     /// Returns 6 planes: [left, right, bottom, top, near, far]
     /// Each plane is [a, b, c, d] where ax + by + cz + d = 0
     fn calculate_frustum_planes(view_proj: &[[f32; 4]; 4]) -> [[f32; 4]; 6] {
         let m = view_proj;
-        
+
         // Extract frustum planes from view-projection matrix
         // This is the standard algorithm for extracting frustum planes
         let mut planes = [[0.0f32; 4]; 6];
-        
+
         // Left plane: m[3] + m[0]
         planes[0][0] = m[3][0] + m[0][0];
         planes[0][1] = m[3][1] + m[0][1];
         planes[0][2] = m[3][2] + m[0][2];
         planes[0][3] = m[3][3] + m[0][3];
-        
+
         // Right plane: m[3] - m[0]
         planes[1][0] = m[3][0] - m[0][0];
         planes[1][1] = m[3][1] - m[0][1];
         planes[1][2] = m[3][2] - m[0][2];
         planes[1][3] = m[3][3] - m[0][3];
-        
+
         // Bottom plane: m[3] + m[1]
         planes[2][0] = m[3][0] + m[1][0];
         planes[2][1] = m[3][1] + m[1][1];
         planes[2][2] = m[3][2] + m[1][2];
         planes[2][3] = m[3][3] + m[1][3];
-        
+
         // Top plane: m[3] - m[1]
         planes[3][0] = m[3][0] - m[1][0];
         planes[3][1] = m[3][1] - m[1][1];
         planes[3][2] = m[3][2] - m[1][2];
         planes[3][3] = m[3][3] - m[1][3];
-        
+
         // Near plane: m[3] + m[2]
         planes[4][0] = m[3][0] + m[2][0];
         planes[4][1] = m[3][1] + m[2][1];
         planes[4][2] = m[3][2] + m[2][2];
         planes[4][3] = m[3][3] + m[2][3];
-        
+
         // Far plane: m[3] - m[2]
         planes[5][0] = m[3][0] - m[2][0];
         planes[5][1] = m[3][1] - m[2][1];
         planes[5][2] = m[3][2] - m[2][2];
         planes[5][3] = m[3][3] - m[2][3];
-        
+
         // Normalize each plane
         for plane in &mut planes {
             let length = (plane[0] * plane[0] + plane[1] * plane[1] + plane[2] * plane[2]).sqrt();
@@ -101,7 +101,7 @@ impl CameraData {
                 plane[3] /= length;
             }
         }
-        
+
         planes
     }
 }
@@ -127,43 +127,96 @@ pub struct CullingStats {
 pub struct CullingPipeline {
     /// Compute pipeline for culling (might be None if creation failed)
     cull_pipeline: Option<wgpu::ComputePipeline>,
-    
+
     /// Compute pipeline for resetting counters (might be None if creation failed)
     reset_pipeline: Option<wgpu::ComputePipeline>,
-    
+
     /// Bind group layout
     bind_group_layout: wgpu::BindGroupLayout,
-    
+
     /// Camera uniform buffer
     camera_buffer: wgpu::Buffer,
-    
+
     /// Draw count buffer
     draw_count_buffer: wgpu::Buffer,
-    
+
     /// Culling stats buffer
     stats_buffer: wgpu::Buffer,
-    
+
     /// Staging buffer for stats readback
     stats_staging: wgpu::Buffer,
-    
+
     /// Flag indicating if pipelines are available
     pipelines_available: bool,
-    
+
     /// Reference to device that created these resources
     device: Arc<wgpu::Device>,
 }
 
 impl CullingPipeline {
     pub fn new(device: Arc<wgpu::Device>) -> Self {
-        // Load shader with error reporting
+        // Load shader with error reporting using unified GPU system
         let shader_source = include_str!("../../shaders/rendering/gpu_culling.wgsl");
-        log::debug!("[CullingPipeline] Loading GPU culling shader ({} bytes)", shader_source.len());
-        
-        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("GPU Culling Shader"),
-            source: wgpu::ShaderSource::Wgsl(shader_source.into()),
-        });
-        
+        log::debug!(
+            "[CullingPipeline] Loading GPU culling shader ({} bytes)",
+            shader_source.len()
+        );
+
+        let validated_shader = match crate::gpu::automation::create_gpu_shader(
+            &device,
+            "gpu_culling",
+            shader_source,
+        ) {
+            Ok(shader) => {
+                log::info!("[CullingPipeline] GPU culling shader validated successfully");
+                shader
+            }
+            Err(e) => {
+                log::error!(
+                    "[CullingPipeline] Failed to create GPU culling shader: {}",
+                    e
+                );
+                log::error!("[CullingPipeline] GPU culling will be disabled");
+                // Return early with disabled pipelines
+                return Self {
+                    cull_pipeline: None,
+                    reset_pipeline: None,
+                    bind_group_layout: device.create_bind_group_layout(
+                        &wgpu::BindGroupLayoutDescriptor {
+                            label: Some("Culling Bind Group Layout (Disabled)"),
+                            entries: &[],
+                        },
+                    ),
+                    camera_buffer: device.create_buffer(&wgpu::BufferDescriptor {
+                        label: Some("Camera Uniform Buffer (Disabled)"),
+                        size: std::mem::size_of::<CameraData>() as u64,
+                        usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                        mapped_at_creation: false,
+                    }),
+                    draw_count_buffer: device.create_buffer(&wgpu::BufferDescriptor {
+                        label: Some("Draw Count Buffer (Disabled)"),
+                        size: std::mem::size_of::<DrawCount>() as u64,
+                        usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+                        mapped_at_creation: false,
+                    }),
+                    stats_buffer: device.create_buffer(&wgpu::BufferDescriptor {
+                        label: Some("Culling Stats Buffer (Disabled)"),
+                        size: std::mem::size_of::<CullingStats>() as u64,
+                        usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
+                        mapped_at_creation: false,
+                    }),
+                    stats_staging: device.create_buffer(&wgpu::BufferDescriptor {
+                        label: Some("Stats Staging Buffer (Disabled)"),
+                        size: std::mem::size_of::<CullingStats>() as u64,
+                        usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
+                        mapped_at_creation: false,
+                    }),
+                    pipelines_available: false,
+                    device,
+                };
+            }
+        };
+
         // Create bind group layout using centralized definitions
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("Culling Bind Group Layout"),
@@ -199,20 +252,20 @@ impl CullingPipeline {
                 ),
             ],
         });
-        
+
         // Create pipeline layout
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("Culling Pipeline Layout"),
             bind_group_layouts: &[&bind_group_layout],
             push_constant_ranges: &[],
         });
-        
+
         // Try to create culling pipeline with error handling
         let cull_pipeline = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
                 label: Some("Cull Instances Pipeline"),
                 layout: Some(&pipeline_layout),
-                module: &shader,
+                module: &validated_shader.module,
                 entry_point: "cull_instances",
             })
         })) {
@@ -221,18 +274,21 @@ impl CullingPipeline {
                 Some(pipeline)
             }
             Err(e) => {
-                log::error!("[CullingPipeline] Failed to create culling pipeline: {:?}", e);
+                log::error!(
+                    "[CullingPipeline] Failed to create culling pipeline: {:?}",
+                    e
+                );
                 log::error!("[CullingPipeline] GPU culling will be disabled for this session");
                 None
             }
         };
-        
+
         // Try to create reset pipeline with error handling
         let reset_pipeline = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
                 label: Some("Reset Counters Pipeline"),
                 layout: Some(&pipeline_layout),
-                module: &shader,
+                module: &validated_shader.module,
                 entry_point: "reset_counters",
             })
         })) {
@@ -245,9 +301,9 @@ impl CullingPipeline {
                 None
             }
         };
-        
+
         let pipelines_available = cull_pipeline.is_some() && reset_pipeline.is_some();
-        
+
         // Create buffers
         let camera_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Camera Uniform Buffer"),
@@ -255,13 +311,13 @@ impl CullingPipeline {
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
-        
+
         let draw_count_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Draw Count Buffer"),
             contents: bytemuck::bytes_of(&DrawCount { count: 0 }),
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
         });
-        
+
         let stats_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Culling Stats Buffer"),
             contents: bytemuck::bytes_of(&CullingStats {
@@ -272,14 +328,14 @@ impl CullingPipeline {
             }),
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
         });
-        
+
         let stats_staging = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Stats Staging Buffer"),
             size: std::mem::size_of::<CullingStats>() as u64,
             usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
-        
+
         Self {
             cull_pipeline,
             reset_pipeline,
@@ -292,14 +348,18 @@ impl CullingPipeline {
             device,
         }
     }
-    
+
     /// Update camera data
     pub fn update_camera(&self, queue: &wgpu::Queue, camera_data: &CameraCameraData) {
         let camera_uniform = build_camera_uniform(camera_data);
         let culling_camera_data = CameraData::from_camera_uniform(&camera_uniform);
-        queue.write_buffer(&self.camera_buffer, 0, bytemuck::bytes_of(&culling_camera_data));
+        queue.write_buffer(
+            &self.camera_buffer,
+            0,
+            bytemuck::bytes_of(&culling_camera_data),
+        );
     }
-    
+
     /// Create bind group for culling
     pub fn create_bind_group(
         &self,
@@ -333,7 +393,7 @@ impl CullingPipeline {
             ],
         })
     }
-    
+
     /// Execute culling pass
     pub fn execute_culling(
         &self,
@@ -346,40 +406,40 @@ impl CullingPipeline {
             log::debug!("[CullingPipeline] Skipping GPU culling - pipelines not available");
             return;
         }
-        
+
         // Reset counters
         if let Some(reset_pipeline) = &self.reset_pipeline {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("Reset Counters Pass"),
                 timestamp_writes: None,
             });
-            
+
             pass.set_pipeline(reset_pipeline);
             pass.set_bind_group(0, bind_group, &[]);
             pass.dispatch_workgroups(1, 1, 1);
         }
-        
+
         // Execute culling
         if let Some(cull_pipeline) = &self.cull_pipeline {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("Culling Pass"),
                 timestamp_writes: None,
             });
-            
+
             pass.set_pipeline(cull_pipeline);
             pass.set_bind_group(0, bind_group, &[]);
-            
+
             // Dispatch with 64 threads per workgroup
             let workgroups = (instance_count + 63) / 64;
             pass.dispatch_workgroups(workgroups, 1, 1);
         }
     }
-    
+
     /// Check if culling is available
     pub fn is_available(&self) -> bool {
         self.pipelines_available
     }
-    
+
     /// Copy stats for CPU readback
     pub fn copy_stats(&self, encoder: &mut wgpu::CommandEncoder) {
         encoder.copy_buffer_to_buffer(
@@ -390,24 +450,24 @@ impl CullingPipeline {
             std::mem::size_of::<CullingStats>() as u64,
         );
     }
-    
+
     /// Read stats from GPU (async)
     pub async fn read_stats(&self) -> Option<CullingStats> {
         let buffer_slice = self.stats_staging.slice(..);
         let (sender, receiver) = futures::channel::oneshot::channel();
-        
+
         buffer_slice.map_async(wgpu::MapMode::Read, move |result| {
             sender.send(result).ok();
         });
-        
+
         receiver.await.ok()?.ok()?;
-        
+
         let data = buffer_slice.get_mapped_range();
         let stats = bytemuck::from_bytes::<CullingStats>(&data).clone();
-        
+
         drop(data);
         self.stats_staging.unmap();
-        
+
         Some(stats)
     }
 }
@@ -416,10 +476,10 @@ impl CullingPipeline {
 pub struct CullingData {
     /// Draw metadata for all objects
     pub metadata: Vec<DrawMetadata>,
-    
+
     /// GPU buffer for metadata
     pub metadata_buffer: wgpu::Buffer,
-    
+
     /// Reference to device that created this buffer
     device: Arc<wgpu::Device>,
 }
@@ -427,36 +487,36 @@ pub struct CullingData {
 impl CullingData {
     pub fn new(device: Arc<wgpu::Device>, capacity: u32) -> Self {
         let metadata = Vec::with_capacity(capacity as usize);
-        
+
         let metadata_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Draw Metadata Buffer"),
             size: (std::mem::size_of::<DrawMetadata>() * capacity as usize) as u64,
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
-        
+
         Self {
             metadata,
             metadata_buffer,
             device,
         }
     }
-    
+
     /// Add draw metadata
     pub fn add_draw(&mut self, metadata: DrawMetadata) {
         self.metadata.push(metadata);
     }
-    
+
     /// Add multiple draw metadata in batch (DOP compliant)
     pub fn add_draws_batch(&mut self, metadata: &[DrawMetadata]) {
         self.metadata.extend_from_slice(metadata);
     }
-    
+
     /// Clear all draws
     pub fn clear(&mut self) {
         self.metadata.clear();
     }
-    
+
     /// Upload to GPU
     pub fn upload(&self, queue: &wgpu::Queue) {
         if !self.metadata.is_empty() {
@@ -472,7 +532,7 @@ impl CullingData {
 /// Extract frustum planes from view-projection matrix
 fn extract_frustum_planes(view_proj: &Matrix4<f32>) -> [[f32; 4]; 6] {
     let mut planes = [[0.0; 4]; 6];
-    
+
     // Left plane
     planes[0] = [
         view_proj.w.x + view_proj.x.x,
@@ -480,7 +540,7 @@ fn extract_frustum_planes(view_proj: &Matrix4<f32>) -> [[f32; 4]; 6] {
         view_proj.w.z + view_proj.x.z,
         view_proj.w.w + view_proj.x.w,
     ];
-    
+
     // Right plane
     planes[1] = [
         view_proj.w.x - view_proj.x.x,
@@ -488,7 +548,7 @@ fn extract_frustum_planes(view_proj: &Matrix4<f32>) -> [[f32; 4]; 6] {
         view_proj.w.z - view_proj.x.z,
         view_proj.w.w - view_proj.x.w,
     ];
-    
+
     // Bottom plane
     planes[2] = [
         view_proj.w.x + view_proj.y.x,
@@ -496,7 +556,7 @@ fn extract_frustum_planes(view_proj: &Matrix4<f32>) -> [[f32; 4]; 6] {
         view_proj.w.z + view_proj.y.z,
         view_proj.w.w + view_proj.y.w,
     ];
-    
+
     // Top plane
     planes[3] = [
         view_proj.w.x - view_proj.y.x,
@@ -504,7 +564,7 @@ fn extract_frustum_planes(view_proj: &Matrix4<f32>) -> [[f32; 4]; 6] {
         view_proj.w.z - view_proj.y.z,
         view_proj.w.w - view_proj.y.w,
     ];
-    
+
     // Near plane
     planes[4] = [
         view_proj.w.x + view_proj.z.x,
@@ -512,7 +572,7 @@ fn extract_frustum_planes(view_proj: &Matrix4<f32>) -> [[f32; 4]; 6] {
         view_proj.w.z + view_proj.z.z,
         view_proj.w.w + view_proj.z.w,
     ];
-    
+
     // Far plane
     planes[5] = [
         view_proj.w.x - view_proj.z.x,
@@ -520,7 +580,7 @@ fn extract_frustum_planes(view_proj: &Matrix4<f32>) -> [[f32; 4]; 6] {
         view_proj.w.z - view_proj.z.z,
         view_proj.w.w - view_proj.z.w,
     ];
-    
+
     // Normalize planes
     for plane in &mut planes {
         let length = (plane[0] * plane[0] + plane[1] * plane[1] + plane[2] * plane[2]).sqrt();
@@ -531,6 +591,6 @@ fn extract_frustum_planes(view_proj: &Matrix4<f32>) -> [[f32; 4]; 6] {
             plane[3] /= length;
         }
     }
-    
+
     planes
 }

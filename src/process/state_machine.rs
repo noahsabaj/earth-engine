@@ -1,9 +1,8 @@
 /// Process State Machine
-/// 
+///
 /// Time-based state machines for complex processes.
 /// States are data, not objects. Transitions are tables.
-
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 /// Process state identifier
@@ -85,32 +84,33 @@ impl StateMachine {
             state_callbacks: HashMap::new(),
         }
     }
-    
+
     /// Add a transition
     pub fn add_transition(&mut self, transition: StateTransition) {
         self.transitions.push(transition);
         // Sort by priority
-        self.transitions.sort_by_key(|t| std::cmp::Reverse(t.priority));
+        self.transitions
+            .sort_by_key(|t| std::cmp::Reverse(t.priority));
     }
-    
+
     /// Update state machine
     pub fn update(&mut self, delta_ticks: u64, progress: f32) -> Vec<TransitionAction> {
         self.state_time += delta_ticks;
         let mut actions = Vec::new();
-        
+
         // Check transitions from current state
         for transition in &self.transitions {
             if transition.from != self.current {
                 continue;
             }
-            
+
             let should_transition = match &transition.condition {
                 TransitionCondition::TimeElapsed(time) => self.state_time >= *time,
                 TransitionCondition::ProgressReached(target) => progress >= *target,
                 TransitionCondition::Always => true,
                 _ => false, // External conditions handled elsewhere
             };
-            
+
             if should_transition {
                 // Perform transition
                 self.current = transition.to;
@@ -119,31 +119,31 @@ impl StateMachine {
                 break; // Only one transition per update
             }
         }
-        
+
         actions
     }
-    
+
     /// Force transition to state
     pub fn force_transition(&mut self, state: ProcessState) {
         self.current = state;
         self.state_time = 0;
     }
-    
+
     /// Get current state
     pub fn current_state(&self) -> ProcessState {
         self.current
     }
-    
+
     /// Get time in current state
     pub fn state_time(&self) -> u64 {
         self.state_time
     }
-    
+
     /// Check if in final state
     pub fn is_complete(&self) -> bool {
         self.current == ProcessState::COMPLETE
     }
-    
+
     /// Check if in error state
     pub fn is_error(&self) -> bool {
         self.current == ProcessState::ERROR
@@ -157,7 +157,7 @@ impl StateMachineTemplates {
     /// Simple linear process template
     pub fn linear_process(stage_duration: u64) -> StateMachine {
         let mut sm = StateMachine::new();
-        
+
         // Idle -> Preparing
         sm.add_transition(StateTransition {
             from: ProcessState::IDLE,
@@ -166,7 +166,7 @@ impl StateMachineTemplates {
             priority: 10,
             actions: vec![TransitionAction::LogMessage("Starting process".to_string())],
         });
-        
+
         // Preparing -> Processing
         sm.add_transition(StateTransition {
             from: ProcessState::PREPARING,
@@ -175,7 +175,7 @@ impl StateMachineTemplates {
             priority: 10,
             actions: vec![TransitionAction::LogMessage("Begin processing".to_string())],
         });
-        
+
         // Processing -> Finalizing
         sm.add_transition(StateTransition {
             from: ProcessState::PROCESSING,
@@ -184,7 +184,7 @@ impl StateMachineTemplates {
             priority: 10,
             actions: vec![TransitionAction::LogMessage("Finalizing".to_string())],
         });
-        
+
         // Finalizing -> Complete
         sm.add_transition(StateTransition {
             from: ProcessState::FINALIZING,
@@ -193,21 +193,21 @@ impl StateMachineTemplates {
             priority: 10,
             actions: vec![TransitionAction::LogMessage("Process complete".to_string())],
         });
-        
+
         sm
     }
-    
+
     /// Multi-stage crafting template
     pub fn crafting_process() -> StateMachine {
         let mut sm = StateMachine::new();
-        
+
         // Define crafting-specific states
         const GATHER_MATERIALS: ProcessState = ProcessState(10);
         const HEAT_FORGE: ProcessState = ProcessState(11);
         const SHAPE_ITEM: ProcessState = ProcessState(12);
         const COOL_DOWN: ProcessState = ProcessState(13);
         const POLISH: ProcessState = ProcessState(14);
-        
+
         // Add transitions
         sm.add_transition(StateTransition {
             from: ProcessState::IDLE,
@@ -218,7 +218,7 @@ impl StateMachineTemplates {
                 TransitionAction::ConsumeResources(vec![(1, 10), (2, 5)]), // Iron, Coal
             ],
         });
-        
+
         sm.add_transition(StateTransition {
             from: GATHER_MATERIALS,
             to: HEAT_FORGE,
@@ -226,7 +226,7 @@ impl StateMachineTemplates {
             priority: 10,
             actions: vec![],
         });
-        
+
         sm.add_transition(StateTransition {
             from: HEAT_FORGE,
             to: SHAPE_ITEM,
@@ -234,7 +234,7 @@ impl StateMachineTemplates {
             priority: 10,
             actions: vec![],
         });
-        
+
         sm.add_transition(StateTransition {
             from: SHAPE_ITEM,
             to: COOL_DOWN,
@@ -242,7 +242,7 @@ impl StateMachineTemplates {
             priority: 10,
             actions: vec![TransitionAction::ApplyQuality(1)],
         });
-        
+
         sm.add_transition(StateTransition {
             from: COOL_DOWN,
             to: POLISH,
@@ -250,7 +250,7 @@ impl StateMachineTemplates {
             priority: 10,
             actions: vec![],
         });
-        
+
         sm.add_transition(StateTransition {
             from: POLISH,
             to: ProcessState::COMPLETE,
@@ -261,7 +261,7 @@ impl StateMachineTemplates {
                 TransitionAction::TriggerEvent("item_crafted".to_string()),
             ],
         });
-        
+
         sm
     }
 }
@@ -269,11 +269,11 @@ impl StateMachineTemplates {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_state_transitions() {
         let mut sm = StateMachine::new();
-        
+
         sm.add_transition(StateTransition {
             from: ProcessState::IDLE,
             to: ProcessState::PROCESSING,
@@ -281,21 +281,21 @@ mod tests {
             priority: 10,
             actions: vec![],
         });
-        
+
         // Should not transition yet
         sm.update(5, 0.0);
         assert_eq!(sm.current_state(), ProcessState::IDLE);
-        
+
         // Should transition now
         sm.update(5, 0.0);
         assert_eq!(sm.current_state(), ProcessState::PROCESSING);
         assert_eq!(sm.state_time(), 0);
     }
-    
+
     #[test]
     fn test_progress_transitions() {
         let mut sm = StateMachine::new();
-        
+
         sm.add_transition(StateTransition {
             from: ProcessState::IDLE,
             to: ProcessState::COMPLETE,
@@ -303,11 +303,11 @@ mod tests {
             priority: 10,
             actions: vec![],
         });
-        
+
         // Should not transition
         sm.update(10, 0.3);
         assert_eq!(sm.current_state(), ProcessState::IDLE);
-        
+
         // Should transition
         sm.update(10, 0.6);
         assert_eq!(sm.current_state(), ProcessState::COMPLETE);

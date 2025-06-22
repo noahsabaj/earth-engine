@@ -1,7 +1,6 @@
 /// World Error Handling
-/// 
+///
 /// Provides error types and utilities for the unified world system.
-
 use crate::error::{EngineError, EngineResult};
 
 /// World-specific result type
@@ -21,9 +20,9 @@ impl<T> WorldErrorContext<T> for Option<T> {
     }
 }
 
-impl<T, E> WorldErrorContext<T> for Result<T, E> 
-where 
-    E: std::fmt::Display 
+impl<T, E> WorldErrorContext<T> for Result<T, E>
+where
+    E: std::fmt::Display,
 {
     fn world_context(self, context: &str) -> WorldResult<T> {
         self.map_err(|e| EngineError::SystemError {

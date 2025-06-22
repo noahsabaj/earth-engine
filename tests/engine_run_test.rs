@@ -22,7 +22,7 @@ fn test_engine_creates_without_panic() {
         world_generator_type: WorldGeneratorType::Default,
         world_generator_factory: None,
     };
-    
+
     let engine = Engine::new(config);
     println!("✓ Engine created successfully");
 }
@@ -30,7 +30,7 @@ fn test_engine_creates_without_panic() {
 #[test]
 fn test_gpu_surface_workaround() {
     println!("Testing GPU surface format workaround...");
-    
+
     // This test verifies our surface format fallback works
     // by checking the constants we use
     assert_eq!(hearth_engine::gpu::constants::CHUNK_SIZE, 50);

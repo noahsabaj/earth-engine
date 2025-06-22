@@ -1,5 +1,9 @@
-use std::sync::Arc;
+use crate::gpu::error_recovery::{GpuErrorRecovery, GpuRecoveryError, GpuResultExt};
 use bytemuck::{Pod, Zeroable};
+use std::sync::Arc;
+
+// Include constants from root constants.rs
+include!("../../../constants.rs");
 
 /// Weather data stored on GPU per chunk or region
 #[repr(C)]
@@ -25,9 +29,9 @@ impl WeatherData {
     pub fn clear() -> Self {
         Self {
             weather_type_intensity: 0, // Clear weather, no intensity
-            temperature: 200, // 20.0°C
-            humidity: 5000, // 50%
-            wind_speed: 50, // 5.0 m/s
+            temperature: 200,          // 20.0°C
+            humidity: 5000,            // 50%
+            wind_speed: 50,            // 5.0 m/s
             wind_direction: 0,
             visibility: 1000, // 1.0 (full)
             precipitation_rate: 0,
@@ -42,7 +46,7 @@ pub struct WeatherTransition {
     /// Current weather data
     pub current: WeatherData,
     /// Target weather data
-    pub target: WeatherData,
+    pub target_weather: WeatherData,
     /// Transition progress (0-65535 for 0.0-1.0)
     pub progress: u16,
     /// Transition speed per frame
@@ -92,18 +96,20 @@ impl Default for WeatherConfig {
 /// GPU-based weather system
 pub struct WeatherGpu {
     device: Arc<wgpu::Device>,
+    queue: Arc<wgpu::Queue>,
     config: WeatherConfig,
-    
+
     /// Weather data buffer
     weather_buffer: wgpu::Buffer,
     /// Particle buffer
     particle_buffer: wgpu::Buffer,
-    /// Weather compute pipeline
-    weather_pipeline: wgpu::ComputePipeline,
-    /// Particle update pipeline
-    particle_pipeline: wgpu::ComputePipeline,
-    
+    /// Unified weather/particle compute pipeline
+    compute_pipeline: wgpu::ComputePipeline,
+
     bind_group_layout: wgpu::BindGroupLayout,
+
+    /// Error recovery
+    error_recovery: Arc<GpuErrorRecovery>,
 }
 
 /// Weather GPU descriptor
@@ -112,21 +118,29 @@ pub struct WeatherGpuDescriptor {
 }
 
 impl WeatherGpu {
-    pub fn new(device: Arc<wgpu::Device>, desc: WeatherGpuDescriptor) -> Self {
+    pub fn new(
+        device: Arc<wgpu::Device>,
+        queue: Arc<wgpu::Queue>,
+        desc: WeatherGpuDescriptor,
+    ) -> Self {
         let config = desc.config;
-        
+
+        // Create error recovery system
+        let error_recovery = Arc::new(GpuErrorRecovery::new(device.clone(), queue.clone()));
+
         // Create weather data buffer
-        let weather_buffer_size = std::mem::size_of::<WeatherTransition>() * config.region_count as usize;
+        let weather_buffer_size =
+            std::mem::size_of::<WeatherTransition>() * config.region_count as usize;
         let weather_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Weather Data Buffer"),
             size: weather_buffer_size as u64,
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
-        
+
         // Create particle buffer
-        let particle_buffer_size = std::mem::size_of::<PrecipitationParticle>() 
-            * config.region_count as usize 
+        let particle_buffer_size = std::mem::size_of::<PrecipitationParticle>()
+            * config.region_count as usize
             * config.max_particles_per_region as usize;
         let particle_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Particle Buffer"),
@@ -134,13 +148,13 @@ impl WeatherGpu {
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::VERTEX,
             mapped_at_creation: false,
         });
-        
-        // Create shader module
-        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("Weather Compute Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("../../shaders/compute/weather_compute.wgsl").into()),
-        });
-        
+
+        // Create shader through unified GPU system (Single Source of Truth)
+        let shader_source = include_str!("../../shaders/compute/weather_compute.wgsl");
+        let validated_shader =
+            crate::gpu::automation::create_gpu_shader(&device, "weather_compute", shader_source)
+                .expect("Failed to create weather shader through unified GPU system");
+
         // Create bind group layout
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("Weather Bind Group Layout"),
@@ -169,53 +183,47 @@ impl WeatherGpu {
                 },
             ],
         });
-        
+
         // Create pipeline layout
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("Weather Pipeline Layout"),
             bind_group_layouts: &[&bind_group_layout],
-            push_constant_ranges: &[
-                wgpu::PushConstantRange {
-                    stages: wgpu::ShaderStages::COMPUTE,
-                    range: 0..16, // frame_time, delta_time, seed, flags
-                },
-            ],
+            push_constant_ranges: &[wgpu::PushConstantRange {
+                stages: wgpu::ShaderStages::COMPUTE,
+                range: 0..16, // frame_time, delta_time, seed, flags
+            }],
         });
-        
-        // Create weather update pipeline
-        let weather_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-            label: Some("Weather Update Pipeline"),
+
+        // Create unified weather/particle pipeline (shader only has 'main' entry point)
+        let compute_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+            label: Some("Weather Compute Pipeline"),
             layout: Some(&pipeline_layout),
-            module: &shader,
-            entry_point: "update_weather",
+            module: &validated_shader.module,
+            entry_point: "main",
         });
-        
-        // Create particle update pipeline
-        let particle_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-            label: Some("Particle Update Pipeline"),
-            layout: Some(&pipeline_layout),
-            module: &shader,
-            entry_point: "update_particles",
-        });
-        
+
         Self {
             device,
+            queue,
             config,
             weather_buffer,
             particle_buffer,
-            weather_pipeline,
-            particle_pipeline,
+            compute_pipeline,
             bind_group_layout,
+            error_recovery,
         }
     }
-    
-    /// Update weather simulation
-    pub fn update(
-        &self,
-        encoder: &mut wgpu::CommandEncoder,
-        frame_time: f32,
-        delta_time: f32,
-    ) {
+
+    /// Update weather simulation with error recovery
+    pub fn update(&self, frame_time: f32, delta_time: f32) -> Result<(), GpuRecoveryError> {
+        // Create safe command encoder
+        let mut safe_encoder =
+            self.error_recovery
+                .create_safe_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("Weather Update Encoder"),
+                });
+
+        let encoder = safe_encoder.encoder()?;
         // Create bind group
         let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("Weather Update Bind Group"),
@@ -231,52 +239,66 @@ impl WeatherGpu {
                 },
             ],
         });
-        
+
         // Push constants
         let push_constants = [
             frame_time.to_bits(),
             delta_time.to_bits(),
             rand::random::<u32>(), // Random seed
-            0, // Flags
+            0,                     // Flags
         ];
-        
-        // Update weather
-        {
-            let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-                label: Some("Weather Update Pass"),
-                timestamp_writes: None,
-            });
-            
-            compute_pass.set_pipeline(&self.weather_pipeline);
-            compute_pass.set_bind_group(0, &bind_group, &[]);
-            compute_pass.set_push_constants(0, bytemuck::cast_slice(&push_constants));
-            
-            let workgroups = (self.config.region_count + 63) / 64;
-            compute_pass.dispatch_workgroups(workgroups, 1, 1);
-        }
-        
-        // Update particles
-        {
-            let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-                label: Some("Particle Update Pass"),
-                timestamp_writes: None,
-            });
-            
-            compute_pass.set_pipeline(&self.particle_pipeline);
-            compute_pass.set_bind_group(0, &bind_group, &[]);
-            compute_pass.set_push_constants(0, bytemuck::cast_slice(&push_constants));
-            
-            let total_particles = self.config.region_count * self.config.max_particles_per_region;
-            let workgroups = (total_particles + 255) / 256;
-            compute_pass.dispatch_workgroups(workgroups, 1, 1);
-        }
+
+        // Execute weather and particle updates with error recovery
+        self.error_recovery.execute_with_recovery(|| {
+            // Update weather
+            {
+                let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                    label: Some("Weather Update Pass"),
+                    timestamp_writes: None,
+                });
+
+                compute_pass.set_pipeline(&self.compute_pipeline);
+                compute_pass.set_bind_group(0, &bind_group, &[]);
+                compute_pass.set_push_constants(0, bytemuck::cast_slice(&push_constants));
+
+                let workgroups = (self.config.region_count + 63) / 64;
+                compute_pass.dispatch_workgroups(workgroups, 1, 1);
+            }
+
+            // Update particles
+            {
+                let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                    label: Some("Particle Update Pass"),
+                    timestamp_writes: None,
+                });
+
+                compute_pass.set_pipeline(&self.compute_pipeline);
+                compute_pass.set_bind_group(0, &bind_group, &[]);
+                compute_pass.set_push_constants(0, bytemuck::cast_slice(&push_constants));
+
+                let total_particles =
+                    self.config.region_count * self.config.max_particles_per_region;
+                let workgroups = (total_particles + gpu_limits::MAX_WORKGROUP_SIZE - 1)
+                    / gpu_limits::MAX_WORKGROUP_SIZE;
+                compute_pass.dispatch_workgroups(workgroups, 1, 1);
+            }
+
+            Ok(())
+        })?;
+
+        // Submit commands with error recovery
+        let command_buffer = safe_encoder.finish()?;
+        self.error_recovery
+            .submit_with_recovery(vec![command_buffer])?;
+
+        Ok(())
     }
-    
+
     /// Get particle buffer for rendering
     pub fn particle_buffer(&self) -> &wgpu::Buffer {
         &self.particle_buffer
     }
-    
+
     /// Get weather buffer for reading current conditions
     pub fn weather_buffer(&self) -> &wgpu::Buffer {
         &self.weather_buffer

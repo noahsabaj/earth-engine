@@ -8,7 +8,7 @@ pub struct VertexBufferSoA {
     normals: Vec<[f32; 3]>,
     lights: Vec<f32>,
     aos: Vec<f32>,
-    
+
     // GPU buffers (created on upload)
     position_buffer: Option<wgpu::Buffer>,
     color_buffer: Option<wgpu::Buffer>,
@@ -32,16 +32,23 @@ impl VertexBufferSoA {
             ao_buffer: None,
         }
     }
-    
+
     /// Add a vertex to the buffer
-    pub fn push(&mut self, position: [f32; 3], color: [f32; 3], normal: [f32; 3], light: f32, ao: f32) {
+    pub fn push(
+        &mut self,
+        position: [f32; 3],
+        color: [f32; 3],
+        normal: [f32; 3],
+        light: f32,
+        ao: f32,
+    ) {
         self.positions.push(position);
         self.colors.push(color);
         self.normals.push(normal);
         self.lights.push(light);
         self.aos.push(ao);
     }
-    
+
     /// Clear all vertex data
     pub fn clear(&mut self) {
         self.positions.clear();
@@ -50,59 +57,69 @@ impl VertexBufferSoA {
         self.lights.clear();
         self.aos.clear();
     }
-    
+
     /// Get the number of vertices
     pub fn len(&self) -> usize {
         self.positions.len()
     }
-    
+
     /// Check if empty
     pub fn is_empty(&self) -> bool {
         self.positions.is_empty()
     }
-    
+
     /// Upload to GPU - creates separate buffers for each attribute
     pub fn upload(&mut self, device: &wgpu::Device) {
         if self.is_empty() {
             return;
         }
-        
+
         // Create position buffer
-        self.position_buffer = Some(device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Vertex Position Buffer"),
-            contents: bytemuck::cast_slice(&self.positions),
-            usage: wgpu::BufferUsages::VERTEX,
-        }));
-        
+        self.position_buffer = Some(
+            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Vertex Position Buffer"),
+                contents: bytemuck::cast_slice(&self.positions),
+                usage: wgpu::BufferUsages::VERTEX,
+            }),
+        );
+
         // Create color buffer
-        self.color_buffer = Some(device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Vertex Color Buffer"),
-            contents: bytemuck::cast_slice(&self.colors),
-            usage: wgpu::BufferUsages::VERTEX,
-        }));
-        
+        self.color_buffer = Some(
+            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Vertex Color Buffer"),
+                contents: bytemuck::cast_slice(&self.colors),
+                usage: wgpu::BufferUsages::VERTEX,
+            }),
+        );
+
         // Create normal buffer
-        self.normal_buffer = Some(device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Vertex Normal Buffer"),
-            contents: bytemuck::cast_slice(&self.normals),
-            usage: wgpu::BufferUsages::VERTEX,
-        }));
-        
+        self.normal_buffer = Some(
+            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Vertex Normal Buffer"),
+                contents: bytemuck::cast_slice(&self.normals),
+                usage: wgpu::BufferUsages::VERTEX,
+            }),
+        );
+
         // Create light buffer
-        self.light_buffer = Some(device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Vertex Light Buffer"),
-            contents: bytemuck::cast_slice(&self.lights),
-            usage: wgpu::BufferUsages::VERTEX,
-        }));
-        
+        self.light_buffer = Some(
+            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Vertex Light Buffer"),
+                contents: bytemuck::cast_slice(&self.lights),
+                usage: wgpu::BufferUsages::VERTEX,
+            }),
+        );
+
         // Create AO buffer
-        self.ao_buffer = Some(device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Vertex AO Buffer"),
-            contents: bytemuck::cast_slice(&self.aos),
-            usage: wgpu::BufferUsages::VERTEX,
-        }));
+        self.ao_buffer = Some(
+            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Vertex AO Buffer"),
+                contents: bytemuck::cast_slice(&self.aos),
+                usage: wgpu::BufferUsages::VERTEX,
+            }),
+        );
     }
-    
+
     /// Bind buffers for rendering
     pub fn bind<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>) {
         if let Some(buffer) = &self.position_buffer {
@@ -121,7 +138,7 @@ impl VertexBufferSoA {
             render_pass.set_vertex_buffer(4, buffer.slice(..));
         }
     }
-    
+
     /// Get vertex buffer layouts for SoA
     pub fn desc<'a>() -> Vec<wgpu::VertexBufferLayout<'a>> {
         vec![
@@ -177,7 +194,7 @@ impl VertexBufferSoA {
             },
         ]
     }
-    
+
     /// Convert from Array-of-Structs for migration
     pub fn from_aos(vertices: &[super::vertex::Vertex]) -> Self {
         let mut soa = Self::new();
@@ -192,7 +209,7 @@ impl VertexBufferSoA {
         }
         soa
     }
-    
+
     /// Get memory statistics
     pub fn memory_stats(&self) -> VertexBufferStats {
         let positions_size = self.positions.len() * std::mem::size_of::<[f32; 3]>();
@@ -200,7 +217,7 @@ impl VertexBufferSoA {
         let normals_size = self.normals.len() * std::mem::size_of::<[f32; 3]>();
         let lights_size = self.lights.len() * std::mem::size_of::<f32>();
         let aos_size = self.aos.len() * std::mem::size_of::<f32>();
-        
+
         VertexBufferStats {
             vertex_count: self.len(),
             total_size: positions_size + colors_size + normals_size + lights_size + aos_size,

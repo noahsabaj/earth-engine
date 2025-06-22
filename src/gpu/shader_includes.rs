@@ -1,5 +1,5 @@
 //! Embedded shader includes for cross-platform compatibility
-//! 
+//!
 //! This module provides shader includes that are embedded at compile time
 //! to avoid runtime path resolution issues on different platforms.
 //!
@@ -24,9 +24,7 @@ pub fn get_shader_include(name: &str) -> Option<&'static str> {
         "perlin_noise.wgsl" | "../../../renderer/shaders/perlin_noise.wgsl" => {
             Some(PERLIN_NOISE_WGSL)
         }
-        "morton.wgsl" | "wgsl_includes/morton.wgsl" => {
-            Some(MORTON_WGSL)
-        }
+        "morton.wgsl" | "wgsl_includes/morton.wgsl" => Some(MORTON_WGSL),
         _ => None,
     }
 }

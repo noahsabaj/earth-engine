@@ -1,12 +1,11 @@
 /// Morton encoding (Z-order curve) for improved cache locality
-/// 
+///
 /// This module provides Morton encoding/decoding for 3D voxel coordinates,
 /// which dramatically improves cache performance by ensuring spatially close
 /// voxels are also close in memory.
-
 pub mod morton3d;
 
-pub use morton3d::{morton_encode, morton_decode, morton_encode_chunk, morton_decode_chunk};
+pub use morton3d::{morton_decode, morton_decode_chunk, morton_encode, morton_encode_chunk};
 
 // Morton encoding improves cache locality by interleaving the bits of
 // x, y, and z coordinates. This creates a Z-order curve through 3D space

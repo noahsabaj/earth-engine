@@ -47,6 +47,9 @@ perf.data.old
 # Documentation build
 /doc/target/
 
+# Scripts
+scripts/
+
 # Local environment files
 .env
 .env.local

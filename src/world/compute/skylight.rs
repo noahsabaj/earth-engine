@@ -4,7 +4,7 @@
 //! updating light levels when blocks are placed or removed.
 
 use crate::world::{
-    core::{VoxelPos, ChunkPos, BlockId},
+    core::{BlockId, ChunkPos, VoxelPos},
     interfaces::WorldInterface,
 };
 
@@ -24,21 +24,21 @@ impl SkylightCalculator {
         let world_x_start = chunk_pos.x * chunk_size as i32;
         let world_y_start = chunk_pos.y * chunk_size as i32;
         let world_z_start = chunk_pos.z * chunk_size as i32;
-        
+
         // For each column in the chunk
         for local_x in 0..chunk_size {
             for local_z in 0..chunk_size {
                 let world_x = world_x_start + local_x as i32;
                 let world_z = world_z_start + local_z as i32;
-                
+
                 // Get the surface height for this column
                 let surface_height = world.get_surface_height(world_x as f64, world_z as f64);
-                
+
                 // Propagate skylight down from the top
                 for local_y in (0..chunk_size).rev() {
                     let world_y = world_y_start + local_y as i32;
                     let pos = VoxelPos::new(world_x, world_y, world_z);
-                    
+
                     if world_y > surface_height + 10 {
                         // Above surface with margin - full skylight
                         // TODO: Add set_sky_light to WorldInterface
@@ -46,7 +46,7 @@ impl SkylightCalculator {
                     } else {
                         // Check if we need to propagate light down
                         let block = world.get_block(pos);
-                        
+
                         if block == BlockId::AIR {
                             // Air blocks get skylight from above
                             // TODO: Add skylight methods to WorldInterface
@@ -58,10 +58,10 @@ impl SkylightCalculator {
                 }
             }
         }
-        
+
         Ok(())
     }
-    
+
     /// Update skylight when a block is placed or removed
     pub fn update_column(
         world: &mut dyn WorldInterface,
@@ -70,7 +70,7 @@ impl SkylightCalculator {
         z: i32,
     ) -> Result<(), crate::world::interfaces::WorldError> {
         let pos = VoxelPos::new(x, y, z);
-        
+
         if world.get_block(pos) == BlockId::AIR {
             // Block was removed - skylight needs to propagate down
             // TODO: Implement skylight propagation when methods are added to WorldInterface
@@ -78,7 +78,7 @@ impl SkylightCalculator {
             // Block was placed - remove skylight below
             // TODO: Implement skylight removal when methods are added to WorldInterface
         }
-        
+
         Ok(())
     }
 }

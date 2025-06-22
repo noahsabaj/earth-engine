@@ -33,7 +33,6 @@ cognitive-complexity-threshold = 30
 array-size-threshold = 512000  # Warn about large arrays that might need optimization
 
 # Function settings
-max-lines-for-function = 100  # Keep kernel functions focused
 too-many-arguments-threshold = 8  # Encourage data structure parameters
 
 # Encourage specific patterns

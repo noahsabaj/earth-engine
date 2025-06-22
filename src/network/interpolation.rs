@@ -1,12 +1,7 @@
+use crate::network_constants::{INTERPOLATION_DELAY_MS, MAX_SNAPSHOTS};
+use glam::{Quat, Vec3};
 use std::collections::VecDeque;
 use std::time::{Duration, Instant};
-use glam::{Vec3, Quat};
-
-/// Maximum number of position snapshots to keep
-const MAX_SNAPSHOTS: usize = 20;
-
-/// How far behind to render entities (in milliseconds)
-const INTERPOLATION_DELAY_MS: u64 = 100;
 
 /// Position snapshot for interpolation
 #[derive(Debug, Clone)]
@@ -45,8 +40,7 @@ impl EntityInterpolator {
             allow_extrapolation: true,
         }
     }
-    
-    
+
     /// Get the current interpolation delay in milliseconds
     pub fn get_delay_ms(&self) -> u64 {
         self.interpolation_delay.as_millis() as u64
@@ -55,27 +49,33 @@ impl EntityInterpolator {
 
 // DOP functions for EntityInterpolator
 /// Add a new position snapshot (DOP)
-pub fn entity_interpolator_add_snapshot(interpolator: &mut EntityInterpolator, snapshot: PositionSnapshot) {
+pub fn entity_interpolator_add_snapshot(
+    interpolator: &mut EntityInterpolator,
+    snapshot: PositionSnapshot,
+) {
     // Remove old snapshots
     while interpolator.snapshots.len() >= MAX_SNAPSHOTS {
         interpolator.snapshots.pop_front();
     }
-    
+
     // Add new snapshot
     interpolator.snapshots.push_back(snapshot);
 }
 
 /// Get interpolated position and rotation (DOP)
-pub fn entity_interpolator_get_interpolated(interpolator: &mut EntityInterpolator, now: Instant) -> (Vec3, Quat) {
+pub fn entity_interpolator_get_interpolated(
+    interpolator: &mut EntityInterpolator,
+    now: Instant,
+) -> (Vec3, Quat) {
     interpolator.current_time = now;
-    
+
     // Calculate render time (current time - interpolation delay)
     let render_time = now - interpolator.interpolation_delay;
-    
+
     // Find the two snapshots to interpolate between
     let mut from_snapshot = None;
     let mut to_snapshot = None;
-    
+
     for i in 0..interpolator.snapshots.len() {
         if interpolator.snapshots[i].timestamp <= render_time {
             from_snapshot = Some(i);
@@ -84,38 +84,42 @@ pub fn entity_interpolator_get_interpolated(interpolator: &mut EntityInterpolato
             break;
         }
     }
-    
+
     match (from_snapshot, to_snapshot) {
         (Some(from_idx), Some(to_idx)) => {
             // Interpolate between two snapshots
             let from = &interpolator.snapshots[from_idx];
             let to = &interpolator.snapshots[to_idx];
-            
+
             let total_time = to.timestamp.duration_since(from.timestamp).as_secs_f32();
             let elapsed_time = render_time.duration_since(from.timestamp).as_secs_f32();
-            let t = if total_time > 0.0 { elapsed_time / total_time } else { 0.0 };
+            let t = if total_time > 0.0 {
+                elapsed_time / total_time
+            } else {
+                0.0
+            };
             let t = t.clamp(0.0, 1.0);
-            
+
             let position = from.position.lerp(to.position, t);
             let rotation = from.rotation.slerp(to.rotation, t);
-            
+
             interpolator.last_position = position;
             interpolator.last_rotation = rotation;
-            
+
             (position, rotation)
         }
         (Some(from_idx), None) if interpolator.allow_extrapolation => {
             // Extrapolate from the last snapshot
             let from = &interpolator.snapshots[from_idx];
             let elapsed = render_time.duration_since(from.timestamp).as_secs_f32();
-            
+
             // Extrapolate position using velocity
             let position = from.position + from.velocity * elapsed;
             let rotation = from.rotation; // Don't extrapolate rotation
-            
+
             interpolator.last_position = position;
             interpolator.last_rotation = rotation;
-            
+
             (position, rotation)
         }
         _ => {
@@ -126,7 +130,10 @@ pub fn entity_interpolator_get_interpolated(interpolator: &mut EntityInterpolato
 }
 
 /// Set interpolation delay (DOP)
-pub fn entity_interpolator_set_interpolation_delay(interpolator: &mut EntityInterpolator, delay_ms: u64) {
+pub fn entity_interpolator_set_interpolation_delay(
+    interpolator: &mut EntityInterpolator,
+    delay_ms: u64,
+) {
     interpolator.interpolation_delay = Duration::from_millis(delay_ms);
 }
 
@@ -157,27 +164,34 @@ impl InterpolationManager {
             global_extrapolation: true,
         }
     }
-    
 }
 
 // DOP functions for InterpolationManager
 /// Add or update an entity snapshot (DOP)
-pub fn interpolation_manager_add_snapshot(manager: &mut InterpolationManager, entity_id: u32, snapshot: PositionSnapshot) {
-    let interpolator = manager.interpolators
-        .entry(entity_id)
-        .or_insert_with(|| {
-            let mut interp = EntityInterpolator::new();
-            entity_interpolator_set_interpolation_delay(&mut interp, manager.global_delay_ms);
-            entity_interpolator_set_extrapolation(&mut interp, manager.global_extrapolation);
-            interp
-        });
-    
+pub fn interpolation_manager_add_snapshot(
+    manager: &mut InterpolationManager,
+    entity_id: u32,
+    snapshot: PositionSnapshot,
+) {
+    let interpolator = manager.interpolators.entry(entity_id).or_insert_with(|| {
+        let mut interp = EntityInterpolator::new();
+        entity_interpolator_set_interpolation_delay(&mut interp, manager.global_delay_ms);
+        entity_interpolator_set_extrapolation(&mut interp, manager.global_extrapolation);
+        interp
+    });
+
     entity_interpolator_add_snapshot(interpolator, snapshot);
 }
 
 /// Get interpolated position for an entity (DOP)
-pub fn interpolation_manager_get_interpolated(manager: &mut InterpolationManager, entity_id: u32, now: Instant) -> Option<(Vec3, Quat)> {
-    manager.interpolators.get_mut(&entity_id)
+pub fn interpolation_manager_get_interpolated(
+    manager: &mut InterpolationManager,
+    entity_id: u32,
+    now: Instant,
+) -> Option<(Vec3, Quat)> {
+    manager
+        .interpolators
+        .get_mut(&entity_id)
         .map(|interp| entity_interpolator_get_interpolated(interp, now))
 }
 
@@ -195,7 +209,10 @@ pub fn interpolation_manager_set_global_delay(manager: &mut InterpolationManager
 }
 
 /// Set global extrapolation setting (DOP)
-pub fn interpolation_manager_set_global_extrapolation(manager: &mut InterpolationManager, enabled: bool) {
+pub fn interpolation_manager_set_global_extrapolation(
+    manager: &mut InterpolationManager,
+    enabled: bool,
+) {
     manager.global_extrapolation = enabled;
     for interpolator in manager.interpolators.values_mut() {
         entity_interpolator_set_extrapolation(interpolator, enabled);
@@ -203,11 +220,15 @@ pub fn interpolation_manager_set_global_extrapolation(manager: &mut Interpolatio
 }
 
 /// Auto-adjust delay based on network conditions (DOP)
-pub fn interpolation_manager_auto_adjust_delay(manager: &mut InterpolationManager, average_ping_ms: u32, jitter_ms: u32) {
+pub fn interpolation_manager_auto_adjust_delay(
+    manager: &mut InterpolationManager,
+    average_ping_ms: u32,
+    jitter_ms: u32,
+) {
     // Calculate optimal delay based on ping and jitter
     // Higher jitter requires more delay to prevent stuttering
     let optimal_delay = average_ping_ms / 2 + jitter_ms * 2;
     let optimal_delay = optimal_delay.clamp(50, 200); // Keep between 50-200ms
-    
+
     interpolation_manager_set_global_delay(manager, optimal_delay as u64);
 }

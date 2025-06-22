@@ -1,22 +1,22 @@
 //! Unified chunk management interface
 
-use crate::world::core::{ChunkPos, VoxelPos, BlockId};
+use crate::world::core::{BlockId, ChunkPos, VoxelPos};
 use crate::world::storage::ChunkSoA;
 
 /// Unified chunk manager interface
 pub trait ChunkManagerInterface: Send + Sync {
     /// Load a chunk at the specified position
     fn load_chunk(&mut self, chunk_pos: ChunkPos) -> Result<(), ChunkManagerError>;
-    
+
     /// Unload a chunk at the specified position
     fn unload_chunk(&mut self, chunk_pos: ChunkPos) -> Result<(), ChunkManagerError>;
-    
+
     /// Check if a chunk is loaded
     fn is_chunk_loaded(&self, chunk_pos: ChunkPos) -> bool;
-    
+
     /// Get all loaded chunk positions
     fn loaded_chunks(&self) -> Vec<ChunkPos>;
-    
+
     /// Get chunk statistics
     fn chunk_stats(&self) -> ChunkStats;
 }
@@ -37,19 +37,19 @@ impl UnifiedChunkManager {
             device,
             loaded_chunks: std::collections::HashMap::new(),
         };
-        
+
         Ok(Self { backend, config })
     }
-    
+
     /// Create a new CPU-based chunk manager
     pub fn new_cpu(config: ChunkManagerConfig) -> Self {
         let backend = ChunkManagerBackend::Cpu {
             chunks: std::collections::HashMap::new(),
         };
-        
+
         Self { backend, config }
     }
-    
+
     /// Check if using GPU backend
     pub fn is_gpu(&self) -> bool {
         matches!(self.backend, ChunkManagerBackend::Gpu { .. })
@@ -76,7 +76,7 @@ impl ChunkManagerInterface for UnifiedChunkManager {
             }
         }
     }
-    
+
     fn unload_chunk(&mut self, chunk_pos: ChunkPos) -> Result<(), ChunkManagerError> {
         match &mut self.backend {
             ChunkManagerBackend::Gpu { loaded_chunks, .. } => {
@@ -89,29 +89,25 @@ impl ChunkManagerInterface for UnifiedChunkManager {
             }
         }
     }
-    
+
     fn is_chunk_loaded(&self, chunk_pos: ChunkPos) -> bool {
         match &self.backend {
             ChunkManagerBackend::Gpu { loaded_chunks, .. } => {
                 loaded_chunks.contains_key(&chunk_pos)
             }
-            ChunkManagerBackend::Cpu { chunks } => {
-                chunks.contains_key(&chunk_pos)
-            }
+            ChunkManagerBackend::Cpu { chunks } => chunks.contains_key(&chunk_pos),
         }
     }
-    
+
     fn loaded_chunks(&self) -> Vec<ChunkPos> {
         match &self.backend {
             ChunkManagerBackend::Gpu { loaded_chunks, .. } => {
                 loaded_chunks.keys().copied().collect()
             }
-            ChunkManagerBackend::Cpu { chunks } => {
-                chunks.keys().copied().collect()
-            }
+            ChunkManagerBackend::Cpu { chunks } => chunks.keys().copied().collect(),
         }
     }
-    
+
     fn chunk_stats(&self) -> ChunkStats {
         match &self.backend {
             ChunkManagerBackend::Gpu { loaded_chunks, .. } => {
@@ -188,14 +184,19 @@ pub struct ChunkStats {
 #[derive(Debug, thiserror::Error)]
 pub enum ChunkManagerError {
     #[error("Chunk loading failed at position {x}, {y}, {z}: {message}")]
-    LoadingFailed { x: i32, y: i32, z: i32, message: String },
-    
+    LoadingFailed {
+        x: i32,
+        y: i32,
+        z: i32,
+        message: String,
+    },
+
     #[error("Memory limit exceeded: {current_mb}MB > {limit_mb}MB")]
     MemoryLimitExceeded { current_mb: u64, limit_mb: u64 },
-    
+
     #[error("Invalid chunk position: {x}, {y}, {z}")]
     InvalidPosition { x: i32, y: i32, z: i32 },
-    
+
     #[error("Backend error: {message}")]
     BackendError { message: String },
 }

@@ -1,10 +1,9 @@
 #![allow(unused_variables, dead_code)]
 /// Hierarchical Z-Buffer Builder
-/// 
+///
 /// Builds and manages hierarchical depth buffer for occlusion culling.
 /// Part of Sprint 28: GPU-Driven Rendering Optimization
-
-use wgpu::{Device, Texture, TextureView, ComputePipeline};
+use wgpu::{ComputePipeline, Device, Texture, TextureView};
 
 pub struct HierarchicalZBuffer {
     hzb_texture: Texture,
@@ -12,7 +11,7 @@ pub struct HierarchicalZBuffer {
     build_pipeline: ComputePipeline,
     occlusion_pipeline: ComputePipeline,
     sampler: wgpu::Sampler,
-    
+
     width: u32,
     height: u32,
     mip_levels: u32,
@@ -23,11 +22,11 @@ impl HierarchicalZBuffer {
         // Get device limits to ensure we don't exceed GPU capabilities
         let device_limits = device.limits();
         let max_dimension = device_limits.max_texture_dimension_2d;
-        
+
         // Validate and clamp dimensions
         let clamped_width = width.min(max_dimension);
         let clamped_height = height.min(max_dimension);
-        
+
         // Log if dimensions were clamped
         if clamped_width != width || clamped_height != height {
             log::warn!(
@@ -35,10 +34,10 @@ impl HierarchicalZBuffer {
                 width, height, clamped_width, clamped_height, max_dimension
             );
         }
-        
+
         // Calculate required mip levels based on clamped dimensions
         let mip_levels = (clamped_width.max(clamped_height) as f32).log2().ceil() as u32 + 1;
-        
+
         // Create HZB texture with mip chain
         let hzb_texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("HZB Texture"),
@@ -51,12 +50,12 @@ impl HierarchicalZBuffer {
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
             format: wgpu::TextureFormat::R32Float, // Single channel depth
-            usage: wgpu::TextureUsages::TEXTURE_BINDING 
+            usage: wgpu::TextureUsages::TEXTURE_BINDING
                 | wgpu::TextureUsages::STORAGE_BINDING
                 | wgpu::TextureUsages::COPY_DST,
             view_formats: &[],
         });
-        
+
         // Create views for each mip level
         let mut hzb_views = Vec::with_capacity(mip_levels as usize);
         for level in 0..mip_levels {
@@ -72,7 +71,7 @@ impl HierarchicalZBuffer {
             });
             hzb_views.push(view);
         }
-        
+
         // Create sampler for HZB sampling
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             label: Some("HZB Sampler"),
@@ -84,151 +83,177 @@ impl HierarchicalZBuffer {
             mipmap_filter: wgpu::FilterMode::Nearest,
             ..Default::default()
         });
-        
-        // Create shaders
-        let build_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("HZB Build Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("../../shaders/rendering/hzb_build.wgsl").into()),
-        });
-        
-        let occlusion_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("HZB Occlusion Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("../../shaders/rendering/hzb_cull.wgsl").into()),
-        });
-        
+
+        // Create shaders using unified GPU system
+        let build_shader_source = include_str!("../../shaders/rendering/hzb_build.wgsl");
+        let validated_build_shader = match crate::gpu::automation::create_gpu_shader(
+            device,
+            "hzb_build",
+            build_shader_source,
+        ) {
+            Ok(shader) => shader,
+            Err(e) => {
+                log::error!(
+                    "[HierarchicalZBuffer] Failed to create HZB build shader: {}",
+                    e
+                );
+                panic!("Cannot proceed without HZB build shader");
+            }
+        };
+
+        let occlusion_shader_source = include_str!("../../shaders/rendering/hzb_cull.wgsl");
+        let validated_occlusion_shader = match crate::gpu::automation::create_gpu_shader(
+            device,
+            "hzb_cull",
+            occlusion_shader_source,
+        ) {
+            Ok(shader) => shader,
+            Err(e) => {
+                log::error!(
+                    "[HierarchicalZBuffer] Failed to create HZB occlusion shader: {}",
+                    e
+                );
+                panic!("Cannot proceed without HZB occlusion shader");
+            }
+        };
+
         // Create build pipeline
-        let build_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("HZB Build Layout"),
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Texture {
-                        sample_type: wgpu::TextureSampleType::Float { filterable: false },
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                        multisampled: false,
+        let build_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("HZB Build Layout"),
+                entries: &[
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Texture {
+                            sample_type: wgpu::TextureSampleType::Float { filterable: false },
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                            multisampled: false,
+                        },
+                        count: None,
                     },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::StorageTexture {
-                        access: wgpu::StorageTextureAccess::WriteOnly,
-                        format: wgpu::TextureFormat::R32Float,
-                        view_dimension: wgpu::TextureViewDimension::D2,
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::StorageTexture {
+                            access: wgpu::StorageTextureAccess::WriteOnly,
+                            format: wgpu::TextureFormat::R32Float,
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                        },
+                        count: None,
                     },
-                    count: None,
-                },
-            ],
-        });
-        
-        let build_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("HZB Build Pipeline Layout"),
-            bind_group_layouts: &[&build_bind_group_layout],
-            push_constant_ranges: &[],
-        });
-        
+                ],
+            });
+
+        let build_pipeline_layout =
+            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("HZB Build Pipeline Layout"),
+                bind_group_layouts: &[&build_bind_group_layout],
+                push_constant_ranges: &[],
+            });
+
         let build_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
             label: Some("HZB Build Pipeline"),
             layout: Some(&build_pipeline_layout),
-            module: &build_shader,
+            module: &validated_build_shader.module,
             entry_point: "main",
         });
-        
+
         // Create occlusion pipeline
-        let occlusion_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("HZB Occlusion Layout"),
-            entries: &[
-                // HZB texture
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Texture {
-                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                        multisampled: false,
+        let occlusion_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("HZB Occlusion Layout"),
+                entries: &[
+                    // HZB texture
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Texture {
+                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                            multisampled: false,
+                        },
+                        count: None,
                     },
-                    count: None,
-                },
-                // HZB sampler
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                    count: None,
-                },
-                // Camera
-                wgpu::BindGroupLayoutEntry {
-                    binding: 2,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
+                    // HZB sampler
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                        count: None,
                     },
-                    count: None,
-                },
-                // Chunk instances
-                wgpu::BindGroupLayoutEntry {
-                    binding: 3,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
+                    // Camera
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 2,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
                     },
-                    count: None,
-                },
-                // Visible from frustum
-                wgpu::BindGroupLayoutEntry {
-                    binding: 4,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
+                    // Chunk instances
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 3,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: true },
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
                     },
-                    count: None,
-                },
-                // Visible after occlusion
-                wgpu::BindGroupLayoutEntry {
-                    binding: 5,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: false },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
+                    // Visible from frustum
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 4,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: true },
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
                     },
-                    count: None,
-                },
-                // Occlusion count
-                wgpu::BindGroupLayoutEntry {
-                    binding: 6,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: false },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
+                    // Visible after occlusion
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 5,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: false },
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
                     },
-                    count: None,
-                },
-            ],
-        });
-        
-        let occlusion_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("HZB Occlusion Pipeline Layout"),
-            bind_group_layouts: &[&occlusion_bind_group_layout],
-            push_constant_ranges: &[],
-        });
-        
+                    // Occlusion count
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 6,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: false },
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
+                ],
+            });
+
+        let occlusion_pipeline_layout =
+            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("HZB Occlusion Pipeline Layout"),
+                bind_group_layouts: &[&occlusion_bind_group_layout],
+                push_constant_ranges: &[],
+            });
+
         let occlusion_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
             label: Some("HZB Occlusion Pipeline"),
             layout: Some(&occlusion_pipeline_layout),
-            module: &occlusion_shader,
+            module: &validated_occlusion_shader.module,
             entry_point: "main",
         });
-        
+
         Self {
             hzb_texture,
             hzb_views,
@@ -240,30 +265,30 @@ impl HierarchicalZBuffer {
             mip_levels,
         }
     }
-    
+
     /// Build HZB from depth texture
     pub fn build(&self, encoder: &mut wgpu::CommandEncoder, depth_texture: &TextureView) {
         // Copy depth texture to mip 0 of HZB
         // In a real implementation, this would be done with a blit or compute shader
-        
+
         // Build mip chain
         for level in 1..self.mip_levels {
             let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some(&format!("HZB Mip {} Build", level)),
                 timestamp_writes: None,
             });
-            
+
             // Bind previous level as input, current level as output
             // Dispatch based on current level size
             let mip_width = (self.width >> level).max(1);
             let mip_height = (self.height >> level).max(1);
             let workgroups_x = (mip_width + 7) / 8;
             let workgroups_y = (mip_height + 7) / 8;
-            
+
             compute_pass.dispatch_workgroups(workgroups_x, workgroups_y, 1);
         }
     }
-    
+
     /// Perform occlusion culling using HZB
     pub fn cull_occlusion<'a>(
         &self,
@@ -276,18 +301,18 @@ impl HierarchicalZBuffer {
         // For now, return the input buffer
         visible_from_frustum
     }
-    
+
     /// Resize HZB for new render target size
     pub fn resize(&mut self, device: &Device, width: u32, height: u32) {
         if width != self.width || height != self.height {
             *self = Self::new(device, width, height);
         }
     }
-    
+
     pub fn get_texture(&self) -> &Texture {
         &self.hzb_texture
     }
-    
+
     pub fn get_sampler(&self) -> &wgpu::Sampler {
         &self.sampler
     }

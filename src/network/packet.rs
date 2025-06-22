@@ -1,6 +1,6 @@
-use serde::{Serialize, Deserialize};
-use crate::{VoxelPos, BlockId, ChunkPos};
-use glam::{Vec3, Quat};
+use crate::{BlockId, ChunkPos, VoxelPos};
+use glam::{Quat, Vec3};
+use serde::{Deserialize, Serialize};
 
 /// Packet types for network communication
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -19,9 +19,7 @@ pub enum ClientPacket {
         password: Option<String>,
     },
     /// Disconnect notification
-    Disconnect {
-        reason: String,
-    },
+    Disconnect { reason: String },
     /// Player movement input
     PlayerInput {
         position: Vec3,
@@ -31,10 +29,7 @@ pub enum ClientPacket {
         sequence: u32, // For lag compensation
     },
     /// Request to break a block
-    BlockBreak {
-        position: VoxelPos,
-        sequence: u32,
-    },
+    BlockBreak { position: VoxelPos, sequence: u32 },
     /// Request to place a block
     BlockPlace {
         position: VoxelPos,
@@ -43,36 +38,22 @@ pub enum ClientPacket {
         sequence: u32,
     },
     /// Chat message
-    ChatMessage {
-        message: String,
-    },
+    ChatMessage { message: String },
     /// Request chunk data
-    ChunkRequest {
-        chunk_pos: ChunkPos,
-    },
+    ChunkRequest { chunk_pos: ChunkPos },
     /// Heartbeat/keepalive
-    Ping {
-        timestamp: u64,
-    },
+    Ping { timestamp: u64 },
     /// Inventory action
     InventoryAction {
         action: InventoryActionType,
         sequence: u32,
     },
     /// Request world save
-    SaveWorldRequest {
-        force: bool,
-        sequence: u32,
-    },
+    SaveWorldRequest { force: bool, sequence: u32 },
     /// Request player data save
-    SavePlayerRequest {
-        sequence: u32,
-    },
+    SavePlayerRequest { sequence: u32 },
     /// Request world load/restore
-    LoadWorldRequest {
-        save_name: String,
-        sequence: u32,
-    },
+    LoadWorldRequest { save_name: String, sequence: u32 },
 }
 
 /// Packets sent from server to client
@@ -85,14 +66,9 @@ pub enum ServerPacket {
         world_time: f32,
     },
     /// Connection rejected
-    ConnectReject {
-        reason: String,
-    },
+    ConnectReject { reason: String },
     /// Player disconnected
-    PlayerDisconnect {
-        player_id: u32,
-        reason: String,
-    },
+    PlayerDisconnect { player_id: u32, reason: String },
     /// New player joined
     PlayerJoin {
         player_id: u32,
@@ -121,9 +97,7 @@ pub enum ServerPacket {
         sequence: u32, // Echo client sequence for confirmation
     },
     /// Multiple block changes
-    BlockChanges {
-        changes: Vec<BlockChangeData>,
-    },
+    BlockChanges { changes: Vec<BlockChangeData> },
     /// Chat message broadcast
     ChatBroadcast {
         player_id: Option<u32>, // None for server messages
@@ -146,9 +120,7 @@ pub enum ServerPacket {
         metadata: EntityMetadata,
     },
     /// Entity despawned
-    EntityDespawn {
-        entity_id: u32,
-    },
+    EntityDespawn { entity_id: u32 },
     /// Entity position update
     EntityUpdate {
         entity_id: u32,
@@ -167,9 +139,7 @@ pub enum ServerPacket {
         server_timestamp: u64,
     },
     /// Inventory update
-    InventoryUpdate {
-        slots: Vec<InventorySlotData>,
-    },
+    InventoryUpdate { slots: Vec<InventorySlotData> },
     /// Server info/status
     ServerInfo {
         name: String,
@@ -228,9 +198,7 @@ pub enum ServerPacket {
         timestamp: u64,
     },
     /// Batch chunk save states
-    ChunkSaveStates {
-        states: Vec<ChunkSaveStateData>,
-    },
+    ChunkSaveStates { states: Vec<ChunkSaveStateData> },
 }
 
 /// Player movement state
@@ -258,13 +226,8 @@ pub enum BlockFace {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum EntityType {
     Player,
-    Item {
-        item_id: u32,
-        count: u32,
-    },
-    Mob {
-        mob_type: String,
-    },
+    Item { item_id: u32, count: u32 },
+    Mob { mob_type: String },
 }
 
 /// Entity metadata
@@ -348,14 +311,14 @@ pub enum LoadStatus {
 /// Chunk save status
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
 pub enum ChunkSaveStatus {
-    Clean,        // No changes to save
-    Dirty,        // Has unsaved changes
-    Saving,       // Currently being saved
-    Saved,        // Successfully saved
-    SaveFailed,   // Failed to save
-    Loading,      // Currently being loaded
-    Loaded,       // Successfully loaded
-    LoadFailed,   // Failed to load
+    Clean,      // No changes to save
+    Dirty,      // Has unsaved changes
+    Saving,     // Currently being saved
+    Saved,      // Successfully saved
+    SaveFailed, // Failed to save
+    Loading,    // Currently being loaded
+    Loaded,     // Successfully loaded
+    LoadFailed, // Failed to load
 }
 
 /// Chunk save state data for batch operations
@@ -408,12 +371,12 @@ impl Packet {
             },
         }
     }
-    
+
     /// Serialize packet to bytes
     pub fn to_bytes(&self) -> Result<Vec<u8>, bincode::Error> {
         bincode::serialize(self)
     }
-    
+
     /// Deserialize packet from bytes
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, bincode::Error> {
         bincode::deserialize(bytes)

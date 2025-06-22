@@ -1,5 +1,5 @@
 //! Memory subsystem error handling
-//! 
+//!
 //! This module provides type aliases and helper functions for memory operations
 //! to replace unwrap() calls with proper error handling.
 
@@ -14,7 +14,6 @@ pub trait MemoryErrorContext<T> {
     where
         Self: Sized;
 }
-
 
 impl<T, E> MemoryErrorContext<T> for Result<T, E>
 where

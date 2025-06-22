@@ -1,12 +1,11 @@
+use crate::instance::error::{timestamp_error, InstanceResult};
 /// Instance History Tracking
-/// 
+///
 /// Tracks all changes to instances over time.
 /// Stores who changed what, when, and previous values.
 /// Uses ring buffer for efficient memory usage.
-
 use crate::instance::{InstanceId, MetadataValue};
-use crate::instance::error::{InstanceResult, timestamp_error};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 /// History event types
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -57,7 +56,7 @@ impl HistoryRingBuffer {
             total_written: 0,
         }
     }
-    
+
     /// Add new history entry
     pub fn push(&mut self, entry: HistoryEntry) {
         if let Some(slot) = self.entries.get_mut(self.write_pos) {
@@ -66,7 +65,7 @@ impl HistoryRingBuffer {
             self.total_written += 1;
         }
     }
-    
+
     /// Get last N entries
     pub fn recent(&self, count: usize) -> Vec<&HistoryEntry> {
         let mut result = Vec::new();
@@ -76,14 +75,14 @@ impl HistoryRingBuffer {
         } else {
             self.write_pos
         };
-        
+
         for i in 0..count.min(capacity) {
             let idx = (start + capacity - 1 - i) % capacity;
             if let Some(Some(ref entry)) = self.entries.get(idx) {
                 result.push(entry);
             }
         }
-        
+
         result
     }
 }
@@ -106,7 +105,7 @@ impl HistoryLog {
             buffer_size,
         }
     }
-    
+
     /// Record a history event
     pub fn record(&mut self, instance_id: InstanceId, entry: HistoryEntry) {
         // Add to instance-specific history
@@ -114,11 +113,11 @@ impl HistoryLog {
             .entry(instance_id)
             .or_insert_with(|| HistoryRingBuffer::new(self.buffer_size))
             .push(entry.clone());
-            
+
         // Also add to global history
         self.global_history.push(entry);
     }
-    
+
     /// Get history for specific instance
     pub fn get_instance_history(&self, id: &InstanceId, count: usize) -> Vec<&HistoryEntry> {
         self.instance_histories
@@ -126,12 +125,12 @@ impl HistoryLog {
             .map(|buffer| buffer.recent(count))
             .unwrap_or_default()
     }
-    
+
     /// Get recent global history
     pub fn get_global_history(&self, count: usize) -> Vec<&HistoryEntry> {
         self.global_history.recent(count)
     }
-    
+
     /// Find history by actor
     pub fn find_by_actor(&self, actor: &InstanceId, count: usize) -> Vec<&HistoryEntry> {
         self.global_history
@@ -141,7 +140,7 @@ impl HistoryLog {
             .take(count)
             .collect()
     }
-    
+
     /// Clear history for deleted instance (save memory)
     pub fn clear_instance(&mut self, id: &InstanceId) {
         self.instance_histories.remove(id);
@@ -160,10 +159,10 @@ impl HistoryBuilder {
             .duration_since(std::time::UNIX_EPOCH)
             .map_err(|_| timestamp_error("history builder"))?
             .as_secs();
-            
+
         Ok(Self { timestamp, actor })
     }
-    
+
     pub fn created(&self, version: u32) -> HistoryEntry {
         HistoryEntry {
             timestamp: self.timestamp,
@@ -175,7 +174,7 @@ impl HistoryBuilder {
             new_value: None,
         }
     }
-    
+
     pub fn metadata_changed(
         &self,
         version: u32,
@@ -197,7 +196,7 @@ impl HistoryBuilder {
             new_value,
         }
     }
-    
+
     pub fn deleted(&self, version: u32) -> HistoryEntry {
         HistoryEntry {
             timestamp: self.timestamp,
@@ -214,53 +213,56 @@ impl HistoryBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_ring_buffer() {
         let mut buffer = HistoryRingBuffer::new(3);
         let actor = InstanceId::new();
         let builder = HistoryBuilder::new(actor).expect("Failed to create history builder");
-        
+
         // Fill buffer
         buffer.push(builder.created(1));
         buffer.push(builder.deleted(2));
         buffer.push(builder.created(3));
-        
+
         // Should have 3 entries
         assert_eq!(buffer.recent(10).len(), 3);
-        
+
         // Add one more (wraps around)
         buffer.push(builder.deleted(4));
-        
+
         // Still 3 entries, but oldest is gone
         let recent = buffer.recent(10);
         assert_eq!(recent.len(), 3);
         assert_eq!(recent[0].version, 4); // Most recent
         assert_eq!(recent[2].version, 2); // Oldest remaining
     }
-    
+
     #[test]
     fn test_history_log() {
         let mut log = HistoryLog::new(10);
         let instance = InstanceId::new();
         let actor = InstanceId::new();
         let builder = HistoryBuilder::new(actor).expect("Failed to create history builder");
-        
+
         // Record some events
         log.record(instance, builder.created(1));
-        log.record(instance, builder.metadata_changed(
-            2,
-            "name",
-            None,
-            Some(MetadataValue::String("Test".to_string()))
-        ));
-        
+        log.record(
+            instance,
+            builder.metadata_changed(
+                2,
+                "name",
+                None,
+                Some(MetadataValue::String("Test".to_string())),
+            ),
+        );
+
         // Check instance history
         let history = log.get_instance_history(&instance, 10);
         assert_eq!(history.len(), 2);
         assert_eq!(history[0].event, HistoryEvent::MetadataSet);
         assert_eq!(history[1].event, HistoryEvent::Created);
-        
+
         // Check actor search
         let by_actor = log.find_by_actor(&actor, 10);
         assert_eq!(by_actor.len(), 2);

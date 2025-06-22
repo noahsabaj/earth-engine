@@ -1,15 +1,15 @@
 //! Compatibility layer for gradual AOS to SOA migration
-//! 
+//!
 //! Provides a unified interface that can work with both Array of Structures (AOS)
 //! and Structure of Arrays (SOA) representations during the migration period.
 
-use std::marker::PhantomData;
-use crate::gpu::types::TypedGpuBuffer;
-use crate::gpu::soa::types::SoaCompatible;
 use crate::gpu::buffer_manager::GpuError;
+use crate::gpu::soa::types::SoaCompatible;
+use crate::gpu::types::TypedGpuBuffer;
+use std::marker::PhantomData;
 
 /// Unified GPU buffer that supports both AOS and SOA layouts
-/// 
+///
 /// Note: For AOS mode, T must implement GpuData directly.
 /// For SOA mode, T::Arrays must implement GpuData.
 pub enum UnifiedGpuBuffer<T> {
@@ -20,7 +20,7 @@ pub enum UnifiedGpuBuffer<T> {
         count: usize,
         _phantom: PhantomData<T>,
     },
-    
+
     /// Optimized Structure of Arrays layout  
     StructureOfArrays {
         buffer: wgpu::Buffer,
@@ -33,14 +33,14 @@ impl<T: SoaCompatible> UnifiedGpuBuffer<T> {
     /// Create a new AOS buffer (legacy)
     /// Requires T to implement GpuData
     pub fn new_aos(buffer: wgpu::Buffer, size: wgpu::BufferAddress, count: usize) -> Self {
-        Self::ArrayOfStructs { 
-            buffer, 
+        Self::ArrayOfStructs {
+            buffer,
             size,
             count,
             _phantom: PhantomData,
         }
     }
-    
+
     /// Create a new SOA buffer (optimized)
     /// Requires T::Arrays to implement GpuData
     pub fn new_soa(buffer: wgpu::Buffer, size: wgpu::BufferAddress) -> Self {
@@ -50,7 +50,7 @@ impl<T: SoaCompatible> UnifiedGpuBuffer<T> {
             _phantom: PhantomData,
         }
     }
-    
+
     /// Create from TypedGpuBuffer<T> where T: GpuData
     pub fn from_aos_typed<U>(typed_buffer: TypedGpuBuffer<U>, count: usize) -> Self
     where
@@ -64,7 +64,7 @@ impl<T: SoaCompatible> UnifiedGpuBuffer<T> {
             _phantom: PhantomData,
         }
     }
-    
+
     /// Create from TypedGpuBuffer<T::Arrays>
     pub fn from_soa_typed(typed_buffer: TypedGpuBuffer<T::Arrays>) -> Self {
         Self::StructureOfArrays {
@@ -73,12 +73,12 @@ impl<T: SoaCompatible> UnifiedGpuBuffer<T> {
             _phantom: PhantomData,
         }
     }
-    
+
     /// Check if this buffer uses SOA layout
     pub fn is_soa(&self) -> bool {
         matches!(self, Self::StructureOfArrays { .. })
     }
-    
+
     /// Get the underlying wgpu buffer
     pub fn raw_buffer(&self) -> &wgpu::Buffer {
         match self {
@@ -86,7 +86,7 @@ impl<T: SoaCompatible> UnifiedGpuBuffer<T> {
             Self::StructureOfArrays { buffer, .. } => buffer,
         }
     }
-    
+
     /// Get buffer size in bytes
     pub fn size(&self) -> wgpu::BufferAddress {
         match self {
@@ -94,7 +94,7 @@ impl<T: SoaCompatible> UnifiedGpuBuffer<T> {
             Self::StructureOfArrays { size, .. } => *size,
         }
     }
-    
+
     /// Update buffer with new data
     pub fn update(&self, queue: &wgpu::Queue, data: &[T]) -> Result<(), GpuError> {
         match self {
@@ -146,7 +146,7 @@ impl SoaMigrationHelper {
             migrated_systems: Vec::new(),
         }
     }
-    
+
     /// Decide which layout to use for a given system
     pub fn choose_layout<T: SoaCompatible>(
         &self,
@@ -168,18 +168,21 @@ impl SoaMigrationHelper {
             other => other,
         }
     }
-    
+
     /// Mark a system as migrated to SOA
     pub fn mark_migrated(&mut self, system_name: impl Into<String>) {
         let name = system_name.into();
         if !self.migrated_systems.contains(&name) {
             self.migrated_systems.push(name);
-            log::info!("[SOA Migration] System '{}' migrated to SOA", 
-                      self.migrated_systems.last()
-                          .expect("[SOA] Vector should have element after push"));
+            log::info!(
+                "[SOA Migration] System '{}' migrated to SOA",
+                self.migrated_systems
+                    .last()
+                    .expect("[SOA] Vector should have element after push")
+            );
         }
     }
-    
+
     /// Get migration progress
     pub fn progress(&self) -> MigrationProgress {
         MigrationProgress {
@@ -223,20 +226,20 @@ pub trait GpuBufferMigrationExt {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_migration_helper() {
         let mut helper = SoaMigrationHelper::new(BufferLayoutPreference::Auto);
-        
+
         // Test automatic choice
         assert_eq!(
             helper.choose_layout::<crate::gpu::BlockDistribution>("terrain", 100),
             BufferLayoutPreference::StructureOfArrays
         );
-        
+
         // Mark as migrated
         helper.mark_migrated("terrain");
-        
+
         // Check progress
         let progress = helper.progress();
         assert_eq!(progress.migrated_systems, 1);

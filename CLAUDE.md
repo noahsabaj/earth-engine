@@ -5,9 +5,9 @@
 **For sprint planning**: See MASTER_ROADMAP.md
 
 ## ENVIRONMENT SETUP
-- **Claude (AI)**: Working in WSL Ubuntu at `/home/nsabaj/hearth-workspace/hearth-engine`
-- **Human User**: Working in Windows, pulls changes from main branch
-- **Workflow**: Claude makes changes in WSL → pushes to main → User pulls in Windows
+- **Claude (AI)**: Working in Linux Mint at `/home/nsabaj/Code/hearth-workspace/hearth-engine`
+- **Human User**: Working in Linux Mint, pulls changes from main branch
+- **Workflow**: Claude makes changes → pushes to main → User pulls as needed
 
 ## PROJECT OVERVIEW
 This is **Hearth Engine** - a frontier SOTA voxel game engine. We are building in this order:

@@ -1,8 +1,8 @@
-use std::sync::Arc;
-use bytemuck::{Pod, Zeroable};
 use crate::world::storage::WorldBuffer;
+use bytemuck::{Pod, Zeroable};
+use std::sync::Arc;
 // use crate::memory::PersistentBuffer; // Not needed anymore
-use crate::world::error::{WorldGpuResult, WorldGpuErrorContext, WorldErrorContext};
+use crate::world::error::{WorldErrorContext, WorldGpuErrorContext, WorldGpuResult};
 
 /// Command for modifying voxels
 #[repr(C)]
@@ -30,7 +30,7 @@ impl ModificationCommand {
             _padding: [0; 2],
         }
     }
-    
+
     pub fn break_block(x: i32, y: i32, z: i32) -> Self {
         Self {
             position: [x, y, z],
@@ -40,7 +40,7 @@ impl ModificationCommand {
             _padding: [0; 2],
         }
     }
-    
+
     pub fn explode(x: i32, y: i32, z: i32, radius: f32) -> Self {
         Self {
             position: [x, y, z],
@@ -55,35 +55,43 @@ impl ModificationCommand {
 /// GPU-based chunk modification system
 pub struct ChunkModifier {
     device: Arc<wgpu::Device>,
-    
+
     /// Pipeline for single block modifications
     modify_pipeline: wgpu::ComputePipeline,
-    
+
     /// Pipeline for explosion effects
     explode_pipeline: wgpu::ComputePipeline,
-    
+
     /// Command buffer for batching modifications
     command_buffer: wgpu::Buffer,
     command_capacity: usize,
-    
+
     /// Persistent count buffer to avoid allocations
     count_buffer: wgpu::Buffer,
-    
+
     /// Pre-allocated bind groups for different scenarios
     cached_bind_groups: std::sync::Mutex<std::collections::HashMap<u64, wgpu::BindGroup>>,
-    
+
     /// Bind group layout
     bind_group_layout: wgpu::BindGroupLayout,
 }
 
 impl ChunkModifier {
     pub fn new(device: Arc<wgpu::Device>) -> Self {
-        // Create shader module
-        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("Chunk Modification Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("../../shaders/compute/chunk_modification.wgsl").into()),
-        });
-        
+        // Create shader module using unified GPU system
+        let shader_source = include_str!("../../shaders/compute/chunk_modification.wgsl");
+        let validated_shader = match crate::gpu::automation::create_gpu_shader(
+            &device,
+            "chunk_modification",
+            shader_source,
+        ) {
+            Ok(shader) => shader,
+            Err(e) => {
+                log::error!("Failed to create chunk modification shader: {}", e);
+                panic!("Failed to create chunk modification shader: {}", e);
+            }
+        };
+
         // Create bind group layout
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("Chunk Modifier Bind Group Layout"),
@@ -123,29 +131,29 @@ impl ChunkModifier {
                 },
             ],
         });
-        
+
         // Create pipeline layout
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("Chunk Modifier Pipeline Layout"),
             bind_group_layouts: &[&bind_group_layout],
             push_constant_ranges: &[],
         });
-        
+
         // Create pipelines
         let modify_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
             label: Some("Block Modification Pipeline"),
             layout: Some(&pipeline_layout),
-            module: &shader,
+            module: &validated_shader.module,
             entry_point: "modify_blocks",
         });
-        
+
         let explode_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
             label: Some("Explosion Pipeline"),
             layout: Some(&pipeline_layout),
-            module: &shader,
+            module: &validated_shader.module,
             entry_point: "explode_blocks",
         });
-        
+
         // Create command buffer
         let command_capacity = 10000;
         let command_buffer = device.create_buffer(&wgpu::BufferDescriptor {
@@ -154,7 +162,7 @@ impl ChunkModifier {
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
-        
+
         // Create persistent count buffer
         let count_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Modification Count Buffer"),
@@ -162,7 +170,7 @@ impl ChunkModifier {
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
-        
+
         Self {
             device,
             modify_pipeline,
@@ -174,7 +182,7 @@ impl ChunkModifier {
             bind_group_layout,
         }
     }
-    
+
     /// Apply a batch of modifications to the world
     pub fn apply_modifications(
         &self,
@@ -186,11 +194,11 @@ impl ChunkModifier {
         if commands.is_empty() {
             return;
         }
-        
+
         // Split commands by type
         let mut block_mods = Vec::new();
         let mut explosions = Vec::new();
-        
+
         for cmd in commands {
             match cmd.mod_type {
                 0 | 1 => block_mods.push(*cmd),
@@ -198,18 +206,18 @@ impl ChunkModifier {
                 _ => {}
             }
         }
-        
+
         // Process block modifications
         if !block_mods.is_empty() {
             let _ = self.apply_block_modifications(encoder, queue, world_buffer, &block_mods);
         }
-        
+
         // Process explosions
         if !explosions.is_empty() {
             let _ = self.apply_explosions(encoder, queue, world_buffer, &explosions);
         }
     }
-    
+
     fn apply_block_modifications(
         &self,
         encoder: &mut wgpu::CommandEncoder,
@@ -218,20 +226,19 @@ impl ChunkModifier {
         commands: &[ModificationCommand],
     ) -> WorldGpuResult<()> {
         // Upload commands
-        queue.write_buffer(
-            &self.command_buffer,
-            0,
-            bytemuck::cast_slice(commands),
-        );
-        
+        queue.write_buffer(&self.command_buffer, 0, bytemuck::cast_slice(commands));
+
         // Update count in persistent buffer
         let count_data = [commands.len() as u32];
         queue.write_buffer(&self.count_buffer, 0, bytemuck::cast_slice(&count_data));
-        
+
         // Get or create cached bind group
         let cache_key = world_buffer.voxel_buffer() as *const _ as u64;
-        let mut cached_groups = self.cached_bind_groups.lock().world_context("cached_bind_groups")?;
-        
+        let mut cached_groups = self
+            .cached_bind_groups
+            .lock()
+            .world_context("cached_bind_groups")?;
+
         let bind_group = cached_groups.entry(cache_key).or_insert_with(|| {
             self.device.create_bind_group(&wgpu::BindGroupDescriptor {
                 label: Some("Block Modification Bind Group"),
@@ -252,23 +259,23 @@ impl ChunkModifier {
                 ],
             })
         });
-        
+
         // Dispatch compute shader
         let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
             label: Some("Block Modification Pass"),
             timestamp_writes: None,
         });
-        
+
         compute_pass.set_pipeline(&self.modify_pipeline);
         compute_pass.set_bind_group(0, &bind_group, &[]);
-        
+
         // One thread per command
         let workgroups = ((commands.len() + 63) / 64) as u32;
         compute_pass.dispatch_workgroups(workgroups, 1, 1);
-        
+
         Ok(())
     }
-    
+
     fn apply_explosions(
         &self,
         encoder: &mut wgpu::CommandEncoder,
@@ -277,31 +284,32 @@ impl ChunkModifier {
         explosions: &[ModificationCommand],
     ) -> WorldGpuResult<()> {
         // Upload explosion commands
-        queue.write_buffer(
-            &self.command_buffer,
-            0,
-            bytemuck::cast_slice(explosions),
-        );
-        
+        queue.write_buffer(&self.command_buffer, 0, bytemuck::cast_slice(explosions));
+
         // Update count in persistent buffer
         let count_data = [explosions.len() as u32];
         queue.write_buffer(&self.count_buffer, 0, bytemuck::cast_slice(&count_data));
-        
+
         // Use cached bind group (same as block modifications)
         let cache_key = world_buffer.voxel_buffer() as *const _ as u64;
-        let cached_groups = self.cached_bind_groups.lock().world_context("cached_bind_groups")?;
-        
-        let bind_group = cached_groups.get(&cache_key).expect("Bind group should be cached from block modifications");
-        
+        let cached_groups = self
+            .cached_bind_groups
+            .lock()
+            .world_context("cached_bind_groups")?;
+
+        let bind_group = cached_groups
+            .get(&cache_key)
+            .expect("Bind group should be cached from block modifications");
+
         // Dispatch compute shader
         let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
             label: Some("Explosion Pass"),
             timestamp_writes: None,
         });
-        
+
         compute_pass.set_pipeline(&self.explode_pipeline);
         compute_pass.set_bind_group(0, &bind_group, &[]);
-        
+
         // Process explosions with enough threads to cover blast radius
         // Each explosion uses multiple workgroups
         compute_pass.dispatch_workgroups(
@@ -309,7 +317,7 @@ impl ChunkModifier {
             8,
             8,
         );
-        
+
         Ok(())
     }
 }

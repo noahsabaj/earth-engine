@@ -1,10 +1,10 @@
 //! Automatic GPU binding generation from usage
-//! 
+//!
 //! This module provides automatic binding index assignment based on shader usage,
 //! eliminating the need for manual binding management.
 
 use std::collections::{HashMap, HashSet};
-use wgpu::{ShaderStages, BindingType, BufferBindingType};
+use wgpu::{BindingType, BufferBindingType, ShaderStages};
 
 /// Binding usage information extracted from shaders
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -39,23 +39,26 @@ impl AutoBindingLayout {
             usages: Vec::new(),
         }
     }
-    
+
     /// Extract bindings from WGSL source
     pub fn extract_from_wgsl(&mut self, wgsl: &str) {
         // Simple regex-based extraction (in production, use naga for proper parsing)
         let binding_regex = regex::Regex::new(
-            r"@group\((\d+)\)\s*@binding\((\d+)\)\s*var(?:<([^>]+)>)?\s+(\w+)\s*:\s*([^;]+);"
-        ).expect("[AutoBindings] Failed to compile regex for binding extraction");
-        
+            r"@group\((\d+)\)\s*@binding\((\d+)\)\s*var(?:<([^>]+)>)?\s+(\w+)\s*:\s*([^;]+);",
+        )
+        .expect("[AutoBindings] Failed to compile regex for binding extraction");
+
         for capture in binding_regex.captures_iter(wgsl) {
-            let group = capture[1].parse::<u32>()
+            let group = capture[1]
+                .parse::<u32>()
                 .expect("[AutoBindings] Failed to parse group number from regex capture");
-            let _binding = capture[2].parse::<u32>()
+            let _binding = capture[2]
+                .parse::<u32>()
                 .expect("[AutoBindings] Failed to parse binding number from regex capture"); // Ignore manual binding
             let storage_type = capture.get(3).map(|m| m.as_str());
             let name = capture[4].to_string();
             let type_str = capture[5].trim();
-            
+
             let ty = match storage_type {
                 Some("storage, read") => BindingTypeInfo::StorageBuffer { read_only: true },
                 Some("storage, read_write") | Some("storage") => {
@@ -66,7 +69,7 @@ impl AutoBindingLayout {
                 None => BindingTypeInfo::UniformBuffer,
                 _ => BindingTypeInfo::StorageBuffer { read_only: true },
             };
-            
+
             self.add_usage(BindingUsage {
                 name: name.clone(),
                 group,
@@ -75,46 +78,49 @@ impl AutoBindingLayout {
             });
         }
     }
-    
+
     /// Add a binding usage
     pub fn add_usage(&mut self, usage: BindingUsage) {
         let key = (usage.group, usage.name.clone());
-        
+
         // Assign binding index if not already assigned
         if !self.binding_indices.contains_key(&key) {
-            let group_bindings = self.binding_indices
+            let group_bindings = self
+                .binding_indices
                 .iter()
                 .filter(|((g, _), _)| *g == usage.group)
                 .count() as u32;
-            
+
             self.binding_indices.insert(key, group_bindings);
         }
-        
+
         self.usages.push(usage);
     }
-    
+
     /// Get binding index for a named binding
     pub fn get_binding(&self, group: u32, name: &str) -> Option<u32> {
-        self.binding_indices.get(&(group, name.to_string())).copied()
+        self.binding_indices
+            .get(&(group, name.to_string()))
+            .copied()
     }
-    
+
     /// Generate bind group layout entries
     pub fn generate_layout_entries(&self, group: u32) -> Vec<wgpu::BindGroupLayoutEntry> {
         let mut entries = Vec::new();
         let mut seen = HashSet::new();
-        
+
         for usage in &self.usages {
             if usage.group != group {
                 continue;
             }
-            
+
             let binding = self.binding_indices[&(usage.group, usage.name.clone())];
-            
+
             // Skip duplicates
             if !seen.insert(binding) {
                 continue;
             }
-            
+
             let ty = match &usage.ty {
                 BindingTypeInfo::UniformBuffer => BindingType::Buffer {
                     ty: BufferBindingType::Uniform,
@@ -122,7 +128,9 @@ impl AutoBindingLayout {
                     min_binding_size: None,
                 },
                 BindingTypeInfo::StorageBuffer { read_only } => BindingType::Buffer {
-                    ty: BufferBindingType::Storage { read_only: *read_only },
+                    ty: BufferBindingType::Storage {
+                        read_only: *read_only,
+                    },
                     has_dynamic_offset: false,
                     min_binding_size: None,
                 },
@@ -131,9 +139,11 @@ impl AutoBindingLayout {
                     view_dimension: wgpu::TextureViewDimension::D2,
                     multisampled: false,
                 },
-                BindingTypeInfo::Sampler => BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                BindingTypeInfo::Sampler => {
+                    BindingType::Sampler(wgpu::SamplerBindingType::Filtering)
+                }
             };
-            
+
             entries.push(wgpu::BindGroupLayoutEntry {
                 binding,
                 visibility: usage.stages,
@@ -141,40 +151,52 @@ impl AutoBindingLayout {
                 count: None,
             });
         }
-        
+
         // Sort by binding index
         entries.sort_by_key(|e| e.binding);
         entries
     }
-    
+
     /// Generate WGSL binding declarations with automatic indices
     pub fn generate_wgsl_bindings(&self, group: u32) -> String {
         let mut wgsl = String::new();
         let mut processed = HashSet::new();
-        
+
         wgsl.push_str(&format!("// Auto-generated bindings for group {}\n", group));
-        
+
         for usage in &self.usages {
             if usage.group != group {
                 continue;
             }
-            
+
             let binding = self.binding_indices[&(usage.group, usage.name.clone())];
-            
+
             // Skip duplicates
             if !processed.insert((binding, &usage.name)) {
                 continue;
             }
-            
+
             let var_decl = match &usage.ty {
                 BindingTypeInfo::UniformBuffer => {
-                    format!("var<uniform> {}: {}", usage.name, infer_type_from_name(&usage.name))
+                    format!(
+                        "var<uniform> {}: {}",
+                        usage.name,
+                        infer_type_from_name(&usage.name)
+                    )
                 }
                 BindingTypeInfo::StorageBuffer { read_only: true } => {
-                    format!("var<storage, read> {}: {}", usage.name, infer_type_from_name(&usage.name))
+                    format!(
+                        "var<storage, read> {}: {}",
+                        usage.name,
+                        infer_type_from_name(&usage.name)
+                    )
                 }
                 BindingTypeInfo::StorageBuffer { read_only: false } => {
-                    format!("var<storage, read_write> {}: {}", usage.name, infer_type_from_name(&usage.name))
+                    format!(
+                        "var<storage, read_write> {}: {}",
+                        usage.name,
+                        infer_type_from_name(&usage.name)
+                    )
                 }
                 BindingTypeInfo::Texture2D => {
                     format!("var {}: texture_2d<f32>", usage.name)
@@ -183,13 +205,13 @@ impl AutoBindingLayout {
                     format!("var {}: sampler", usage.name)
                 }
             };
-            
+
             wgsl.push_str(&format!(
                 "@group({}) @binding({}) {};\n",
                 group, binding, var_decl
             ));
         }
-        
+
         wgsl
     }
 }
@@ -197,7 +219,7 @@ impl AutoBindingLayout {
 /// Infer WGSL type from binding name
 fn infer_type_from_name(name: &str) -> &'static str {
     let lower = name.to_lowercase();
-    
+
     if lower.contains("camera") {
         "CameraUniform"
     } else if lower.contains("instance") {
@@ -231,11 +253,11 @@ macro_rules! shader_bindings {
             use super::*;
             use $crate::gpu::automation::auto_bindings::{AutoBindingLayout, BindingUsage, BindingTypeInfo};
             use wgpu::ShaderStages;
-            
+
             lazy_static::lazy_static! {
                 static ref LAYOUT: AutoBindingLayout = {
                     let mut layout = AutoBindingLayout::new();
-                    
+
                     $(
                         $(
                             layout.add_usage(BindingUsage {
@@ -246,27 +268,27 @@ macro_rules! shader_bindings {
                             });
                         )*
                     )*
-                    
+
                     layout
                 };
             }
-            
+
             $(
                 paste::paste! {
                     pub mod [<group_ $group>] {
                         use super::*;
-                        
+
                         $(
                             pub fn $name() -> u32 {
                                 LAYOUT.get_binding($group, stringify!($name))
                                     .expect(concat!("Binding ", stringify!($name), " not found"))
                             }
                         )*
-                        
+
                         pub fn layout_entries() -> Vec<wgpu::BindGroupLayoutEntry> {
                             LAYOUT.generate_layout_entries($group)
                         }
-                        
+
                         pub fn wgsl_bindings() -> String {
                             LAYOUT.generate_wgsl_bindings($group)
                         }
@@ -275,7 +297,7 @@ macro_rules! shader_bindings {
             )*
         }
     };
-    
+
     (@binding_type uniform) => { BindingTypeInfo::UniformBuffer };
     (@binding_type storage) => { BindingTypeInfo::StorageBuffer { read_only: false } };
     (@binding_type storage read) => { BindingTypeInfo::StorageBuffer { read_only: true } };
@@ -286,7 +308,7 @@ macro_rules! shader_bindings {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     shader_bindings! {
         terrain_shader {
             group(0) {
@@ -301,7 +323,7 @@ mod tests {
             }
         }
     }
-    
+
     #[test]
     fn test_auto_bindings() {
         // Check that bindings are assigned sequentially
@@ -309,10 +331,10 @@ mod tests {
         assert_eq!(terrain_shader::group_0::world_data(), 1);
         assert_eq!(terrain_shader::group_0::metadata(), 2);
         assert_eq!(terrain_shader::group_0::params(), 3);
-        
+
         assert_eq!(terrain_shader::group_1::texture_atlas(), 0);
         assert_eq!(terrain_shader::group_1::atlas_sampler(), 1);
-        
+
         // Check WGSL generation
         let wgsl = terrain_shader::group_0::wgsl_bindings();
         assert!(wgsl.contains("@group(0) @binding(0) var<uniform> camera"));

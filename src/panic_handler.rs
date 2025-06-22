@@ -1,15 +1,15 @@
 //! Panic handler with telemetry for Hearth Engine
-//! 
+//!
 //! This module provides a custom panic handler that logs panic information
 //! before the process terminates, helping with debugging and stability monitoring.
 
-use std::panic::{self, PanicHookInfo};
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::fs::OpenOptions;
-use std::io::Write;
-use std::path::PathBuf;
 use chrono::{DateTime, Local};
 use std::backtrace::Backtrace;
+use std::fs::OpenOptions;
+use std::io::Write;
+use std::panic::{self, PanicHookInfo};
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 /// Global panic counter for telemetry
 static PANIC_COUNT: AtomicUsize = AtomicUsize::new(0);
@@ -27,7 +27,12 @@ pub struct PanicTelemetry {
 impl PanicTelemetry {
     fn from_panic_info(info: &PanicHookInfo) -> Self {
         let location = if let Some(location) = info.location() {
-            format!("{}:{}:{}", location.file(), location.line(), location.column())
+            format!(
+                "{}:{}:{}",
+                location.file(),
+                location.line(),
+                location.column()
+            )
         } else {
             "unknown location".to_string()
         };
@@ -60,7 +65,11 @@ impl PanicTelemetry {
             .open(log_path)?;
 
         writeln!(file, "=== PANIC #{} ===", self.panic_count)?;
-        writeln!(file, "Timestamp: {}", self.timestamp.format("%Y-%m-%d %H:%M:%S%.3f"))?;
+        writeln!(
+            file,
+            "Timestamp: {}",
+            self.timestamp.format("%Y-%m-%d %H:%M:%S%.3f")
+        )?;
         writeln!(file, "Location: {}", self.location)?;
         writeln!(file, "Message: {}", self.message)?;
         writeln!(file, "Backtrace:\n{}", self.backtrace)?;

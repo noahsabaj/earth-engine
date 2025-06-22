@@ -1,12 +1,11 @@
+use crate::renderer::error::{buffer_mapping_error, RendererErrorContext, RendererResult};
+use bytemuck::{Pod, Zeroable};
+use cgmath::{Matrix4, Vector3, Vector4};
 /// GPU-Driven Culling System
-/// 
+///
 /// Manages frustum and occlusion culling entirely on GPU.
 /// Part of Sprint 28: GPU-Driven Rendering Optimization
-
-use wgpu::{Device, Queue, Buffer};
-use cgmath::{Matrix4, Vector3, Vector4};
-use bytemuck::{Pod, Zeroable};
-use crate::renderer::error::{RendererResult, RendererErrorContext, buffer_mapping_error};
+use wgpu::{Buffer, Device, Queue};
 
 pub mod frustum_culler;
 pub mod hzb_builder;
@@ -32,7 +31,7 @@ impl GpuCamera {
     pub fn from_matrices(view: &Matrix4<f32>, proj: &Matrix4<f32>, position: Vector3<f32>) -> Self {
         let view_proj = proj * view;
         let frustum_planes = extract_frustum_planes(&view_proj);
-        
+
         Self {
             view_proj: view_proj.into(),
             position: position.into(),
@@ -53,55 +52,20 @@ impl GpuCamera {
 fn extract_frustum_planes(vp: &Matrix4<f32>) -> [Vector4<f32>; 6] {
     // Extract planes using Gribb-Hartmann method
     let m = vp;
-    
+
     [
         // Left plane
-        Vector4::new(
-            m.x.w + m.x.x,
-            m.y.w + m.y.x,
-            m.z.w + m.z.x,
-            m.w.w + m.w.x,
-        ).normalize(),
-        
+        Vector4::new(m.x.w + m.x.x, m.y.w + m.y.x, m.z.w + m.z.x, m.w.w + m.w.x).normalize(),
         // Right plane
-        Vector4::new(
-            m.x.w - m.x.x,
-            m.y.w - m.y.x,
-            m.z.w - m.z.x,
-            m.w.w - m.w.x,
-        ).normalize(),
-        
+        Vector4::new(m.x.w - m.x.x, m.y.w - m.y.x, m.z.w - m.z.x, m.w.w - m.w.x).normalize(),
         // Top plane
-        Vector4::new(
-            m.x.w - m.x.y,
-            m.y.w - m.y.y,
-            m.z.w - m.z.y,
-            m.w.w - m.w.y,
-        ).normalize(),
-        
+        Vector4::new(m.x.w - m.x.y, m.y.w - m.y.y, m.z.w - m.z.y, m.w.w - m.w.y).normalize(),
         // Bottom plane
-        Vector4::new(
-            m.x.w + m.x.y,
-            m.y.w + m.y.y,
-            m.z.w + m.z.y,
-            m.w.w + m.w.y,
-        ).normalize(),
-        
+        Vector4::new(m.x.w + m.x.y, m.y.w + m.y.y, m.z.w + m.z.y, m.w.w + m.w.y).normalize(),
         // Near plane
-        Vector4::new(
-            m.x.w + m.x.z,
-            m.y.w + m.y.z,
-            m.z.w + m.z.z,
-            m.w.w + m.w.z,
-        ).normalize(),
-        
+        Vector4::new(m.x.w + m.x.z, m.y.w + m.y.z, m.z.w + m.z.z, m.w.w + m.w.z).normalize(),
         // Far plane
-        Vector4::new(
-            m.x.w - m.x.z,
-            m.y.w - m.y.z,
-            m.z.w - m.z.z,
-            m.w.w - m.w.z,
-        ).normalize(),
+        Vector4::new(m.x.w - m.x.z, m.y.w - m.y.z, m.z.w - m.z.z, m.w.w - m.w.z).normalize(),
     ]
 }
 
@@ -157,7 +121,7 @@ pub struct GpuCullingSystem {
     frustum_culler: FrustumCuller,
     hzb: HierarchicalZBuffer,
     indirect_renderer: IndirectRenderer,
-    
+
     // Statistics
     stats_buffer: Buffer,
     stats_readback: Buffer,
@@ -168,7 +132,7 @@ impl GpuCullingSystem {
         let frustum_culler = FrustumCuller::new(device, max_chunks);
         let hzb = HierarchicalZBuffer::new(device, 2048, 2048); // Start with 2K
         let indirect_renderer = IndirectRenderer::new(device, max_chunks);
-        
+
         // Create stats buffers
         let stats_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Culling Stats Buffer"),
@@ -176,14 +140,14 @@ impl GpuCullingSystem {
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
             mapped_at_creation: false,
         });
-        
+
         let stats_readback = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Culling Stats Readback"),
             size: std::mem::size_of::<CullingStats>() as u64,
             usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
-        
+
         Self {
             frustum_culler,
             hzb,
@@ -192,7 +156,7 @@ impl GpuCullingSystem {
             stats_readback,
         }
     }
-    
+
     /// Perform complete culling pass
     pub fn cull(
         &mut self,
@@ -205,7 +169,7 @@ impl GpuCullingSystem {
     ) -> &Buffer {
         // Step 1: Build HZB from depth buffer
         self.hzb.build(encoder, depth_texture);
-        
+
         // Step 2: Frustum culling
         let frustum_visible = self.frustum_culler.cull(
             device,
@@ -215,29 +179,24 @@ impl GpuCullingSystem {
             chunk_count,
             &self.stats_buffer,
         );
-        
+
         // Step 3: Occlusion culling using HZB
-        let final_visible = self.hzb.cull_occlusion(
-            encoder,
-            camera,
-            chunk_instances,
-            frustum_visible,
-        );
-        
+        let final_visible =
+            self.hzb
+                .cull_occlusion(encoder, camera, chunk_instances, frustum_visible);
+
         // Step 4: Generate indirect draw commands
-        self.indirect_renderer.generate_commands(
-            encoder,
-            final_visible,
-        )
+        self.indirect_renderer
+            .generate_commands(encoder, final_visible)
     }
-    
+
     /// Read back culling statistics
     pub async fn read_stats(&self, device: &Device, queue: &Queue) -> RendererResult<CullingStats> {
         // Copy stats to readback buffer
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("Stats Readback"),
         });
-        
+
         encoder.copy_buffer_to_buffer(
             &self.stats_buffer,
             0,
@@ -245,28 +204,30 @@ impl GpuCullingSystem {
             0,
             std::mem::size_of::<CullingStats>() as u64,
         );
-        
+
         queue.submit(Some(encoder.finish()));
-        
+
         // Map and read
         let buffer_slice = self.stats_readback.slice(..);
         let (sender, receiver) = flume::bounded(1);
         buffer_slice.map_async(wgpu::MapMode::Read, move |result| {
             let _ = sender.send(result);
         });
-        
+
         device.poll(wgpu::Maintain::Wait);
-        receiver.recv_async().await
+        receiver
+            .recv_async()
+            .await
             .map_err(|_| buffer_mapping_error("culling stats"))
             .renderer_context("recv_async")?
             .map_err(|_| buffer_mapping_error("culling stats"))
             .renderer_context("map_async")?;
-        
+
         let data = buffer_slice.get_mapped_range();
         let stats = bytemuck::from_bytes::<CullingStats>(&data).clone();
         drop(data);
         self.stats_readback.unmap();
-        
+
         Ok(stats)
     }
 }

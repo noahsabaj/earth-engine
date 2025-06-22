@@ -6,11 +6,31 @@ The spatial index system provides a high-performance, hierarchical spatial data 
 
 ## Key Components
 
-### 1. Hierarchical Grid (`hierarchical_grid.rs`)
+### 1. Morton Encoding (`morton/morton3d.rs`)
+- Converts 3D coordinates to single 64-bit Morton code (Z-order)
+- Preserves spatial locality in linear memory
+- Cache-efficient spatial queries
+- Supports up to 21 bits per coordinate (2^21 = 2,097,152 range)
+- Used for GPU-CPU coherent spatial indexing
+
+```rust
+// Morton encoding interleaves bits for spatial locality
+Position (x=5, y=3, z=2) → Morton code: 0b101011010
+// Nearby positions have similar Morton codes
+```
+
+### 2. GPU-First Spatial Indexing
+- Spatial data stored in GPU buffers with Morton-ordered layout
+- GPU compute shaders perform parallel spatial queries
+- CPU fallback uses same Morton encoding for coherence
+- Zero-copy between CPU and GPU representations
+
+### 3. Hierarchical Grid (`hierarchical_grid.rs`)
 - Multi-level octree-like structure
 - Each level has cells of different sizes (powers of 2)
 - Entities placed at appropriate level based on size
 - Dynamic cell subdivision based on density
+- Morton codes used for cell addressing
 
 ```rust
 // 4 levels with cell sizes: 32, 16, 8, 4
@@ -20,32 +40,32 @@ Level 2: [8x8x8 cells]    - Small entities
 Level 3: [4x4x4 cells]    - Tiny entities
 ```
 
-### 2. Entity Store (`entity_store.rs`)
+### 4. Entity Store (`entity_store.rs`)
 - Thread-safe storage for entity data
 - Type-based indexing for fast filtering
 - Support for metadata key-value pairs
 - Efficient bulk operations
 
-### 3. Query System (`spatial_query.rs`)
+### 5. Query System (`spatial_query.rs`)
 - Range queries: Find entities within radius
 - K-nearest: Find K closest entities
 - Box queries: Find entities in AABB
 - Frustum queries: For view culling
 - All queries support entity type filtering
 
-### 4. Density Analyzer (`density_analyzer.rs`)
+### 6. Density Analyzer (`density_analyzer.rs`)
 - Tracks entity density across cells
 - Identifies hotspots needing subdivision
 - Predicts future density for preloading
 - Triggers automatic rebalancing
 
-### 5. Query Cache (`query_cache.rs`)
+### 7. Query Cache (`query_cache.rs`)
 - LRU cache for frequent queries
 - Automatic invalidation on entity changes
 - Size-limited with eviction
 - Dramatically improves repeated query performance
 
-### 6. Parallel Query Executor (`parallel_query.rs`)
+### 8. Parallel Query Executor (`parallel_query.rs`)
 - Executes multiple queries concurrently
 - Priority-based scheduling
 - Shared computation optimization

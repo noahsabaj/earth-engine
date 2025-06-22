@@ -1,9 +1,9 @@
+use crate::network::{Packet, PacketType, CONNECTION_TIMEOUT};
+use std::collections::VecDeque;
+use std::io::{ErrorKind, Read, Write};
 use std::net::{SocketAddr, TcpStream, UdpSocket};
 use std::sync::Arc;
 use std::time::Instant;
-use std::io::{Read, Write, ErrorKind};
-use std::collections::VecDeque;
-use crate::network::{Packet, PacketType, CONNECTION_TIMEOUT};
 
 /// Connection state
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -55,7 +55,7 @@ impl Connection {
         // Set non-blocking mode
         tcp_stream.set_nonblocking(true)?;
         tcp_stream.set_nodelay(true)?; // Disable Nagle's algorithm
-        
+
         Ok(Self {
             tcp_stream,
             udp_socket: None,
@@ -69,32 +69,32 @@ impl Connection {
             stats: ConnectionStats::default(),
         })
     }
-    
+
     /// Get the connection state
     pub fn state(&self) -> ConnectionState {
         self.state
     }
-    
+
     /// Get the player ID
     pub fn player_id(&self) -> Option<u32> {
         self.player_id
     }
-    
+
     /// Get the username
     pub fn username(&self) -> Option<&str> {
         self.username.as_deref()
     }
-    
+
     /// Get the remote address
     pub fn remote_addr(&self) -> SocketAddr {
         self.remote_addr
     }
-    
+
     /// Check if connection has timed out
     pub fn is_timed_out(&self) -> bool {
         self.last_activity.elapsed() > CONNECTION_TIMEOUT
     }
-    
+
     /// Get connection statistics
     pub fn stats(&self) -> &ConnectionStats {
         &self.stats
@@ -142,41 +142,43 @@ pub fn connection_process_send_queue(connection: &mut Connection) -> std::io::Re
 
 /// Send a packet via TCP
 fn connection_send_tcp_packet(connection: &mut Connection, packet: &Packet) -> std::io::Result<()> {
-    let data = packet.to_bytes()
+    let data = packet
+        .to_bytes()
         .map_err(|e| std::io::Error::new(ErrorKind::InvalidData, e))?;
-    
+
     // Send length prefix (4 bytes)
     let len = data.len() as u32;
     connection.tcp_stream.write_all(&len.to_be_bytes())?;
-    
+
     // Send packet data
     connection.tcp_stream.write_all(&data)?;
-    
+
     connection.stats.packets_sent += 1;
     connection.stats.bytes_sent += data.len() as u64 + 4;
-    
+
     Ok(())
 }
 
 /// Send a packet via UDP
 fn connection_send_udp_packet(connection: &mut Connection, packet: &Packet) -> std::io::Result<()> {
     if let Some(udp_socket) = &connection.udp_socket {
-        let data = packet.to_bytes()
+        let data = packet
+            .to_bytes()
             .map_err(|e| std::io::Error::new(ErrorKind::InvalidData, e))?;
-        
+
         udp_socket.send_to(&data, connection.remote_addr)?;
-        
+
         connection.stats.packets_sent += 1;
         connection.stats.bytes_sent += data.len() as u64;
     }
-    
+
     Ok(())
 }
 
 /// Receive packets from TCP
 pub fn connection_receive_tcp_packets(connection: &mut Connection) -> std::io::Result<Vec<Packet>> {
     let mut packets = Vec::new();
-    
+
     // Read data into buffer
     let mut temp_buffer = [0u8; 4096];
     loop {
@@ -198,7 +200,7 @@ pub fn connection_receive_tcp_packets(connection: &mut Connection) -> std::io::R
             Err(e) => return Err(e),
         }
     }
-    
+
     // Process complete packets
     while connection.recv_buffer.len() >= 4 {
         // Read length prefix
@@ -208,7 +210,7 @@ pub fn connection_receive_tcp_packets(connection: &mut Connection) -> std::io::R
             connection.recv_buffer[2],
             connection.recv_buffer[3],
         ]) as usize;
-        
+
         if len > crate::network::protocol::MAX_PACKET_SIZE {
             // Invalid packet size
             return Err(std::io::Error::new(
@@ -216,12 +218,12 @@ pub fn connection_receive_tcp_packets(connection: &mut Connection) -> std::io::R
                 "Packet too large",
             ));
         }
-        
+
         if connection.recv_buffer.len() < 4 + len {
             // Not enough data yet
             break;
         }
-        
+
         // Extract packet data
         let packet_data = &connection.recv_buffer[4..4 + len];
         match Packet::from_bytes(packet_data) {
@@ -234,11 +236,11 @@ pub fn connection_receive_tcp_packets(connection: &mut Connection) -> std::io::R
                 eprintln!("Failed to deserialize packet: {}", e);
             }
         }
-        
+
         // Remove processed data
         connection.recv_buffer.drain(..4 + len);
     }
-    
+
     Ok(packets)
 }
 
@@ -275,31 +277,41 @@ pub fn connection_manager_get_connections(manager: &mut ConnectionManager) -> &m
 }
 
 /// Add a new connection
-pub fn connection_manager_add_connection(manager: &mut ConnectionManager, mut connection: Connection) -> u32 {
+pub fn connection_manager_add_connection(
+    manager: &mut ConnectionManager,
+    mut connection: Connection,
+) -> u32 {
     let player_id = manager.next_player_id;
     manager.next_player_id += 1;
-    
+
     connection_set_player_id(&mut connection, player_id);
     manager.connections.push(connection);
-    
+
     player_id
 }
 
 /// Remove a connection
 pub fn connection_manager_remove_connection(manager: &mut ConnectionManager, player_id: u32) {
-    manager.connections.retain(|c| c.player_id() != Some(player_id));
+    manager
+        .connections
+        .retain(|c| c.player_id() != Some(player_id));
 }
 
 /// Get a connection by player ID
-pub fn connection_manager_get_connection(manager: &mut ConnectionManager, player_id: u32) -> Option<&mut Connection> {
-    manager.connections.iter_mut()
+pub fn connection_manager_get_connection(
+    manager: &mut ConnectionManager,
+    player_id: u32,
+) -> Option<&mut Connection> {
+    manager
+        .connections
+        .iter_mut()
         .find(|c| c.player_id() == Some(player_id))
 }
 
 /// Process all connections
 pub fn connection_manager_process_all(manager: &mut ConnectionManager) -> Vec<u32> {
     let mut disconnected = Vec::new();
-    
+
     // Process each connection
     for conn in &mut manager.connections {
         // Check for timeout
@@ -310,7 +322,7 @@ pub fn connection_manager_process_all(manager: &mut ConnectionManager) -> Vec<u3
             }
             continue;
         }
-        
+
         // Process send queue
         if let Err(e) = connection_process_send_queue(conn) {
             eprintln!("Failed to send packets: {}", e);
@@ -320,11 +332,11 @@ pub fn connection_manager_process_all(manager: &mut ConnectionManager) -> Vec<u3
             }
         }
     }
-    
+
     // Remove disconnected connections
     for id in &disconnected {
         connection_manager_remove_connection(manager, *id);
     }
-    
+
     disconnected
 }

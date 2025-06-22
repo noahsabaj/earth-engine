@@ -6,11 +6,14 @@
 
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
 use std::thread;
+use std::time::{Duration, Instant};
 
-use crate::persistence::{PersistenceResult, PersistenceError, atomic_save::{AtomicSaveManager, SaveOperation, SavePriority}};
-use crate::{World, ChunkPos};
+use crate::persistence::{
+    atomic_save::{AtomicSaveManager, SaveOperation, SavePriority},
+    PersistenceError, PersistenceResult,
+};
+use crate::{ChunkPos, World};
 
 /// Player connection state
 #[derive(Debug, Clone, PartialEq)]
@@ -71,19 +74,19 @@ pub struct DisconnectStats {
 pub struct DisconnectHandler {
     /// Players currently disconnecting
     disconnecting_players: Arc<Mutex<HashMap<String, DisconnectingPlayer>>>,
-    
+
     /// Atomic save manager for safe operations
     save_manager: Arc<AtomicSaveManager>,
-    
+
     /// Configuration
     config: DisconnectConfig,
-    
+
     /// Statistics
     stats: Arc<Mutex<DisconnectStats>>,
-    
+
     /// Background thread handle
     worker_thread: Option<thread::JoinHandle<()>>,
-    
+
     /// Shutdown signal
     shutdown: Arc<Mutex<bool>>,
 }
@@ -106,10 +109,10 @@ impl DisconnectHandler {
             worker_thread: None,
             shutdown: Arc::new(Mutex::new(false)),
         };
-        
+
         handler
     }
-    
+
     /// Start the background worker thread
     pub fn start(&mut self) -> PersistenceResult<()> {
         let disconnecting_players = Arc::clone(&self.disconnecting_players);
@@ -117,27 +120,27 @@ impl DisconnectHandler {
         let config = self.config.clone();
         let stats = Arc::clone(&self.stats);
         let shutdown = Arc::clone(&self.shutdown);
-        
+
         self.worker_thread = Some(thread::spawn(move || {
             Self::worker_loop(disconnecting_players, save_manager, config, stats, shutdown);
         }));
-        
+
         Ok(())
     }
-    
+
     /// Stop the background worker
     pub fn stop(&mut self) -> PersistenceResult<()> {
         if let Ok(mut shutdown) = self.shutdown.lock() {
             *shutdown = true;
         }
-        
+
         if let Some(handle) = self.worker_thread.take() {
             let _ = handle.join();
         }
-        
+
         Ok(())
     }
-    
+
     /// Handle a player disconnect request
     pub fn handle_disconnect(
         &self,
@@ -147,7 +150,7 @@ impl DisconnectHandler {
         player_position: (f64, f64, f64),
     ) -> PersistenceResult<()> {
         let chunks_to_save = self.get_chunks_around_player(player_position);
-        
+
         let disconnecting_player = DisconnectingPlayer {
             uuid: player_uuid.clone(),
             username,
@@ -156,28 +159,32 @@ impl DisconnectHandler {
             disconnect_time: Instant::now(),
             state: ConnectionState::Disconnecting,
         };
-        
+
         // Add to disconnecting players list
         {
-            let mut players = self.disconnecting_players.lock()
+            let mut players = self
+                .disconnecting_players
+                .lock()
                 .map_err(|_| PersistenceError::LockPoisoned("disconnecting_players".to_string()))?;
             players.insert(player_uuid.clone(), disconnecting_player.clone());
         }
-        
+
         // Queue save operations with critical priority
         self.queue_player_saves(&disconnecting_player, world)?;
-        
+
         // Update stats
         if let Ok(mut stats) = self.stats.lock() {
             stats.players_disconnecting += 1;
         }
-        
-        println!("[DisconnectHandler] Handling disconnect for player {} at {:?}", 
-                player_uuid, player_position);
-        
+
+        println!(
+            "[DisconnectHandler] Handling disconnect for player {} at {:?}",
+            player_uuid, player_position
+        );
+
         Ok(())
     }
-    
+
     /// Handle emergency disconnect (e.g., crashed connection)
     pub fn handle_emergency_disconnect(
         &self,
@@ -188,34 +195,38 @@ impl DisconnectHandler {
         if !self.config.emergency_save_enabled {
             return Ok(());
         }
-        
-        println!("[DisconnectHandler] Emergency disconnect for player {}", player_uuid);
-        
+
+        println!(
+            "[DisconnectHandler] Emergency disconnect for player {}",
+            player_uuid
+        );
+
         // Immediately queue critical saves
         let chunks_to_save = self.get_chunks_around_player(player_position);
-        
+
         // Queue player data save with critical priority
         self.save_manager.queue_operation(SaveOperation::Player {
             uuid: player_uuid.clone(),
             priority: SavePriority::Critical,
         })?;
-        
+
         // Queue chunk saves with critical priority
         if !chunks_to_save.is_empty() {
-            self.save_manager.queue_operation(SaveOperation::ChunkBatch {
-                positions: chunks_to_save.into_iter().collect(),
-                priority: SavePriority::Critical,
-            })?;
+            self.save_manager
+                .queue_operation(SaveOperation::ChunkBatch {
+                    positions: chunks_to_save.into_iter().collect(),
+                    priority: SavePriority::Critical,
+                })?;
         }
-        
+
         // Update stats
         if let Ok(mut stats) = self.stats.lock() {
             stats.emergency_saves += 1;
         }
-        
+
         Ok(())
     }
-    
+
     /// Check if a player is currently disconnecting
     pub fn is_player_disconnecting(&self, player_uuid: &str) -> bool {
         if let Ok(players) = self.disconnecting_players.lock() {
@@ -224,7 +235,7 @@ impl DisconnectHandler {
             false
         }
     }
-    
+
     /// Get disconnect status for a player
     pub fn get_disconnect_status(&self, player_uuid: &str) -> Option<ConnectionState> {
         if let Ok(players) = self.disconnecting_players.lock() {
@@ -233,37 +244,42 @@ impl DisconnectHandler {
             None
         }
     }
-    
+
     /// Force disconnect a player (emergency override)
     pub fn force_disconnect(&self, player_uuid: &str) -> PersistenceResult<bool> {
-        let mut players = self.disconnecting_players.lock()
+        let mut players = self
+            .disconnecting_players
+            .lock()
             .map_err(|_| PersistenceError::LockPoisoned("disconnecting_players".to_string()))?;
-        
+
         if let Some(mut player) = players.remove(player_uuid) {
             player.state = ConnectionState::Disconnected;
-            
+
             // Update stats
             if let Ok(mut stats) = self.stats.lock() {
                 stats.force_disconnects += 1;
                 stats.players_disconnecting = stats.players_disconnecting.saturating_sub(1);
             }
-            
-            println!("[DisconnectHandler] Force disconnected player {}", player_uuid);
+
+            println!(
+                "[DisconnectHandler] Force disconnected player {}",
+                player_uuid
+            );
             Ok(true)
         } else {
             Ok(false)
         }
     }
-    
+
     /// Get chunks around a player position that need saving
     fn get_chunks_around_player(&self, position: (f64, f64, f64)) -> HashSet<ChunkPos> {
         let (x, _y, z) = position;
         let chunk_x = (x as i32) >> 4; // Assuming 16x16 chunks
         let chunk_z = (z as i32) >> 4;
-        
+
         let mut chunks = HashSet::new();
         let radius = self.config.chunk_save_radius;
-        
+
         for dx in -radius..=radius {
             for dz in -radius..=radius {
                 chunks.insert(ChunkPos {
@@ -273,29 +289,34 @@ impl DisconnectHandler {
                 });
             }
         }
-        
+
         chunks
     }
-    
+
     /// Queue save operations for a disconnecting player
-    fn queue_player_saves(&self, player: &DisconnectingPlayer, _world: &World) -> PersistenceResult<()> {
+    fn queue_player_saves(
+        &self,
+        player: &DisconnectingPlayer,
+        _world: &World,
+    ) -> PersistenceResult<()> {
         // Queue player data save
         self.save_manager.queue_operation(SaveOperation::Player {
             uuid: player.uuid.clone(),
             priority: SavePriority::Critical,
         })?;
-        
+
         // Queue chunk saves if any
         if !player.chunks_to_save.is_empty() {
-            self.save_manager.queue_operation(SaveOperation::ChunkBatch {
-                positions: player.chunks_to_save.iter().cloned().collect(),
-                priority: SavePriority::Critical,
-            })?;
+            self.save_manager
+                .queue_operation(SaveOperation::ChunkBatch {
+                    positions: player.chunks_to_save.iter().cloned().collect(),
+                    priority: SavePriority::Critical,
+                })?;
         }
-        
+
         Ok(())
     }
-    
+
     /// Background worker loop
     fn worker_loop(
         disconnecting_players: Arc<Mutex<HashMap<String, DisconnectingPlayer>>>,
@@ -311,9 +332,9 @@ impl DisconnectHandler {
                     break;
                 }
             }
-            
+
             thread::sleep(Duration::from_millis(100));
-            
+
             // Process disconnecting players
             let players_to_process: Vec<DisconnectingPlayer> = {
                 if let Ok(players) = disconnecting_players.lock() {
@@ -322,80 +343,95 @@ impl DisconnectHandler {
                     continue;
                 }
             };
-            
+
             for player in players_to_process {
                 let now = Instant::now();
                 let disconnect_duration = now.duration_since(player.disconnect_time);
-                
+
                 // Check if save timeout exceeded
                 if disconnect_duration > config.max_save_timeout {
-                    println!("[DisconnectHandler] Save timeout for player {}, forcing disconnect", player.uuid);
-                    
+                    println!(
+                        "[DisconnectHandler] Save timeout for player {}, forcing disconnect",
+                        player.uuid
+                    );
+
                     if let Ok(mut players) = disconnecting_players.lock() {
                         players.remove(&player.uuid);
                     }
-                    
+
                     if let Ok(mut stats_lock) = stats.lock() {
                         stats_lock.force_disconnects += 1;
-                        stats_lock.players_disconnecting = stats_lock.players_disconnecting.saturating_sub(1);
+                        stats_lock.players_disconnecting =
+                            stats_lock.players_disconnecting.saturating_sub(1);
                     }
                     continue;
                 }
-                
+
                 // Check if grace period passed and saves are complete
-                if disconnect_duration > config.reconnect_grace_period {
-                    if Self::are_player_saves_complete(&save_manager, &player) {
-                        println!("[DisconnectHandler] Save complete for player {}", player.uuid);
-                        
-                        if let Ok(mut players) = disconnecting_players.lock() {
-                            if let Some(p) = players.get_mut(&player.uuid) {
-                                p.state = ConnectionState::SaveComplete;
-                            }
+                if disconnect_duration > config.reconnect_grace_period && Self::are_player_saves_complete(&save_manager, &player) {
+                    println!(
+                        "[DisconnectHandler] Save complete for player {}",
+                        player.uuid
+                    );
+
+                    if let Ok(mut players) = disconnecting_players.lock() {
+                        if let Some(p) = players.get_mut(&player.uuid) {
+                            p.state = ConnectionState::SaveComplete;
                         }
-                        
-                        if let Ok(mut stats_lock) = stats.lock() {
-                            stats_lock.successful_saves += 1;
-                            stats_lock.players_disconnecting = stats_lock.players_disconnecting.saturating_sub(1);
-                            
-                            // Update average save time
-                            let total_saves = stats_lock.successful_saves + stats_lock.failed_saves;
-                            if total_saves > 0 {
-                                let total_time = stats_lock.average_save_time.as_millis() as u64 * (total_saves - 1) 
-                                    + disconnect_duration.as_millis() as u64;
-                                stats_lock.average_save_time = Duration::from_millis(total_time / total_saves);
-                            }
+                    }
+
+                    if let Ok(mut stats_lock) = stats.lock() {
+                        stats_lock.successful_saves += 1;
+                        stats_lock.players_disconnecting =
+                            stats_lock.players_disconnecting.saturating_sub(1);
+
+                        // Update average save time
+                        let total_saves = stats_lock.successful_saves + stats_lock.failed_saves;
+                        if total_saves > 0 {
+                            let total_time = stats_lock.average_save_time.as_millis() as u64
+                                * (total_saves - 1)
+                                + disconnect_duration.as_millis() as u64;
+                            stats_lock.average_save_time =
+                                Duration::from_millis(total_time / total_saves);
                         }
                     }
                 }
             }
         }
     }
-    
+
     /// Check if all saves for a player are complete
-    fn are_player_saves_complete(_save_manager: &AtomicSaveManager, _player: &DisconnectingPlayer) -> bool {
+    fn are_player_saves_complete(
+        _save_manager: &AtomicSaveManager,
+        _player: &DisconnectingPlayer,
+    ) -> bool {
         // For now, assume saves complete after grace period
         // In real implementation, would check save manager queue for pending operations
         true
     }
-    
+
     /// Get current statistics
     pub fn get_stats(&self) -> PersistenceResult<DisconnectStats> {
-        let stats = self.stats.lock()
+        let stats = self
+            .stats
+            .lock()
             .map_err(|_| PersistenceError::LockPoisoned("stats".to_string()))?;
         Ok(stats.clone())
     }
-    
+
     /// Clear all disconnecting players (emergency shutdown)
     pub fn clear_all_disconnecting(&self) -> PersistenceResult<usize> {
-        let mut players = self.disconnecting_players.lock()
+        let mut players = self
+            .disconnecting_players
+            .lock()
             .map_err(|_| PersistenceError::LockPoisoned("disconnecting_players".to_string()))?;
         let count = players.len();
         players.clear();
-        
+
         if let Ok(mut stats) = self.stats.lock() {
             stats.players_disconnecting = 0;
         }
-        
+
         Ok(count)
     }
 }
@@ -409,106 +445,116 @@ impl Drop for DisconnectHandler {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::persistence::atomic_save::{AtomicSaveManager, AtomicSaveConfig};
-    use tempfile::TempDir;
+    use crate::persistence::atomic_save::{AtomicSaveConfig, AtomicSaveManager};
     use std::sync::Arc;
-    
+    use tempfile::TempDir;
+
     fn create_test_save_manager() -> Arc<AtomicSaveManager> {
         let temp_dir = TempDir::new().expect("Failed to create temporary directory for test");
         let config = AtomicSaveConfig::default();
-        Arc::new(AtomicSaveManager::new(temp_dir.path().to_path_buf(), config)
-            .expect("Failed to create AtomicSaveManager"))
+        Arc::new(
+            AtomicSaveManager::new(temp_dir.path().to_path_buf(), config)
+                .expect("Failed to create AtomicSaveManager"),
+        )
     }
-    
+
     fn create_test_world() -> World {
         World::new(16) // 16x16 chunk size
     }
-    
+
     #[test]
     fn test_disconnect_handler_creation() {
         let save_manager = create_test_save_manager();
         let config = DisconnectConfig::default();
         let handler = DisconnectHandler::new(save_manager, config);
-        
+
         let stats = handler.get_stats().expect("Failed to get stats");
         assert_eq!(stats.players_disconnecting, 0);
         assert_eq!(stats.successful_saves, 0);
     }
-    
+
     #[test]
     fn test_handle_disconnect() {
         let save_manager = create_test_save_manager();
         let config = DisconnectConfig::default();
         let handler = DisconnectHandler::new(save_manager, config);
         let world = create_test_world();
-        
+
         let result = handler.handle_disconnect(
             "test_player".to_string(),
             "TestPlayer".to_string(),
             &world,
             (100.0, 64.0, 200.0),
         );
-        
+
         assert!(result.is_ok());
         assert!(handler.is_player_disconnecting("test_player"));
-        
+
         let status = handler.get_disconnect_status("test_player");
         assert_eq!(status, Some(ConnectionState::Disconnecting));
     }
-    
+
     #[test]
     fn test_emergency_disconnect() {
         let save_manager = create_test_save_manager();
         let config = DisconnectConfig::default();
         let handler = DisconnectHandler::new(save_manager, config);
         let world = create_test_world();
-        
+
         let result = handler.handle_emergency_disconnect(
             "emergency_player".to_string(),
             &world,
             (0.0, 64.0, 0.0),
         );
-        
+
         assert!(result.is_ok());
-        
+
         let stats = handler.get_stats().expect("Failed to get stats");
         assert_eq!(stats.emergency_saves, 1);
     }
-    
+
     #[test]
     fn test_chunks_around_player() {
         let save_manager = create_test_save_manager();
-        let config = DisconnectConfig { chunk_save_radius: 1, ..Default::default() };
+        let config = DisconnectConfig {
+            chunk_save_radius: 1,
+            ..Default::default()
+        };
         let handler = DisconnectHandler::new(save_manager, config);
-        
+
         let chunks = handler.get_chunks_around_player((16.0, 64.0, 16.0));
         assert_eq!(chunks.len(), 9); // 3x3 grid around player
-        
+
         assert!(chunks.contains(&ChunkPos { x: 0, y: 0, z: 0 }));
         assert!(chunks.contains(&ChunkPos { x: 1, y: 0, z: 1 }));
         assert!(chunks.contains(&ChunkPos { x: -1, y: 0, z: -1 }));
     }
-    
+
     #[test]
     fn test_force_disconnect() {
         let save_manager = create_test_save_manager();
         let config = DisconnectConfig::default();
         let handler = DisconnectHandler::new(save_manager, config);
         let world = create_test_world();
-        
+
         // First handle a normal disconnect
-        handler.handle_disconnect(
-            "force_test".to_string(),
-            "ForceTest".to_string(),
-            &world,
-            (0.0, 64.0, 0.0),
-        ).expect("Failed to handle disconnect");
-        
+        handler
+            .handle_disconnect(
+                "force_test".to_string(),
+                "ForceTest".to_string(),
+                &world,
+                (0.0, 64.0, 0.0),
+            )
+            .expect("Failed to handle disconnect");
+
         // Then force disconnect
         let result = handler.force_disconnect("force_test");
         assert!(result.is_ok());
-        assert_eq!(result.expect("[Test] Force disconnect should succeed"), true);
-        
+        assert_eq!(
+            result.expect("[Test] Force disconnect should succeed"),
+            true
+        );
+
         // Should no longer be disconnecting
         assert!(!handler.is_player_disconnecting("force_test"));
     }

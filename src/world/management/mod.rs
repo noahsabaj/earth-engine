@@ -4,15 +4,17 @@
 //! GPU or CPU backends, presenting a consistent interface regardless
 //! of the underlying implementation.
 
-mod world_manager;
 mod chunk_manager;
-mod performance;
 mod parallel_world;
+mod performance;
+mod world_manager;
 
-pub use world_manager::{UnifiedWorldManager, WorldManagerConfig, WorldError};
-pub use chunk_manager::{UnifiedChunkManager, ChunkManagerConfig, ChunkManagerInterface, ChunkStats};
-pub use performance::{WorldPerformanceMetrics, GenerationStats, PerformanceMonitor};
+pub use chunk_manager::{
+    ChunkManagerConfig, ChunkManagerInterface, ChunkStats, UnifiedChunkManager,
+};
 pub use parallel_world::{ParallelWorld, ParallelWorldConfig, SpawnFinder};
+pub use performance::{GenerationStats, PerformanceMonitor, WorldPerformanceMetrics};
+pub use world_manager::{UnifiedWorldManager, WorldError, WorldManagerConfig};
 
 /// Backend selection for unified managers
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -61,9 +63,10 @@ pub async fn select_backend(
             // Check GPU capabilities
             let limits = device.limits();
             let features = device.features();
-            
-            if features.contains(wgpu::Features::TIMESTAMP_QUERY) 
-                && limits.max_compute_workgroup_size_x >= 256 {
+
+            if features.contains(wgpu::Features::TIMESTAMP_QUERY)
+                && limits.max_compute_workgroup_size_x >= 256
+            {
                 Backend::Gpu
             } else {
                 log::warn!("GPU doesn't meet requirements, falling back to CPU");
@@ -83,7 +86,7 @@ mod tests {
     fn test_backend_default() {
         assert_eq!(Backend::default(), Backend::Auto);
     }
-    
+
     #[test]
     fn test_requirements_default() {
         let req = BackendRequirements::default();
@@ -91,7 +94,7 @@ mod tests {
         assert_eq!(req.max_latency_ms, 16);
         assert_eq!(req.prefer_gpu, true);
     }
-    
+
     #[tokio::test]
     async fn test_backend_selection_no_gpu() {
         let backend = select_backend(None, &BackendRequirements::default()).await;

@@ -1,11 +1,10 @@
 /// Metadata Storage System
-/// 
+///
 /// Stores arbitrary key-value metadata for instances.
 /// Uses column-based storage for efficient memory usage.
 /// Supports different value types without boxing.
-
 use crate::instance::InstanceId;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 /// Metadata key type
@@ -75,14 +74,14 @@ impl MetadataColumn {
             MetadataValue::Position(_) => MetadataColumnData::Position(Vec::new()),
             MetadataValue::Rotation(_) => MetadataColumnData::Rotation(Vec::new()),
         };
-        
+
         Self {
             key,
             indices: HashMap::new(),
             values,
         }
     }
-    
+
     /// Set value for an instance
     pub fn set(&mut self, id: InstanceId, value: MetadataValue) -> Result<(), &'static str> {
         match (&mut self.values, value) {
@@ -189,22 +188,32 @@ impl MetadataColumn {
             _ => Err("Type mismatch"),
         }
     }
-    
+
     /// Get value for an instance
     pub fn get(&self, id: &InstanceId) -> Option<MetadataValue> {
         let index = *self.indices.get(id)?;
-        
+
         match &self.values {
             MetadataColumnData::Bool(vec) => vec.get(index).map(|&v| MetadataValue::Bool(v)),
             MetadataColumnData::I32(vec) => vec.get(index).map(|&v| MetadataValue::I32(v)),
             MetadataColumnData::I64(vec) => vec.get(index).map(|&v| MetadataValue::I64(v)),
             MetadataColumnData::F32(vec) => vec.get(index).map(|&v| MetadataValue::F32(v)),
             MetadataColumnData::F64(vec) => vec.get(index).map(|&v| MetadataValue::F64(v)),
-            MetadataColumnData::String(vec) => vec.get(index).map(|v| MetadataValue::String(v.clone())),
-            MetadataColumnData::Bytes(vec) => vec.get(index).map(|v| MetadataValue::Bytes(v.clone())),
-            MetadataColumnData::InstanceRef(vec) => vec.get(index).map(|&v| MetadataValue::InstanceRef(v)),
-            MetadataColumnData::Position(vec) => vec.get(index).map(|&v| MetadataValue::Position(v)),
-            MetadataColumnData::Rotation(vec) => vec.get(index).map(|&v| MetadataValue::Rotation(v)),
+            MetadataColumnData::String(vec) => {
+                vec.get(index).map(|v| MetadataValue::String(v.clone()))
+            }
+            MetadataColumnData::Bytes(vec) => {
+                vec.get(index).map(|v| MetadataValue::Bytes(v.clone()))
+            }
+            MetadataColumnData::InstanceRef(vec) => {
+                vec.get(index).map(|&v| MetadataValue::InstanceRef(v))
+            }
+            MetadataColumnData::Position(vec) => {
+                vec.get(index).map(|&v| MetadataValue::Position(v))
+            }
+            MetadataColumnData::Rotation(vec) => {
+                vec.get(index).map(|&v| MetadataValue::Rotation(v))
+            }
         }
     }
 }
@@ -249,38 +258,44 @@ impl MetadataStore {
             common_keys: CommonMetadataKeys::default(),
         }
     }
-    
+
     /// Set metadata value
-    pub fn set(&mut self, id: InstanceId, key: MetadataKey, value: MetadataValue) -> Result<(), &'static str> {
+    pub fn set(
+        &mut self,
+        id: InstanceId,
+        key: MetadataKey,
+        value: MetadataValue,
+    ) -> Result<(), &'static str> {
         // Get or create column
         if !self.columns.contains_key(key) {
             let column = MetadataColumn::new(key, value.clone());
             self.columns.insert(key, column);
         }
-        
-        self.columns.get_mut(key)
+
+        self.columns
+            .get_mut(key)
             .ok_or("Failed to get metadata column")?
             .set(id, value)
     }
-    
+
     /// Get metadata value
     pub fn get(&self, id: &InstanceId, key: MetadataKey) -> Option<MetadataValue> {
         self.columns.get(key)?.get(id)
     }
-    
+
     /// Get all metadata for an instance
     pub fn get_all(&self, id: &InstanceId) -> HashMap<MetadataKey, MetadataValue> {
         let mut result = HashMap::new();
-        
+
         for (key, column) in &self.columns {
             if let Some(value) = column.get(id) {
                 result.insert(*key, value);
             }
         }
-        
+
         result
     }
-    
+
     /// Remove all metadata for an instance
     pub fn remove_instance(&mut self, id: &InstanceId) {
         for column in self.columns.values_mut() {
@@ -289,11 +304,11 @@ impl MetadataStore {
             // This could be optimized with periodic compaction
         }
     }
-    
+
     /// Get instances with specific metadata value
     pub fn find_by_metadata(&self, key: MetadataKey, value: &MetadataValue) -> Vec<InstanceId> {
         let mut results = Vec::new();
-        
+
         if let Some(column) = self.columns.get(key) {
             for (id, &index) in &column.indices {
                 if let Some(stored_value) = column.get(id) {
@@ -303,7 +318,7 @@ impl MetadataStore {
                 }
             }
         }
-        
+
         results
     }
 }
@@ -311,42 +326,51 @@ impl MetadataStore {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_metadata_storage() {
         let mut store = MetadataStore::new();
         let id = InstanceId::new();
-        
+
         // Test different value types
-        store.set(id, "name", MetadataValue::String("Test Item".to_string())).expect("Failed to set name metadata");
-        store.set(id, "durability", MetadataValue::I32(100)).expect("Failed to set durability metadata");
-        store.set(id, "position", MetadataValue::Position([1.0, 2.0, 3.0])).expect("Failed to set position metadata");
-        
+        store
+            .set(id, "name", MetadataValue::String("Test Item".to_string()))
+            .expect("Failed to set name metadata");
+        store
+            .set(id, "durability", MetadataValue::I32(100))
+            .expect("Failed to set durability metadata");
+        store
+            .set(id, "position", MetadataValue::Position([1.0, 2.0, 3.0]))
+            .expect("Failed to set position metadata");
+
         assert_eq!(
             store.get(&id, "name"),
             Some(MetadataValue::String("Test Item".to_string()))
         );
-        assert_eq!(
-            store.get(&id, "durability"),
-            Some(MetadataValue::I32(100))
-        );
+        assert_eq!(store.get(&id, "durability"), Some(MetadataValue::I32(100)));
         assert_eq!(
             store.get(&id, "position"),
             Some(MetadataValue::Position([1.0, 2.0, 3.0]))
         );
     }
-    
+
     #[test]
     fn test_metadata_search() {
         let mut store = MetadataStore::new();
         let id1 = InstanceId::new();
         let id2 = InstanceId::new();
         let id3 = InstanceId::new();
-        
-        store.set(id1, "type", MetadataValue::String("sword".to_string())).expect("Failed to set type for id1");
-        store.set(id2, "type", MetadataValue::String("sword".to_string())).expect("Failed to set type for id2");
-        store.set(id3, "type", MetadataValue::String("shield".to_string())).expect("Failed to set type for id3");
-        
+
+        store
+            .set(id1, "type", MetadataValue::String("sword".to_string()))
+            .expect("Failed to set type for id1");
+        store
+            .set(id2, "type", MetadataValue::String("sword".to_string()))
+            .expect("Failed to set type for id2");
+        store
+            .set(id3, "type", MetadataValue::String("shield".to_string()))
+            .expect("Failed to set type for id3");
+
         let swords = store.find_by_metadata("type", &MetadataValue::String("sword".to_string()));
         assert_eq!(swords.len(), 2);
         assert!(swords.contains(&id1));

@@ -1,5 +1,3 @@
 mod thread_pool;
 
-pub use thread_pool::{
-    ThreadPoolManager, ThreadPoolConfig, PoolCategory, ThreadPoolStats
-};
+pub use thread_pool::{PoolCategory, ThreadPoolConfig, ThreadPoolManager, ThreadPoolStats};

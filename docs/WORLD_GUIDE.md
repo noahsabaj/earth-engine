@@ -1,8 +1,8 @@
-# Unified World Module Guide
+# World Module Guide
 
 ## Overview
 
-The unified `world` module represents Hearth Engine's GPU-first architecture that unifies CPU and GPU world management into a single, coherent system.
+The `world` module represents Hearth Engine's GPU-first architecture with unified CPU and GPU world management in a single, coherent system.
 
 ## Key Benefits
 
@@ -28,18 +28,18 @@ world/
 
 ```rust
 use hearth_engine::{
-    UnifiedWorldManager, UnifiedWorldConfig,
+    WorldManager, WorldConfig,
     VoxelPos, BlockId,
 };
 
 // Create world manager
-let config = UnifiedWorldConfig {
+let config = WorldConfig {
     chunk_size: 32,
     render_distance: 16,
     ..Default::default()
 };
 
-let world = UnifiedWorldManager::new(device, queue, config)?;
+let world = WorldManager::new(device, queue, config)?;
 
 // All operations are GPU-accelerated
 world.set_block(VoxelPos { x: 10, y: 20, z: 30 }, BlockId(1));
@@ -51,7 +51,7 @@ let block = world.get_block(VoxelPos { x: 10, y: 20, z: 30 });
 ### Terrain Generation
 ```rust
 // Runs entirely on GPU using SOA layout
-let generator = UnifiedGenerator::new(device, config)?;
+let generator = TerrainGenerator::new(device, config)?;
 // Generates chunks in parallel on GPU
 ```
 
@@ -86,7 +86,7 @@ gpu_world.process_chunk(pos);
 let result = gpu_world.download_chunk(pos);
 ```
 
-### New Way (unified world)
+### New Way (world module)
 ```rust
 // Everything stays on GPU
 world.generate_chunk(pos); // GPU generation
@@ -150,8 +150,8 @@ world.validate_gpu_types()?;
 
 ## Example
 
-See `examples/test_unified_world.rs` for a complete working example.
+See `examples/test_world.rs` for a complete working example.
 
 ```bash
-cargo run --example test_unified_world
+cargo run --example test_world
 ```

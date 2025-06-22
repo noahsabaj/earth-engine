@@ -1,39 +1,52 @@
 //! GPU state management for the renderer
-//! 
+//!
 //! This file contains complex camera usage that will be migrated to data-oriented design
 //! in a future sprint. For now, we allow deprecated warnings to focus on other cleanup.
 
 #![allow(deprecated)]
 
-use crate::{EngineConfig, GameContext, BlockRegistry, BlockId, VoxelPos};
-use crate::game::{GameData, register_game_blocks, update_game, get_active_block_from_game, handle_block_break, handle_block_place};
+// Include constants from root constants.rs
+include!("../../constants.rs");
+
 use crate::camera::{
-    CameraData,
-    update_aspect_ratio, camera_rotate, 
-    build_view_matrix, build_projection_matrix, calculate_forward_vector,
-    init_camera, init_camera_with_spawn,
+    build_projection_matrix, build_view_matrix, calculate_forward_vector, camera_rotate,
+    init_camera, init_camera_with_spawn, update_aspect_ratio, CameraData,
 };
+use crate::game::{
+    get_active_block_from_game, handle_block_break, handle_block_place, register_game_blocks,
+    update_game, GameData,
+};
+use crate::gpu::{GpuErrorRecovery, SafeCommandEncoder};
 use crate::input::InputState;
-use crate::physics::{GpuPhysicsWorld};
-use crate::physics::{EntityId, physics_tables::PhysicsFlags};
-use crate::renderer::{SelectionRenderer, GpuDiagnostics, GpuInitProgress, gpu_driven::GpuDrivenRenderer, gpu_meshing::{GpuMeshingState, create_gpu_meshing_state}};
-use crate::world::{
-    interfaces::{WorldInterface, WorldConfig, ChunkManager},
-    core::{Ray, RaycastHit},
-    management::{UnifiedWorldManager, ParallelWorld, ParallelWorldConfig, SpawnFinder},
+use crate::physics::GpuPhysicsWorld;
+use crate::physics::{physics_tables::PhysicsFlags, EntityId};
+use crate::renderer::mesh_utils::{
+    create_simple_cube_indices, create_simple_cube_vertices, generate_chunk_terrain_mesh,
 };
-use crate::world::lighting::{DayNightCycleData, LightUpdate, LightType};
-use crate::world::lighting::{create_default_day_night_cycle, update_day_night_cycle};
+use crate::renderer::vertex::Vertex;
+use crate::renderer::{
+    gpu_driven::GpuDrivenRenderer,
+    gpu_meshing::{create_gpu_meshing_state, GpuMeshingState},
+    GpuDiagnostics, GpuInitProgress, SelectionRenderer,
+};
 use crate::world::compute::GpuLightPropagator;
+use crate::world::lighting::{create_default_day_night_cycle, update_day_night_cycle};
+use crate::world::lighting::{DayNightCycleData, LightType, LightUpdate};
+use crate::world::{
+    core::{Ray, RaycastHit},
+    interfaces::{ChunkManager, WorldConfig, WorldInterface},
+    management::{ParallelWorld, ParallelWorldConfig, SpawnFinder, UnifiedWorldManager},
+};
+use crate::{BlockId, BlockRegistry, EngineConfig, GameContext, VoxelPos};
 use anyhow::Result;
-use cgmath::{Matrix4, SquareMatrix, Point3, Vector3, InnerSpace, Zero};
+use cgmath::{InnerSpace, Matrix4, Point3, SquareMatrix, Vector3, Zero};
 use chrono;
-use std::sync::Arc;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use wgpu::util::DeviceExt;
 use winit::{
     dpi::LogicalSize,
-    event::{DeviceEvent, Event, WindowEvent, MouseButton},
+    event::{DeviceEvent, Event, MouseButton, WindowEvent},
     event_loop::EventLoop,
     keyboard::KeyCode,
     window::{CursorGrabMode, Window, WindowBuilder},
@@ -82,7 +95,7 @@ impl CameraUniform {
         self.projection = proj.into();
         self.view_proj = (proj * view).into();
         self.position = camera.position;
-        
+
         // Log camera matrices for debugging
         log::debug!("[CameraUniform] Camera position: {:?}", camera.position);
         log::debug!("[CameraUniform] View matrix: {:?}", view);
@@ -99,6 +112,7 @@ pub struct GpuState {
     config: wgpu::SurfaceConfiguration,
     size: winit::dpi::PhysicalSize<u32>,
     features: wgpu::Features,
+    error_recovery: Arc<GpuErrorRecovery>,
     render_pipeline: wgpu::RenderPipeline,
     camera: CameraData,
     camera_uniform: CameraUniform,
@@ -133,6 +147,8 @@ pub struct GpuState {
     chunks_with_meshes: std::collections::HashSet<crate::ChunkPos>,
     // Map chunk positions to GPU mesh buffer indices
     chunk_to_buffer_index: std::collections::HashMap<crate::ChunkPos, u32>,
+    // Map chunk positions to index counts for CPU-generated meshes
+    chunk_index_counts: std::collections::HashMap<crate::ChunkPos, u32>,
     // Render object submission tracking
     last_render_object_count: u32,
     frames_without_objects: u32,
@@ -147,37 +163,51 @@ impl GpuState {
     pub fn features(&self) -> wgpu::Features {
         self.features
     }
-    
+
     async fn new(window: Arc<Window>) -> Result<Self> {
         let default_config = EngineConfig::default();
         Self::new_with_game(window, None::<&mut DefaultGameData>, default_config).await
     }
-    
-    async fn new_with_game<G: GameData>(window: Arc<Window>, game: Option<&mut G>, engine_config: EngineConfig) -> Result<Self> {
+
+    async fn new_with_game<G: GameData>(
+        window: Arc<Window>,
+        game: Option<&mut G>,
+        engine_config: EngineConfig,
+    ) -> Result<Self> {
         log::info!("[GpuState::new] Starting GPU initialization");
         let init_start = std::time::Instant::now();
         let _progress = GpuInitProgress::new();
-        
+
         let size = window.inner_size();
-        log::debug!("[GpuState::new] Window size: {}x{}", size.width, size.height);
+        log::debug!(
+            "[GpuState::new] Window size: {}x{}",
+            size.width,
+            size.height
+        );
 
         // Create wgpu instance with timeout and diagnostics
         log::info!("[GpuState::new] Creating WGPU instance...");
-        log::info!("[GpuState::new] Available backends: {:?}", wgpu::Backends::all());
-        
+        log::info!(
+            "[GpuState::new] Available backends: {:?}",
+            wgpu::Backends::all()
+        );
+
         let instance_start = std::time::Instant::now();
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
             ..Default::default()
         });
         let instance_time = instance_start.elapsed();
-        log::info!("[GpuState::new] WGPU instance created in {:?}", instance_time);
-        
+        log::info!(
+            "[GpuState::new] WGPU instance created in {:?}",
+            instance_time
+        );
+
         // Run comprehensive GPU diagnostics
         log::info!("[GpuState::new] Running GPU diagnostics...");
         let diagnostics_report = GpuDiagnostics::run_diagnostics(&instance).await;
         diagnostics_report.print_report();
-        
+
         // Initialize GPU type registry
         log::info!("[GpuState::new] Initializing GPU type registry...");
         crate::gpu::automation::initialize_gpu_registry();
@@ -188,7 +218,10 @@ impl GpuState {
         let surface = match instance.create_surface(window.clone()) {
             Ok(surf) => {
                 let surface_time = surface_start.elapsed();
-                log::info!("[GpuState::new] Surface created successfully in {:?}", surface_time);
+                log::info!(
+                    "[GpuState::new] Surface created successfully in {:?}",
+                    surface_time
+                );
                 surf
             }
             Err(e) => {
@@ -205,81 +238,99 @@ impl GpuState {
         // The default request_adapter() was selecting software renderer over NVIDIA GPU
         log::info!("[GpuState::new] Enumerating all GPU adapters...");
         let adapter_start = std::time::Instant::now();
-        
+
         let adapters = instance.enumerate_adapters(wgpu::Backends::all());
         log::info!("[GpuState::new] Found {} total adapters", adapters.len());
-        
+
         // Log all available adapters for debugging
         for (i, adapter) in adapters.iter().enumerate() {
             let info = adapter.get_info();
-            log::info!("[GpuState::new] Adapter {}: {} ({:?}) - Backend: {:?}, Vendor: 0x{:04x}", 
-                      i, info.name, info.device_type, info.backend, info.vendor);
+            log::info!(
+                "[GpuState::new] Adapter {}: {} ({:?}) - Backend: {:?}, Vendor: 0x{:04x}",
+                i,
+                info.name,
+                info.device_type,
+                info.backend,
+                info.vendor
+            );
         }
-        
+
         // Smart adapter selection: Prioritize hardware GPUs over software renderers
         let mut best_adapter = None;
         let mut best_score = -1i32;
-        
+
         for adapter in adapters {
             let info = adapter.get_info();
-            
+
             // Check if adapter is compatible with our surface
             let surface_compatible = adapter.is_surface_supported(&surface);
-            log::info!("[GpuState::new] Adapter '{}' surface compatible: {}", info.name, surface_compatible);
-            
+            log::info!(
+                "[GpuState::new] Adapter '{}' surface compatible: {}",
+                info.name,
+                surface_compatible
+            );
+
             // Score adapters based on hardware vs software and vendor
             let mut score = 0i32;
-            
+
             if !surface_compatible {
-                log::warn!("[GpuState::new] Adapter '{}' not surface compatible", info.name);
-                
+                log::warn!(
+                    "[GpuState::new] Adapter '{}' not surface compatible",
+                    info.name
+                );
+
                 // In WSL, NVIDIA GPUs often report as incompatible even when they might work
                 // However, for safety, we should prefer compatible adapters
                 if info.name.to_lowercase().contains("nvidia") || info.vendor == 0x10DE {
                     log::warn!("[GpuState::new] NVIDIA GPU detected but not surface compatible - likely WSL limitation");
-                    score -= 500;  // Reduce score for incompatible NVIDIA GPU
+                    score -= 500; // Reduce score for incompatible NVIDIA GPU
                 } else {
-                    continue;  // Skip non-NVIDIA incompatible adapters entirely
+                    continue; // Skip non-NVIDIA incompatible adapters entirely
                 }
             }
-            
+
             let name_lower = info.name.to_lowercase();
-            
+
             // Hardware GPUs get massive bonus
             match info.device_type {
                 wgpu::DeviceType::DiscreteGpu => score += 1000,
                 wgpu::DeviceType::IntegratedGpu => score += 500,
                 wgpu::DeviceType::VirtualGpu => score += 100,
-                wgpu::DeviceType::Other => score += 50,  // D3D12 wrapper shows as Other
-                wgpu::DeviceType::Cpu => score -= 1000,  // Software renderer penalty
+                wgpu::DeviceType::Other => score += 50, // D3D12 wrapper shows as Other
+                wgpu::DeviceType::Cpu => score -= 1000, // Software renderer penalty
             }
-            
+
             // NVIDIA GPUs get priority (especially RTX series)
             if info.vendor == 0x10DE || name_lower.contains("nvidia") {
                 score += 500;
                 if name_lower.contains("rtx 40") {
-                    score += 200;  // RTX 40 series bonus
+                    score += 200; // RTX 40 series bonus
                 } else if name_lower.contains("rtx") {
-                    score += 100;  // RTX series bonus
+                    score += 100; // RTX series bonus
                 }
             }
-            
+
             // AMD discrete GPUs get good score
-            if info.vendor == 0x1002 || name_lower.contains("amd") || name_lower.contains("radeon") {
+            if info.vendor == 0x1002 || name_lower.contains("amd") || name_lower.contains("radeon")
+            {
                 score += 300;
             }
-            
+
             // Intel Arc gets medium score
-            if (info.vendor == 0x8086 || name_lower.contains("intel")) && name_lower.contains("arc") {
+            if (info.vendor == 0x8086 || name_lower.contains("intel")) && name_lower.contains("arc")
+            {
                 score += 200;
             }
-            
+
             // Heavily penalize software renderers
-            if name_lower.contains("llvmpipe") || name_lower.contains("software") || 
-               name_lower.contains("swiftshader") || info.device_type == wgpu::DeviceType::Cpu {
+            if name_lower.contains("llvmpipe")
+                || name_lower.contains("software")
+                || name_lower.contains("swiftshader")
+                || info.device_type == wgpu::DeviceType::Cpu
+            {
                 score -= 2000;
             }
-            
+
             // Backend preferences: Vulkan > DX12 > OpenGL > others
             match info.backend {
                 wgpu::Backend::Vulkan => score += 20,
@@ -288,30 +339,46 @@ impl GpuState {
                 wgpu::Backend::Metal => score += 10,
                 _ => score += 0,
             }
-            
-            log::info!("[GpuState::new] Adapter '{}' scored: {} points", info.name, score);
-            
+
+            log::info!(
+                "[GpuState::new] Adapter '{}' scored: {} points",
+                info.name,
+                score
+            );
+
             if score > best_score {
                 best_score = score;
                 best_adapter = Some(adapter);
             }
         }
-        
+
         let adapter = match best_adapter {
             Some(adapter) => {
                 let adapter_time = adapter_start.elapsed();
                 let info = adapter.get_info();
-                log::info!("[GpuState::new] Selected best GPU adapter in {:?} (score: {})", adapter_time, best_score);
-                log::info!("[GpuState::new] Adapter: {} ({:?})", info.name, info.device_type);
+                log::info!(
+                    "[GpuState::new] Selected best GPU adapter in {:?} (score: {})",
+                    adapter_time,
+                    best_score
+                );
+                log::info!(
+                    "[GpuState::new] Adapter: {} ({:?})",
+                    info.name,
+                    info.device_type
+                );
                 log::info!("[GpuState::new] Backend: {:?}", info.backend);
-                log::info!("[GpuState::new] Vendor: 0x{:04x}, Device: 0x{:04x}", info.vendor, info.device);
-                
+                log::info!(
+                    "[GpuState::new] Vendor: 0x{:04x}, Device: 0x{:04x}",
+                    info.vendor,
+                    info.device
+                );
+
                 // Special logging for NVIDIA GPU success
                 if info.vendor == 0x10DE || info.name.to_lowercase().contains("nvidia") {
                     log::info!("[GpuState::new] ✅ SUCCESSFULLY SELECTED NVIDIA GPU!");
                     log::info!("[GpuState::new] ✅ Hardware acceleration enabled!");
                 }
-                
+
                 adapter
             }
             None => {
@@ -323,12 +390,12 @@ impl GpuState {
                 return Err(anyhow::anyhow!("No GPU adapter available"));
             }
         };
-        
+
         // Validate adapter capabilities
         log::info!("[GpuState::new] Validating adapter capabilities...");
         let validation_result = GpuDiagnostics::validate_capabilities(&adapter);
         validation_result.print_results();
-        
+
         if !validation_result.is_valid {
             log::error!("[GpuState::new] GPU validation failed!");
             return Err(anyhow::anyhow!("GPU does not meet minimum requirements"));
@@ -337,51 +404,87 @@ impl GpuState {
         // Create device and queue with timeout and validation
         log::info!("[GpuState::new] Requesting GPU device...");
         let device_start = std::time::Instant::now();
-        
+
         // Query actual hardware limits first
         let adapter_limits = adapter.limits();
         let adapter_info = adapter.get_info();
-        
+
         log::info!("[GpuState::new] Adapter hardware limits:");
-        log::info!("[GpuState::new]   max_texture_dimension_2d: {}", adapter_limits.max_texture_dimension_2d);
-        log::info!("[GpuState::new]   max_texture_dimension_3d: {}", adapter_limits.max_texture_dimension_3d);
-        log::info!("[GpuState::new]   max_buffer_size: {} MB", adapter_limits.max_buffer_size / 1024 / 1024);
-        log::info!("[GpuState::new]   max_vertex_buffers: {}", adapter_limits.max_vertex_buffers);
-        log::info!("[GpuState::new]   max_bind_groups: {}", adapter_limits.max_bind_groups);
-        log::info!("[GpuState::new]   max_compute_workgroup_size: {} x {} x {}", 
-                  adapter_limits.max_compute_workgroup_size_x,
-                  adapter_limits.max_compute_workgroup_size_y,
-                  adapter_limits.max_compute_workgroup_size_z);
-        
+        log::info!(
+            "[GpuState::new]   max_texture_dimension_2d: {}",
+            adapter_limits.max_texture_dimension_2d
+        );
+        log::info!(
+            "[GpuState::new]   max_texture_dimension_3d: {}",
+            adapter_limits.max_texture_dimension_3d
+        );
+        log::info!(
+            "[GpuState::new]   max_buffer_size: {} MB",
+            adapter_limits.max_buffer_size / 1024 / 1024
+        );
+        log::info!(
+            "[GpuState::new]   max_vertex_buffers: {}",
+            adapter_limits.max_vertex_buffers
+        );
+        log::info!(
+            "[GpuState::new]   max_bind_groups: {}",
+            adapter_limits.max_bind_groups
+        );
+        log::info!(
+            "[GpuState::new]   max_compute_workgroup_size: {} x {} x {}",
+            adapter_limits.max_compute_workgroup_size_x,
+            adapter_limits.max_compute_workgroup_size_y,
+            adapter_limits.max_compute_workgroup_size_z
+        );
+
         // Detect GPU tier based on multiple factors
         let gpu_tier = determine_gpu_tier(&adapter_info, &adapter_limits);
         log::info!("[GpuState::new] Detected GPU tier: {:?}", gpu_tier);
-        
+
         // Select appropriate limits based on GPU tier and actual capabilities
         let mut limits = select_limits_for_tier(gpu_tier, &adapter_limits);
-        
+
         // For Hearth Engine voxel rendering, optimize specific limits
         optimize_limits_for_voxel_engine(&mut limits, &adapter_limits, gpu_tier);
-        
+
         log::info!("[GpuState::new] Final requested limits:");
-        log::info!("[GpuState::new]   max_texture_2d: {} ({}x{})", 
-                  limits.max_texture_dimension_2d,
-                  limits.max_texture_dimension_2d,
-                  limits.max_texture_dimension_2d);
-        log::info!("[GpuState::new]   max_texture_3d: {}", limits.max_texture_dimension_3d);
-        log::info!("[GpuState::new]   max_buffer_size: {} MB", limits.max_buffer_size / 1024 / 1024);
-        log::info!("[GpuState::new]   max_vertex_buffers: {}", limits.max_vertex_buffers);
-        log::info!("[GpuState::new]   max_bind_groups: {}", limits.max_bind_groups);
-        log::info!("[GpuState::new]   max_vertex_attributes: {}", limits.max_vertex_attributes);
-        log::info!("[GpuState::new]   max_uniform_buffer_binding_size: {} KB", 
-                  limits.max_uniform_buffer_binding_size / 1024);
-        
+        log::info!(
+            "[GpuState::new]   max_texture_2d: {} ({}x{})",
+            limits.max_texture_dimension_2d,
+            limits.max_texture_dimension_2d,
+            limits.max_texture_dimension_2d
+        );
+        log::info!(
+            "[GpuState::new]   max_texture_3d: {}",
+            limits.max_texture_dimension_3d
+        );
+        log::info!(
+            "[GpuState::new]   max_buffer_size: {} MB",
+            limits.max_buffer_size / 1024 / 1024
+        );
+        log::info!(
+            "[GpuState::new]   max_vertex_buffers: {}",
+            limits.max_vertex_buffers
+        );
+        log::info!(
+            "[GpuState::new]   max_bind_groups: {}",
+            limits.max_bind_groups
+        );
+        log::info!(
+            "[GpuState::new]   max_vertex_attributes: {}",
+            limits.max_vertex_attributes
+        );
+        log::info!(
+            "[GpuState::new]   max_uniform_buffer_binding_size: {} KB",
+            limits.max_uniform_buffer_binding_size / 1024
+        );
+
         // Check for required features
         let adapter_features = adapter.features();
         log::info!("[GpuState::new] Checking GPU features...");
-        
+
         let mut required_features = wgpu::Features::empty();
-        
+
         // Check if VERTEX_WRITABLE_STORAGE is supported
         if adapter_features.contains(wgpu::Features::VERTEX_WRITABLE_STORAGE) {
             log::info!("[GpuState::new]   ✓ VERTEX_WRITABLE_STORAGE supported");
@@ -389,7 +492,7 @@ impl GpuState {
         } else {
             log::warn!("[GpuState::new]   ✗ VERTEX_WRITABLE_STORAGE not supported - GPU culling may be limited");
         }
-        
+
         let device_future = adapter.request_device(
             &wgpu::DeviceDescriptor {
                 required_features,
@@ -398,15 +501,18 @@ impl GpuState {
             },
             None,
         );
-        
+
         // WGPU has its own internal timeouts, so we don't need to add our own
         let device_result = device_future.await;
-        
+
         let (device, queue) = match device_result {
             Ok((dev, q)) => {
                 let device_time = device_start.elapsed();
-                log::info!("[GpuState::new] GPU device created successfully in {:?}", device_time);
-                
+                log::info!(
+                    "[GpuState::new] GPU device created successfully in {:?}",
+                    device_time
+                );
+
                 // Set up device error handler
                 dev.on_uncaptured_error(Box::new(|error| {
                     log::error!("[GPU] Uncaptured device error: {:?}", error);
@@ -419,7 +525,7 @@ impl GpuState {
                         }
                     }
                 }));
-                
+
                 // Run GPU operation tests
                 log::info!("[GpuState::new] Testing GPU operations...");
                 let test_results = GpuDiagnostics::test_gpu_operations(&dev).await;
@@ -437,14 +543,18 @@ impl GpuState {
             }
         };
 
+        // Create GPU error recovery system
+        let error_recovery = Arc::new(GpuErrorRecovery::new(device.clone(), queue.clone()));
+        log::info!("[GpuState::new] GPU error recovery system initialized");
+
         // Configure surface with validation
         log::info!("[GpuState::new] Getting surface capabilities...");
         let mut surface_caps = surface.get_capabilities(&adapter);
-        
+
         let surface_format = if surface_caps.formats.is_empty() {
             log::error!("[GpuState::new] No surface formats available!");
             log::warn!("[GpuState::new] Attempting fallback with default surface format...");
-            
+
             // Fallback: Try to use a common format that should work on Windows
             let fallback_format = wgpu::TextureFormat::Bgra8UnormSrgb;
             surface_caps = wgpu::SurfaceCapabilities {
@@ -453,38 +563,68 @@ impl GpuState {
                 alpha_modes: vec![wgpu::CompositeAlphaMode::Opaque],
                 usages: wgpu::TextureUsages::RENDER_ATTACHMENT,
             };
-            
-            log::info!("[GpuState::new] Using fallback surface format: {:?}", fallback_format);
+
+            log::info!(
+                "[GpuState::new] Using fallback surface format: {:?}",
+                fallback_format
+            );
             fallback_format
         } else {
-            log::info!("[GpuState::new] Available surface formats: {:?}", surface_caps.formats);
-            log::info!("[GpuState::new] Available present modes: {:?}", surface_caps.present_modes);
-            log::info!("[GpuState::new] Available alpha modes: {:?}", surface_caps.alpha_modes);
-            
+            log::info!(
+                "[GpuState::new] Available surface formats: {:?}",
+                surface_caps.formats
+            );
+            log::info!(
+                "[GpuState::new] Available present modes: {:?}",
+                surface_caps.present_modes
+            );
+            log::info!(
+                "[GpuState::new] Available alpha modes: {:?}",
+                surface_caps.alpha_modes
+            );
+
             surface_caps
                 .formats
                 .iter()
                 .copied()
                 .find(|f| f.is_srgb())
                 .unwrap_or_else(|| {
-                    log::warn!("[GpuState::new] No sRGB format found, using first available: {:?}", surface_caps.formats[0]);
+                    log::warn!(
+                        "[GpuState::new] No sRGB format found, using first available: {:?}",
+                        surface_caps.formats[0]
+                    );
                     surface_caps.formats[0]
                 })
         };
-        log::info!("[GpuState::new] Selected surface format: {:?}", surface_format);
-        
+        log::info!(
+            "[GpuState::new] Selected surface format: {:?}",
+            surface_format
+        );
+
         // Choose present mode with fallback - prioritize Immediate for performance
-        let present_mode = if surface_caps.present_modes.contains(&wgpu::PresentMode::Immediate) {
+        let present_mode = if surface_caps
+            .present_modes
+            .contains(&wgpu::PresentMode::Immediate)
+        {
             log::info!("[GpuState::new] Using Immediate mode for maximum performance");
             wgpu::PresentMode::Immediate
-        } else if surface_caps.present_modes.contains(&wgpu::PresentMode::Mailbox) {
+        } else if surface_caps
+            .present_modes
+            .contains(&wgpu::PresentMode::Mailbox)
+        {
             log::info!("[GpuState::new] Immediate not available, using Mailbox (good performance)");
             wgpu::PresentMode::Mailbox
-        } else if surface_caps.present_modes.contains(&wgpu::PresentMode::Fifo) {
+        } else if surface_caps
+            .present_modes
+            .contains(&wgpu::PresentMode::Fifo)
+        {
             log::warn!("[GpuState::new] Only Fifo available - may cause vsync blocking");
             wgpu::PresentMode::Fifo
         } else {
-            log::warn!("[GpuState::new] Using first available present mode: {:?}", surface_caps.present_modes[0]);
+            log::warn!(
+                "[GpuState::new] Using first available present mode: {:?}",
+                surface_caps.present_modes[0]
+            );
             surface_caps.present_modes[0]
         };
 
@@ -498,17 +638,24 @@ impl GpuState {
             view_formats: vec![],
             desired_maximum_frame_latency: 2,
         };
-        
-        log::info!("[GpuState::new] Configuring surface with size {}x{}...", config.width, config.height);
+
+        log::info!(
+            "[GpuState::new] Configuring surface with size {}x{}...",
+            config.width,
+            config.height
+        );
         let config_start = std::time::Instant::now();
-        
+
         // CRITICAL: Handle surface configuration failure gracefully
         match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             surface.configure(&device, &config);
         })) {
             Ok(_) => {
                 let config_time = config_start.elapsed();
-                log::info!("[GpuState::new] Surface configured successfully in {:?}", config_time);
+                log::info!(
+                    "[GpuState::new] Surface configured successfully in {:?}",
+                    config_time
+                );
             }
             Err(e) => {
                 log::error!("[GpuState::new] Surface configuration failed: {:?}", e);
@@ -524,23 +671,23 @@ impl GpuState {
 
         // Create depth texture
         let depth_texture = create_depth_texture(&device, &config);
-        
+
         // Create temporary camera for initial buffer creation
         // We'll update the position after we create the terrain generator
         let temp_camera = init_camera(config.width, config.height);
-        
+
         // Create camera uniform buffer
         let mut camera_uniform = CameraUniform::new();
         camera_uniform.update_view_proj_data(&temp_camera);
-        
+
         // Create buffer with full camera uniform size (used by voxel.wgsl)
         let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Camera Buffer"),
             contents: bytemuck::cast_slice(&[camera_uniform]),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
-        
-        log::info!("[GpuState::new] Camera buffer created with size: {} bytes (full CameraUniform for voxel.wgsl)", 
+
+        log::info!("[GpuState::new] Camera buffer created with size: {} bytes (full CameraUniform for voxel.wgsl)",
                    std::mem::size_of::<CameraUniform>());
 
         // Create bind group layout
@@ -569,10 +716,9 @@ impl GpuState {
         });
 
         // Create render pipeline
-        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/rendering/voxel.wgsl").into()),
-        });
+        let shader_source = include_str!("../shaders/rendering/voxel.wgsl");
+        let validated_shader =
+            crate::gpu::automation::create_gpu_shader(&device, "voxel_shader", shader_source)?;
 
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -585,12 +731,12 @@ impl GpuState {
             label: Some("Render Pipeline"),
             layout: Some(&render_pipeline_layout),
             vertex: wgpu::VertexState {
-                module: &shader,
+                module: &validated_shader.module,
                 entry_point: "vs_main",
                 buffers: &[crate::renderer::vertex::vertex_buffer_layout()],
             },
             fragment: Some(wgpu::FragmentState {
-                module: &shader,
+                module: &validated_shader.module,
                 entry_point: "fs_main",
                 targets: &[Some(wgpu::ColorTargetState {
                     format: config.format,
@@ -625,11 +771,11 @@ impl GpuState {
         // Create world and registry
         log::info!("[GpuState::new] Creating block registry...");
         let mut block_registry_mut = BlockRegistry::new();
-        
+
         // Register engine's basic blocks first
         log::info!("[GpuState::new] Registering engine basic blocks...");
         crate::world::core::register_basic_blocks(&mut block_registry_mut);
-        
+
         // Register game blocks if game is provided
         if let Some(game) = game {
             log::info!("[GpuState::new] Game data provided - Registering game blocks...");
@@ -639,23 +785,26 @@ impl GpuState {
         } else {
             log::info!("[GpuState::new] No game data provided - Using default blocks only");
         }
-        
+
         // Get block IDs (they are constants from BlockId)
         let grass_id = BlockId::GRASS;
         let dirt_id = BlockId::DIRT;
         let stone_id = BlockId::STONE;
         let water_id = BlockId::WATER;
         let sand_id = BlockId::SAND;
-        
+
         let block_registry = Arc::new(block_registry_mut);
-        
+
         // Create world generator (custom, factory, or default GPU generator)
         let generator = if let Some(custom_gen) = engine_config.world_generator {
             log::info!("[GpuState::new] Using custom world generator from EngineConfig");
             custom_gen
         } else if let Some(ref factory) = engine_config.world_generator_factory {
             log::info!("[GpuState::new] Using world generator factory from EngineConfig");
-            log::info!("[GpuState::new] World generator type: {:?}", engine_config.world_generator_type);
+            log::info!(
+                "[GpuState::new] World generator type: {:?}",
+                engine_config.world_generator_type
+            );
             let generated = (factory)(device.clone(), queue.clone(), &engine_config);
             log::info!("[GpuState::new] World generator factory returned successfully");
             generated
@@ -664,28 +813,33 @@ impl GpuState {
             let seed = 12345u32; // Fixed seed for consistent worlds
             Box::new(crate::world::generation::DefaultWorldGenerator::new(seed))
         };
-        
+
         // Start with a temporary camera position (will be updated after spawn search)
         let temp_spawn_x = 0.0;
         let temp_spawn_z = 0.0;
         let temp_spawn_y = 80.0; // Temporary height above typical terrain
-        
+
         // Create camera at temporary position
-        let mut camera = init_camera_with_spawn(engine_config.window_width, engine_config.window_height, temp_spawn_x, temp_spawn_y, temp_spawn_z);
-        log::info!("[GpuState::new] Camera created at temporary position: {:?}", camera.position);
-        
+        let mut camera = init_camera_with_spawn(
+            engine_config.window_width,
+            engine_config.window_height,
+            temp_spawn_x,
+            temp_spawn_y,
+            temp_spawn_z,
+        );
+        log::info!(
+            "[GpuState::new] Camera created at temporary position: {:?}",
+            camera.position
+        );
+
         // Update camera uniform with actual camera position
         camera_uniform.update_view_proj_data(&camera);
-        queue.write_buffer(
-            &camera_buffer,
-            0,
-            bytemuck::cast_slice(&[camera_uniform]),
-        );
-        
+        queue.write_buffer(&camera_buffer, 0, bytemuck::cast_slice(&[camera_uniform]));
+
         // Configure parallel world for better performance
         let cpu_count = num_cpus::get();
         log::info!("[GpuState::new] System has {} CPUs", cpu_count);
-        
+
         let parallel_config = ParallelWorldConfig {
             generation_threads: cpu_count.saturating_sub(2).max(2),
             mesh_threads: cpu_count.saturating_sub(2).max(2),
@@ -694,24 +848,31 @@ impl GpuState {
             chunk_size: engine_config.chunk_size,
             enable_gpu: true,
         };
-        
-        log::info!("[GpuState::new] World config: {} gen threads, {} mesh threads, {} chunks/frame",
-                  parallel_config.generation_threads, 
-                  parallel_config.mesh_threads,
-                  parallel_config.chunks_per_frame);
-        
+
+        log::info!(
+            "[GpuState::new] World config: {} gen threads, {} mesh threads, {} chunks/frame",
+            parallel_config.generation_threads,
+            parallel_config.mesh_threads,
+            parallel_config.chunks_per_frame
+        );
+
         // Store chunk_size before moving parallel_config
         let _chunk_size = parallel_config.chunk_size;
-        
+
         log::info!("[GpuState::new] Creating parallel world...");
-        let world_future = ParallelWorld::new(parallel_config, generator, Some(device.clone()), Some(queue.clone()));
+        let world_future = ParallelWorld::new(
+            parallel_config,
+            generator,
+            Some(device.clone()),
+            Some(queue.clone()),
+        );
         let mut world = pollster::block_on(world_future)
             .map_err(|e| anyhow::anyhow!("Failed to create parallel world: {}", e))?;
-        
+
         // Find safe spawn position by checking actual blocks
         log::info!("[GpuState::new] Finding safe spawn position...");
         let spawn_result = SpawnFinder::find_safe_spawn(&world, temp_spawn_x, temp_spawn_z, 10);
-        
+
         let safe_spawn_pos = match spawn_result {
             Some(pos) => {
                 log::info!("[GpuState::new] Found safe spawn position at {:?}", pos);
@@ -724,35 +885,38 @@ impl GpuState {
                 Point3::new(temp_spawn_x, temp_spawn_y, temp_spawn_z)
             }
         };
-        
+
         // Update camera to safe spawn position
         camera.position = [safe_spawn_pos.x, safe_spawn_pos.y, safe_spawn_pos.z];
-        log::info!("[GpuState::new] Camera moved to safe spawn position: {:?}", camera.position);
-        
+        log::info!(
+            "[GpuState::new] Camera moved to safe spawn position: {:?}",
+            camera.position
+        );
+
         // Update camera uniform with new position
         camera_uniform.update_view_proj_data(&camera);
-        queue.write_buffer(
-            &camera_buffer,
-            0,
-            bytemuck::cast_slice(&[camera_uniform]),
-        );
-        
+        queue.write_buffer(&camera_buffer, 0, bytemuck::cast_slice(&[camera_uniform]));
+
         // Do one initial update to start chunk loading
         log::info!("[GpuState::new] Performing initial world update to queue chunk generation...");
-        log::info!("[GpuState::new] Camera position for initial update: {:?}", camera.position);
-        
+        log::info!(
+            "[GpuState::new] Camera position for initial update: {:?}",
+            camera.position
+        );
+
         // Ensure camera chunk is loaded before initial world update
-        let initial_camera_pos = Point3::new(camera.position[0], camera.position[1], camera.position[2]);
+        let initial_camera_pos =
+            Point3::new(camera.position[0], camera.position[1], camera.position[2]);
         let camera_chunk_loaded = world.ensure_camera_chunk_loaded(initial_camera_pos);
         if camera_chunk_loaded {
             log::info!("[GpuState::new] Camera chunk successfully loaded at initialization");
         } else {
             log::warn!("[GpuState::new] Camera chunk still being generated at initialization");
         }
-        
+
         world.update(initial_camera_pos);
         log::info!("[GpuState::new] World initialization complete (chunk loading started)");
-        
+
         // Create GPU-driven renderer
         log::info!("[GpuState::new] Creating GPU-driven renderer...");
         let chunk_renderer = GpuDrivenRenderer::new(
@@ -762,24 +926,25 @@ impl GpuState {
             &camera_bind_group_layout,
         );
         log::info!("[GpuState::new] GPU-driven renderer created");
-        
+
         // Create selection renderer
         log::info!("[GpuState::new] Creating selection renderer...");
-        let selection_renderer = SelectionRenderer::new(&device, config.format, &camera_bind_group_layout);
+        let selection_renderer =
+            SelectionRenderer::new(&device, config.format, &camera_bind_group_layout);
         log::info!("[GpuState::new] Selection renderer created");
-        
+
         // Create GPU meshing system
         log::info!("[GpuState::new] Creating GPU meshing system...");
         let gpu_meshing = Arc::new(create_gpu_meshing_state(device.clone(), queue.clone()));
         log::info!("[GpuState::new] GPU meshing system created");
-        
+
         // Set GPU meshing reference on the chunk renderer
         let mut chunk_renderer = chunk_renderer;
         chunk_renderer.set_gpu_meshing(gpu_meshing.clone());
-        
+
         // Create physics world and player entity
         log::info!("[GpuState::new] Creating GPU physics world...");
-        
+
         // Create GPU physics system if WorldBuffer is available
         let (physics_world, player_entity) = if let Some(world_buffer) = world.get_world_buffer() {
             log::info!("[GpuState::new] Creating GPU-accelerated physics system...");
@@ -787,29 +952,29 @@ impl GpuState {
                 device.clone(),
                 queue.clone(),
                 1024, // Max entities
-            );
-            
+            )?;
+
             // Integrate with GPU WorldBuffer
             gpu_physics.set_world_buffer(world_buffer);
-            
+
             let player_entity = gpu_physics.add_entity(
                 Point3::new(camera.position[0], camera.position[1], camera.position[2]),
                 Vector3::zero(),
                 Vector3::new(0.8, 1.8, 0.8), // Player size
-                80.0, // Mass in kg
-                0.8,  // Friction
-                0.0,  // Restitution
+                80.0,                        // Mass in kg
+                0.8,                         // Friction
+                0.0,                         // Restitution
             );
-            
+
             (Some(gpu_physics), player_entity)
         } else {
             log::warn!("[GpuState::new] WorldBuffer not available - falling back to CPU physics");
             // Fallback player entity ID
             (None, EntityId(1))
         };
-        
+
         log::info!("[GpuState::new] Physics world created with player entity ID: {} at safe spawn position: {:?}", player_entity, camera.position);
-        
+
         // Print movement instructions for user
         log::info!("=== MOVEMENT CONTROLS ===");
         log::info!("WASD - Move around");
@@ -819,11 +984,16 @@ impl GpuState {
         log::info!("Ctrl - Crouch");
         log::info!("Escape - Toggle cursor lock");
         log::info!("========================");
-        
+
         // Verify the entity was added correctly
         if let Some(ref physics_world) = physics_world {
             if let Some(body) = physics_world.get_body(player_entity) {
-                log::info!("[GpuState::new] Player body verified at position: [{:.2}, {:.2}, {:.2}]", body.position[0], body.position[1], body.position[2]);
+                log::info!(
+                    "[GpuState::new] Player body verified at position: [{:.2}, {:.2}, {:.2}]",
+                    body.position[0],
+                    body.position[1],
+                    body.position[2]
+                );
                 let is_grounded = (body.flags & PhysicsFlags::GROUNDED) != 0;
                 if !is_grounded {
                     log::info!("[GpuState::new] Player spawned in air - will fall to ground and become grounded");
@@ -834,11 +1004,11 @@ impl GpuState {
         } else {
             log::warn!("[GpuState::new] GPU physics world not available - using fallback physics");
         }
-        
+
         // Create lighting systems
         log::info!("[GpuState::new] Creating lighting systems...");
         let day_night_cycle = create_default_day_night_cycle(); // Starts at noon
-        
+
         // Create GPU light propagator if WorldBuffer is available
         let light_propagator = if let Some(_world_buffer) = world.get_world_buffer() {
             log::info!("[GpuState::new] GPU lighting system available");
@@ -852,19 +1022,26 @@ impl GpuState {
         log::info!("[GpuState::new] Lighting systems created");
 
         let total_time = init_start.elapsed();
-        log::info!("[GpuState::new] GPU state initialization complete in {:?}!", total_time);
+        log::info!(
+            "[GpuState::new] GPU state initialization complete in {:?}!",
+            total_time
+        );
         log::info!("[GpuState::new] GPU initialization summary:");
         log::info!("[GpuState::new] - Adapter: {}", adapter.get_info().name);
-        log::info!("[GpuState::new] - Backend: {:?}", adapter.get_info().backend);
+        log::info!(
+            "[GpuState::new] - Backend: {:?}",
+            adapter.get_info().backend
+        );
         log::info!("[GpuState::new] - Surface format: {:?}", surface_format);
         log::info!("[GpuState::new] - Present mode: {:?}", present_mode);
-        
+
         Ok(Self {
             window,
             surface,
             device,
             queue,
             config,
+            error_recovery,
             size,
             features: required_features,
             render_pipeline,
@@ -892,6 +1069,7 @@ impl GpuState {
             dirty_chunks: std::collections::HashSet::new(),
             chunks_with_meshes: std::collections::HashSet::new(),
             chunk_to_buffer_index: std::collections::HashMap::new(),
+            chunk_index_counts: std::collections::HashMap::new(),
             last_render_object_count: 0,
             frames_without_objects: 0,
             total_objects_submitted: 0,
@@ -905,11 +1083,11 @@ impl GpuState {
         // Use a simple ray casting implementation that works with ParallelWorld
         let chunk_manager = self.world.chunk_manager();
         let chunk_size = self.world.config().chunk_size;
-        
+
         // Cast ray by checking blocks along the ray path
         let step = 0.1; // Step size for ray marching
         let steps = (max_distance / step) as i32;
-        
+
         for i in 0..steps {
             let t = i as f32 * step;
             let pos = ray.origin + ray.direction * t;
@@ -918,7 +1096,7 @@ impl GpuState {
                 pos.y.floor() as i32,
                 pos.z.floor() as i32,
             );
-            
+
             let block = self.world.get_block(voxel_pos);
             if block != BlockId::AIR {
                 // Found a hit, determine which face
@@ -931,30 +1109,47 @@ impl GpuState {
                 });
             }
         }
-        
+
         None
     }
-    
+
     /// Determine which face of a block was hit by a ray
-    fn determine_hit_face(&self, ray: Ray, block_pos: VoxelPos, distance: f32) -> crate::world::BlockFace {
+    fn determine_hit_face(
+        &self,
+        ray: Ray,
+        block_pos: VoxelPos,
+        distance: f32,
+    ) -> crate::world::BlockFace {
         let hit_point = ray.origin + ray.direction * distance;
         let block_center = Point3::new(
             block_pos.x as f32 + 0.5,
             block_pos.y as f32 + 0.5,
             block_pos.z as f32 + 0.5,
         );
-        
+
         let diff = hit_point - block_center;
         let abs_x = diff.x.abs();
         let abs_y = diff.y.abs();
         let abs_z = diff.z.abs();
-        
+
         if abs_x > abs_y && abs_x > abs_z {
-            if diff.x > 0.0 { crate::world::BlockFace::Right } else { crate::world::BlockFace::Left }
+            if diff.x > 0.0 {
+                crate::world::BlockFace::Right
+            } else {
+                crate::world::BlockFace::Left
+            }
         } else if abs_y > abs_x && abs_y > abs_z {
-            if diff.y > 0.0 { crate::world::BlockFace::Top } else { crate::world::BlockFace::Bottom }
+            if diff.y > 0.0 {
+                crate::world::BlockFace::Top
+            } else {
+                crate::world::BlockFace::Bottom
+            }
         } else {
-            if diff.z > 0.0 { crate::world::BlockFace::Front } else { crate::world::BlockFace::Back }
+            if diff.z > 0.0 {
+                crate::world::BlockFace::Front
+            } else {
+                crate::world::BlockFace::Back
+            }
         }
     }
 
@@ -963,11 +1158,11 @@ impl GpuState {
             // Get device limits for texture size validation
             let device_limits = self.device.limits();
             let max_texture_dimension = device_limits.max_texture_dimension_2d;
-            
+
             // Clamp window size to GPU texture limits
             let clamped_width = new_size.width.min(max_texture_dimension);
             let clamped_height = new_size.height.min(max_texture_dimension);
-            
+
             // Log warnings if clamping occurred
             if new_size.width > max_texture_dimension {
                 log::warn!(
@@ -985,18 +1180,18 @@ impl GpuState {
                     clamped_height
                 );
             }
-            
+
             // Update size with clamped values
             self.size = winit::dpi::PhysicalSize::new(clamped_width, clamped_height);
             self.config.width = clamped_width;
             self.config.height = clamped_height;
-            
+
             // Configure surface with validated size
             self.surface.configure(&self.device, &self.config);
-            
+
             // Create depth texture with validated size
             self.depth_texture = create_depth_texture(&self.device, &self.config);
-            
+
             // Update camera with validated size
             self.camera = update_aspect_ratio(&self.camera, clamped_width, clamped_height);
         }
@@ -1004,75 +1199,81 @@ impl GpuState {
 
     fn update_camera(&mut self) {
         self.camera_uniform.update_view_proj_data(&self.camera);
-        
+
         // Write the full camera uniform to the buffer
         // This is required by voxel.wgsl which expects all camera data
-        log::trace!("[GpuState::update_camera] Writing full camera uniform: {} bytes", 
-                   std::mem::size_of::<CameraUniform>());
-        
+        log::trace!(
+            "[GpuState::update_camera] Writing full camera uniform: {} bytes",
+            std::mem::size_of::<CameraUniform>()
+        );
+
         self.queue.write_buffer(
             &self.camera_buffer,
             0,
             bytemuck::cast_slice(&[self.camera_uniform]),
         );
     }
-    
+
     fn update_chunk_renderer(&mut self, _input: &InputState) {
         // Begin new frame for GPU-driven renderer
         self.chunk_renderer.begin_frame(&self.camera);
-        
+
         // Get chunk size from config
         let chunk_size = self.world.config().chunk_size;
-        
+
         // Recovery mechanism: Force dirty all chunks if no objects for too long
         if self.frames_without_objects >= 600 && self.chunks_with_meshes.len() > 0 {
             log::warn!(
                 "[GpuState::update_chunk_renderer] Attempting recovery - marking all {} chunks as dirty",
                 self.chunks_with_meshes.len()
             );
-            
+
             // Mark all chunks with meshes as dirty to force rebuild
             for chunk_pos in self.chunks_with_meshes.clone() {
                 self.dirty_chunks.insert(chunk_pos);
             }
-            
+
             // Clear chunks_with_meshes and mapping to force complete rebuild
             self.chunks_with_meshes.clear();
             self.chunk_to_buffer_index.clear();
         }
-        
+
         // Process dirty chunks and new chunks
         let mut render_objects = Vec::new();
-        
+
         // Check all loaded chunks
         let mut chunks_needing_rebuild = Vec::new();
         let loaded_chunks: Vec<_> = self.world.iter_loaded_chunks().collect();
         let loaded_count = loaded_chunks.len();
-        
+
         // Log diagnostic info every 60 frames
         if self.frames_rendered % 60 == 0 {
             log::info!(
                 "[GpuState::update_chunk_renderer] Frame {}: Loaded chunks: {}, Chunks with meshes: {}, Dirty chunks: {}",
                 self.frames_rendered, loaded_count, self.chunks_with_meshes.len(), self.dirty_chunks.len()
             );
-            
+
             // Log first few chunk positions for debugging
             if loaded_count > 0 {
-                let first_chunks: Vec<_> = loaded_chunks.iter().take(3).map(|(pos, _)| *pos).collect();
-                log::info!("[GpuState::update_chunk_renderer] First loaded chunks: {:?}", first_chunks);
+                let first_chunks: Vec<_> =
+                    loaded_chunks.iter().take(3).map(|(pos, _)| *pos).collect();
+                log::info!(
+                    "[GpuState::update_chunk_renderer] First loaded chunks: {:?}",
+                    first_chunks
+                );
             }
         }
-        
+
         for (chunk_pos, _chunk_lock) in loaded_chunks {
             // Check if this chunk needs rebuilding
-            let needs_rebuild = self.dirty_chunks.contains(&chunk_pos) || 
-                               !self.chunks_with_meshes.contains(&chunk_pos);
-            
+            let needs_rebuild = self.dirty_chunks.contains(&chunk_pos)
+                || !self.chunks_with_meshes.contains(&chunk_pos);
+
             if needs_rebuild {
                 chunks_needing_rebuild.push(chunk_pos);
             }
         }
-        
+
         if chunks_needing_rebuild.len() > 0 {
             log::trace!(
                 "[GpuState::update_chunk_renderer] {} chunks need rebuilding out of {} loaded chunks",
@@ -1080,108 +1281,262 @@ impl GpuState {
                 loaded_count
             );
         }
-        
+
         // Process chunks that need rebuilding
         let chunks_to_rebuild_count = chunks_needing_rebuild.len();
         if chunks_to_rebuild_count > 0 && self.frames_rendered % 60 == 0 {
-            log::info!("[GpuState::update_chunk_renderer] Processing {} chunks that need rebuilding", chunks_to_rebuild_count);
+            log::info!(
+                "[GpuState::update_chunk_renderer] Processing {} chunks that need rebuilding",
+                chunks_to_rebuild_count
+            );
         }
-        
+
         // GPU-only mesh generation
         if chunks_needing_rebuild.len() > 0 {
-            log::info!("[GpuState::update_chunk_renderer] Generating {} chunk meshes on GPU", chunks_needing_rebuild.len());
-            
+            log::info!(
+                "[GpuState::update_chunk_renderer] Generating {} chunk meshes on GPU",
+                chunks_needing_rebuild.len()
+            );
+
             // Get world buffer for GPU mesh generation
-            if let Some(world_buffer) = self.world.get_world_buffer() {
-                if let Ok(wb) = world_buffer.lock() {
-                    // Generate meshes on GPU
-                    let mesh_results = crate::renderer::gpu_meshing::generate_chunk_meshes(
-                        &self.gpu_meshing,
-                        wb.voxel_buffer(),
-                        &chunks_needing_rebuild,
-                        0, // LOD level 0 (full detail)
+            log::info!("[GpuState::update_chunk_renderer] Attempting to get world buffer...");
+            let world_buffer_opt = self.world.get_world_buffer();
+            log::info!(
+                "[GpuState::update_chunk_renderer] World buffer result: {}",
+                if world_buffer_opt.is_some() {
+                    "Some(buffer)"
+                } else {
+                    "None"
+                }
+            );
+
+            // TEMPORARY: Force CPU fallback until GPU pipeline issues are resolved
+            let force_cpu_fallback = true;
+
+            // Check if GPU world buffer is available and not forcing CPU fallback
+            if !force_cpu_fallback {
+                if let Some(world_buffer) = world_buffer_opt {
+                    log::info!(
+                        "[GpuState::update_chunk_renderer] Got world buffer, attempting to lock..."
                     );
-                    
-                    // Process mesh generation results
-                    for result in mesh_results {
-                        let chunk_pos = result.chunk_pos;
-                        
-                        // Get the mesh buffer for this chunk
-                        if let Some(mesh_buffer) = crate::renderer::gpu_meshing::get_mesh_buffer(
-                            &self.gpu_meshing,
-                            result.buffer_index
-                        ) {
-                            // Create render object for GPU-driven renderer
-                            let render_object = crate::renderer::gpu_driven::RenderObject {
-                                position: cgmath::Vector3::new(
-                                    (chunk_pos.x * chunk_size as i32 + chunk_size as i32 / 2) as f32,
-                                    (chunk_pos.y * chunk_size as i32 + chunk_size as i32 / 2) as f32,
-                                    (chunk_pos.z * chunk_size as i32 + chunk_size as i32 / 2) as f32,
-                                ),
-                                scale: 1.0,
-                                color: [1.0, 1.0, 1.0, 1.0],
-                                bounding_radius: (chunk_size as f32 * 1.732) / 2.0, // Radius of chunk bounding sphere
-                                mesh_id: result.buffer_index,
-                                material_id: 0,
-                            };
-                            
-                            // GPU mesh buffers are managed by the GPU meshing system
-                            // The renderer will query them directly when needed
-                            
-                            render_objects.push(render_object);
-                            
-                            // Mark chunk as processed and store buffer index mapping
-                            self.dirty_chunks.remove(&chunk_pos);
-                            self.chunks_with_meshes.insert(chunk_pos);
-                            self.chunk_to_buffer_index.insert(chunk_pos, result.buffer_index);
-                            
-                            log::trace!("[GpuState::update_chunk_renderer] GPU mesh generation completed for chunk {:?}, buffer_index: {}", chunk_pos, result.buffer_index);
+                    match world_buffer.lock() {
+                        Ok(wb) => {
+                            log::info!("[GpuState::update_chunk_renderer] World buffer locked, calling generate_chunk_meshes...");
+                            // Generate meshes on GPU
+                            let mesh_results = crate::renderer::gpu_meshing::generate_chunk_meshes(
+                                &self.gpu_meshing,
+                                wb.voxel_buffer(),
+                                &chunks_needing_rebuild,
+                                0, // LOD level 0 (full detail)
+                            );
+
+                            // Process mesh generation results
+                            log::info!("[GpuState::update_chunk_renderer] Processing {} mesh generation results",
+                              mesh_results.len());
+
+                            for result in mesh_results {
+                                let chunk_pos = result.chunk_pos;
+
+                                log::trace!("[GpuState::update_chunk_renderer] Processing mesh result for chunk {:?}, buffer_index: {}",
+                                  chunk_pos, result.buffer_index);
+
+                                // Get the mesh buffer for this chunk
+                                if let Some(mesh_buffer) =
+                                    crate::renderer::gpu_meshing::get_mesh_buffer(
+                                        &self.gpu_meshing,
+                                        result.buffer_index,
+                                    )
+                                {
+                                    // Create render object for GPU-driven renderer
+                                    let render_object = crate::renderer::gpu_driven::RenderObject {
+                                        position: cgmath::Vector3::new(
+                                            (chunk_pos.x * chunk_size as i32
+                                                + chunk_size as i32 / 2)
+                                                as f32,
+                                            (chunk_pos.y * chunk_size as i32
+                                                + chunk_size as i32 / 2)
+                                                as f32,
+                                            (chunk_pos.z * chunk_size as i32
+                                                + chunk_size as i32 / 2)
+                                                as f32,
+                                        ),
+                                        scale: 1.0,
+                                        color: [1.0, 1.0, 1.0, 1.0],
+                                        bounding_radius: (chunk_size as f32 * 1.732) / 2.0, // Radius of chunk bounding sphere
+                                        mesh_id: result.buffer_index,
+                                        material_id: 0,
+                                        index_count: None, // GPU-generated meshes determine their own index count
+                                    };
+
+                                    // GPU mesh buffers are managed by the GPU meshing system
+                                    // The renderer will query them directly when needed
+
+                                    render_objects.push(render_object);
+
+                                    // Mark chunk as processed and store buffer index mapping
+                                    self.dirty_chunks.remove(&chunk_pos);
+                                    self.chunks_with_meshes.insert(chunk_pos);
+                                    self.chunk_to_buffer_index
+                                        .insert(chunk_pos, result.buffer_index);
+
+                                    log::trace!("[GpuState::update_chunk_renderer] GPU mesh generation completed for chunk {:?}, buffer_index: {}", chunk_pos, result.buffer_index);
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            log::error!("[GpuState::update_chunk_renderer] Failed to lock world buffer for GPU mesh generation: {:?}", e);
                         }
                     }
-                } else {
-                    log::error!("[GpuState::update_chunk_renderer] Failed to lock world buffer for GPU mesh generation");
                 }
             } else {
-                log::error!("[GpuState::update_chunk_renderer] No world buffer available - GPU mesh generation requires GPU world storage");
+                log::warn!("[GpuState::update_chunk_renderer] 🔄 CPU FALLBACK TRIGGERED - Force flag: {}, World buffer: {}",
+                         force_cpu_fallback,
+                         if world_buffer_opt.is_some() { "Available" } else { "None" });
+
+                // Fallback: Create simple CPU meshes for visualization
+                log::warn!("[GpuState::update_chunk_renderer] 🏗️ Using CPU mesh generation fallback for {} chunks",
+                         chunks_needing_rebuild.len());
+
+                // Allocate mesh buffers and generate simple cube meshes
+                let mut allocator = self.gpu_meshing.allocator.lock().unwrap();
+
+                for chunk_pos in chunks_needing_rebuild {
+                    // Ensure chunk is loaded before generating mesh
+                    let is_loaded = self.world.is_chunk_loaded(chunk_pos);
+                    log::debug!(
+                        "[GpuState::update_chunk_renderer] Chunk {:?} loaded status: {}",
+                        chunk_pos,
+                        is_loaded
+                    );
+
+                    if !is_loaded {
+                        log::info!("[GpuState::update_chunk_renderer] 📁 Loading chunk {:?} before mesh generation", chunk_pos);
+                        if let Err(e) = self.world.load_chunk(chunk_pos) {
+                            log::error!(
+                                "[GpuState::update_chunk_renderer] Failed to load chunk {:?}: {:?}",
+                                chunk_pos,
+                                e
+                            );
+                            continue;
+                        }
+                    } else {
+                        // Force load even if marked as loaded to ensure data exists
+                        log::info!("[GpuState::update_chunk_renderer] 🔄 Force-loading chunk {:?} to ensure data exists", chunk_pos);
+                        if let Err(e) = self.world.load_chunk(chunk_pos) {
+                            log::warn!("[GpuState::update_chunk_renderer] Force load failed for chunk {:?}: {:?}", chunk_pos, e);
+                        }
+                    }
+
+                    // Allocate a buffer for this chunk
+                    let buffer_index = if let Some(&existing_index) =
+                        allocator.allocated_buffers.get(&chunk_pos)
+                    {
+                        existing_index
+                    } else if let Some(new_index) = allocator.free_buffers.pop() {
+                        allocator.allocated_buffers.insert(chunk_pos, new_index);
+                        new_index
+                    } else {
+                        log::error!(
+                            "[GpuState::update_chunk_renderer] No free mesh buffers available!"
+                        );
+                        continue;
+                    };
+
+                    // Create a simple cube mesh in the buffer
+                    if buffer_index < self.gpu_meshing.mesh_buffers.len() as u32 {
+                        let mesh_buffer = &self.gpu_meshing.mesh_buffers[buffer_index as usize];
+
+                        // Generate actual terrain mesh for this chunk
+                        log::info!("[GpuState::update_chunk_renderer] 🔨 Generating CPU mesh for chunk {:?}", chunk_pos);
+
+                        let (terrain_vertices, terrain_indices) =
+                            generate_chunk_terrain_mesh(&self.world, chunk_pos, chunk_size);
+
+                        // Check if we generated any geometry
+                        if terrain_vertices.is_empty() {
+                            log::warn!("[GpuState::update_chunk_renderer] No terrain geometry generated for chunk {:?}", chunk_pos);
+                            continue;
+                        }
+
+                        // Upload to GPU
+                        self.queue.write_buffer(
+                            &mesh_buffer.vertices,
+                            0,
+                            bytemuck::cast_slice(&terrain_vertices),
+                        );
+                        self.queue.write_buffer(
+                            &mesh_buffer.indices,
+                            0,
+                            bytemuck::cast_slice(&terrain_indices),
+                        );
+
+                        // Create render object
+                        let render_object = crate::renderer::gpu_driven::RenderObject {
+                            position: cgmath::Vector3::new(
+                                (chunk_pos.x * chunk_size as i32) as f32,
+                                (chunk_pos.y * chunk_size as i32) as f32,
+                                (chunk_pos.z * chunk_size as i32) as f32,
+                            ),
+                            scale: 1.0,
+                            color: [0.3, 0.7, 0.3, 1.0], // Green for terrain
+                            bounding_radius: (chunk_size as f32 * 1.732) / 2.0,
+                            mesh_id: buffer_index,
+                            material_id: 0,
+                            index_count: Some(terrain_indices.len() as u32), // Pass actual index count
+                        };
+
+                        render_objects.push(render_object);
+                        self.dirty_chunks.remove(&chunk_pos);
+                        self.chunks_with_meshes.insert(chunk_pos);
+                        self.chunk_to_buffer_index.insert(chunk_pos, buffer_index);
+
+                        // Store index count for this mesh
+                        self.chunk_index_counts
+                            .insert(chunk_pos, terrain_indices.len() as u32);
+
+                        log::info!("[GpuState::update_chunk_renderer] Created CPU mesh for chunk {:?}, buffer_index: {}, indices: {}",
+                                  chunk_pos, buffer_index, terrain_indices.len());
+                    }
+                }
             }
         }
-        
-        
+
         // Create render objects for all chunks with valid meshes
-        
+
         for (chunk_pos, _) in self.world.iter_loaded_chunks() {
             if self.chunks_with_meshes.contains(&chunk_pos) {
                 // Look up the buffer index for this chunk
                 if let Some(&buffer_index) = self.chunk_to_buffer_index.get(&chunk_pos) {
                     let mesh_id = buffer_index;
-                
-                // Create render object for this chunk
-                let world_pos = cgmath::Vector3::new(
-                    (chunk_pos.x * chunk_size as i32) as f32,
-                    (chunk_pos.y * chunk_size as i32) as f32,
-                    (chunk_pos.z * chunk_size as i32) as f32,
-                );
-                
-                let render_object = crate::renderer::gpu_driven::gpu_driven_renderer::RenderObject {
-                    position: world_pos,
-                    scale: 1.0,
-                    color: [1.0, 1.0, 1.0, 1.0],
-                    bounding_radius: (chunk_size as f32 * 1.732) / 2.0, // sqrt(3) * chunk_size / 2
-                    mesh_id,
-                    material_id: 0,
-                };
-                
-                render_objects.push(render_object);
+
+                    // Create render object for this chunk
+                    let world_pos = cgmath::Vector3::new(
+                        (chunk_pos.x * chunk_size as i32) as f32,
+                        (chunk_pos.y * chunk_size as i32) as f32,
+                        (chunk_pos.z * chunk_size as i32) as f32,
+                    );
+
+                    let render_object =
+                        crate::renderer::gpu_driven::gpu_driven_renderer::RenderObject {
+                            position: world_pos,
+                            scale: 1.0,
+                            color: [1.0, 1.0, 1.0, 1.0],
+                            bounding_radius: (chunk_size as f32 * 1.732) / 2.0, // sqrt(3) * chunk_size / 2
+                            mesh_id,
+                            material_id: 0,
+                            index_count: self.chunk_index_counts.get(&chunk_pos).copied(), // Look up stored index count
+                        };
+
+                    render_objects.push(render_object);
                 } else {
                     log::warn!("[GpuState::update_chunk_renderer] Chunk {:?} has mesh but no buffer index mapping", chunk_pos);
                 }
             }
         }
-        
-        
+
         // Submit all render objects to GPU-driven renderer
         let render_object_count = render_objects.len() as u32;
-        
+
         // Track submission metrics
         if render_object_count > 0 {
             log::debug!(
@@ -1190,18 +1545,18 @@ impl GpuState {
                 self.chunks_with_meshes.len(),
                 self.world.chunk_manager().loaded_chunk_count()
             );
-            
+
             // Clear instances before submitting new objects
             // This ensures we're rebuilding the scene with the current set of chunks
             self.chunk_renderer.clear_instances();
-            
+
             self.chunk_renderer.submit_objects(&render_objects);
             self.total_objects_submitted += render_object_count as u64;
             self.last_submission_time = std::time::Instant::now();
-            
+
             // CRITICAL: Upload instance data to GPU after submission
             self.chunk_renderer.upload_instances(&self.queue);
-            
+
             // Reset counter if we had objects
             if self.frames_without_objects > 0 {
                 log::info!(
@@ -1213,7 +1568,7 @@ impl GpuState {
         } else {
             // No objects submitted
             self.frames_without_objects += 1;
-            
+
             // Log warnings at different thresholds
             if self.frames_without_objects == 60 {
                 log::warn!(
@@ -1230,7 +1585,7 @@ impl GpuState {
                     Total objects ever submitted: {}",
                     self.total_objects_submitted
                 );
-                
+
                 // Log diagnostic information
                 self.log_render_diagnostics();
             } else if self.frames_without_objects % 600 == 0 {
@@ -1243,7 +1598,7 @@ impl GpuState {
                 self.log_render_diagnostics();
             }
         }
-        
+
         // Track changes in submission count
         if render_object_count != self.last_render_object_count {
             let delta = render_object_count as i32 - self.last_render_object_count as i32;
@@ -1255,10 +1610,10 @@ impl GpuState {
             );
         }
         self.last_render_object_count = render_object_count;
-        
+
         // Build GPU commands
         self.chunk_renderer.build_commands();
-        
+
         // Final verification of submission state
         if render_object_count > 0 && self.frames_rendered % 60 == 0 {
             let stats = self.chunk_renderer.stats();
@@ -1269,60 +1624,101 @@ impl GpuState {
                 );
             }
         }
-        
+
         // Note: Actual rendering happens in the render() method
     }
-    
+
     /// Log detailed diagnostic information about render state
     fn log_render_diagnostics(&self) {
         log::error!("[GpuState] === RENDER DIAGNOSTICS ===");
-        log::error!("[GpuState] Chunks with meshes: {}", self.chunks_with_meshes.len());
-        log::error!("[GpuState] Loaded chunks: {}", self.world.chunk_manager().loaded_chunk_count());
+        log::error!(
+            "[GpuState] Chunks with meshes: {}",
+            self.chunks_with_meshes.len()
+        );
+        log::error!(
+            "[GpuState] Loaded chunks: {}",
+            self.world.chunk_manager().loaded_chunk_count()
+        );
         log::error!("[GpuState] Dirty chunks: {}", self.dirty_chunks.len());
-        log::error!("[GpuState] Total objects submitted (lifetime): {}", self.total_objects_submitted);
-        log::error!("[GpuState] Frames without objects: {}", self.frames_without_objects);
+        log::error!(
+            "[GpuState] Total objects submitted (lifetime): {}",
+            self.total_objects_submitted
+        );
+        log::error!(
+            "[GpuState] Frames without objects: {}",
+            self.frames_without_objects
+        );
         log::error!("[GpuState] Camera position: {:?}", self.camera.position);
-        log::error!("[GpuState] Time since last submission: {:.1}s", self.last_submission_time.elapsed().as_secs_f32());
-        
+        log::error!(
+            "[GpuState] Time since last submission: {:.1}s",
+            self.last_submission_time.elapsed().as_secs_f32()
+        );
+
         // Get renderer stats
         let stats = self.chunk_renderer.stats();
-        log::error!("[GpuState] Renderer - Objects submitted: {}, drawn: {}, instances: {}, rejected: {}",
-                   stats.objects_submitted, stats.objects_drawn, stats.instances_added, stats.objects_rejected);
-        
+        log::error!(
+            "[GpuState] Renderer - Objects submitted: {}, drawn: {}, instances: {}, rejected: {}",
+            stats.objects_submitted,
+            stats.objects_drawn,
+            stats.instances_added,
+            stats.objects_rejected
+        );
+
         // Log chunk positions if there are any
         if self.chunks_with_meshes.len() > 0 && self.chunks_with_meshes.len() <= 10 {
-            log::error!("[GpuState] Chunks with meshes: {:?}", self.chunks_with_meshes);
+            log::error!(
+                "[GpuState] Chunks with meshes: {:?}",
+                self.chunks_with_meshes
+            );
         }
-        
+
         // Check if renderer pipeline is available
         if !self.chunk_renderer.is_available() {
             log::error!("[GpuState] WARNING: GPU-driven renderer is not available!");
         }
-        
+
         // Check for sync issues
         let loaded_count = self.world.chunk_manager().loaded_chunk_count();
         let mesh_count = self.chunks_with_meshes.len();
         if loaded_count > 0 && mesh_count == 0 {
-            log::error!("[GpuState] WARNING: {} chunks loaded but no meshes generated!", loaded_count);
+            log::error!(
+                "[GpuState] WARNING: {} chunks loaded but no meshes generated!",
+                loaded_count
+            );
         }
-        
+
         log::error!("[GpuState] === END DIAGNOSTICS ===");
     }
-    
-    fn process_input(&mut self, input: &InputState, delta_time: f32, active_block: BlockId) -> (Option<(VoxelPos, BlockId)>, Option<VoxelPos>) {
+
+    fn process_input(
+        &mut self,
+        input: &InputState,
+        delta_time: f32,
+        active_block: BlockId,
+    ) -> (Option<(VoxelPos, BlockId)>, Option<VoxelPos>) {
         // Get player body for movement
         log::debug!("[process_input] Player entity ID: {}", self.player_entity);
         if let Some(physics_world) = &mut self.physics_world {
             if let Some(body) = physics_world.get_body_mut(self.player_entity) {
-                log::debug!("[process_input] Body position before: [{:.2}, {:.2}, {:.2}]", body.position[0], body.position[1], body.position[2]);
-                log::debug!("[process_input] Body velocity before: [{:.2}, {:.2}, {:.2}]", body.velocity[0], body.velocity[1], body.velocity[2]);
+                log::debug!(
+                    "[process_input] Body position before: [{:.2}, {:.2}, {:.2}]",
+                    body.position[0],
+                    body.position[1],
+                    body.position[2]
+                );
+                log::debug!(
+                    "[process_input] Body velocity before: [{:.2}, {:.2}, {:.2}]",
+                    body.velocity[0],
+                    body.velocity[1],
+                    body.velocity[2]
+                );
                 // Calculate movement direction based on camera yaw
                 let yaw_rad = self.camera.yaw_radians;
                 let forward = Vector3::new(yaw_rad.cos(), 0.0, yaw_rad.sin());
                 let right = Vector3::new(yaw_rad.sin(), 0.0, -yaw_rad.cos());
-                
+
                 let mut move_dir = Vector3::new(0.0, 0.0, 0.0);
-                
+
                 // Movement input
                 if input.is_key_pressed(KeyCode::KeyW) {
                     log::debug!("[process_input] W key pressed!");
@@ -1340,17 +1736,17 @@ impl GpuState {
                     log::debug!("[process_input] D key pressed!");
                     move_dir += right;
                 }
-                
+
                 // Normalize diagonal movement
                 if move_dir.magnitude() > 0.0 {
                     move_dir = move_dir.normalize();
                 }
-                
+
                 // Check player state flags
                 let is_grounded = (body.flags & PhysicsFlags::GROUNDED) != 0;
                 let is_in_water = (body.flags & PhysicsFlags::IN_WATER) != 0;
                 let is_on_ladder = (body.flags & PhysicsFlags::ON_LADDER) != 0;
-                
+
                 // Determine movement speed based on state
                 let mut move_speed = 4.3; // Normal walking speed
                 if !is_in_water && !is_on_ladder {
@@ -1365,18 +1761,29 @@ impl GpuState {
                 } else if is_in_water {
                     move_speed = 2.0; // Swimming speed
                 }
-                
+
                 // Apply horizontal movement
                 let horizontal_vel = move_dir * move_speed;
                 body.velocity[0] = horizontal_vel.x;
                 body.velocity[2] = horizontal_vel.z;
-                
-                log::debug!("[process_input] Move direction: [{:.2}, {:.2}, {:.2}], speed: {:.2}", move_dir.x, move_dir.y, move_dir.z, move_speed);
-                log::debug!("[process_input] Body velocity after: [{:.2}, {:.2}, {:.2}]", body.velocity[0], body.velocity[1], body.velocity[2]);
-                
+
+                log::debug!(
+                    "[process_input] Move direction: [{:.2}, {:.2}, {:.2}], speed: {:.2}",
+                    move_dir.x,
+                    move_dir.y,
+                    move_dir.z,
+                    move_speed
+                );
+                log::debug!(
+                    "[process_input] Body velocity after: [{:.2}, {:.2}, {:.2}]",
+                    body.velocity[0],
+                    body.velocity[1],
+                    body.velocity[2]
+                );
+
                 // Provide helpful movement state feedback
                 if move_dir.magnitude() > 0.0 {
-                    log::debug!("[Movement] Player moving: grounded={}, in_water={}, on_ladder={}, speed={:.1}", 
+                    log::debug!("[Movement] Player moving: grounded={}, in_water={}, on_ladder={}, speed={:.1}",
                                is_grounded, is_in_water, is_on_ladder, move_speed);
                 } else {
                     static mut MOVEMENT_HELP_COOLDOWN: f32 = 0.0;
@@ -1393,7 +1800,7 @@ impl GpuState {
                         }
                     }
                 }
-                
+
                 // Handle vertical movement
                 if is_on_ladder {
                     // Ladder climbing
@@ -1417,17 +1824,26 @@ impl GpuState {
                     body.velocity[1] = -2.0;
                 }
             } else {
-                log::error!("[process_input] Failed to get player body! Entity ID: {}", self.player_entity);
+                log::error!(
+                    "[process_input] Failed to get player body! Entity ID: {}",
+                    self.player_entity
+                );
             }
         } else {
-            log::error!("[process_input] GPU physics world not available - cannot process player movement");
+            log::error!(
+                "[process_input] GPU physics world not available - cannot process player movement"
+            );
         }
-        
+
         // Mouse look - only process if cursor is locked
         if input.is_cursor_locked() {
             let (dx, dy) = input.get_mouse_delta();
             let sensitivity = 0.5;
-            self.camera = camera_rotate(&self.camera, dx * sensitivity * std::f32::consts::PI / 180.0, -dy * sensitivity * std::f32::consts::PI / 180.0);
+            self.camera = camera_rotate(
+                &self.camera,
+                dx * sensitivity * std::f32::consts::PI / 180.0,
+                -dy * sensitivity * std::f32::consts::PI / 180.0,
+            );
         } else {
             // Provide helpful feedback if cursor is not locked
             static mut CURSOR_WARNING_COOLDOWN: f32 = 0.0;
@@ -1444,19 +1860,23 @@ impl GpuState {
                 }
             }
         }
-        
+
         // Ray casting for block selection
         let ray = Ray::new(
-            Point3::new(self.camera.position[0], self.camera.position[1], self.camera.position[2]),
+            Point3::new(
+                self.camera.position[0],
+                self.camera.position[1],
+                self.camera.position[2],
+            ),
             calculate_forward_vector(&self.camera),
         );
         // Cast ray using parallel world's chunk manager
         self.selected_block = self.cast_ray_parallel(ray, 10.0);
-        
+
         // Block interactions
         let mut broke_block = None;
         let mut placed_block = None;
-        
+
         // Handle block breaking with progress
         if input.is_mouse_button_pressed(MouseButton::Left) {
             if let Some(hit) = &self.selected_block {
@@ -1468,10 +1888,10 @@ impl GpuState {
                     } else {
                         1.0
                     };
-                    
+
                     // Increase breaking progress
                     self.breaking_progress += delta_time / hardness;
-                    
+
                     // Break block when progress reaches 1.0
                     if self.breaking_progress >= 1.0 {
                         // Store the broken block ID before removing it
@@ -1482,9 +1902,12 @@ impl GpuState {
                         broke_block = Some((hit.position, broken_block_id));
                         self.breaking_block = None;
                         self.breaking_progress = 0.0;
-                        
+
                         // Mark chunk as dirty
-                        let chunk_pos = crate::world::voxel_to_chunk_pos(hit.position, self.world.config().chunk_size);
+                        let chunk_pos = crate::world::voxel_to_chunk_pos(
+                            hit.position,
+                            self.world.config().chunk_size,
+                        );
                         self.dirty_chunks.insert(chunk_pos);
                     }
                 } else {
@@ -1502,7 +1925,7 @@ impl GpuState {
             self.breaking_block = None;
             self.breaking_progress = 0.0;
         }
-        
+
         if input.is_mouse_button_pressed(MouseButton::Right) {
             // Place block (instant)
             if let Some(hit) = &self.selected_block {
@@ -1511,7 +1934,7 @@ impl GpuState {
                     hit.position.y + hit.face.offset().y,
                     hit.position.z + hit.face.offset().z,
                 );
-                
+
                 // Check if position is empty
                 if self.world.get_block(place_pos) == BlockId::AIR {
                     if let Err(e) = self.world.set_block(place_pos, active_block) {
@@ -1521,14 +1944,15 @@ impl GpuState {
                     // Reset breaking progress when placing
                     self.breaking_block = None;
                     self.breaking_progress = 0.0;
-                    
+
                     // Mark chunk as dirty
-                    let chunk_pos = crate::world::voxel_to_chunk_pos(place_pos, self.world.config().chunk_size);
+                    let chunk_pos =
+                        crate::world::voxel_to_chunk_pos(place_pos, self.world.config().chunk_size);
                     self.dirty_chunks.insert(chunk_pos);
                 }
             }
         }
-        
+
         (broke_block, placed_block)
     }
 
@@ -1538,19 +1962,22 @@ impl GpuState {
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
 
-        let mut encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("Render Encoder"),
-            });
+        let mut encoder =
+            self.error_recovery
+                .create_safe_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("Render Encoder"),
+                });
 
         // Track frames rendered
         self.frames_rendered += 1;
-        
+
         // Log time to first frame
         if self.frames_rendered == 1 {
             let elapsed = self.init_time.elapsed();
-            log::info!("[GpuState::render] First frame rendered in {:.2}ms", elapsed.as_millis());
+            log::info!(
+                "[GpuState::render] First frame rendered in {:.2}ms",
+                elapsed.as_millis()
+            );
         }
 
         // Track render timing
@@ -1558,11 +1985,27 @@ impl GpuState {
 
         // Execute GPU culling pass before main render pass
         // Following DOP principles - separate data transformation phases
-        self.chunk_renderer.execute_culling(&mut encoder);
-        
-        
+        let encoder_ref = match encoder.encoder() {
+            Ok(enc) => enc,
+            Err(e) => {
+                log::error!("[GpuState::render] Failed to get encoder: {:?}", e);
+                return Err(wgpu::SurfaceError::Lost);
+            }
+        };
+        self.chunk_renderer.execute_culling(encoder_ref);
+
         {
-            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            let encoder_ref = match encoder.encoder() {
+                Ok(enc) => enc,
+                Err(e) => {
+                    log::error!(
+                        "[GpuState::render] Failed to get encoder for render pass: {:?}",
+                        e
+                    );
+                    return Err(wgpu::SurfaceError::Lost);
+                }
+            };
+            let mut render_pass = encoder_ref.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Render Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &view,
@@ -1590,8 +2033,9 @@ impl GpuState {
             });
 
             // Execute GPU-driven rendering draw calls
-            self.chunk_renderer.render_draw(&mut render_pass, &self.camera_bind_group);
-            
+            self.chunk_renderer
+                .render_draw(&mut render_pass, &self.camera_bind_group);
+
             // Draw selection highlight with breaking progress
             let breaking_progress = if self.breaking_block.is_some() {
                 self.breaking_progress
@@ -1609,29 +2053,44 @@ impl GpuState {
 
         // Update stats after rendering
         self.chunk_renderer.update_stats(render_start);
-        
+
         // Get stats for logging
         let stats = self.chunk_renderer.stats();
         if stats.objects_drawn > 0 && !self.first_chunks_loaded {
             self.first_chunks_loaded = true;
-            log::info!("[GpuState::render] First chunks rendered after {} frames", self.frames_rendered);
-            
+            log::info!(
+                "[GpuState::render] First chunks rendered after {} frames",
+                self.frames_rendered
+            );
+
             // Verify spawn position now that chunks are loaded
-            let camera_pos_point3 = Point3::new(self.camera.position[0], self.camera.position[1], self.camera.position[2]);
+            let camera_pos_point3 = Point3::new(
+                self.camera.position[0],
+                self.camera.position[1],
+                self.camera.position[2],
+            );
             // Use find_safe_spawn to verify the position is still valid
-            let adjusted_pos = SpawnFinder::find_safe_spawn(&self.world, camera_pos_point3.x, camera_pos_point3.z, 5)
-                .unwrap_or(camera_pos_point3);
+            let adjusted_pos = SpawnFinder::find_safe_spawn(
+                &self.world,
+                camera_pos_point3.x,
+                camera_pos_point3.z,
+                5,
+            )
+            .unwrap_or(camera_pos_point3);
             if adjusted_pos != camera_pos_point3 {
-                log::info!("[GpuState::render] Adjusting spawn position from {:?} to {:?}", 
-                         self.camera.position, adjusted_pos);
+                log::info!(
+                    "[GpuState::render] Adjusting spawn position from {:?} to {:?}",
+                    self.camera.position,
+                    adjusted_pos
+                );
                 self.camera.position = [adjusted_pos.x, adjusted_pos.y, adjusted_pos.z];
-                
+
                 // Update physics entity position
                 if let Some(ref mut physics_world) = self.physics_world {
                     physics_world.set_position(self.player_entity, adjusted_pos);
                     log::info!("[GpuState::render] Updated physics entity position");
                 }
-                
+
                 // Update camera uniform
                 self.camera_uniform.update_view_proj_data(&self.camera);
                 self.queue.write_buffer(
@@ -1640,39 +2099,58 @@ impl GpuState {
                     bytemuck::cast_slice(&[self.camera_uniform]),
                 );
             }
-            
+
             // Debug what blocks are around spawn
-            SpawnFinder::debug_blocks_at_position(&self.world, Point3::new(self.camera.position[0], self.camera.position[1], self.camera.position[2]));
+            SpawnFinder::debug_blocks_at_position(
+                &self.world,
+                Point3::new(
+                    self.camera.position[0],
+                    self.camera.position[1],
+                    self.camera.position[2],
+                ),
+            );
         } else if stats.objects_drawn == 0 {
             // Log more frequently in the first few seconds
             if self.frames_rendered <= 180 && self.frames_rendered % 20 == 0 {
-                log::warn!("[GpuState::render] No chunks rendered after {} frames (objects submitted: {}, world chunks: {}, chunks with meshes: {})", 
-                         self.frames_rendered, 
+                log::warn!("[GpuState::render] No chunks rendered after {} frames (objects submitted: {}, world chunks: {}, chunks with meshes: {})",
+                         self.frames_rendered,
                          stats.objects_submitted,
                          self.world.chunk_manager().loaded_chunk_count(),
                          self.chunks_with_meshes.len());
             } else if self.frames_rendered % 60 == 0 {
                 // Log every second after initial period
-                log::warn!("[GpuState::render] No chunks rendered after {} frames (objects submitted: {}, world chunks: {}, chunks with meshes: {})", 
-                         self.frames_rendered, 
+                log::warn!("[GpuState::render] No chunks rendered after {} frames (objects submitted: {}, world chunks: {}, chunks with meshes: {})",
+                         self.frames_rendered,
                          stats.objects_submitted,
                          self.world.chunk_manager().loaded_chunk_count(),
                          self.chunks_with_meshes.len());
             }
         }
 
-        // Submit render commands
-        self.queue.submit(std::iter::once(encoder.finish()));
+        // Submit render commands with error recovery
+        let commands = match encoder.finish() {
+            Ok(cmd) => cmd,
+            Err(e) => {
+                log::error!("[GpuState::render] Failed to finish encoder: {:?}", e);
+                return Err(wgpu::SurfaceError::Lost);
+            }
+        };
+
+        match self.error_recovery.submit_with_recovery(vec![commands]) {
+            Ok(_) => {}
+            Err(e) => {
+                log::error!("[GpuState::render] Failed to submit commands: {:?}", e);
+                return Err(wgpu::SurfaceError::Lost);
+            }
+        }
 
         output.present();
-        
+
         // Update frame timing for frame rate limiting
         self.last_frame_time = Some(std::time::Instant::now());
 
         Ok(())
     }
-
-
 }
 
 /// Validates and clamps texture dimensions to GPU limits
@@ -1686,7 +2164,7 @@ fn validate_texture_dimensions(
     let clamped_width = requested_width.min(max_dimension);
     let clamped_height = requested_height.min(max_dimension);
     let was_clamped = clamped_width != requested_width || clamped_height != requested_height;
-    
+
     (clamped_width, clamped_height, was_clamped)
 }
 
@@ -1699,14 +2177,11 @@ fn create_depth_texture(
     // Get device limits
     let device_limits = device.limits();
     let max_texture_dimension = device_limits.max_texture_dimension_2d;
-    
+
     // Validate dimensions using pure function
-    let (width, height, was_clamped) = validate_texture_dimensions(
-        config.width,
-        config.height,
-        max_texture_dimension,
-    );
-    
+    let (width, height, was_clamped) =
+        validate_texture_dimensions(config.width, config.height, max_texture_dimension);
+
     // Log if dimensions were clamped
     if was_clamped {
         log::warn!(
@@ -1714,18 +2189,20 @@ fn create_depth_texture(
             config.width, config.height, width, height, max_texture_dimension
         );
     }
-    
+
     let size = wgpu::Extent3d {
         width,
         height,
         depth_or_array_layers: 1,
     };
-    
+
     log::debug!(
         "[create_depth_texture] Creating depth texture with size {}x{} (device limit: {})",
-        width, height, max_texture_dimension
+        width,
+        height,
+        max_texture_dimension
     );
-    
+
     let desc = wgpu::TextureDescriptor {
         label: Some("Depth Texture"),
         size,
@@ -1736,7 +2213,7 @@ fn create_depth_texture(
         usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
         view_formats: &[],
     };
-    
+
     // Create texture with validated dimensions
     let texture = device.create_texture(&desc);
     texture.create_view(&wgpu::TextureViewDescriptor::default())
@@ -1748,7 +2225,7 @@ pub async fn run_app<G: GameData + 'static>(
     mut game: G,
 ) -> Result<()> {
     log::info!("[gpu_state::run_app] Starting GPU state initialization");
-    
+
     // Don't reinit if already initialized
     if let Err(e) = env_logger::try_init() {
         log::debug!("[gpu_state::run_app] env_logger already initialized: {}", e);
@@ -1768,7 +2245,8 @@ pub async fn run_app<G: GameData + 'static>(
     log::info!("[gpu_state::run_app] Window created successfully");
 
     log::info!("[gpu_state::run_app] Creating GPU state with game block registration...");
-    let mut gpu_state = match GpuState::new_with_game(window.clone(), Some(&mut game), config).await {
+    let mut gpu_state = match GpuState::new_with_game(window.clone(), Some(&mut game), config).await
+    {
         Ok(state) => {
             log::info!("[gpu_state::run_app] GPU state created successfully");
             state
@@ -1778,17 +2256,17 @@ pub async fn run_app<G: GameData + 'static>(
             return Err(e);
         }
     };
-    
+
     // Custom world generator is already handled in GpuState::new_with_game
     // via the config.world_generator_factory mechanism
-    
+
     // Register game blocks
     // Note: Blocks are already registered in GpuState::new()
     // game.register_blocks(&mut gpu_state.block_registry);
-    
+
     let mut input_state = InputState::new();
     let mut last_frame = std::time::Instant::now();
-    
+
     // Start with cursor locked for FPS controls
     input_state.set_cursor_locked(true);
     match gpu_state.window.set_cursor_grab(CursorGrabMode::Locked) {
@@ -1796,8 +2274,14 @@ pub async fn run_app<G: GameData + 'static>(
             gpu_state.window.set_cursor_visible(false);
         }
         Err(e) => {
-            eprintln!("Initial cursor lock failed: {:?}. Trying confined mode...", e);
-            gpu_state.window.set_cursor_grab(CursorGrabMode::Confined).ok();
+            eprintln!(
+                "Initial cursor lock failed: {:?}. Trying confined mode...",
+                e
+            );
+            gpu_state
+                .window
+                .set_cursor_grab(CursorGrabMode::Confined)
+                .ok();
             gpu_state.window.set_cursor_visible(false);
         }
     }
@@ -1818,13 +2302,13 @@ pub async fn run_app<G: GameData + 'static>(
                         gpu_state.resize(*physical_size);
                     }
                     WindowEvent::KeyboardInput { event, .. } => {
-                        if event.physical_key == winit::keyboard::PhysicalKey::Code(KeyCode::Escape) 
+                        if event.physical_key == winit::keyboard::PhysicalKey::Code(KeyCode::Escape)
                             && event.state == winit::event::ElementState::Pressed {
                             // Toggle cursor lock with Escape
                             let locked = !input_state.is_cursor_locked();
                             input_state.set_cursor_locked(locked);
                             input_state.clear_mouse_delta(); // Clear any accumulated delta
-                            
+
                             if locked {
                                 // Use only Locked mode for proper FPS controls
                                 match gpu_state.window.set_cursor_grab(CursorGrabMode::Locked) {
@@ -1843,8 +2327,8 @@ pub async fn run_app<G: GameData + 'static>(
                                 gpu_state.window.set_cursor_visible(true);
                             }
                         }
-                        
-                        
+
+
                         if let winit::keyboard::PhysicalKey::Code(keycode) = event.physical_key {
                             input_state.process_key(keycode, event.state);
                         }
@@ -1885,24 +2369,24 @@ pub async fn run_app<G: GameData + 'static>(
                         // Update input and camera
                         let active_block = get_active_block_from_game(&game);
                         let (broken_block_info, placed_block_pos) = gpu_state.process_input(&input_state, delta_time, active_block);
-                        
+
                         // Log camera info periodically for debugging
                         if gpu_state.frames_rendered % 60 == 0 {
-                            log::info!("[render loop] Frame {}: Camera pos: ({:.2}, {:.2}, {:.2}), yaw: {:.2}, pitch: {:.2}", 
+                            log::info!("[render loop] Frame {}: Camera pos: ({:.2}, {:.2}, {:.2}), yaw: {:.2}, pitch: {:.2}",
                                 gpu_state.frames_rendered,
-                                gpu_state.camera.position[0], 
-                                gpu_state.camera.position[1], 
+                                gpu_state.camera.position[0],
+                                gpu_state.camera.position[1],
                                 gpu_state.camera.position[2],
                                 gpu_state.camera.yaw_radians,
                                 gpu_state.camera.pitch_radians);
                         }
-                        
+
                         // Update physics
                         log::trace!("[render loop] Updating physics with delta_time: {:.4}", delta_time);
                         if let Some(ref mut physics_world) = gpu_state.physics_world {
                             physics_world.update(&gpu_state.world, delta_time);
                         }
-                        
+
                         // Sync camera position with player physics body
                         log::trace!("[render loop] Syncing camera with player entity {}", gpu_state.player_entity);
                         if let Some(ref physics_world) = gpu_state.physics_world {
@@ -1913,7 +2397,7 @@ pub async fn run_app<G: GameData + 'static>(
                                     body.position[1],
                                     body.position[2],
                                 );
-                                
+
                                 // Camera at eye level (0.72m offset from body center)
                                 gpu_state.camera.position = [
                                     player_pos.x,
@@ -1923,53 +2407,53 @@ pub async fn run_app<G: GameData + 'static>(
                                 log::debug!("[render loop] Camera position updated to: [{:.2}, {:.2}, {:.2}]", gpu_state.camera.position[0], gpu_state.camera.position[1], gpu_state.camera.position[2]);
                             }
                         }
-                        
+
                         // Update loaded chunks based on player position
                         // Always update world to ensure chunks are loaded and unloaded properly
                         if gpu_state.frames_rendered <= 10 || gpu_state.frames_rendered % 60 == 0 {
-                            log::info!("[render loop] World update #{} at camera position: {:?} (loaded chunks: {})", 
-                                     gpu_state.frames_rendered, 
+                            log::info!("[render loop] World update #{} at camera position: {:?} (loaded chunks: {})",
+                                     gpu_state.frames_rendered,
                                      gpu_state.camera.position,
                                      gpu_state.world.chunk_manager().loaded_chunk_count());
                         }
-                        
+
                         // Ensure camera chunk is loaded before world update
                         let camera_pos = Point3::new(gpu_state.camera.position[0], gpu_state.camera.position[1], gpu_state.camera.position[2]);
                         let camera_chunk_loaded = gpu_state.world.ensure_camera_chunk_loaded(camera_pos);
                         if !camera_chunk_loaded {
                             log::warn!("[render loop] Camera chunk still being generated at position: {:?}", camera_pos);
                         }
-                        
+
                         // Get current loaded chunks before update
                         let chunks_before: std::collections::HashSet<_> = gpu_state.world.iter_loaded_chunks()
                             .map(|(pos, _)| pos)
                             .collect();
-                        
+
                         gpu_state.world.update(camera_pos);
-                        
+
                         // Mark any newly loaded chunks as dirty so they get meshed
                         let chunks_after: std::collections::HashSet<_> = gpu_state.world.iter_loaded_chunks()
                             .map(|(pos, _)| pos)
                             .collect();
-                        
+
                         for chunk_pos in chunks_after.difference(&chunks_before) {
                             log::debug!("[render loop] New chunk loaded at {:?}, marking as dirty", chunk_pos);
                             gpu_state.dirty_chunks.insert(*chunk_pos);
                         }
-                        
+
                         // Periodic sync check
                         if gpu_state.frames_rendered % 300 == 0 && gpu_state.frames_rendered > 0 {
                             let loaded_chunks = gpu_state.world.chunk_manager().loaded_chunk_count();
                             let chunks_with_meshes = gpu_state.chunks_with_meshes.len();
                             let render_objects = gpu_state.last_render_object_count;
-                            
+
                             log::info!(
                                 "[render loop] Periodic sync check - Loaded chunks: {}, Chunks with meshes: {}, Render objects: {}",
                                 loaded_chunks,
                                 chunks_with_meshes,
                                 render_objects
                             );
-                            
+
                             // Detect sync issues
                             if loaded_chunks > 0 && render_objects == 0 {
                                 log::warn!(
@@ -1978,10 +2462,10 @@ pub async fn run_app<G: GameData + 'static>(
                                 );
                             }
                         }
-                        
+
                         // Update day/night cycle
                         update_day_night_cycle(&mut gpu_state.day_night_cycle, delta_time);
-                        
+
                         // Update block lighting if blocks were changed
                         if let Some((pos, block_id)) = broken_block_info {
                             // A block was broken - check if it was a light source
@@ -1997,7 +2481,7 @@ pub async fn run_app<G: GameData + 'static>(
                             // Update skylight column
                             // TODO: Port skylight updates
                         }
-                        
+
                         if let Some(place_pos) = placed_block_pos {
                             if let Some(block) = gpu_state.block_registry.get_block(active_block) {
                                 if block.get_light_emission() > 0 {
@@ -2011,7 +2495,7 @@ pub async fn run_app<G: GameData + 'static>(
                             // Update skylight column
                             // TODO: Port skylight updates
                         }
-                        
+
                         // Process light propagation if needed
                         if broken_block_info.is_some() || placed_block_pos.is_some() {
                             if let Some(ref light_propagator) = gpu_state.light_propagator {
@@ -2021,17 +2505,17 @@ pub async fn run_app<G: GameData + 'static>(
                                 }
                             }
                         }
-                        
+
                         gpu_state.update_camera();
                         input_state.clear_mouse_delta();
-                        
+
                         // Update async chunk renderer
                         gpu_state.update_chunk_renderer(&input_state);
-                        
+
                         // Log chunk renderer state for first few frames and periodically
                         if gpu_state.frames_rendered <= 10 && gpu_state.frames_rendered % 2 == 0 {
                             let stats = gpu_state.chunk_renderer.stats();
-                            log::info!("[render loop] Frame {}: chunk renderer has {} objects submitted, {} drawn", 
+                            log::info!("[render loop] Frame {}: chunk renderer has {} objects submitted, {} drawn",
                                      gpu_state.frames_rendered,
                                      stats.objects_submitted,
                                      stats.objects_drawn);
@@ -2057,7 +2541,7 @@ pub async fn run_app<G: GameData + 'static>(
                             selected_block: gpu_state.selected_block.clone(),
                         };
                         update_game(&mut game, &mut ctx, delta_time);
-                        
+
                         // Handle block callbacks
                         if let Some((pos, block_id)) = broken_block_info {
                             handle_block_break(&mut game, pos, block_id);
@@ -2085,10 +2569,10 @@ pub async fn run_app<G: GameData + 'static>(
                     }
                 }
                 Event::AboutToWait => {
-                    // Only request redraw if enough time has passed (60 FPS target)
+                    // Only request redraw if enough time has passed (FPS target)
                     let now = std::time::Instant::now();
-                    let target_frametime = std::time::Duration::from_secs_f64(1.0 / 60.0);
-                    
+                    let target_frametime = std::time::Duration::from_secs_f64(1.0 / gameplay::TARGET_FPS as f64);
+
                     if let Some(last_frame) = gpu_state.last_frame_time {
                         let elapsed = now.duration_since(last_frame);
                         if elapsed >= target_frametime {
@@ -2106,32 +2590,32 @@ pub async fn run_app<G: GameData + 'static>(
 }
 
 /// GPU tier classification for intelligent limit selection
-/// 
+///
 /// This system automatically detects GPU capabilities and selects appropriate
 /// resource limits to maximize performance while maintaining compatibility.
-/// 
+///
 /// # Tier Classifications:
-/// 
+///
 /// - **HighEnd**: RTX 4070+, RX 7800+, M1/M2/M3 Pro/Max
 ///   - 8192x8192+ textures, 2GB+ buffers, all features enabled
 ///   - Special case: RTX 4060 Ti (despite name, has high-end capabilities)
-/// 
+///
 /// - **MidRange**: RTX 4060/3070/3080, RX 7600/6600, standard M1/M2/M3
 ///   - 4096-8192 textures, 1GB buffers, most features enabled
-/// 
+///
 /// - **Entry**: GTX 1660/2060, older RX cards, Intel Arc
 ///   - 4096 textures, 512MB buffers, core features only
-/// 
+///
 /// - **LowEnd**: Intel Iris Xe, older integrated graphics
 ///   - 2048-4096 textures, 256MB buffers, minimal features
-/// 
+///
 /// - **Fallback**: Software renderers, unknown GPUs
 ///   - WebGL2 compatible limits, maximum compatibility
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum GpuTier {
     /// High-end modern GPUs (RTX 4070+, RX 7800+, etc)
     HighEnd,
-    /// Mid-range modern GPUs (RTX 4060, RX 7600, etc)  
+    /// Mid-range modern GPUs (RTX 4060, RX 7600, etc)
     MidRange,
     /// Entry-level or older GPUs
     Entry,
@@ -2148,36 +2632,55 @@ fn determine_gpu_tier(info: &wgpu::AdapterInfo, limits: &wgpu::Limits) -> GpuTie
         log::warn!("[GPU Tier] Software renderer detected");
         return GpuTier::Fallback;
     }
-    
+
     // Vendor IDs
     const NVIDIA: u32 = 0x10DE;
     const AMD: u32 = 0x1002;
     const INTEL: u32 = 0x8086;
     const APPLE: u32 = 0x106B;
-    
+
     // Check for modern GPU features and capabilities
     let has_high_texture_support = limits.max_texture_dimension_2d >= 16384;
     let has_large_buffers = limits.max_buffer_size >= 2 * 1024 * 1024 * 1024; // 2GB
     let has_many_bind_groups = limits.max_bind_groups >= 8;
     let name_lower = info.name.to_lowercase();
-    
-    log::info!("[GPU Tier] Analyzing GPU: {} (vendor: 0x{:04x})", info.name, info.vendor);
-    
+
+    log::info!(
+        "[GPU Tier] Analyzing GPU: {} (vendor: 0x{:04x})",
+        info.name,
+        info.vendor
+    );
+
     // For D3D12-wrapped GPUs, vendor ID might be 0x0000, so also check name
-    let is_nvidia = info.vendor == NVIDIA || name_lower.contains("nvidia") || name_lower.contains("geforce") || name_lower.contains("rtx") || name_lower.contains("gtx");
-    let is_amd = info.vendor == AMD || name_lower.contains("amd") || name_lower.contains("radeon") || name_lower.contains("rx ");
-    let is_intel = info.vendor == INTEL || (name_lower.contains("intel") && !name_lower.contains("nvidia"));
+    let is_nvidia = info.vendor == NVIDIA
+        || name_lower.contains("nvidia")
+        || name_lower.contains("geforce")
+        || name_lower.contains("rtx")
+        || name_lower.contains("gtx");
+    let is_amd = info.vendor == AMD
+        || name_lower.contains("amd")
+        || name_lower.contains("radeon")
+        || name_lower.contains("rx ");
+    let is_intel =
+        info.vendor == INTEL || (name_lower.contains("intel") && !name_lower.contains("nvidia"));
     let is_apple = info.vendor == APPLE || name_lower.contains("apple");
-    
+
     if is_nvidia {
         log::info!("[GPU Tier] Detected NVIDIA GPU (vendor check or name match)");
         // NVIDIA GPU detection
-        if name_lower.contains("rtx 40") || name_lower.contains("rtx 4080") || name_lower.contains("rtx 4090") {
+        if name_lower.contains("rtx 40")
+            || name_lower.contains("rtx 4080")
+            || name_lower.contains("rtx 4090")
+        {
             log::info!("[GPU Tier] Detected high-end NVIDIA RTX 40 series");
             GpuTier::HighEnd
-        } else if name_lower.contains("rtx 4070") || name_lower.contains("rtx 4060") || 
-                  name_lower.contains("rtx 30") || name_lower.contains("rtx 3070") || 
-                  name_lower.contains("rtx 3080") || name_lower.contains("rtx 3090") {
+        } else if name_lower.contains("rtx 4070")
+            || name_lower.contains("rtx 4060")
+            || name_lower.contains("rtx 30")
+            || name_lower.contains("rtx 3070")
+            || name_lower.contains("rtx 3080")
+            || name_lower.contains("rtx 3090")
+        {
             // RTX 4060 Ti has excellent capabilities despite mid-range positioning
             if name_lower.contains("rtx 4060 ti") && has_high_texture_support {
                 log::info!("[GPU Tier] Detected NVIDIA RTX 4060 Ti - using high-end profile");
@@ -2186,8 +2689,10 @@ fn determine_gpu_tier(info: &wgpu::AdapterInfo, limits: &wgpu::Limits) -> GpuTie
                 log::info!("[GPU Tier] Detected mid-range NVIDIA RTX");
                 GpuTier::MidRange
             }
-        } else if name_lower.contains("rtx") || name_lower.contains("gtx 16") || 
-                  name_lower.contains("gtx 20") {
+        } else if name_lower.contains("rtx")
+            || name_lower.contains("gtx 16")
+            || name_lower.contains("gtx 20")
+        {
             log::info!("[GPU Tier] Detected entry-level NVIDIA GPU");
             GpuTier::Entry
         } else if has_high_texture_support && has_large_buffers {
@@ -2199,13 +2704,19 @@ fn determine_gpu_tier(info: &wgpu::AdapterInfo, limits: &wgpu::Limits) -> GpuTie
     } else if is_amd {
         log::info!("[GPU Tier] Detected AMD GPU");
         // AMD GPU detection
-        if name_lower.contains("rx 7900") || name_lower.contains("rx 7800") ||
-           name_lower.contains("rx 6900") || name_lower.contains("rx 6800") {
+        if name_lower.contains("rx 7900")
+            || name_lower.contains("rx 7800")
+            || name_lower.contains("rx 6900")
+            || name_lower.contains("rx 6800")
+        {
             log::info!("[GPU Tier] Detected high-end AMD GPU");
             GpuTier::HighEnd
-        } else if name_lower.contains("rx 7700") || name_lower.contains("rx 7600") ||
-                  name_lower.contains("rx 6700") || name_lower.contains("rx 6600") ||
-                  name_lower.contains("rx 5700") {
+        } else if name_lower.contains("rx 7700")
+            || name_lower.contains("rx 7600")
+            || name_lower.contains("rx 6700")
+            || name_lower.contains("rx 6600")
+            || name_lower.contains("rx 5700")
+        {
             log::info!("[GPU Tier] Detected mid-range AMD GPU");
             GpuTier::MidRange
         } else if name_lower.contains("rx") && has_high_texture_support {
@@ -2232,12 +2743,19 @@ fn determine_gpu_tier(info: &wgpu::AdapterInfo, limits: &wgpu::Limits) -> GpuTie
     } else if is_apple {
         log::info!("[GPU Tier] Detected Apple GPU");
         // Apple Silicon detection
-        if name_lower.contains("m2 pro") || name_lower.contains("m2 max") || 
-           name_lower.contains("m3 pro") || name_lower.contains("m3 max") ||
-           name_lower.contains("m1 pro") || name_lower.contains("m1 max") {
+        if name_lower.contains("m2 pro")
+            || name_lower.contains("m2 max")
+            || name_lower.contains("m3 pro")
+            || name_lower.contains("m3 max")
+            || name_lower.contains("m1 pro")
+            || name_lower.contains("m1 max")
+        {
             log::info!("[GPU Tier] Detected high-end Apple Silicon");
             GpuTier::HighEnd
-        } else if name_lower.contains("m1") || name_lower.contains("m2") || name_lower.contains("m3") {
+        } else if name_lower.contains("m1")
+            || name_lower.contains("m2")
+            || name_lower.contains("m3")
+        {
             log::info!("[GPU Tier] Detected Apple Silicon");
             GpuTier::MidRange
         } else {
@@ -2249,7 +2767,9 @@ fn determine_gpu_tier(info: &wgpu::AdapterInfo, limits: &wgpu::Limits) -> GpuTie
         if has_high_texture_support && has_large_buffers && has_many_bind_groups {
             log::info!("[GPU Tier] Unknown GPU with high-end capabilities");
             GpuTier::MidRange
-        } else if limits.max_texture_dimension_2d >= 8192 && limits.max_buffer_size >= 512 * 1024 * 1024 {
+        } else if limits.max_texture_dimension_2d >= 8192
+            && limits.max_buffer_size >= 512 * 1024 * 1024
+        {
             log::info!("[GPU Tier] Unknown GPU with mid-range capabilities");
             GpuTier::Entry
         } else {
@@ -2266,24 +2786,36 @@ fn select_limits_for_tier(tier: GpuTier, hardware_limits: &wgpu::Limits) -> wgpu
             log::info!("[GPU Limits] Using high-end GPU profile");
             // Start with default limits (which are quite generous)
             let mut limits = wgpu::Limits::default();
-            
+
             // But ensure we don't exceed hardware capabilities
-            limits.max_texture_dimension_1d = limits.max_texture_dimension_1d.min(hardware_limits.max_texture_dimension_1d);
-            limits.max_texture_dimension_2d = limits.max_texture_dimension_2d.min(hardware_limits.max_texture_dimension_2d);
-            limits.max_texture_dimension_3d = limits.max_texture_dimension_3d.min(hardware_limits.max_texture_dimension_3d);
+            limits.max_texture_dimension_1d = limits
+                .max_texture_dimension_1d
+                .min(hardware_limits.max_texture_dimension_1d);
+            limits.max_texture_dimension_2d = limits
+                .max_texture_dimension_2d
+                .min(hardware_limits.max_texture_dimension_2d);
+            limits.max_texture_dimension_3d = limits
+                .max_texture_dimension_3d
+                .min(hardware_limits.max_texture_dimension_3d);
             limits.max_buffer_size = limits.max_buffer_size.min(hardware_limits.max_buffer_size);
-            limits.max_vertex_buffers = limits.max_vertex_buffers.min(hardware_limits.max_vertex_buffers);
+            limits.max_vertex_buffers = limits
+                .max_vertex_buffers
+                .min(hardware_limits.max_vertex_buffers);
             limits.max_bind_groups = limits.max_bind_groups.min(hardware_limits.max_bind_groups);
-            limits.max_vertex_attributes = limits.max_vertex_attributes.min(hardware_limits.max_vertex_attributes);
-            limits.max_uniform_buffer_binding_size = limits.max_uniform_buffer_binding_size.min(hardware_limits.max_uniform_buffer_binding_size);
-            
+            limits.max_vertex_attributes = limits
+                .max_vertex_attributes
+                .min(hardware_limits.max_vertex_attributes);
+            limits.max_uniform_buffer_binding_size = limits
+                .max_uniform_buffer_binding_size
+                .min(hardware_limits.max_uniform_buffer_binding_size);
+
             limits
         }
         GpuTier::MidRange => {
             log::info!("[GPU Limits] Using mid-range GPU profile");
             // Use downlevel defaults as a base, but allow higher limits where available
             let mut limits = wgpu::Limits::downlevel_defaults();
-            
+
             // Override specific limits for better performance on mid-range GPUs
             if hardware_limits.max_texture_dimension_2d >= 8192 {
                 limits.max_texture_dimension_2d = 8192;
@@ -2291,60 +2823,84 @@ fn select_limits_for_tier(tier: GpuTier, hardware_limits: &wgpu::Limits) -> wgpu
             if hardware_limits.max_buffer_size >= 1024 * 1024 * 1024 {
                 limits.max_buffer_size = 1024 * 1024 * 1024; // 1GB
             }
-            
+
             // Ensure we don't exceed hardware
-            limits.max_texture_dimension_1d = limits.max_texture_dimension_1d.min(hardware_limits.max_texture_dimension_1d);
-            limits.max_texture_dimension_2d = limits.max_texture_dimension_2d.min(hardware_limits.max_texture_dimension_2d);
-            limits.max_texture_dimension_3d = limits.max_texture_dimension_3d.min(hardware_limits.max_texture_dimension_3d);
+            limits.max_texture_dimension_1d = limits
+                .max_texture_dimension_1d
+                .min(hardware_limits.max_texture_dimension_1d);
+            limits.max_texture_dimension_2d = limits
+                .max_texture_dimension_2d
+                .min(hardware_limits.max_texture_dimension_2d);
+            limits.max_texture_dimension_3d = limits
+                .max_texture_dimension_3d
+                .min(hardware_limits.max_texture_dimension_3d);
             limits.max_buffer_size = limits.max_buffer_size.min(hardware_limits.max_buffer_size);
-            limits.max_vertex_buffers = limits.max_vertex_buffers.min(hardware_limits.max_vertex_buffers);
+            limits.max_vertex_buffers = limits
+                .max_vertex_buffers
+                .min(hardware_limits.max_vertex_buffers);
             limits.max_bind_groups = limits.max_bind_groups.min(hardware_limits.max_bind_groups);
-            
+
             limits
         }
         GpuTier::Entry => {
             log::info!("[GPU Limits] Using entry-level GPU profile");
             // Use downlevel defaults
             let mut limits = wgpu::Limits::downlevel_defaults();
-            
+
             // Ensure minimum texture size for Hearth Engine
             if hardware_limits.max_texture_dimension_2d >= 4096 {
                 limits.max_texture_dimension_2d = 4096;
             }
-            
+
             // Clamp to hardware
-            limits.max_texture_dimension_1d = limits.max_texture_dimension_1d.min(hardware_limits.max_texture_dimension_1d);
-            limits.max_texture_dimension_2d = limits.max_texture_dimension_2d.min(hardware_limits.max_texture_dimension_2d);
-            limits.max_texture_dimension_3d = limits.max_texture_dimension_3d.min(hardware_limits.max_texture_dimension_3d);
+            limits.max_texture_dimension_1d = limits
+                .max_texture_dimension_1d
+                .min(hardware_limits.max_texture_dimension_1d);
+            limits.max_texture_dimension_2d = limits
+                .max_texture_dimension_2d
+                .min(hardware_limits.max_texture_dimension_2d);
+            limits.max_texture_dimension_3d = limits
+                .max_texture_dimension_3d
+                .min(hardware_limits.max_texture_dimension_3d);
             limits.max_buffer_size = limits.max_buffer_size.min(hardware_limits.max_buffer_size);
-            
+
             limits
         }
         GpuTier::LowEnd | GpuTier::Fallback => {
             log::info!("[GPU Limits] Using low-end/fallback GPU profile");
             // Use WebGL2 defaults for maximum compatibility
             let mut limits = wgpu::Limits::downlevel_webgl2_defaults();
-            
+
             // Still try to get 4096 textures if possible
             if hardware_limits.max_texture_dimension_2d >= 4096 {
                 limits.max_texture_dimension_2d = 4096;
             }
-            
+
             // Clamp to hardware
-            limits.max_texture_dimension_1d = limits.max_texture_dimension_1d.min(hardware_limits.max_texture_dimension_1d);
-            limits.max_texture_dimension_2d = limits.max_texture_dimension_2d.min(hardware_limits.max_texture_dimension_2d);
-            limits.max_texture_dimension_3d = limits.max_texture_dimension_3d.min(hardware_limits.max_texture_dimension_3d);
+            limits.max_texture_dimension_1d = limits
+                .max_texture_dimension_1d
+                .min(hardware_limits.max_texture_dimension_1d);
+            limits.max_texture_dimension_2d = limits
+                .max_texture_dimension_2d
+                .min(hardware_limits.max_texture_dimension_2d);
+            limits.max_texture_dimension_3d = limits
+                .max_texture_dimension_3d
+                .min(hardware_limits.max_texture_dimension_3d);
             limits.max_buffer_size = limits.max_buffer_size.min(hardware_limits.max_buffer_size);
-            
+
             limits
         }
     }
 }
 
 /// Optimize limits specifically for voxel engine requirements
-fn optimize_limits_for_voxel_engine(limits: &mut wgpu::Limits, hardware_limits: &wgpu::Limits, tier: GpuTier) {
+fn optimize_limits_for_voxel_engine(
+    limits: &mut wgpu::Limits,
+    hardware_limits: &wgpu::Limits,
+    tier: GpuTier,
+) {
     log::info!("[GPU Limits] Optimizing for voxel engine...");
-    
+
     // Texture requirements for voxel engines
     match tier {
         GpuTier::HighEnd | GpuTier::MidRange => {
@@ -2356,7 +2912,7 @@ fn optimize_limits_for_voxel_engine(limits: &mut wgpu::Limits, hardware_limits: 
                 limits.max_texture_dimension_2d = 4096;
                 log::info!("[GPU Limits] Using 4096x4096 texture atlas support");
             }
-            
+
             // 3D textures for volumetric effects
             if hardware_limits.max_texture_dimension_3d >= 512 {
                 limits.max_texture_dimension_3d = 512;
@@ -2366,13 +2922,17 @@ fn optimize_limits_for_voxel_engine(limits: &mut wgpu::Limits, hardware_limits: 
             // Even low-end GPUs should try for 4096 if available
             if hardware_limits.max_texture_dimension_2d >= 4096 {
                 limits.max_texture_dimension_2d = 4096;
-                log::info!("[GPU Limits] Using 4096x4096 texture atlas support (minimum for quality)");
+                log::info!(
+                    "[GPU Limits] Using 4096x4096 texture atlas support (minimum for quality)"
+                );
             } else {
-                log::warn!("[GPU Limits] GPU doesn't support 4096x4096 textures, quality may be reduced");
+                log::warn!(
+                    "[GPU Limits] GPU doesn't support 4096x4096 textures, quality may be reduced"
+                );
             }
         }
     }
-    
+
     // Buffer size requirements for chunk data
     match tier {
         GpuTier::HighEnd => {
@@ -2394,11 +2954,14 @@ fn optimize_limits_for_voxel_engine(limits: &mut wgpu::Limits, hardware_limits: 
             let min_buffer_size = 256 * 1024 * 1024; // 256MB minimum
             if hardware_limits.max_buffer_size >= min_buffer_size {
                 limits.max_buffer_size = limits.max_buffer_size.max(min_buffer_size);
-                log::info!("[GPU Limits] Using {}MB buffer size", limits.max_buffer_size / 1024 / 1024);
+                log::info!(
+                    "[GPU Limits] Using {}MB buffer size",
+                    limits.max_buffer_size / 1024 / 1024
+                );
             }
         }
     }
-    
+
     // Uniform buffer requirements for rendering
     if tier == GpuTier::HighEnd || tier == GpuTier::MidRange {
         // Larger uniform buffers for more complex shaders
@@ -2407,12 +2970,14 @@ fn optimize_limits_for_voxel_engine(limits: &mut wgpu::Limits, hardware_limits: 
             log::info!("[GPU Limits] Using 64KB uniform buffer size");
         }
     }
-    
+
     // Compute workgroup sizes for GPU physics/lighting
     if hardware_limits.max_compute_workgroup_size_x >= 256 {
-        log::info!("[GPU Limits] GPU supports 256+ compute workgroup size - good for parallel algorithms");
+        log::info!(
+            "[GPU Limits] GPU supports 256+ compute workgroup size - good for parallel algorithms"
+        );
     }
-    
+
     // Log any potential issues
     if limits.max_texture_dimension_2d < 4096 {
         log::warn!("[GPU Limits] Texture size below 4096x4096 may impact visual quality");

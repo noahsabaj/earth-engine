@@ -1,6 +1,6 @@
+use anyhow::Result;
 use std::time::{Duration, Instant};
 use wgpu::{Adapter, Device, Instance};
-use anyhow::Result;
 
 /// GPU diagnostics and validation utilities
 pub struct GpuDiagnostics;
@@ -10,10 +10,10 @@ impl GpuDiagnostics {
     pub async fn run_diagnostics(instance: &Instance) -> DiagnosticsReport {
         let mut report = DiagnosticsReport::default();
         let start = Instant::now();
-        
+
         // Check available backends
         report.available_backends = Self::check_backends();
-        
+
         // Enumerate all adapters
         let adapters = instance.enumerate_adapters(wgpu::Backends::all());
         for adapter in adapters {
@@ -29,15 +29,15 @@ impl GpuDiagnostics {
                 limits: Self::get_adapter_limits(&adapter),
             });
         }
-        
+
         report.diagnostics_time = start.elapsed();
         report
     }
-    
+
     /// Check which backends are available
     fn check_backends() -> Vec<String> {
         let mut backends = Vec::new();
-        
+
         if cfg!(target_os = "windows") {
             backends.push("DirectX 12".to_string());
             backends.push("DirectX 11".to_string());
@@ -51,15 +51,15 @@ impl GpuDiagnostics {
             backends.push("WebGPU".to_string());
             backends.push("WebGL2".to_string());
         }
-        
+
         backends
     }
-    
+
     /// Get important adapter features
     fn get_adapter_features(adapter: &Adapter) -> Vec<String> {
         let features = adapter.features();
         let mut feature_list = Vec::new();
-        
+
         // Check important features
         if features.contains(wgpu::Features::DEPTH_CLIP_CONTROL) {
             feature_list.push("Depth Clip Control".to_string());
@@ -73,10 +73,10 @@ impl GpuDiagnostics {
         if features.contains(wgpu::Features::INDIRECT_FIRST_INSTANCE) {
             feature_list.push("Indirect First Instance".to_string());
         }
-        
+
         feature_list
     }
-    
+
     /// Get important adapter limits
     fn get_adapter_limits(adapter: &Adapter) -> AdapterLimits {
         let limits = adapter.limits();
@@ -91,7 +91,7 @@ impl GpuDiagnostics {
             max_compute_workgroup_size_z: limits.max_compute_workgroup_size_z,
         }
     }
-    
+
     /// Validate GPU capabilities for the engine
     pub fn validate_capabilities(adapter: &Adapter) -> ValidationResult {
         let mut result = ValidationResult {
@@ -99,10 +99,10 @@ impl GpuDiagnostics {
             warnings: Vec::new(),
             errors: Vec::new(),
         };
-        
+
         let limits = adapter.limits();
         let info = adapter.get_info();
-        
+
         // Check minimum texture size
         if limits.max_texture_dimension_2d < 4096 {
             result.warnings.push(format!(
@@ -113,7 +113,7 @@ impl GpuDiagnostics {
             log::info!("[GPU Validation] Excellent texture support: {} (can use high-res terrain textures)", 
                      limits.max_texture_dimension_2d);
         }
-        
+
         // Check buffer size
         if limits.max_buffer_size < 256 * 1024 * 1024 {
             result.warnings.push(format!(
@@ -121,25 +121,29 @@ impl GpuDiagnostics {
                 limits.max_buffer_size / 1024 / 1024
             ));
         }
-        
+
         // Check for software renderer
         if info.device_type == wgpu::DeviceType::Cpu {
-            result.warnings.push("Using CPU/software renderer - performance will be poor".to_string());
+            result
+                .warnings
+                .push("Using CPU/software renderer - performance will be poor".to_string());
         }
-        
+
         // Check for known problematic configurations
         if cfg!(target_os = "linux") && info.backend == wgpu::Backend::Gl {
-            result.warnings.push("OpenGL backend on Linux may have compatibility issues".to_string());
+            result
+                .warnings
+                .push("OpenGL backend on Linux may have compatibility issues".to_string());
         }
-        
+
         result
     }
-    
+
     /// Test basic GPU operations
     pub async fn test_gpu_operations(device: &Device) -> OperationTestResult {
         let mut result = OperationTestResult::default();
         let start = Instant::now();
-        
+
         // Test buffer creation
         let buffer_start = Instant::now();
         match Self::test_buffer_creation(device) {
@@ -151,7 +155,7 @@ impl GpuDiagnostics {
                 result.buffer_test = TestStatus::Failed(e.to_string());
             }
         }
-        
+
         // Test texture creation
         let texture_start = Instant::now();
         match Self::test_texture_creation(device) {
@@ -163,7 +167,7 @@ impl GpuDiagnostics {
                 result.texture_test = TestStatus::Failed(e.to_string());
             }
         }
-        
+
         // Test shader compilation
         let shader_start = Instant::now();
         match Self::test_shader_compilation(device) {
@@ -174,20 +178,20 @@ impl GpuDiagnostics {
                 result.shader_test = TestStatus::Failed(e.to_string());
             }
         }
-        
+
         result.total_test_time = start.elapsed();
         result
     }
-    
+
     fn test_buffer_creation(device: &Device) -> Result<u64> {
         // Try creating progressively larger buffers
         let sizes = [
-            1024 * 1024,           // 1 MB
-            16 * 1024 * 1024,      // 16 MB
-            64 * 1024 * 1024,      // 64 MB
-            256 * 1024 * 1024,     // 256 MB
+            1024 * 1024,       // 1 MB
+            16 * 1024 * 1024,  // 16 MB
+            64 * 1024 * 1024,  // 64 MB
+            256 * 1024 * 1024, // 256 MB
         ];
-        
+
         let mut max_size = 0u64;
         for &size in &sizes {
             match device.create_buffer(&wgpu::BufferDescriptor {
@@ -202,17 +206,20 @@ impl GpuDiagnostics {
                 }
             }
         }
-        
+
         Ok(max_size)
     }
-    
+
     fn test_texture_creation(device: &Device) -> Result<u32> {
         // Get device limits to avoid testing beyond hardware capabilities
         let device_limits = device.limits();
         let max_hardware_dimension = device_limits.max_texture_dimension_2d;
-        
-        log::info!("[GPU Test] Hardware max texture dimension: {}", max_hardware_dimension);
-        
+
+        log::info!(
+            "[GPU Test] Hardware max texture dimension: {}",
+            max_hardware_dimension
+        );
+
         // Define texture dimensions to test - filter out those exceeding hardware limits
         let all_dimensions = [512, 1024, 2048, 4096, 8192, 16384];
         let dimensions_to_test: Vec<u32> = all_dimensions
@@ -220,19 +227,25 @@ impl GpuDiagnostics {
             .copied()
             .filter(|&dim| dim <= max_hardware_dimension)
             .collect();
-        
+
         if dimensions_to_test.is_empty() {
-            log::error!("[GPU Test] Hardware texture limit ({}) is too low for any test dimensions", max_hardware_dimension);
+            log::error!(
+                "[GPU Test] Hardware texture limit ({}) is too low for any test dimensions",
+                max_hardware_dimension
+            );
             return Ok(0);
         }
-        
-        log::info!("[GPU Test] Will test texture dimensions: {:?} (hardware max: {})", 
-                  dimensions_to_test, max_hardware_dimension);
-        
+
+        log::info!(
+            "[GPU Test] Will test texture dimensions: {:?} (hardware max: {})",
+            dimensions_to_test,
+            max_hardware_dimension
+        );
+
         let mut max_dim = 0u32;
         for &dim in &dimensions_to_test {
             log::debug!("[GPU Test] Testing {}x{} texture creation", dim, dim);
-            
+
             // Create texture descriptor
             let texture_desc = wgpu::TextureDescriptor {
                 label: Some("Test Texture"),
@@ -248,7 +261,7 @@ impl GpuDiagnostics {
                 usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
                 view_formats: &[],
             };
-            
+
             // Try to create the texture without panic catching - wgpu should handle errors gracefully
             match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                 device.create_texture(&texture_desc)
@@ -260,7 +273,11 @@ impl GpuDiagnostics {
                 }
                 Err(e) => {
                     // Log the actual error if we can extract it
-                    log::warn!("[GPU Test] ✗ Failed to create {}x{} texture - stopping further tests", dim, dim);
+                    log::warn!(
+                        "[GPU Test] ✗ Failed to create {}x{} texture - stopping further tests",
+                        dim,
+                        dim
+                    );
                     if let Some(s) = e.downcast_ref::<String>() {
                         log::warn!("[GPU Test]   Error details: {}", s);
                     } else if let Some(s) = e.downcast_ref::<&str>() {
@@ -270,18 +287,20 @@ impl GpuDiagnostics {
                 }
             }
         }
-        
+
         // Log final results
         if max_dim == 0 {
-            log::warn!("[GPU Test] Could not create any test textures! Hardware may be very limited.");
+            log::warn!(
+                "[GPU Test] Could not create any test textures! Hardware may be very limited."
+            );
         } else {
             log::info!("[GPU Test] Maximum successfully tested texture dimension: {}x{} (hardware supports up to {}x{})", 
                      max_dim, max_dim, max_hardware_dimension, max_hardware_dimension);
         }
-        
+
         Ok(max_dim)
     }
-    
+
     fn test_shader_compilation(device: &Device) -> Result<()> {
         // Test compiling a simple shader
         let shader_source = r#"
@@ -300,12 +319,10 @@ impl GpuDiagnostics {
                 return vec4<f32>(1.0, 0.0, 0.0, 1.0);
             }
         "#;
-        
-        device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("Test Shader"),
-            source: wgpu::ShaderSource::Wgsl(shader_source.into()),
-        });
-        
+
+        let _validated_shader =
+            crate::gpu::automation::create_gpu_shader(device, "test_shader", shader_source)?;
+
         Ok(())
     }
 }
@@ -382,12 +399,12 @@ impl DiagnosticsReport {
     pub fn print_report(&self) {
         log::info!("=== GPU Diagnostics Report ===");
         log::info!("Diagnostics completed in: {:?}", self.diagnostics_time);
-        
+
         log::info!("\nAvailable Backends:");
         for backend in &self.available_backends {
             log::info!("  - {}", backend);
         }
-        
+
         log::info!("\nAvailable Adapters:");
         for (i, adapter) in self.available_adapters.iter().enumerate() {
             log::info!("\n  Adapter {}:", i);
@@ -397,16 +414,25 @@ impl DiagnosticsReport {
             log::info!("    Vendor ID: 0x{:04x}", adapter.vendor_id);
             log::info!("    Device ID: 0x{:04x}", adapter.device_id);
             log::info!("    Driver: {}", adapter.driver_info);
-            
+
             log::info!("    Features:");
             for feature in &adapter.features {
                 log::info!("      - {}", feature);
             }
-            
+
             log::info!("    Limits:");
-            log::info!("      Max Texture 2D: {}", adapter.limits.max_texture_dimension_2d);
-            log::info!("      Max Buffer Size: {} MB", adapter.limits.max_buffer_size / 1024 / 1024);
-            log::info!("      Max Vertex Buffers: {}", adapter.limits.max_vertex_buffers);
+            log::info!(
+                "      Max Texture 2D: {}",
+                adapter.limits.max_texture_dimension_2d
+            );
+            log::info!(
+                "      Max Buffer Size: {} MB",
+                adapter.limits.max_buffer_size / 1024 / 1024
+            );
+            log::info!(
+                "      Max Vertex Buffers: {}",
+                adapter.limits.max_vertex_buffers
+            );
         }
     }
 }
@@ -419,14 +445,14 @@ impl ValidationResult {
         } else {
             log::error!("[GPU Validation] ✗ GPU validation failed");
         }
-        
+
         if !self.warnings.is_empty() {
             log::warn!("[GPU Validation] Warnings:");
             for warning in &self.warnings {
                 log::warn!("  - {}", warning);
             }
         }
-        
+
         if !self.errors.is_empty() {
             log::error!("[GPU Validation] Errors:");
             for error in &self.errors {
@@ -441,11 +467,14 @@ impl OperationTestResult {
     pub fn print_results(&self) {
         log::info!("=== GPU Operation Tests ===");
         log::info!("Total test time: {:?}", self.total_test_time);
-        
+
         match &self.buffer_test {
             TestStatus::Success(duration) => {
                 log::info!("✓ Buffer creation: Success ({:?})", duration);
-                log::info!("  Max tested size: {} MB", self.max_tested_buffer_size / 1024 / 1024);
+                log::info!(
+                    "  Max tested size: {} MB",
+                    self.max_tested_buffer_size / 1024 / 1024
+                );
             }
             TestStatus::Failed(error) => {
                 log::error!("✗ Buffer creation: Failed - {}", error);
@@ -454,11 +483,15 @@ impl OperationTestResult {
                 log::warn!("- Buffer creation: Not tested");
             }
         }
-        
+
         match &self.texture_test {
             TestStatus::Success(duration) => {
                 log::info!("✓ Texture creation: Success ({:?})", duration);
-                log::info!("  Max tested dimension: {}x{}", self.max_tested_texture_dimension, self.max_tested_texture_dimension);
+                log::info!(
+                    "  Max tested dimension: {}x{}",
+                    self.max_tested_texture_dimension,
+                    self.max_tested_texture_dimension
+                );
             }
             TestStatus::Failed(error) => {
                 log::error!("✗ Texture creation: Failed - {}", error);
@@ -467,7 +500,7 @@ impl OperationTestResult {
                 log::warn!("- Texture creation: Not tested");
             }
         }
-        
+
         match &self.shader_test {
             TestStatus::Success(duration) => {
                 log::info!("✓ Shader compilation: Success ({:?})", duration);

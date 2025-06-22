@@ -1,27 +1,19 @@
 //! GPU-first lighting system for the unified world architecture
-//! 
+//!
 //! Complete lighting system migrated from CPU to GPU for optimal performance.
 //! Provides time-of-day, light propagation, and skylight calculations.
 
 mod skylight;
 mod time_of_day;
 
-use std::time::Duration;
-use std::sync::Arc;
+use crate::lighting::{LIGHT_FALLOFF, MAX_LIGHT_LEVEL, MIN_LIGHT_LEVEL};
+use crate::world::core::{BlockId, ChunkPos, VoxelPos};
 use parking_lot::RwLock;
-use crate::world::core::{VoxelPos, ChunkPos, BlockId};
+use std::sync::Arc;
+use std::time::Duration;
 
 pub use skylight::SkylightCalculator;
 pub use time_of_day::*;
-
-/// Maximum light level (full brightness)
-pub const MAX_LIGHT_LEVEL: u8 = 15;
-
-/// Minimum light level (complete darkness)
-pub const MIN_LIGHT_LEVEL: u8 = 0;
-
-/// Light falloff per block
-pub const LIGHT_FALLOFF: u8 = 1;
 
 /// Types of light in the game
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -48,22 +40,22 @@ impl LightLevel {
             block: block.min(15),
         }
     }
-    
+
     /// Get the maximum light level from either source
     pub fn max_light(&self) -> u8 {
         self.sky.max(self.block)
     }
-    
+
     /// Get combined light level for rendering
     pub fn combined(&self) -> u8 {
         self.sky.max(self.block)
     }
-    
+
     /// Create a dark light level
     pub fn dark() -> Self {
         Self { sky: 0, block: 0 }
     }
-    
+
     /// Create a fully lit skylight level
     pub fn full_sky() -> Self {
         Self { sky: 15, block: 0 }

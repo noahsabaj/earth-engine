@@ -1,9 +1,8 @@
 use glam::{Vec3, Vec4};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 // Import physics constants for voxel-scaled gravity
-include!("../../constants.rs");
-use self::physics::GRAVITY;
+use crate::physics_constants::GRAVITY;
 
 /// Individual particle in the particle system
 #[derive(Debug, Clone)]
@@ -39,27 +38,27 @@ pub enum ParticleType {
     Spark,
     Dust,
     Fog,
-    
+
     // Block effects
     BlockBreak,
     BlockPlace,
     BlockDust,
-    
+
     // Entity effects
     Damage,
     Heal,
     Experience,
-    
+
     // Magic/special
     Magic,
     Enchantment,
     Portal,
-    
+
     // Liquid
     WaterSplash,
     LavaSpark,
     Bubble,
-    
+
     // Custom
     Custom(u32),
 }
@@ -123,7 +122,7 @@ impl Particle {
     /// Create a new particle
     pub fn new(position: Vec3, velocity: Vec3, particle_type: ParticleType) -> Self {
         let (color, size, lifetime) = particle_type.default_properties();
-        
+
         Self {
             position,
             velocity,
@@ -136,44 +135,44 @@ impl Particle {
             properties: ParticleProperties::default_for_type(particle_type),
         }
     }
-    
+
     /// Update particle physics
     pub fn update(&mut self, dt: f32) {
         // Apply acceleration
         self.velocity += self.acceleration * dt;
-        
+
         // Apply drag
         self.velocity *= 1.0 - self.properties.drag * dt;
-        
+
         // Apply gravity (voxel-scaled for 1dcm³ world)
         self.velocity.y -= (-GRAVITY) * self.properties.gravity * dt;
-        
+
         // Update position
         self.position += self.velocity * dt;
-        
+
         // Update lifetime
         self.lifetime -= dt;
-        
+
         // Update rotation
         self.properties.rotation += self.properties.rotation_speed * dt;
-        
+
         // Update animation
         if self.properties.animation_speed > 0.0 {
-            self.properties.texture_frame = 
+            self.properties.texture_frame =
                 ((self.max_lifetime - self.lifetime) * self.properties.animation_speed) as u32;
         }
-        
+
         // Update size based on curve
         self.update_size();
-        
+
         // Update color based on curve
         self.update_color();
     }
-    
+
     /// Update particle size based on lifetime
     fn update_size(&mut self) {
         let t = 1.0 - (self.lifetime / self.max_lifetime);
-        
+
         self.size = match &self.properties.size_curve {
             SizeCurve::Constant => self.size,
             SizeCurve::Linear(start, end) => start + (end - start) * t,
@@ -183,37 +182,35 @@ impl Particle {
                 } else {
                     peak + (end - peak) * ((t - 0.5) * 2.0)
                 }
-            },
+            }
             SizeCurve::Custom(points) => {
                 // Find interpolation points
                 Self::interpolate_curve(points, t, |a, b, t| a + (b - a) * t)
-            },
+            }
         };
     }
-    
+
     /// Update particle color based on lifetime
     fn update_color(&mut self) {
         let t = 1.0 - (self.lifetime / self.max_lifetime);
-        
+
         self.color = match &self.properties.color_curve {
             ColorCurve::Constant => self.color,
             ColorCurve::FadeOut => {
                 let mut color = self.color;
                 color.w = 1.0 - t;
                 color
-            },
-            ColorCurve::Linear(start, end) => {
-                Vec4::new(
-                    start.x + (end.x - start.x) * t,
-                    start.y + (end.y - start.y) * t,
-                    start.z + (end.z - start.z) * t,
-                    start.w + (end.w - start.w) * t,
-                )
-            },
+            }
+            ColorCurve::Linear(start, end) => Vec4::new(
+                start.x + (end.x - start.x) * t,
+                start.y + (end.y - start.y) * t,
+                start.z + (end.z - start.z) * t,
+                start.w + (end.w - start.w) * t,
+            ),
             ColorCurve::Temperature(start_temp, end_temp) => {
                 let temp = start_temp + (end_temp - start_temp) * t;
                 Self::temperature_to_color(temp)
-            },
+            }
             ColorCurve::Custom(points) => {
                 // Find interpolation points
                 Self::interpolate_curve(points, t, |a, b, t| {
@@ -224,24 +221,28 @@ impl Particle {
                         a.w + (b.w - a.w) * t,
                     )
                 })
-            },
+            }
         };
     }
-    
+
     /// Interpolate a curve
-    fn interpolate_curve<T: Clone>(points: &[(f32, T)], t: f32, interp: impl Fn(&T, &T, f32) -> T) -> T {
+    fn interpolate_curve<T: Clone>(
+        points: &[(f32, T)],
+        t: f32,
+        interp: impl Fn(&T, &T, f32) -> T,
+    ) -> T {
         if points.is_empty() {
             panic!("Empty curve");
         }
-        
+
         if t <= points[0].0 {
             return points[0].1.clone();
         }
-        
+
         if t >= points[points.len() - 1].0 {
             return points[points.len() - 1].1.clone();
         }
-        
+
         // Find surrounding points
         for i in 0..points.len() - 1 {
             if t >= points[i].0 && t <= points[i + 1].0 {
@@ -249,15 +250,15 @@ impl Particle {
                 return interp(&points[i].1, &points[i + 1].1, local_t);
             }
         }
-        
+
         points[0].1.clone()
     }
-    
+
     /// Convert temperature to color (for fire effects)
     fn temperature_to_color(temp: f32) -> Vec4 {
         // Simplified black-body radiation approximation
         let t = temp.clamp(0.0, 1.0);
-        
+
         if t < 0.5 {
             // Black to red to orange
             let t2 = t * 2.0;
@@ -268,12 +269,12 @@ impl Particle {
             Vec4::new(1.0, 0.3 + t2 * 0.7, t2, 1.0)
         }
     }
-    
+
     /// Check if particle is alive
     pub fn is_alive(&self) -> bool {
         self.lifetime > 0.0
     }
-    
+
     /// Get normalized lifetime (0-1)
     pub fn lifetime_normalized(&self) -> f32 {
         (self.lifetime / self.max_lifetime).clamp(0.0, 1.0)
@@ -306,7 +307,7 @@ impl ParticleType {
             ParticleType::Custom(id) => 1000 + id,
         }
     }
-    
+
     /// Get default properties for particle type
     pub fn default_properties(&self) -> (Vec4, f32, f32) {
         // (color, size, lifetime)
@@ -417,7 +418,7 @@ impl Default for ParticleProperties {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_particle_update() {
         let mut particle = Particle::new(
@@ -425,10 +426,10 @@ mod tests {
             Vec3::new(1.0, 0.0, 0.0),
             ParticleType::Dust,
         );
-        
+
         let initial_y = particle.position.y;
         particle.update(0.1);
-        
+
         // Particle should have moved
         assert!(particle.position.x > 0.0);
         // Gravity should have affected Y position

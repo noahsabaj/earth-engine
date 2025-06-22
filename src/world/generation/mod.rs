@@ -3,24 +3,31 @@
 //! This module provides unified world generation that can operate in either
 //! GPU-accelerated mode (primary) or CPU fallback mode, with the same interface.
 
-mod terrain_gpu;
-mod terrain_cpu;
-mod cpu_fallback;
+use crate::terrain::SEA_LEVEL;
+
 mod caves;
+mod cpu_fallback;
+mod cpu_generator_base;
+mod gpu_world_generator;
 mod ores;
+mod terrain_cpu;
+mod terrain_gpu;
 mod unified_generator;
 
 // GPU generation (primary)
+pub use gpu_world_generator::GpuWorldGenerator;
 pub use terrain_gpu::{TerrainGeneratorSOA, TerrainGeneratorSOABuilder};
 
 // CPU generation (fallback)
-pub use terrain_cpu::{TerrainGenerator, DefaultWorldGenerator};
-pub use cpu_fallback::CpuWorldGenerator;
 pub use caves::CaveGenerator;
+pub use cpu_fallback::CpuWorldGenerator;
 pub use ores::OreGenerator;
+pub use terrain_cpu::{DefaultWorldGenerator, TerrainGenerator};
 
 // Unified generation interface
-pub use unified_generator::{WorldGenerator, UnifiedGenerator, GeneratorConfig, GeneratorError, BlockIds};
+pub use unified_generator::{
+    BlockIds, GeneratorConfig, GeneratorError, UnifiedGenerator, WorldGenerator,
+};
 
 /// Create a unified generator that automatically chooses GPU or CPU backend
 pub async fn create_unified_generator(
@@ -54,13 +61,13 @@ impl Default for TerrainParams {
     fn default() -> Self {
         Self {
             seed: 12345,
-            sea_level: 64.0,
+            sea_level: SEA_LEVEL as f32, // Sea level in voxels
             terrain_scale: 0.01,
             mountain_threshold: 0.6,
             cave_threshold: 0.3,
             terrain_amplitude: 40.0,
-            terrain_offset: 64.0,
-            water_level: 64,
+            terrain_offset: SEA_LEVEL as f32, // Base terrain height at sea level
+            water_level: SEA_LEVEL,           // Water level in voxels
         }
     }
 }
@@ -73,9 +80,9 @@ mod tests {
     fn test_terrain_params_default() {
         let params = TerrainParams::default();
         assert_eq!(params.seed, 12345);
-        assert_eq!(params.sea_level, 64.0);
+        assert_eq!(params.sea_level, SEA_LEVEL as f32);
     }
-    
+
     #[tokio::test]
     async fn test_cpu_generator_creation() {
         let config = GeneratorConfig::default();

@@ -1,10 +1,9 @@
+use crate::{BlockId, ChunkPos};
+use parking_lot::RwLock;
 /// Memory allocation optimizations for zero-allocation rendering
 /// This module provides optimized data structures and patterns to eliminate
 /// allocations in hot paths during rendering and updates
-
 use std::sync::Arc;
-use parking_lot::RwLock;
-use crate::{ChunkPos, BlockId};
 
 /// Error type for allocation optimization operations
 #[derive(Debug, thiserror::Error)]
@@ -27,13 +26,13 @@ impl<T> ObjectPool<T> {
         for _ in 0..initial_capacity {
             pool.push(factory());
         }
-        
+
         Self {
             pool: Arc::new(RwLock::new(pool)),
             factory: Arc::new(factory),
         }
     }
-    
+
     pub fn acquire(&self) -> PooledObject<T> {
         let item = match self.pool.write().pop() {
             Some(item) => item,
@@ -54,7 +53,7 @@ pub struct PooledObject<T> {
 
 impl<T> std::ops::Deref for PooledObject<T> {
     type Target = T;
-    
+
     fn deref(&self) -> &Self::Target {
         match self.item.as_ref() {
             Some(item) => item,
@@ -109,7 +108,7 @@ impl MeshingBuffers {
             indices: Vec::with_capacity(chunk_size * chunk_size * 36), // 6 indices per quad * 6 faces
         }
     }
-    
+
     pub fn clear(&mut self) {
         // Clear without deallocating
         for row in &mut self.mask {
@@ -164,7 +163,7 @@ impl StringPool {
             pool: Arc::new(RwLock::new(pool)),
         }
     }
-    
+
     pub fn acquire(&self) -> PooledString {
         let mut string = match self.pool.write().pop() {
             Some(string) => string,
@@ -185,7 +184,7 @@ pub struct PooledString {
 
 impl std::ops::Deref for PooledString {
     type Target = String;
-    
+
     fn deref(&self) -> &Self::Target {
         match self.string.as_ref() {
             Some(string) => string,
@@ -228,7 +227,7 @@ impl<const N: usize> StaticFormatter<N> {
             len: 0,
         }
     }
-    
+
     pub fn format_chunk_label(&mut self, pos: ChunkPos) -> &str {
         use std::io::Write;
         self.len = 0;
@@ -250,15 +249,15 @@ impl ChunkPositionBuffer {
             positions: Vec::with_capacity(capacity),
         }
     }
-    
+
     pub fn clear(&mut self) {
         self.positions.clear();
     }
-    
+
     pub fn push(&mut self, pos: ChunkPos) {
         self.positions.push(pos);
     }
-    
+
     pub fn iter(&self) -> std::slice::Iter<ChunkPos> {
         self.positions.iter()
     }
@@ -277,12 +276,12 @@ impl MeshRequestBuffer {
             priorities: Vec::with_capacity(capacity),
         }
     }
-    
+
     pub fn clear(&mut self) {
         self.chunk_positions.clear();
         self.priorities.clear();
     }
-    
+
     pub fn push(&mut self, pos: ChunkPos, priority: i32) {
         self.chunk_positions.push(pos);
         self.priorities.push(priority);
@@ -292,38 +291,38 @@ impl MeshRequestBuffer {
 // Global pools for commonly allocated objects
 lazy_static::lazy_static! {
     pub static ref STRING_POOL: StringPool = StringPool::new(64);
-    pub static ref MESH_REQUEST_POOL: ObjectPool<MeshRequestBuffer> = 
+    pub static ref MESH_REQUEST_POOL: ObjectPool<MeshRequestBuffer> =
         ObjectPool::new(16, || MeshRequestBuffer::with_capacity(256));
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_object_pool() {
         let pool = ObjectPool::new(2, || vec![0u8; 1024]);
-        
+
         let mut obj1 = pool.acquire();
         obj1[0] = 1;
-        
+
         let mut obj2 = pool.acquire();
         obj2[0] = 2;
-        
+
         // Pool should be empty now
         let obj3 = pool.acquire(); // This will create a new object
         assert_eq!(obj3[0], 0); // New object should be initialized
-        
+
         drop(obj1);
         drop(obj2);
-        
+
         // Objects should be returned to pool
         let obj4 = pool.acquire();
         // Could be either obj1 or obj2
         assert!(obj4[0] == 1 || obj4[0] == 2);
     }
-    
-    #[test] 
+
+    #[test]
     fn test_static_formatter() {
         let mut formatter = StaticFormatter::<64>::new();
         let pos = ChunkPos::new(10, -5, 20);

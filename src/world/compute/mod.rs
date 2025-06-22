@@ -3,51 +3,43 @@
 //! This module contains all GPU-accelerated world processing systems,
 //! including unified kernels, optimization structures, and effects.
 
-mod kernels;
-mod chunk_modifier;
-mod optimization;
-mod effects;
-mod shaders;
-mod unified_memory;
-mod skylight;
-mod gpu_lighting;
-mod gpu_light_propagator;
-mod weather;
-mod gpu_block_query;
-pub mod hierarchical_physics;
 pub mod bvh;
+mod chunk_modifier;
+mod effects;
+mod gpu_block_query;
+mod gpu_light_propagator;
+mod gpu_lighting;
+pub mod hierarchical_physics;
+mod kernels;
+mod optimization;
+mod skylight;
 pub mod sparse_octree;
+mod unified_memory;
+mod weather;
 
 // GPU kernels and unified systems
-pub use kernels::{
-    UnifiedWorldKernel, UnifiedKernelConfig, SystemFlags
-};
 pub use chunk_modifier::{ChunkModifier, ModificationCommand};
+pub use kernels::{SystemFlags, UnifiedKernelConfig, UnifiedWorldKernel};
 
 // GPU optimization structures
-pub use hierarchical_physics::{HierarchicalPhysics, PhysicsQuery, QueryType, QueryResult};
-pub use bvh::{VoxelBvh, BvhNode, BvhStats};
-pub use sparse_octree::{SparseVoxelOctree, OctreeNode, OctreeStats, OctreeUpdater};
+pub use bvh::{BvhNode, BvhStats, VoxelBvh};
+pub use hierarchical_physics::{HierarchicalPhysics, PhysicsQuery, QueryResult, QueryType};
+pub use sparse_octree::{OctreeNode, OctreeStats, OctreeUpdater, SparseVoxelOctree};
 
 // Memory management
-pub use unified_memory::{UnifiedMemoryManager, UnifiedMemoryLayout, MemoryStats};
+pub use unified_memory::{MemoryStats, UnifiedMemoryLayout, UnifiedMemoryManager};
 
 // GPU effects and lighting
 pub use effects::{
-    GpuLighting, GpuLightPropagator,
-    WeatherGpu, WeatherData, WeatherTransition, WeatherConfig
+    GpuLightPropagator, GpuLighting, PrecipitationParticle, WeatherConfig, WeatherData, WeatherGpu,
+    WeatherTransition,
 };
 
 // Skylight calculation
 pub use skylight::{SkylightCalculator, MAX_SKY_LIGHT};
 
 // GPU block queries
-pub use gpu_block_query::{
-    GpuBlockQuery, BlockQueryRequest, BlockQueryResult, BlockQueryHandle
-};
-
-// Shader management
-pub use shaders::{ShaderManager, ComputeShaderConfig, ShaderError};
+pub use gpu_block_query::{BlockQueryHandle, BlockQueryRequest, BlockQueryResult, GpuBlockQuery};
 
 /// Unified compute backend for GPU world processing
 pub struct UnifiedCompute {
@@ -55,7 +47,6 @@ pub struct UnifiedCompute {
     queue: std::sync::Arc<wgpu::Queue>,
     kernel: UnifiedWorldKernel,
     memory_manager: UnifiedMemoryManager,
-    shader_manager: ShaderManager,
 }
 
 impl UnifiedCompute {
@@ -68,25 +59,24 @@ impl UnifiedCompute {
         let kernel = UnifiedWorldKernel::new(device.clone(), config.kernel_config)?;
         // Use default world size for now - should come from config
         let memory_manager = unified_memory::UnifiedMemoryManager::new(device.clone(), 256, 256);
-        let shader_manager = ShaderManager::new(device.clone())?;
-        
+
         Ok(Self {
             device,
             queue,
             kernel,
             memory_manager,
-            shader_manager,
         })
     }
-    
+
     /// Execute a compute pass with the unified kernel
     pub fn execute_unified_pass(
         &mut self,
         commands: &[ComputeCommand],
     ) -> Result<(), ComputeError> {
-        self.kernel.execute_pass(&self.device, &self.queue, commands.to_vec())
+        self.kernel
+            .execute_pass(&self.device, &self.queue, commands.to_vec())
     }
-    
+
     /// Get memory statistics
     pub fn memory_stats(&self) -> MemoryStats {
         // TODO: Implement proper memory stats
@@ -99,7 +89,7 @@ impl UnifiedCompute {
             particle_data: 0,
         }
     }
-    
+
     /// Update optimization structures
     pub fn update_optimizations(&mut self) -> Result<(), ComputeError> {
         // Update octree, BVH, and other structures
@@ -171,19 +161,16 @@ pub enum ComputeCommand {
 pub enum ComputeError {
     #[error("GPU compute initialization failed: {message}")]
     InitFailed { message: String },
-    
+
     #[error("Shader compilation failed: {shader}: {error}")]
     ShaderCompilationFailed { shader: String, error: String },
-    
+
     #[error("Memory allocation failed: {size} bytes")]
     MemoryAllocationFailed { size: u64 },
-    
+
     #[error("Compute pass execution failed: {message}")]
     ExecutionFailed { message: String },
-    
+
     #[error("Invalid command: {command}")]
     InvalidCommand { command: String },
-    
-    #[error("Shader error: {0}")]
-    ShaderError(#[from] shaders::ShaderError),
 }
