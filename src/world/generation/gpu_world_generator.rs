@@ -68,7 +68,7 @@ impl GpuWorldGenerator {
         });
 
         match result {
-            Ok(()) => Ok(()),
+            Ok(_metadata_buffer) => Ok(()),
             Err(GpuRecoveryError::DeviceLost) => Err(GpuError::DeviceLost),
             Err(GpuRecoveryError::TooManyErrors { count }) => {
                 log::error!("Too many GPU errors during terrain generation: {}", count);

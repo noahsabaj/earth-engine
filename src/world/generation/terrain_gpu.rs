@@ -27,6 +27,9 @@ pub struct TerrainGeneratorSOA {
     /// GPU buffer manager
     buffer_manager: Arc<GpuBufferManager>,
 
+    /// Shader module (must be kept alive for pipeline to remain valid)
+    _shader_module: wgpu::ShaderModule,
+
     /// Compute pipeline for SOA terrain generation
     generate_pipeline: wgpu::ComputePipeline,
 
@@ -249,7 +252,8 @@ impl TerrainGeneratorSOA {
             }
         };
 
-        let shader = &validated_shader.module;
+        // Extract the shader module to keep it alive
+        let shader = validated_shader.module;
 
         // Create bind group layout for SOA shader using centralized definitions
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -372,6 +376,7 @@ impl TerrainGeneratorSOA {
         Ok(Self {
             device,
             buffer_manager,
+            _shader_module: shader,
             generate_pipeline,
             params_buffer,
             bind_group_layout,
@@ -409,14 +414,23 @@ impl TerrainGeneratorSOA {
     }
 
     /// Generate chunks using SOA layout
+    /// Returns the metadata buffer to keep it alive until GPU work completes
     pub fn generate_chunks(
         &self,
         world_buffer: &mut WorldBuffer,
         chunk_positions: &[ChunkPos],
         encoder: &mut wgpu::CommandEncoder,
-    ) -> Result<(), GpuError> {
+    ) -> Result<wgpu::Buffer, GpuError> {
+        log::debug!("[TerrainGeneratorSOA::generate_chunks] Entry point reached");
         if chunk_positions.is_empty() {
-            return Ok(());
+            // Return a dummy buffer if no chunks to generate
+            let dummy_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("Empty metadata buffer"),
+                size: 4,
+                usage: wgpu::BufferUsages::STORAGE,
+                mapped_at_creation: false,
+            });
+            return Ok(dummy_buffer);
         }
 
         let start = Instant::now();
@@ -427,20 +441,34 @@ impl TerrainGeneratorSOA {
             batch_size
         );
 
+        log::debug!("[TerrainGeneratorSOA] About to create metadata buffer");
+
         // Create metadata buffer for chunk generation
-        // Each chunk needs a full ChunkMetadata struct (4 u32 values)
+        // Each chunk needs a full ChunkMetadata struct (8 u32 values: 5 fields + 3 reserved)
+        log::debug!("[TerrainGeneratorSOA] Starting metadata data creation...");
         let metadata_data: Vec<u32> = chunk_positions
             .iter()
             .enumerate()
             .flat_map(|(idx, pos)| {
+                log::debug!(
+                    "[TerrainGeneratorSOA] Processing chunk {:?} (index {})",
+                    pos, idx
+                );
                 // Get the slot assignment from WorldBuffer
                 let slot = world_buffer.get_chunk_slot(*pos);
+                log::debug!(
+                    "[TerrainGeneratorSOA] Chunk {:?} (index {}) assigned to slot {}",
+                    pos, idx, slot
+                );
 
                 // Create ChunkMetadata for each chunk
-                let flags = ((pos.x & 0xFFFF) as u32) << 16 | (pos.z & 0xFFFF) as u32;
+                // Properly encode signed positions as 16-bit values
+                let x_16bit = (pos.x as i16) as u16 as u32;
+                let z_16bit = (pos.z as i16) as u16 as u32;
+                let flags = (x_16bit << 16) | z_16bit;
                 let timestamp = 0u32;
                 let checksum = 0u32; // Proper checksum would be calculated from chunk data
-                let y_position = pos.y as u32;
+                let y_position = pos.y as i32 as u32; // Preserve sign through i32
                 let slot_index = slot;
                 let _reserved = [0u32; 3];
                 vec![
@@ -456,6 +484,13 @@ impl TerrainGeneratorSOA {
             })
             .collect();
 
+        log::debug!(
+            "[TerrainGeneratorSOA] Creating metadata buffer with {} u32 values ({} bytes) for {} chunks",
+            metadata_data.len(),
+            metadata_data.len() * std::mem::size_of::<u32>(),
+            chunk_positions.len()
+        );
+        
         let metadata_buffer = self
             .device
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -498,7 +533,9 @@ impl TerrainGeneratorSOA {
 
             // Validate pipeline before use
             log::debug!("[TerrainGeneratorSOA] Setting compute pipeline");
+            log::debug!("[TerrainGeneratorSOA] Setting pipeline on compute pass");
             compute_pass.set_pipeline(&self.generate_pipeline);
+            log::debug!("[TerrainGeneratorSOA] Pipeline set successfully");
 
             // Validate bind group before use
             log::debug!(
@@ -549,18 +586,21 @@ impl TerrainGeneratorSOA {
             }
         );
 
-        Ok(())
+        // Return the metadata buffer to keep it alive until GPU work completes
+        Ok(metadata_buffer)
     }
 
     /// Generate a single chunk (convenience method)
+    /// Returns the metadata buffer to keep it alive until GPU work completes
     pub fn generate_chunk(
         &self,
         encoder: &mut wgpu::CommandEncoder,
         world_buffer: &mut WorldBuffer,
         chunk_pos: ChunkPos,
-    ) {
+    ) -> wgpu::Buffer {
+        log::debug!("[TerrainGeneratorSOA::generate_chunk] Generating single chunk {:?}", chunk_pos);
         self.generate_chunks(world_buffer, &[chunk_pos], encoder)
-            .expect("Failed to generate chunk with SOA");
+            .expect("Failed to generate chunk with SOA")
     }
 }
 

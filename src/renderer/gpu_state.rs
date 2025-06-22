@@ -840,10 +840,19 @@ impl GpuState {
         let cpu_count = num_cpus::get();
         log::info!("[GpuState::new] System has {} CPUs", cpu_count);
 
+        // Limit total threads to prevent oversubscription
+        // Reserve 2-4 cores for OS, main thread, and GPU driver
+        let available_threads = cpu_count.saturating_sub(4).max(4);
+        
+        // Split available threads between generation and meshing
+        // Generation is more CPU intensive, so give it slightly more
+        let generation_threads = (available_threads * 3 / 5).max(2);
+        let mesh_threads = (available_threads * 2 / 5).max(2);
+        
         let parallel_config = ParallelWorldConfig {
-            generation_threads: cpu_count.saturating_sub(2).max(2),
-            mesh_threads: cpu_count.saturating_sub(2).max(2),
-            chunks_per_frame: cpu_count * 2,
+            generation_threads,
+            mesh_threads,
+            chunks_per_frame: (generation_threads + mesh_threads).min(32), // Limit chunks per frame
             view_distance: engine_config.render_distance as i32,
             chunk_size: engine_config.chunk_size,
             enable_gpu: true,
@@ -1786,19 +1795,19 @@ impl GpuState {
                     log::debug!("[Movement] Player moving: grounded={}, in_water={}, on_ladder={}, speed={:.1}",
                                is_grounded, is_in_water, is_on_ladder, move_speed);
                 } else {
-                    static mut MOVEMENT_HELP_COOLDOWN: f32 = 0.0;
-                    // SAFETY: Static mut access is safe here because:
-                    // - This is only used for UI cooldown timing
-                    // - Single-threaded access pattern (render loop)
-                    // - Only modified during movement handling
-                    // - Race conditions would only affect help message timing
-                    unsafe {
-                        MOVEMENT_HELP_COOLDOWN -= delta_time;
-                        if MOVEMENT_HELP_COOLDOWN <= 0.0 {
-                            log::info!("[Movement] Use WASD to move, Space to jump, Shift to sprint, Ctrl to crouch");
-                            MOVEMENT_HELP_COOLDOWN = 10.0; // Show help every 10 seconds when not moving
-                        }
+                    use std::cell::Cell;
+                    thread_local! {
+                        static MOVEMENT_HELP_COOLDOWN: Cell<f32> = Cell::new(0.0);
                     }
+                    
+                    MOVEMENT_HELP_COOLDOWN.with(|cooldown| {
+                        let remaining = cooldown.get() - delta_time;
+                        cooldown.set(remaining);
+                        if remaining <= 0.0 {
+                            log::info!("[Movement] Use WASD to move, Space to jump, Shift to sprint, Ctrl to crouch");
+                            cooldown.set(10.0); // Show help every 10 seconds when not moving
+                        }
+                    });
                 }
 
                 // Handle vertical movement
@@ -1846,19 +1855,19 @@ impl GpuState {
             );
         } else {
             // Provide helpful feedback if cursor is not locked
-            static mut CURSOR_WARNING_COOLDOWN: f32 = 0.0;
-            // SAFETY: Static mut access is safe here because:
-            // - This is only used for UI warning timing
-            // - Single-threaded access pattern (render loop)
-            // - Only modified during cursor handling
-            // - Race conditions would only affect warning message timing
-            unsafe {
-                CURSOR_WARNING_COOLDOWN -= delta_time;
-                if CURSOR_WARNING_COOLDOWN <= 0.0 {
-                    log::info!("[Movement] Click in the window or press Escape to lock cursor for mouse look");
-                    CURSOR_WARNING_COOLDOWN = 5.0; // Show message every 5 seconds
-                }
+            use std::cell::Cell;
+            thread_local! {
+                static CURSOR_WARNING_COOLDOWN: Cell<f32> = Cell::new(0.0);
             }
+            
+            CURSOR_WARNING_COOLDOWN.with(|cooldown| {
+                let remaining = cooldown.get() - delta_time;
+                cooldown.set(remaining);
+                if remaining <= 0.0 {
+                    log::info!("[Movement] Click in the window or press Escape to lock cursor for mouse look");
+                    cooldown.set(5.0); // Show message every 5 seconds
+                }
+            });
         }
 
         // Ray casting for block selection

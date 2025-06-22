@@ -66,13 +66,13 @@ impl WorldGenerator for DefaultWorldGenerator {
         let world_z_start = chunk_pos.z * chunk_size as i32;
 
         // Log chunk generation for debugging
-        static mut GEN_COUNT: usize = 0;
-        unsafe {
-            if GEN_COUNT < 10 {
-                log::info!("[DefaultWorldGenerator::generate_chunk] Generating chunk at {:?}, world coords: ({}, {}, {})", 
-                          chunk_pos, world_x_start, world_y_start, world_z_start);
-                GEN_COUNT += 1;
-            }
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        static GEN_COUNT: AtomicUsize = AtomicUsize::new(0);
+        
+        let count = GEN_COUNT.fetch_add(1, Ordering::Relaxed);
+        if count < 10 {
+            log::info!("[DefaultWorldGenerator::generate_chunk] Generating chunk at {:?}, world coords: ({}, {}, {})", 
+                      chunk_pos, world_x_start, world_y_start, world_z_start);
         }
 
         // Generate terrain
@@ -180,13 +180,12 @@ impl WorldGenerator for DefaultWorldGenerator {
             }
         }
 
-        unsafe {
-            static mut LOG_COUNT: usize = 0;
-            if LOG_COUNT < 10 {
-                log::info!("[DefaultWorldGenerator::generate_chunk] Chunk at {:?} has {} non-air blocks out of {} total", 
-                          chunk_pos, block_count, chunk_size * chunk_size * chunk_size);
-                LOG_COUNT += 1;
-            }
+        static LOG_COUNT: AtomicUsize = AtomicUsize::new(0);
+        
+        let log_count = LOG_COUNT.fetch_add(1, Ordering::Relaxed);
+        if log_count < 10 {
+            log::info!("[DefaultWorldGenerator::generate_chunk] Chunk at {:?} has {} non-air blocks out of {} total", 
+                      chunk_pos, block_count, chunk_size * chunk_size * chunk_size);
         }
 
         chunk

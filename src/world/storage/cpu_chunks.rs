@@ -44,6 +44,9 @@ impl<T: Copy + Default> AlignedArray<T> {
     fn new(len: usize) -> Self {
         let size = len * std::mem::size_of::<T>();
         let align = CACHE_LINE_SIZE.max(std::mem::align_of::<T>());
+        
+        log::trace!("[AlignedArray::new] Allocating {} bytes with alignment {} for {} elements", 
+                   size, align, len);
 
         let layout = Layout::from_size_align(size, align).expect("Invalid layout");
 
@@ -57,9 +60,15 @@ impl<T: Copy + Default> AlignedArray<T> {
             if ptr.is_null() {
                 panic!("Failed to allocate aligned memory");
             }
-
+            
+            // Verify pointer alignment
+            debug_assert_eq!(ptr as usize % align, 0, "Pointer not properly aligned");
+            
             // Initialize with default values
+            // Note: alloc_zeroed already zeroes memory, but we need to properly
+            // initialize for types that have non-zero defaults
             for i in 0..len {
+                debug_assert!(i < len, "Index out of bounds during initialization");
                 ptr::write(ptr.add(i), T::default());
             }
 
@@ -140,6 +149,8 @@ unsafe impl<T: Sync> Sync for AlignedArray<T> {}
 impl ChunkSoA {
     pub fn new(position: ChunkPos, size: u32) -> Self {
         let voxel_count = (size * size * size) as usize;
+        log::debug!("[ChunkSoA::new] Creating chunk {:?} with size {} ({} voxels)", 
+                   position, size, voxel_count);
 
         Self {
             position,

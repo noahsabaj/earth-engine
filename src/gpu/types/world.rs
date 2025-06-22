@@ -67,8 +67,10 @@ crate::impl_auto_layout!(
 impl ChunkMetadata {
     /// Create metadata for a chunk at the given position
     pub fn new(x: i32, y: i32, z: i32) -> Self {
-        // Pack X and Z into flags field
-        let flags = ((x & 0xFFFF) as u32) << 16 | (z & 0xFFFF) as u32;
+        // Pack X and Z into flags field as 16-bit signed values
+        let x_16bit = (x as i16) as u16 as u32;
+        let z_16bit = (z as i16) as u16 as u32;
+        let flags = (x_16bit << 16) | z_16bit;
 
         Self {
             flags,
@@ -83,13 +85,15 @@ impl ChunkMetadata {
     /// Extract X position from packed flags
     #[inline]
     pub fn x_position(&self) -> i32 {
-        ((self.flags >> 16) & 0xFFFF) as i16 as i32
+        // Extract high 16 bits and sign-extend from 16-bit to 32-bit
+        ((self.flags >> 16) as u16) as i16 as i32
     }
 
     /// Extract Z position from packed flags
     #[inline]
     pub fn z_position(&self) -> i32 {
-        (self.flags & 0xFFFF) as i16 as i32
+        // Extract low 16 bits and sign-extend from 16-bit to 32-bit
+        (self.flags as u16) as i16 as i32
     }
 
     /// Get Y position
@@ -202,8 +206,8 @@ mod tests {
 
     #[test]
     fn test_chunk_metadata_size() {
-        // Ensure ChunkMetadata is exactly 16 bytes
-        assert_eq!(std::mem::size_of::<ChunkMetadata>(), 16);
+        // Ensure ChunkMetadata is exactly 32 bytes (8 u32 fields)
+        assert_eq!(std::mem::size_of::<ChunkMetadata>(), 32);
     }
 
     #[test]

@@ -10,7 +10,7 @@ use crate::world::{
     management::{select_backend, Backend, BackendRequirements},
     storage::{StorageError, UnifiedStorage},
 };
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
 /// Unified world manager that provides a consistent API across GPU and CPU backends
 pub struct UnifiedWorldManager {
@@ -22,7 +22,8 @@ pub struct UnifiedWorldManager {
     /// Track loaded chunks for GPU backend (since GPU WorldBuffer doesn't track this)
     loaded_gpu_chunks: std::collections::HashSet<ChunkPos>,
     /// CPU cache for chunks when using GPU storage (for mesh generation)
-    cpu_chunk_cache: std::collections::HashMap<ChunkPos, crate::world::storage::ChunkSoA>,
+    /// Protected by RwLock for thread-safe concurrent access
+    cpu_chunk_cache: Arc<RwLock<std::collections::HashMap<ChunkPos, crate::world::storage::ChunkSoA>>>,
 }
 
 impl UnifiedWorldManager {
@@ -75,7 +76,7 @@ impl UnifiedWorldManager {
             backend: Backend::Gpu,
             config,
             loaded_gpu_chunks: std::collections::HashSet::new(),
-            cpu_chunk_cache: std::collections::HashMap::new(),
+            cpu_chunk_cache: Arc::new(RwLock::new(std::collections::HashMap::new())),
         })
     }
 
@@ -128,7 +129,7 @@ impl UnifiedWorldManager {
             backend: Backend::Gpu,
             config,
             loaded_gpu_chunks: std::collections::HashSet::new(),
-            cpu_chunk_cache: std::collections::HashMap::new(),
+            cpu_chunk_cache: Arc::new(RwLock::new(std::collections::HashMap::new())),
         })
     }
 
@@ -155,7 +156,7 @@ impl UnifiedWorldManager {
             backend: Backend::Cpu,
             config,
             loaded_gpu_chunks: std::collections::HashSet::new(),
-            cpu_chunk_cache: std::collections::HashMap::new(),
+            cpu_chunk_cache: Arc::new(RwLock::new(std::collections::HashMap::new())),
         })
     }
 
@@ -180,7 +181,7 @@ impl UnifiedWorldManager {
             backend: Backend::Cpu,
             config,
             loaded_gpu_chunks: std::collections::HashSet::new(),
-            cpu_chunk_cache: std::collections::HashMap::new(),
+            cpu_chunk_cache: Arc::new(RwLock::new(std::collections::HashMap::new())),
         })
     }
 
@@ -215,14 +216,16 @@ impl UnifiedWorldManager {
                 let chunk_pos = pos.to_chunk_pos(self.config.chunk_size);
                 let chunk_offset = pos.to_chunk_offset(self.config.chunk_size);
 
-                if let Some(chunk) = self.cpu_chunk_cache.get(&chunk_pos) {
-                    let block = chunk.get_block(
-                        chunk_offset.x as u32,
-                        chunk_offset.y as u32,
-                        chunk_offset.z as u32,
-                    );
-                    log::trace!("[UnifiedWorldManager::get_block] 📦 Found block {:?} in CPU cache at pos {:?}", block, pos);
-                    return block;
+                if let Ok(cache) = self.cpu_chunk_cache.read() {
+                    if let Some(chunk) = cache.get(&chunk_pos) {
+                        let block = chunk.get_block(
+                            chunk_offset.x as u32,
+                            chunk_offset.y as u32,
+                            chunk_offset.z as u32,
+                        );
+                        log::trace!("[UnifiedWorldManager::get_block] 📦 Found block {:?} in CPU cache at pos {:?}", block, pos);
+                        return block;
+                    }
                 }
 
                 // TODO: Implement direct GPU block access
@@ -303,7 +306,9 @@ impl UnifiedWorldManager {
                 log::info!("[UnifiedWorldManager::load_chunk] ✅ Generated chunk {:?}, storing in CPU cache", chunk_pos);
 
                 // Store in CPU cache for mesh generation access
-                self.cpu_chunk_cache.insert(chunk_pos, chunk);
+                if let Ok(mut cache) = self.cpu_chunk_cache.write() {
+                    cache.insert(chunk_pos, chunk);
+                }
                 self.loaded_gpu_chunks.insert(chunk_pos);
 
                 log::info!(

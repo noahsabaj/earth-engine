@@ -271,8 +271,8 @@ pub mod buffer_layouts {
     /// Size of a single voxel data element (u32)
     pub const VOXEL_DATA_SIZE: u64 = 4;
     
-    /// Size of chunk metadata structure
-    pub const CHUNK_METADATA_SIZE: u64 = 16;
+    /// Size of chunk metadata structure (8 u32 fields = 32 bytes)
+    pub const CHUNK_METADATA_SIZE: u64 = 32;
     
     /// Size of instance data structure
     pub const INSTANCE_DATA_SIZE: u64 = 96; // 4x4 matrix + 4 floats color + 4 floats custom

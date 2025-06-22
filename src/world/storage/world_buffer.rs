@@ -266,6 +266,7 @@ impl WorldBuffer {
     /// Get or allocate a buffer slot for a chunk position
     /// CRITICAL: Prevents slot collisions that cause GPU readback failures
     pub fn get_chunk_slot(&mut self, chunk_pos: ChunkPos) -> u32 {
+        log::debug!("[WORLD_BUFFER::get_chunk_slot] Called for chunk {:?}", chunk_pos);
         // Lock both mutexes to ensure thread safety
         let mut chunk_slots = self.chunk_slots.lock().unwrap();
         let mut next_slot = self.next_slot.lock().unwrap();

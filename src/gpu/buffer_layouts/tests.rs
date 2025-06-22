@@ -20,7 +20,7 @@ mod tests {
 
         // Verify constants match
         assert_eq!(VOXEL_DATA_SIZE, 4);
-        assert_eq!(CHUNK_METADATA_SIZE, 16);
+        assert_eq!(CHUNK_METADATA_SIZE, 32);
         assert_eq!(INSTANCE_DATA_SIZE, 96);
         assert_eq!(CULLING_INSTANCE_SIZE, 32);
         assert_eq!(INDIRECT_COMMAND_SIZE, 16);
