@@ -57,8 +57,13 @@ impl UnifiedCompute {
         config: UnifiedComputeConfig,
     ) -> Result<Self, ComputeError> {
         let kernel = UnifiedWorldKernel::new(device.clone(), config.kernel_config)?;
-        // Use default world size for now - should come from config
-        let memory_manager = unified_memory::UnifiedMemoryManager::new(device.clone(), 256, 256);
+        // FIXME: UnifiedMemoryManager tries to allocate 204GB for entire world (327k chunks)
+        // Disabled until it's fixed to only allocate for loaded chunks
+        // let memory_manager = unified_memory::UnifiedMemoryManager::new(device.clone(), 256, 256);
+
+        // Create a dummy memory manager that uses minimal memory
+        // Using view_distance equivalent: 5x5x5 chunks = 125 chunks like WorldBuffer
+        let memory_manager = unified_memory::UnifiedMemoryManager::new(device.clone(), 5, 250);
 
         Ok(Self {
             device,
