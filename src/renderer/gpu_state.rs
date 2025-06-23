@@ -1071,12 +1071,41 @@ impl GpuState {
                         match world.load_chunk(chunk_pos) {
                             Ok(_) => {
                                 loaded_count += 1;
-                                log::debug!("[GpuState::new] Loaded chunk {:?}", chunk_pos);
+                                log::info!("[GpuState::new] Loaded chunk {:?}", chunk_pos);
+                                
+                                // Check if chunk has any blocks
+                                let mut non_air_count = 0;
+                                let chunk_world_x = chunk_pos.x * chunk_size;
+                                let chunk_world_y = chunk_pos.y * chunk_size;
+                                let chunk_world_z = chunk_pos.z * chunk_size;
+                                
+                                for dy in 0..chunk_size {
+                                    for dx in 0..chunk_size {
+                                        for dz in 0..chunk_size {
+                                            let pos = VoxelPos {
+                                                x: chunk_world_x + dx,
+                                                y: chunk_world_y + dy,
+                                                z: chunk_world_z + dz,
+                                            };
+                                            if world.get_block(pos) != BlockId::AIR {
+                                                non_air_count += 1;
+                                            }
+                                        }
+                                    }
+                                }
+                                
+                                if non_air_count > 0 {
+                                    log::info!("[GpuState::new] Chunk {:?} has {} non-air blocks", chunk_pos, non_air_count);
+                                } else {
+                                    log::warn!("[GpuState::new] Chunk {:?} is entirely air!", chunk_pos);
+                                }
                             }
                             Err(e) => {
                                 log::error!("[GpuState::new] Failed to load chunk {:?}: {:?}", chunk_pos, e);
                             }
                         }
+                    } else {
+                        log::debug!("[GpuState::new] Chunk {:?} already loaded", chunk_pos);
                     }
                 }
             }
