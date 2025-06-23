@@ -8,8 +8,8 @@ use bytemuck::{Pod, Zeroable};
 use std::sync::Arc;
 use wgpu::util::DeviceExt;
 
-// Include constants from root constants.rs
-include!("../../../constants.rs");
+// Import constants properly
+use crate::constants::*;
 
 /// A batch query request for multiple blocks
 #[repr(C)]

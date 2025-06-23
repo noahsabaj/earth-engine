@@ -1,9 +1,7 @@
 #![allow(unused_variables, dead_code, unused_imports)]
 
 // Constants module
-pub mod constants {
-    include!("../constants.rs");
-}
+pub mod constants;
 
 // Core engine modules
 pub mod error;

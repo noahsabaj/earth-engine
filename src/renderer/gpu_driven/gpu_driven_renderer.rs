@@ -1,7 +1,7 @@
 #![allow(unused_variables, dead_code)]
 
-// Include constants from root constants.rs
-include!("../../../constants.rs");
+// Import constants properly
+use crate::constants::*;
 
 use super::{
     culling_pipeline::{CullingData, CullingPipeline},

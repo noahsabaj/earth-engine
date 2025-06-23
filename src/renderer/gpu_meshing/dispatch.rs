@@ -6,8 +6,8 @@ use crate::renderer::gpu_meshing::{
 };
 use crate::world::core::ChunkPos;
 
-// Include constants from root constants.rs
-include!("../../../constants.rs");
+// Import constants properly
+use crate::constants::*;
 
 /// Mesh generation result
 pub struct MeshGenerationResult {

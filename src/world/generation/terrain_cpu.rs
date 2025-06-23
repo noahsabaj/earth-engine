@@ -3,8 +3,7 @@ use crate::world::storage::ChunkSoA;
 use noise::{NoiseFn, Perlin};
 
 // Import terrain generation constants for voxel-scaled measurements
-include!("../../../constants.rs");
-use self::terrain::*;
+use crate::constants::terrain::*;
 
 pub struct TerrainGenerator {
     height_noise: Perlin,
@@ -76,13 +75,22 @@ impl DefaultWorldGenerator {
     }
 
     pub fn generate_chunk(&self, chunk_pos: ChunkPos, chunk_size: u32) -> ChunkSoA {
+        log::info!("[DefaultWorldGenerator] Generating chunk {:?} with size {}", chunk_pos, chunk_size);
         let mut chunk = ChunkSoA::new(chunk_pos, chunk_size);
 
         // Generate terrain for this chunk
         let chunk_world_x = chunk_pos.x * chunk_size as i32;
         let chunk_world_z = chunk_pos.z * chunk_size as i32;
         let chunk_world_y = chunk_pos.y * chunk_size as i32;
+        
+        let mut non_air_count = 0;
 
+        // Log the first surface height to debug
+        let first_surface_height = self.terrain_gen.get_height(chunk_world_x as f64, chunk_world_z as f64);
+        log::info!("[DefaultWorldGenerator] First surface height at ({}, {}): {}, chunk Y range: {}-{}", 
+                  chunk_world_x, chunk_world_z, first_surface_height,
+                  chunk_world_y, chunk_world_y + chunk_size as i32);
+        
         for x in 0..chunk_size {
             for z in 0..chunk_size {
                 let world_x = chunk_world_x + x as i32;
@@ -96,16 +104,22 @@ impl DefaultWorldGenerator {
 
                     if world_y < surface_height - 3 {
                         chunk.set_block_by_index(local_idx, BlockId::STONE);
+                        non_air_count += 1;
                     } else if world_y < surface_height {
                         chunk.set_block_by_index(local_idx, BlockId::DIRT);
+                        non_air_count += 1;
                     } else if world_y == surface_height {
                         chunk.set_block_by_index(local_idx, BlockId::GRASS);
+                        non_air_count += 1;
                     } else {
                         chunk.set_block_by_index(local_idx, BlockId::AIR);
                     }
                 }
             }
         }
+        
+        log::info!("[DefaultWorldGenerator] Generated chunk {:?} with {} non-air blocks out of {} total", 
+                  chunk_pos, non_air_count, chunk_size * chunk_size * chunk_size);
 
         chunk
     }

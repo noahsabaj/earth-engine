@@ -2,8 +2,8 @@ use crate::world::storage::GpuChunkManager;
 use std::sync::Arc;
 use wgpu::util::DeviceExt;
 
-// Include constants from root constants.rs
-include!("../../constants.rs");
+// Import constants properly
+use crate::constants::*;
 
 /// Manages compute pipelines for GPU-based chunk operations
 pub struct ComputePipelineManager {

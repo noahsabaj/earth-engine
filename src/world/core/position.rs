@@ -1,8 +1,8 @@
 use cgmath::Vector3;
 use serde::{Deserialize, Serialize};
 
-// Include constants from root constants.rs
-include!("../../../constants.rs");
+// Import constants properly
+use crate::constants::core::CHUNK_SIZE;
 
 /// Position of a chunk in the world (chunk coordinates)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -20,18 +20,18 @@ impl ChunkPos {
     /// Create ChunkPos from world position coordinates
     pub fn from_world_pos(world_x: i32, world_z: i32) -> Self {
         Self::new(
-            world_x.div_euclid(core::CHUNK_SIZE as i32),
+            world_x.div_euclid(CHUNK_SIZE as i32),
             0,
-            world_z.div_euclid(core::CHUNK_SIZE as i32),
+            world_z.div_euclid(CHUNK_SIZE as i32),
         )
     }
 
     /// Create ChunkPos from VoxelPos
     pub fn from_voxel_pos(voxel_pos: VoxelPos) -> Self {
         Self::new(
-            voxel_pos.x.div_euclid(core::CHUNK_SIZE as i32),
-            voxel_pos.y.div_euclid(core::CHUNK_SIZE as i32),
-            voxel_pos.z.div_euclid(core::CHUNK_SIZE as i32),
+            voxel_pos.x.div_euclid(CHUNK_SIZE as i32),
+            voxel_pos.y.div_euclid(CHUNK_SIZE as i32),
+            voxel_pos.z.div_euclid(CHUNK_SIZE as i32),
         )
     }
 

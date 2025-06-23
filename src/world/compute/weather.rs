@@ -2,8 +2,8 @@ use crate::gpu::error_recovery::{GpuErrorRecovery, GpuRecoveryError, GpuResultEx
 use bytemuck::{Pod, Zeroable};
 use std::sync::Arc;
 
-// Include constants from root constants.rs
-include!("../../../constants.rs");
+// Import constants properly
+use crate::constants::*;
 
 /// Weather data stored on GPU per chunk or region
 #[repr(C)]

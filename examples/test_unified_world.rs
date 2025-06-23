@@ -6,8 +6,8 @@ use hearth_engine::{
 };
 use std::sync::Arc;
 
-// Include constants from root constants.rs
-include!("../constants.rs");
+// Import constants properly
+use hearth_engine::constants::*;
 
 fn main() {
     env_logger::init();
