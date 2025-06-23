@@ -348,7 +348,8 @@ impl SpawnFinder {
         search_radius: i32,
     ) -> Option<cgmath::Point3<f32>> {
         // Start from a reasonable height and search downward
-        for y in (50..=100).rev() {
+        // Extended range to find terrain that's being generated at Y=0
+        for y in (-10..=150).rev() {
             let pos = crate::VoxelPos::new(x as i32, y, z as i32);
             let ground_pos = crate::VoxelPos::new(x as i32, y - 1, z as i32);
             let above_pos = crate::VoxelPos::new(x as i32, y + 1, z as i32);

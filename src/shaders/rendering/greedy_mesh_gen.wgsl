@@ -33,7 +33,7 @@ var<workgroup> face_mask: array<u32, 1024>; // 32x32 face mask
 var<workgroup> material_mask: array<u32, 1024>; // Material IDs
 var<workgroup> quad_count: atomic<u32>;
 
-const CHUNK_SIZE: u32 = 32u;
+// CHUNK_SIZE is auto-generated from constants.rs
 const WORKGROUP_SIZE: u32 = 8u;
 
 /// Get voxel at position

@@ -1,7 +1,7 @@
-use crate::core::{CHUNK_SIZE, MAX_WORLD_SIZE, VOXELS_PER_CHUNK};
-use crate::buffer_layouts::*;
+use crate::constants::core::{CHUNK_SIZE, MAX_WORLD_SIZE, VOXELS_PER_CHUNK};
+use crate::constants::buffer_layouts::*;
 use crate::gpu::buffer_layouts::{bindings, calculations, layouts, usage};
-use crate::gpu_limits;
+use crate::constants::gpu_limits;
 use crate::morton::morton_encode;
 use crate::world::core::ChunkPos;
 use bytemuck::{Pod, Zeroable};

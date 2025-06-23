@@ -4,7 +4,7 @@
 //! for maximum GPU performance and memory bandwidth efficiency.
 
 use crate::gpu::types::terrain::TerrainParams;
-use crate::core::CHUNK_SIZE;
+use crate::constants::core::CHUNK_SIZE;
 use crate::gpu::{
     buffer_layouts::{bindings, layouts, usage},
     soa::{

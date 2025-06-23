@@ -6,7 +6,7 @@
 use crate::gpu::automation::auto_layout::AutoLayout;
 use crate::gpu::automation::auto_wgsl::AutoWgsl;
 use crate::gpu::types::terrain::{BlockDistribution, TerrainParams};
-use crate::{core::MAX_BLOCK_DISTRIBUTIONS, terrain::SEA_LEVEL};
+use crate::constants::{core::MAX_BLOCK_DISTRIBUTIONS, terrain::SEA_LEVEL};
 use bytemuck::{Pod, Zeroable};
 use encase::{internal::WriteInto, ShaderSize, ShaderType};
 use std::marker::PhantomData;

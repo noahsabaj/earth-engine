@@ -150,9 +150,8 @@ impl UnifiedGpuSystem {
                 wgsl.push_str("@group(0) @binding(2) var<storage, read> commands: array<ModificationCommand>;\n");
             }
             "hierarchical_physics" => {
-                // Physics shader bindings
-                wgsl.push_str("@group(0) @binding(0) var<storage, read> world_data: array<u32>;\n");
-                wgsl.push_str("@group(0) @binding(1) var<storage, read_write> physics_data: array<PhysicsNode>;\n");
+                // Hierarchical physics uses custom bindings - don't generate any here
+                // The shader already defines its own bindings
             }
             "ambient_occlusion" => {
                 // Ambient occlusion shader bindings
@@ -224,7 +223,7 @@ impl UnifiedGpuSystem {
         complete_wgsl.push_str(&format!("// Shader: {}\n\n", name));
 
         // Add GPU constants first - use the centralized generator
-        complete_wgsl.push_str(&crate::generate_wgsl_constants());
+        complete_wgsl.push_str(&crate::constants::generate_wgsl_constants());
         complete_wgsl.push_str("\n");
 
         // Add all type definitions

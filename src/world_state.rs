@@ -159,14 +159,14 @@ pub mod operations {
 
             collision_pairs: memory_manager
                 .alloc_buffer(
-                    1024 * 1024, // 1MB for collision pairs
+                    crate::constants::buffer_sizes::COLLISION_PAIRS_BUFFER_SIZE,
                     wgpu::BufferUsages::STORAGE,
                 )?
                 .buffer_arc(),
 
             spatial_hash: memory_manager
                 .alloc_buffer(
-                    4 * 1024 * 1024, // 4MB spatial hash
+                    crate::constants::buffer_sizes::SPATIAL_HASH_BUFFER_SIZE,
                     wgpu::BufferUsages::STORAGE,
                 )?
                 .buffer_arc(),
@@ -174,14 +174,14 @@ pub mod operations {
             // Rendering data
             mesh_vertices: memory_manager
                 .alloc_buffer(
-                    64 * 1024 * 1024, // 64MB vertex buffer
+                    crate::constants::buffer_sizes::VERTEX_BUFFER_SIZE,
                     wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
                 )?
                 .buffer_arc(),
 
             mesh_indices: memory_manager
                 .alloc_buffer(
-                    32 * 1024 * 1024, // 32MB index buffer
+                    crate::constants::buffer_sizes::INDEX_BUFFER_SIZE,
                     wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
                 )?
                 .buffer_arc(),
@@ -195,7 +195,7 @@ pub mod operations {
 
             draw_commands: memory_manager
                 .alloc_buffer(
-                    1024 * 1024, // 1MB for indirect draw commands
+                    crate::constants::buffer_sizes::INDIRECT_COMMANDS_BUFFER_SIZE,
                     wgpu::BufferUsages::INDIRECT | wgpu::BufferUsages::STORAGE,
                 )?
                 .buffer_arc(),
@@ -203,23 +203,23 @@ pub mod operations {
             // Fluid data
             fluid_cells: memory_manager
                 .alloc_buffer(
-                    8 * 1024 * 1024, // 8MB for fluid cells
+                    crate::constants::buffer_sizes::FLUID_CELLS_BUFFER_SIZE,
                     wgpu::BufferUsages::STORAGE,
                 )?
                 .buffer_arc(),
 
             fluid_pressure: memory_manager
-                .alloc_buffer(4 * 1024 * 1024, wgpu::BufferUsages::STORAGE)?
+                .alloc_buffer(crate::constants::buffer_sizes::FLUID_PRESSURE_BUFFER_SIZE, wgpu::BufferUsages::STORAGE)?
                 .buffer_arc(),
 
             fluid_velocity: memory_manager
-                .alloc_buffer(8 * 1024 * 1024, wgpu::BufferUsages::STORAGE)?
+                .alloc_buffer(crate::constants::buffer_sizes::FLUID_VELOCITY_BUFFER_SIZE, wgpu::BufferUsages::STORAGE)?
                 .buffer_arc(),
 
             // Lighting data
             light_sources: memory_manager
                 .alloc_buffer(
-                    256 * 1024, // 256KB for light sources
+                    crate::constants::buffer_sizes::LIGHT_SOURCES_BUFFER_SIZE,
                     wgpu::BufferUsages::STORAGE,
                 )?
                 .buffer_arc(),
@@ -238,14 +238,14 @@ pub mod operations {
             // Network data
             outgoing_packets: memory_manager
                 .alloc_buffer(
-                    1024 * 1024, // 1MB packet buffer
+                    crate::constants::buffer_sizes::PACKET_BUFFER_SIZE,
                     wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
                 )?
                 .buffer_arc(),
 
             incoming_packets: memory_manager
                 .alloc_buffer(
-                    1024 * 1024,
+                    crate::constants::buffer_sizes::PACKET_BUFFER_SIZE,
                     wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
                 )?
                 .buffer_arc(),
@@ -274,7 +274,7 @@ pub mod operations {
         let config = crate::world::compute::UnifiedKernelConfig {
             frame_number: params.frame_number as u32,
             delta_time_ms: params.delta_time_ms,
-            world_size: 32, // Use reasonable size (should come from WorldConfig)
+            world_size: crate::constants::core::DEFAULT_WORLD_SIZE, // Default world size in chunks
             active_chunks: state.active_chunks,
             physics_substeps: 4,
             lighting_iterations: 2,

@@ -2,7 +2,7 @@
 //!
 //! Defines GPU buffer structures for camera uniforms and culling data.
 
-use crate::buffer_layouts::*;
+use crate::constants::buffer_layouts::*;
 use bytemuck::{Pod, Zeroable};
 use cgmath::{Matrix4, SquareMatrix, Vector3};
 

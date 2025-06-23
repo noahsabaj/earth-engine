@@ -2,7 +2,7 @@
 //!
 //! Defines GPU buffer structures for indirect drawing and compute dispatch.
 
-use crate::buffer_layouts::*;
+use crate::constants::buffer_layouts::*;
 use bytemuck::{Pod, Zeroable};
 
 /// GPU indirect draw command structure

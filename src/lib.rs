@@ -1,7 +1,9 @@
 #![allow(unused_variables, dead_code, unused_imports)]
 
-// Include constants from root constants.rs
-include!("../constants.rs");
+// Constants module
+pub mod constants {
+    include!("../constants.rs");
+}
 
 // Core engine modules
 pub mod error;
@@ -162,7 +164,7 @@ impl EngineConfig {
         let chunk_memory_bytes = voxels_per_chunk * voxel_data_size;
 
         // Maximum view distance based on chunk size and GPU limits
-        let max_safe_chunks = gpu_limits::MAX_BUFFER_BINDING_SIZE / chunk_memory_bytes;
+        let max_safe_chunks = crate::constants::gpu_limits::MAX_BUFFER_BINDING_SIZE / chunk_memory_bytes;
         let max_safe_diameter = (max_safe_chunks as f64).powf(1.0 / 3.0).floor() as u32;
         let max_safe_view_distance = (max_safe_diameter.saturating_sub(1)) / 2;
 
@@ -205,7 +207,7 @@ impl EngineConfig {
         let voxels_per_chunk = (chunk_size as u64).pow(3);
         let chunk_memory_bytes = voxels_per_chunk * voxel_data_size;
 
-        let max_safe_chunks = gpu_limits::MAX_BUFFER_BINDING_SIZE / chunk_memory_bytes;
+        let max_safe_chunks = crate::constants::gpu_limits::MAX_BUFFER_BINDING_SIZE / chunk_memory_bytes;
         let max_safe_diameter = (max_safe_chunks as f64).powf(1.0 / 3.0).floor() as u32;
         (max_safe_diameter.saturating_sub(1)) / 2
     }

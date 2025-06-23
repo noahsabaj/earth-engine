@@ -1,4 +1,4 @@
-use crate::core::VOXELS_PER_CHUNK;
+use crate::constants::core::VOXELS_PER_CHUNK;
 use crate::world::core::ChunkPos;
 use crate::world::storage::ChunkSoA;
 use crate::Chunk;

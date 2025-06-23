@@ -1,5 +1,5 @@
 use crate::network::packet::MovementState;
-use crate::network_constants::MAX_INPUT_BUFFER;
+use crate::constants::network_constants::MAX_INPUT_BUFFER;
 use glam::{Quat, Vec3};
 use std::collections::VecDeque;
 

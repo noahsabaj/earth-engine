@@ -14,6 +14,7 @@ pub mod core {
     
     /// World limits
     pub const MAX_WORLD_SIZE: u32 = 512; // 512³ chunks
+    pub const DEFAULT_WORLD_SIZE: u32 = 32; // Default world size in chunks for kernel config
     pub const MAX_BLOCK_DISTRIBUTIONS: usize = 16;
 }
 
@@ -134,6 +135,10 @@ pub mod terrain {
     /// Sea level: 64m × 10 voxels/m = 640 voxels
     pub const SEA_LEVEL: i32 = 640;
     
+    /// Terrain generation height threshold (voxels)
+    /// Base terrain generation height: 6.4m × 10 voxels/m = 64 voxels
+    pub const TERRAIN_THRESHOLD: i32 = 64;
+    
     /// Terrain height limits (voxels)
     /// Range: 10m-200m × 10 voxels/m = 100-2000 voxels
     pub const MIN_HEIGHT: i32 = 100;
@@ -156,6 +161,33 @@ pub mod gpu_limits {
     
     /// Maximum workgroup size for compute shaders
     pub const MAX_WORKGROUP_SIZE: u32 = 256;
+    
+    /// Memory warning threshold in MB (2GB)
+    pub const MEMORY_WARNING_THRESHOLD_MB: f32 = 2048.0;
+}
+
+/// GPU buffer sizes for world state
+pub mod buffer_sizes {
+    /// Physics buffers
+    pub const COLLISION_PAIRS_BUFFER_SIZE: u64 = 1024 * 1024; // 1MB
+    pub const SPATIAL_HASH_BUFFER_SIZE: u64 = 4 * 1024 * 1024; // 4MB
+    
+    /// Rendering buffers
+    pub const VERTEX_BUFFER_SIZE: u64 = 64 * 1024 * 1024; // 64MB
+    pub const INDEX_BUFFER_SIZE: u64 = 32 * 1024 * 1024; // 32MB
+    pub const INDIRECT_COMMANDS_BUFFER_SIZE: u64 = 1024 * 1024; // 1MB
+    
+    /// Fluid simulation buffers
+    pub const FLUID_CELLS_BUFFER_SIZE: u64 = 8 * 1024 * 1024; // 8MB
+    pub const FLUID_PRESSURE_BUFFER_SIZE: u64 = 4 * 1024 * 1024; // 4MB
+    pub const FLUID_VELOCITY_BUFFER_SIZE: u64 = 8 * 1024 * 1024; // 8MB
+    
+    /// Lighting buffers
+    pub const LIGHT_SOURCES_BUFFER_SIZE: u64 = 256 * 1024; // 256KB
+    
+    /// Network buffers
+    pub const PACKET_BUFFER_SIZE: u64 = 1024 * 1024; // 1MB
+    pub const TEMP_BUFFER_SIZE: usize = 4096; // 4KB
 }
 
 /// Gameplay constants
@@ -192,7 +224,14 @@ pub mod network_constants {
     
     /// Maximum input buffer size (6 seconds at 20Hz)
     pub const MAX_INPUT_BUFFER: usize = 120;
+    
+    /// Broadcast channel size
+    pub const BROADCAST_CHANNEL_SIZE: usize = 1024;
+    
+    /// P2P buffer size (16KB)
+    pub const P2P_BUFFER_SIZE: usize = 1024 * 16;
 }
+
 
 /// Lighting system constants
 pub mod lighting {
@@ -260,6 +299,24 @@ pub mod persistence_constants {
     
     /// Magic bytes to identify chunk files
     pub const CHUNK_MAGIC: &[u8] = b"ECNK";
+    
+    /// Default chunk cache size
+    pub const DEFAULT_CHUNK_CACHE_SIZE: usize = 1024;
+    
+    /// Save lock timeout in seconds (30s)
+    pub const SAVE_LOCK_TIMEOUT_SECS: u64 = 30;
+    
+    /// State validation interval in seconds (60s)
+    pub const VALIDATION_INTERVAL_SECS: u64 = 60;
+    
+    /// Maximum snapshot age in seconds (5 minutes)
+    pub const MAX_SNAPSHOT_AGE_SECS: u64 = 300;
+    
+    /// Backup minimum interval in seconds (1 hour)
+    pub const BACKUP_MIN_INTERVAL_SECS: u64 = 3600;
+    
+    /// Backup periodic interval in seconds (24 hours)
+    pub const BACKUP_PERIODIC_INTERVAL_SECS: u64 = 86400;
 }
 
 /// Buffer layout constants
@@ -329,6 +386,18 @@ pub mod buffer_layouts {
     
     /// Maximum indices per mesh
     pub const MAX_INDICES_PER_MESH: u32 = 98_304; // 65536 * 1.5
+    
+    // ===== Mesh Geometry Constants =====
+    
+    /// Standard cube mesh geometry
+    pub const CUBE_VERTEX_COUNT: u32 = 24; // 6 faces * 4 vertices per face
+    pub const CUBE_INDEX_COUNT: u32 = 36;  // 6 faces * 2 triangles * 3 indices
+    
+    /// Default index count for GPU-generated terrain meshes (estimated)
+    pub const GPU_TERRAIN_DEFAULT_INDEX_COUNT: u32 = 10_000;
+    
+    /// Chunk bounding sphere radius multiplier (sqrt(3) for cube diagonal)
+    pub const CHUNK_BOUNDING_RADIUS_MULTIPLIER: f32 = 1.732;
     
     // ===== Memory Budget Constants =====
     
@@ -455,6 +524,9 @@ const EXTREME_HOT: i32 = {}i;
 // Snow heights
 const SNOW_HEIGHT_TYPICAL_LOW: i32 = {}i;
 const SNOW_HEIGHT_TYPICAL_HIGH: i32 = {}i;
+
+// Terrain constants
+const TERRAIN_THRESHOLD: i32 = {}i;
 "#, 
         core::CHUNK_SIZE,
         core::CHUNK_SIZE_F32,
@@ -500,5 +572,6 @@ const SNOW_HEIGHT_TYPICAL_HIGH: i32 = {}i;
         weather::EXTREME_HOT,
         weather::SNOW_HEIGHT_TYPICAL_LOW,
         weather::SNOW_HEIGHT_TYPICAL_HIGH,
+        terrain::TERRAIN_THRESHOLD,
     )
 }

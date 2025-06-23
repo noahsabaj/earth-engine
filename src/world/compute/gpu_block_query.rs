@@ -174,7 +174,7 @@ impl GpuBlockQuery {
             compute_pass.set_bind_group(0, &bind_group, &[]);
             compute_pass.set_push_constants(
                 0,
-                bytemuck::cast_slice(&[query_count as u32, crate::core::CHUNK_SIZE]),
+                bytemuck::cast_slice(&[query_count as u32, crate::constants::core::CHUNK_SIZE]),
             );
 
             // One workgroup per MAX_WORKGROUP_SIZE queries

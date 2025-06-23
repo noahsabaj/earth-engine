@@ -3,7 +3,7 @@
 //! This module provides unified world generation that can operate in either
 //! GPU-accelerated mode (primary) or CPU fallback mode, with the same interface.
 
-use crate::terrain::SEA_LEVEL;
+use crate::constants::terrain::SEA_LEVEL;
 
 mod caves;
 mod cpu_fallback;

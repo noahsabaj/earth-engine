@@ -181,11 +181,36 @@ pub fn generate_chunk_terrain_mesh<W: WorldInterface>(
                         world_pos.z + offset[2],
                     );
 
-                    // If neighbor is transparent, add this face
-                    let neighbor_block = world.get_block(neighbor_pos);
-                    if neighbor_block == BlockId::AIR
-                        || (neighbor_block == BlockId::WATER && block != BlockId::WATER)
-                    {
+                    // Enhanced face culling with chunk boundary handling
+                    let should_render_face = {
+                        let neighbor_block = world.get_block(neighbor_pos);
+                        
+                        // Check if neighbor is at chunk boundary
+                        let neighbor_chunk_x = neighbor_pos.x.div_euclid(chunk_size as i32);
+                        let neighbor_chunk_y = neighbor_pos.y.div_euclid(chunk_size as i32); 
+                        let neighbor_chunk_z = neighbor_pos.z.div_euclid(chunk_size as i32);
+                        
+                        let neighbor_chunk_pos = ChunkPos::new(neighbor_chunk_x, neighbor_chunk_y, neighbor_chunk_z);
+                        
+                        // If neighbor is in a different chunk, check if that chunk is loaded
+                        if neighbor_chunk_pos != chunk_pos {
+                            // If neighbor chunk isn't loaded, assume it's AIR (DO render face)
+                            // This ensures surface faces are visible until neighbor chunks load
+                            if !world.is_chunk_loaded(neighbor_chunk_pos) {
+                                true // Render face - assume neighbor is AIR until loaded
+                            } else {
+                                // Neighbor chunk is loaded, check the actual block
+                                neighbor_block == BlockId::AIR || 
+                                (neighbor_block == BlockId::WATER && block != BlockId::WATER)
+                            }
+                        } else {
+                            // Same chunk - use normal transparency check
+                            neighbor_block == BlockId::AIR || 
+                            (neighbor_block == BlockId::WATER && block != BlockId::WATER)
+                        }
+                    };
+
+                    if should_render_face {
                         // Add face vertices
                         let base_vertex = vertices.len() as u32;
 

@@ -305,7 +305,7 @@ impl GpuParticleSystem {
             emitter_count: 0,
             next_emitter_id: 0,
             wind_velocity: Vec3::ZERO,
-            gravity: 9.8,
+            gravity: -crate::constants::physics_constants::GRAVITY, // Use voxel-scaled gravity (98.1 voxels/s²)
             error_recovery,
         })
     }

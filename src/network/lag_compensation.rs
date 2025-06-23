@@ -1,4 +1,4 @@
-use crate::network_constants::{MAX_HISTORY_MS, MAX_HISTORY_SNAPSHOTS};
+use crate::constants::network_constants::{MAX_HISTORY_MS, MAX_HISTORY_SNAPSHOTS};
 use crate::{BlockId, VoxelPos};
 use glam::{Quat, Vec3};
 use std::collections::VecDeque;

@@ -7,8 +7,8 @@ use bytemuck::{Pod, Zeroable};
 use cgmath::{perspective, InnerSpace, Matrix4, Point3, Rad, Vector3};
 
 // Import camera constants for voxel-scaled measurements
-use crate::camera_constants::*;
-use crate::measurements::*;
+use crate::constants::camera_constants::*;
+use crate::constants::measurements::*;
 
 /// Camera data as a plain old data structure
 #[repr(C)]
@@ -40,9 +40,9 @@ pub struct CameraUniform {
 /// Initialize camera data with default values
 pub fn init_camera(width: u32, height: u32) -> CameraData {
     CameraData {
-        position: [0.0, DEFAULT_HEIGHT, DEFAULT_HEIGHT], // Use voxel-scaled height (100 voxels = 10m)
-        yaw_radians: -std::f32::consts::FRAC_PI_2,       // -90 degrees
-        pitch_radians: 0.0,
+        position: [25.0, DEFAULT_HEIGHT, -75.0], // Position over chunk (0,1,-2) at world [0-50, 50-100, -100 to -50] 
+        yaw_radians: 0.0,                       // Look along +Z axis
+        pitch_radians: -std::f32::consts::FRAC_PI_6, // Look down 30 degrees
         aspect_ratio: width as f32 / height as f32,
         fovy_radians: std::f32::consts::FRAC_PI_4, // 45 degrees
         znear: ZNEAR,                              // 1.0 voxel minimum (10cm)
@@ -61,8 +61,8 @@ pub fn init_camera_with_spawn(
 ) -> CameraData {
     CameraData {
         position: [spawn_x, spawn_y, spawn_z],
-        yaw_radians: -std::f32::consts::FRAC_PI_2, // -90 degrees
-        pitch_radians: 0.0,
+        yaw_radians: 0.0,                       // Look along +Z axis
+        pitch_radians: -std::f32::consts::FRAC_PI_6, // Look down 30 degrees
         aspect_ratio: width as f32 / height as f32,
         fovy_radians: std::f32::consts::FRAC_PI_4, // 45 degrees
         znear: ZNEAR,                              // 1.0 voxel minimum (10cm)

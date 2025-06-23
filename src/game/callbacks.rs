@@ -4,7 +4,7 @@
 //! without using OOP patterns. All callbacks are pure functions.
 
 use super::GameContext;
-use crate::typed_blocks;
+use crate::constants::typed_blocks;
 use crate::{BlockId, BlockRegistry, VoxelPos};
 
 /// Game callbacks structure - holds function pointers for game logic

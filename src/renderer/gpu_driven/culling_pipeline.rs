@@ -266,7 +266,7 @@ impl CullingPipeline {
                 label: Some("Cull Instances Pipeline"),
                 layout: Some(&pipeline_layout),
                 module: &validated_shader.module,
-                entry_point: "cull_instances",
+                entry_point: "cull_objects",
             })
         })) {
             Ok(pipeline) => {
@@ -353,6 +353,19 @@ impl CullingPipeline {
     pub fn update_camera(&self, queue: &wgpu::Queue, camera_data: &CameraCameraData) {
         let camera_uniform = build_camera_uniform(camera_data);
         let culling_camera_data = CameraData::from_camera_uniform(&camera_uniform);
+        
+        // Log camera data for debugging frustum culling
+        log::debug!(
+            "[CullingPipeline] Updating camera - Position: [{:.1}, {:.1}, {:.1}], First frustum plane: [{:.3}, {:.3}, {:.3}, {:.3}]",
+            culling_camera_data.position[0],
+            culling_camera_data.position[1], 
+            culling_camera_data.position[2],
+            culling_camera_data.frustum_planes[0][0],
+            culling_camera_data.frustum_planes[0][1],
+            culling_camera_data.frustum_planes[0][2],
+            culling_camera_data.frustum_planes[0][3]
+        );
+        
         queue.write_buffer(
             &self.camera_buffer,
             0,

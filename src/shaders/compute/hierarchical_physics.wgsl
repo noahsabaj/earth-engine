@@ -1,9 +1,7 @@
 // Hierarchical Physics Queries
 // GPU-accelerated physics using octree and BVH
 
-struct VoxelData {
-    packed: u32,
-}
+// VoxelData is auto-generated from gpu/types/world.rs
 
 struct OctreeNode {
     children: array<u32, 8>,
@@ -44,7 +42,7 @@ struct QueryResult {
 @group(0) @binding(3) var<storage, read> queries: array<PhysicsQuery>;
 @group(0) @binding(4) var<storage, read_write> results: array<QueryResult>;
 
-const CHUNK_SIZE: u32 = 32u;
+// CHUNK_SIZE is auto-generated from constants.rs
 const EPSILON: f32 = 0.0001;
 
 // DDA voxel traversal for ray casting
@@ -249,7 +247,7 @@ fn raycast_query(@builtin(global_invocation_id) global_id: vec3<u32>) {
     
     while distance < query.max_distance {
         let voxel = get_voxel(dda.pos);
-        let block_id = voxel.packed & 0xFFFFu;
+        let block_id = voxel.data & 0xFFFFu;
         
         if block_id != 0u {
             // Hit!
@@ -302,7 +300,7 @@ fn spherecast_query(@builtin(global_invocation_id) global_id: vec3<u32>) {
                 let voxel_pos = vec3<i32>(x, y, z);
                 let voxel = get_voxel(voxel_pos);
                 
-                if (voxel.packed & 0xFFFFu) != 0u {
+                if (voxel.data & 0xFFFFu) != 0u {
                     // Ray-box intersection for swept sphere
                     let box_min = vec3<f32>(voxel_pos);
                     let box_max = box_min + vec3(1.0);
@@ -317,7 +315,7 @@ fn spherecast_query(@builtin(global_invocation_id) global_id: vec3<u32>) {
                         closest_distance = max(t.x, 0.0);
                         result.hit_distance = closest_distance;
                         result.hit_position = origin + direction * closest_distance;
-                        result.block_id = voxel.packed & 0xFFFFu;
+                        result.block_id = voxel.data & 0xFFFFu;
                         hit_found = true;
                     }
                 }
@@ -381,10 +379,10 @@ fn overlap_query(@builtin(global_invocation_id) global_id: vec3<u32>) {
         for (var z = min_pos.z; z <= max_pos.z; z++) {
             for (var x = min_pos.x; x <= max_pos.x; x++) {
                 let voxel = get_voxel(vec3<i32>(x, y, z));
-                if (voxel.packed & 0xFFFFu) != 0u {
+                if (voxel.data & 0xFFFFu) != 0u {
                     result.hit_distance = 0.0;
                     result.hit_position = query.origin;
-                    result.block_id = voxel.packed & 0xFFFFu;
+                    result.block_id = voxel.data & 0xFFFFu;
                     results[query_id] = result;
                     return;
                 }

@@ -103,7 +103,8 @@ pub fn create_gpu_mesh_buffer(device: &wgpu::Device, buffer_id: u32) -> GpuMeshB
         size: (MAX_VERTICES_PER_CHUNK * vertex_size) as u64,
         usage: wgpu::BufferUsages::STORAGE
             | wgpu::BufferUsages::VERTEX
-            | wgpu::BufferUsages::COPY_SRC,
+            | wgpu::BufferUsages::COPY_SRC
+            | wgpu::BufferUsages::COPY_DST,
         mapped_at_creation: false,
     });
 
@@ -113,7 +114,8 @@ pub fn create_gpu_mesh_buffer(device: &wgpu::Device, buffer_id: u32) -> GpuMeshB
         size: (MAX_INDICES_PER_CHUNK * std::mem::size_of::<u32>()) as u64,
         usage: wgpu::BufferUsages::STORAGE
             | wgpu::BufferUsages::INDEX
-            | wgpu::BufferUsages::COPY_SRC,
+            | wgpu::BufferUsages::COPY_SRC
+            | wgpu::BufferUsages::COPY_DST,
         mapped_at_creation: false,
     });
 

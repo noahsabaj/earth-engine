@@ -17,7 +17,7 @@ pub use physics_tables::{EntityId, PhysicsData, AABB, MAX_ENTITIES};
 pub use spatial_hash::{SpatialHash, SpatialHashConfig};
 
 // Re-export physics constants from single source of truth
-pub use crate::physics_constants::*;
+pub use crate::constants::physics_constants::*;
 
 /// Physics configuration for data-oriented system
 #[derive(Debug, Clone)]

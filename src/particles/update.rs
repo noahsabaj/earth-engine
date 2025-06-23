@@ -45,10 +45,12 @@ pub fn update_particles(
 
 /// Apply gravity to all particles
 pub fn apply_gravity(particles: &mut ParticleData, dt: f32) {
-    const GRAVITY: f32 = 9.81;
+    // Use voxel-scaled gravity from constants (-98.1 voxels/s²)
+    // Note: We negate because constants::physics_constants::GRAVITY is already negative
+    let gravity = -crate::constants::physics_constants::GRAVITY;
 
     for i in 0..particles.count {
-        particles.acceleration_y[i] -= GRAVITY * particles.gravity_multiplier[i];
+        particles.acceleration_y[i] -= gravity * particles.gravity_multiplier[i];
     }
 }
 

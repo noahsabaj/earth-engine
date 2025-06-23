@@ -1,5 +1,5 @@
 use crate::network::packet::MovementState;
-use crate::typed_blocks;
+use crate::constants::typed_blocks;
 use crate::{BlockId, VoxelPos};
 use glam::Vec3;
 use std::collections::HashMap;

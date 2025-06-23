@@ -72,12 +72,13 @@ impl GpuLightPropagator {
         }
 
         // Group updates by chunk
+        let chunk_size = crate::constants::core::CHUNK_SIZE as i32;
         let mut chunks_to_update = std::collections::HashSet::new();
         for update in updates {
             let chunk_pos = ChunkPos {
-                x: update.pos.x / 32, // Assuming chunk size 32
-                y: update.pos.y / 32,
-                z: update.pos.z / 32,
+                x: update.pos.x / chunk_size,
+                y: update.pos.y / chunk_size,
+                z: update.pos.z / chunk_size,
             };
             chunks_to_update.insert(chunk_pos);
         }

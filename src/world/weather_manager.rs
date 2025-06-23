@@ -4,7 +4,7 @@
 //! managing weather zones, transitions, and biome-based weather patterns.
 
 use crate::gpu::types::terrain::TerrainParams;
-use crate::weather::*;
+use crate::constants::weather::*;
 use crate::world::core::ChunkPos;
 
 /// Weather zone information
@@ -103,7 +103,7 @@ impl WeatherManager {
         intensity: u32,
         temperature: f32,
     ) {
-        use crate::blocks::{FROST, ICE, SNOW};
+        use crate::constants::blocks::{FROST, ICE, SNOW};
         use crate::gpu::types::terrain::BlockDistribution;
 
         // Ice formations in cold weather
@@ -130,7 +130,7 @@ impl WeatherManager {
 
             params.add_distribution(BlockDistribution {
                 block_id: SNOW as u32,
-                min_height: crate::weather::SNOW_HEIGHT_TYPICAL_LOW - (intensity as i32 * 100), // Lower with intensity
+                min_height: crate::constants::weather::SNOW_HEIGHT_TYPICAL_LOW - (intensity as i32 * 100), // Lower with intensity
                 max_height: i32::MAX,
                 probability: snow_probability,
                 noise_threshold: 0.3,

@@ -1,4 +1,4 @@
-use crate::buffer_layouts::INSTANCE_DATA_SIZE;
+use crate::constants::buffer_layouts::INSTANCE_DATA_SIZE;
 use crate::gpu::buffer_layouts::{calculations, usage};
 use bytemuck::{Pod, Zeroable};
 use std::sync::Arc;

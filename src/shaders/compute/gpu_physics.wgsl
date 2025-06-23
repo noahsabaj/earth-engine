@@ -23,10 +23,7 @@ struct PhysicsParams {
     _padding: u32,
 }
 
-// Voxel data structure (matches WorldBuffer format)
-struct VoxelData {
-    data: u32,
-}
+// VoxelData is auto-generated from gpu/types/world.rs
 
 // Entity physics data buffer
 @group(0) @binding(0) var<storage, read_write> entities: array<PhysicsBody>;
@@ -42,7 +39,7 @@ struct VoxelData {
 // These values are 10x larger than meter-based constants
 const GRAVITY: f32 = -98.1;        // -9.81 m/s² × 10 voxels/m
 const TERMINAL_VELOCITY: f32 = -500.0;  // -50 m/s × 10 voxels/m
-const CHUNK_SIZE: u32 = 50u;  // Updated to match engine constants (1dcm³ voxel system)
+// CHUNK_SIZE is auto-generated from constants.rs
 const AIR_BLOCK_ID: u32 = 0u;
 
 // Physics flags

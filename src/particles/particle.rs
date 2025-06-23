@@ -2,7 +2,7 @@ use glam::{Vec3, Vec4};
 use serde::{Deserialize, Serialize};
 
 // Import physics constants for voxel-scaled gravity
-use crate::physics_constants::GRAVITY;
+use crate::constants::physics_constants::GRAVITY;
 
 /// Individual particle in the particle system
 #[derive(Debug, Clone)]

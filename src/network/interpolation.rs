@@ -1,4 +1,4 @@
-use crate::network_constants::{INTERPOLATION_DELAY_MS, MAX_SNAPSHOTS};
+use crate::constants::network_constants::{INTERPOLATION_DELAY_MS, MAX_SNAPSHOTS};
 use glam::{Quat, Vec3};
 use std::collections::VecDeque;
 use std::time::{Duration, Instant};

@@ -6,7 +6,7 @@
 mod skylight;
 mod time_of_day;
 
-use crate::lighting::{LIGHT_FALLOFF, MAX_LIGHT_LEVEL, MIN_LIGHT_LEVEL};
+use crate::constants::lighting::{LIGHT_FALLOFF, MAX_LIGHT_LEVEL, MIN_LIGHT_LEVEL};
 use crate::world::core::{BlockId, ChunkPos, VoxelPos};
 use parking_lot::RwLock;
 use std::sync::Arc;

@@ -1,5 +1,5 @@
-use crate::network_constants::{INTEREST_UPDATE_RATE, MAX_CHUNK_VIEW_DISTANCE, MAX_ENTITY_VIEW_DISTANCE};
-use crate::VoxelPos;
+use crate::constants::network_constants::{INTEREST_UPDATE_RATE, MAX_CHUNK_VIEW_DISTANCE, MAX_ENTITY_VIEW_DISTANCE};
+use crate::{VoxelPos, constants};
 use glam::Vec3;
 use std::collections::{HashMap, HashSet};
 
@@ -348,7 +348,8 @@ pub fn interest_update_player_interests(manager: &mut InterestManager, player_id
     }
 
     // Find chunks in range
-    let chunk_radius = (view_distance / 32.0).ceil() as i32;
+    let chunk_size = constants::core::CHUNK_SIZE_F32; // From constants.rs
+    let chunk_radius = (view_distance / chunk_size).ceil() as i32;
     let player_chunk = VoxelPos::from_world_pos(player_pos);
     let mut new_chunks = HashSet::new();
 
@@ -364,13 +365,13 @@ pub fn interest_update_player_interests(manager: &mut InterestManager, player_id
 
                 // Simple distance check
                 let chunk_center = Vec3::new(
-                    (chunk_pos.x as f32 + 0.5) * 32.0,
-                    (chunk_pos.y as f32 + 0.5) * 32.0,
-                    (chunk_pos.z as f32 + 0.5) * 32.0,
+                    (chunk_pos.x as f32 + 0.5) * chunk_size,
+                    (chunk_pos.y as f32 + 0.5) * chunk_size,
+                    (chunk_pos.z as f32 + 0.5) * chunk_size,
                 );
 
                 let dist = (chunk_center - player_pos).length();
-                if dist <= view_distance + 32.0 {
+                if dist <= view_distance + chunk_size {
                     // Add chunk size for margin
                     new_chunks.insert(chunk_pos);
                 }

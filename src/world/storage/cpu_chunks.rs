@@ -1,4 +1,3 @@
-use crate::morton::morton_encode_chunk;
 use crate::world::core::{BlockId, ChunkPos, VoxelPos};
 use crate::world::interfaces::ChunkData;
 use crate::world::lighting::LightLevel;
@@ -20,8 +19,7 @@ pub struct ChunkSoA {
     position: ChunkPos,
     size: u32,
     voxel_count: usize,
-
-    // Morton-ordered, cache-aligned arrays
+    // Dense arrays with linear indexing
     block_ids: AlignedArray<BlockId>,
     sky_light: AlignedArray<u8>,
     block_light: AlignedArray<u8>,
@@ -48,7 +46,16 @@ impl<T: Copy + Default> AlignedArray<T> {
         log::trace!("[AlignedArray::new] Allocating {} bytes with alignment {} for {} elements", 
                    size, align, len);
 
-        let layout = Layout::from_size_align(size, align).expect("Invalid layout");
+        // Safety check: prevent extremely large allocations that might cause fragmentation
+        const MAX_SINGLE_ALLOC: usize = 16 * 1024 * 1024; // 16MB limit per array
+        if size > MAX_SINGLE_ALLOC {
+            panic!("AlignedArray allocation too large: {} bytes (max {} bytes)", size, MAX_SINGLE_ALLOC);
+        }
+
+        let layout = match Layout::from_size_align(size, align) {
+            Ok(layout) => layout,
+            Err(e) => panic!("Invalid layout for size {} align {}: {}", size, align, e),
+        };
 
         // SAFETY: We're allocating aligned memory with proper layout
         // - Layout is valid (checked by from_size_align)
@@ -58,18 +65,28 @@ impl<T: Copy + Default> AlignedArray<T> {
         unsafe {
             let ptr = alloc_zeroed(layout) as *mut T;
             if ptr.is_null() {
-                panic!("Failed to allocate aligned memory");
+                panic!("Failed to allocate aligned memory of {} bytes", size);
             }
             
             // Verify pointer alignment
             debug_assert_eq!(ptr as usize % align, 0, "Pointer not properly aligned");
             
-            // Initialize with default values
-            // Note: alloc_zeroed already zeroes memory, but we need to properly
-            // initialize for types that have non-zero defaults
-            for i in 0..len {
-                debug_assert!(i < len, "Index out of bounds during initialization");
-                ptr::write(ptr.add(i), T::default());
+            // Only initialize non-zero defaults to avoid redundant writes
+            // alloc_zeroed already provides zero-initialized memory
+            let default_val = T::default();
+            let default_bytes = std::slice::from_raw_parts(
+                &default_val as *const T as *const u8,
+                std::mem::size_of::<T>()
+            );
+            
+            // Check if default is all zeros
+            let is_zero_default = default_bytes.iter().all(|&b| b == 0);
+            
+            if !is_zero_default {
+                // Only write if default is non-zero
+                for i in 0..len {
+                    ptr::write(ptr.add(i), default_val);
+                }
             }
 
             Self { ptr, len, layout }
@@ -147,10 +164,24 @@ impl<T> std::fmt::Debug for AlignedArray<T> {
 unsafe impl<T: Sync> Sync for AlignedArray<T> {}
 
 impl ChunkSoA {
+    /// Convert 3D coordinates to linear array index
+    #[inline(always)]
+    fn coords_to_index(&self, x: u32, y: u32, z: u32) -> usize {
+        (z as usize * self.size as usize * self.size as usize) 
+            + (y as usize * self.size as usize) 
+            + x as usize
+    }
+
     pub fn new(position: ChunkPos, size: u32) -> Self {
         let voxel_count = (size * size * size) as usize;
         log::debug!("[ChunkSoA::new] Creating chunk {:?} with size {} ({} voxels)", 
                    position, size, voxel_count);
+
+        // Safety check: Ensure chunk size is reasonable
+        const MAX_CHUNK_SIZE: u32 = 64; // Morton encoding supports up to 64
+        if size > MAX_CHUNK_SIZE {
+            panic!("Chunk size {} exceeds maximum supported size {}", size, MAX_CHUNK_SIZE);
+        }
 
         Self {
             position,
@@ -165,44 +196,36 @@ impl ChunkSoA {
         }
     }
 
-    /// Get block at position using Morton encoding
+    /// Get block at position using linear indexing
     #[inline(always)]
     pub fn get_block(&self, x: u32, y: u32, z: u32) -> BlockId {
         if x >= self.size || y >= self.size || z >= self.size {
             return BlockId::AIR;
         }
 
-        let morton_idx = morton_encode_chunk(VoxelPos {
-            x: x as i32,
-            y: y as i32,
-            z: z as i32,
-        }) as usize;
+        let idx = self.coords_to_index(x, y, z);
 
-        // SAFETY: morton_idx is guaranteed to be < voxel_count
+        // SAFETY: idx is guaranteed to be < voxel_count
         // - We've already checked x, y, z are within bounds
-        // - Morton encoding preserves the valid index range
-        unsafe { self.block_ids.get_unchecked(morton_idx) }
+        // - Linear indexing ensures valid array access
+        unsafe { self.block_ids.get_unchecked(idx) }
     }
 
-    /// Set block at position using Morton encoding
+    /// Set block at position using linear indexing
     #[inline(always)]
     pub fn set_block(&mut self, x: u32, y: u32, z: u32, block: BlockId) {
         if x >= self.size || y >= self.size || z >= self.size {
             return;
         }
 
-        let morton_idx = morton_encode_chunk(VoxelPos {
-            x: x as i32,
-            y: y as i32,
-            z: z as i32,
-        }) as usize;
+        let idx = self.coords_to_index(x, y, z);
 
-        // SAFETY: morton_idx is guaranteed to be < voxel_count
+        // SAFETY: idx is guaranteed to be < voxel_count
         // - We've already checked x, y, z are within bounds
-        // - Morton encoding preserves the valid index range
+        // - Linear indexing ensures valid array access
         // - We have exclusive mutable access to self
         unsafe {
-            self.block_ids.set_unchecked(morton_idx, block);
+            self.block_ids.set_unchecked(idx, block);
         }
         self.dirty = true;
     }
@@ -214,19 +237,15 @@ impl ChunkSoA {
             return LightLevel { sky: 15, block: 0 };
         }
 
-        let morton_idx = morton_encode_chunk(VoxelPos {
-            x: x as i32,
-            y: y as i32,
-            z: z as i32,
-        }) as usize;
+        let idx = self.coords_to_index(x, y, z);
 
-        // SAFETY: morton_idx is guaranteed to be < voxel_count
+        // SAFETY: idx is guaranteed to be < voxel_count
         // - We've already checked x, y, z are within bounds
-        // - Morton encoding preserves the valid index range
+        // - Linear indexing ensures valid array access
         unsafe {
             LightLevel {
-                sky: self.sky_light.get_unchecked(morton_idx),
-                block: self.block_light.get_unchecked(morton_idx),
+                sky: self.sky_light.get_unchecked(idx),
+                block: self.block_light.get_unchecked(idx),
             }
         }
     }
@@ -234,12 +253,16 @@ impl ChunkSoA {
     /// Set block ID directly by index (for generation)
     #[inline(always)]
     pub fn set_block_by_index(&mut self, index: usize, block_id: BlockId) {
-        if index < self.voxel_count {
-            // SAFETY: We've checked the index is valid
-            unsafe {
-                self.block_ids.set_unchecked(index, block_id);
-            }
+        if index >= self.voxel_count {
+            log::error!("[ChunkSoA] Invalid linear index {} for voxel count {}", index, self.voxel_count);
+            return;
         }
+        
+        // SAFETY: We've verified index is within bounds
+        unsafe {
+            self.block_ids.set_unchecked(index, block_id);
+        }
+        self.dirty = true;
     }
 
     /// Set light levels
@@ -249,19 +272,15 @@ impl ChunkSoA {
             return;
         }
 
-        let morton_idx = morton_encode_chunk(VoxelPos {
-            x: x as i32,
-            y: y as i32,
-            z: z as i32,
-        }) as usize;
+        let idx = self.coords_to_index(x, y, z);
 
-        // SAFETY: morton_idx is guaranteed to be < voxel_count
+        // SAFETY: idx is guaranteed to be < voxel_count
         // - We've already checked x, y, z are within bounds
-        // - Morton encoding preserves the valid index range
+        // - Linear indexing ensures valid array access
         // - We have exclusive mutable access to self
         unsafe {
-            self.sky_light.set_unchecked(morton_idx, light.sky);
-            self.block_light.set_unchecked(morton_idx, light.block);
+            self.sky_light.set_unchecked(idx, light.sky);
+            self.block_light.set_unchecked(idx, light.block);
         }
         self.light_dirty = true;
         self.dirty = true;
@@ -299,16 +318,13 @@ impl ChunkSoA {
     where
         F: FnMut(u32, u32, u32, BlockId),
     {
-        // SAFETY: We iterate within bounds 0..voxel_count
-        // - All morton_idx values are < voxel_count
-        // - block_ids array has voxel_count elements
-        unsafe {
-            for morton_idx in 0..self.voxel_count {
-                let block = self.block_ids.get_unchecked(morton_idx);
-
-                // Decode Morton index
-                let pos = crate::morton::morton_decode_chunk(morton_idx as u32);
-                processor(pos.x as u32, pos.y as u32, pos.z as u32, block);
+        // Iterate through all valid voxel positions in the chunk
+        for z in 0..self.size {
+            for y in 0..self.size {
+                for x in 0..self.size {
+                    let block = self.get_block(x, y, z);
+                    processor(x, y, z, block);
+                }
             }
         }
     }
@@ -333,17 +349,17 @@ impl ChunkSoA {
                         && y < self.size as i32
                         && z < self.size as i32
                     {
-                        let morton_idx = morton_encode_chunk(VoxelPos { x, y, z }) as usize;
+                        let idx = self.coords_to_index(x as u32, y as u32, z as u32);
 
-                        // SAFETY: morton_idx is within bounds
+                        // SAFETY: idx is within bounds
                         // - We've checked x, y, z are within chunk bounds
-                        // - Morton encoding preserves valid indices
+                        // - Linear indexing ensures valid array access
                         // - read_volatile is safe for initialized memory
                         // - We're only reading, not modifying
                         unsafe {
                             // Touch the memory to bring it into cache
-                            let _ = std::ptr::read_volatile(self.block_ids.ptr.add(morton_idx));
-                            let _ = std::ptr::read_volatile(self.sky_light.ptr.add(morton_idx));
+                            let _ = std::ptr::read_volatile(self.block_ids.ptr.add(idx));
+                            let _ = std::ptr::read_volatile(self.sky_light.ptr.add(idx));
                         }
                     }
                 }

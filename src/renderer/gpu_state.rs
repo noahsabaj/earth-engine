@@ -817,7 +817,7 @@ impl GpuState {
         // Start with a temporary camera position (will be updated after spawn search)
         let temp_spawn_x = 0.0;
         let temp_spawn_z = 0.0;
-        let temp_spawn_y = 80.0; // Temporary height above typical terrain
+        let temp_spawn_y = crate::constants::camera_constants::DEFAULT_HEIGHT; // Spawn above surface at Y=100
 
         // Create camera at temporary position
         let mut camera = init_camera_with_spawn(
@@ -866,7 +866,7 @@ impl GpuState {
         );
 
         // Store chunk_size before moving parallel_config
-        let _chunk_size = parallel_config.chunk_size;
+        let chunk_size = parallel_config.chunk_size;
 
         log::info!("[GpuState::new] Creating parallel world...");
         let world_future = ParallelWorld::new(
@@ -897,10 +897,12 @@ impl GpuState {
 
         // Update camera to safe spawn position
         camera.position = [safe_spawn_pos.x, safe_spawn_pos.y, safe_spawn_pos.z];
-        log::info!(
-            "[GpuState::new] Camera moved to safe spawn position: {:?}",
-            camera.position
-        );
+        eprintln!("=== DEBUGGING INFO ===");
+        eprintln!("CAMERA_POS: {:?}", camera.position);
+        eprintln!("SPAWN_POS: {:?}", safe_spawn_pos);
+        eprintln!("VIEW_DISTANCE: {}", engine_config.render_distance);
+        eprintln!("CHUNK_SIZE: {}", chunk_size);
+        eprintln!("===================");
 
         // Update camera uniform with new position
         camera_uniform.update_view_proj_data(&camera);
@@ -1359,22 +1361,16 @@ impl GpuState {
                                     // Create render object for GPU-driven renderer
                                     let render_object = crate::renderer::gpu_driven::RenderObject {
                                         position: cgmath::Vector3::new(
-                                            (chunk_pos.x * chunk_size as i32
-                                                + chunk_size as i32 / 2)
-                                                as f32,
-                                            (chunk_pos.y * chunk_size as i32
-                                                + chunk_size as i32 / 2)
-                                                as f32,
-                                            (chunk_pos.z * chunk_size as i32
-                                                + chunk_size as i32 / 2)
-                                                as f32,
+                                            (chunk_pos.x * chunk_size as i32) as f32,
+                                            (chunk_pos.y * chunk_size as i32) as f32,
+                                            (chunk_pos.z * chunk_size as i32) as f32,
                                         ),
                                         scale: 1.0,
                                         color: [1.0, 1.0, 1.0, 1.0],
-                                        bounding_radius: (chunk_size as f32 * 1.732) / 2.0, // Radius of chunk bounding sphere
+                                        bounding_radius: (chunk_size as f32 * buffer_layouts::CHUNK_BOUNDING_RADIUS_MULTIPLIER) / 2.0, // Radius of chunk bounding sphere
                                         mesh_id: result.buffer_index,
                                         material_id: 0,
-                                        index_count: None, // GPU-generated meshes determine their own index count
+                                        index_count: Some(buffer_layouts::GPU_TERRAIN_DEFAULT_INDEX_COUNT), // Default for GPU-generated meshes
                                     };
 
                                     // GPU mesh buffers are managed by the GPU meshing system
@@ -1480,20 +1476,26 @@ impl GpuState {
                         );
 
                         // Create render object
+                        let world_pos = cgmath::Vector3::new(
+                            (chunk_pos.x * chunk_size as i32) as f32,
+                            (chunk_pos.y * chunk_size as i32) as f32,
+                            (chunk_pos.z * chunk_size as i32) as f32,
+                        );
+                        
                         let render_object = crate::renderer::gpu_driven::RenderObject {
-                            position: cgmath::Vector3::new(
-                                (chunk_pos.x * chunk_size as i32) as f32,
-                                (chunk_pos.y * chunk_size as i32) as f32,
-                                (chunk_pos.z * chunk_size as i32) as f32,
-                            ),
+                            position: world_pos,
                             scale: 1.0,
                             color: [0.3, 0.7, 0.3, 1.0], // Green for terrain
-                            bounding_radius: (chunk_size as f32 * 1.732) / 2.0,
+                            bounding_radius: (chunk_size as f32 * buffer_layouts::CHUNK_BOUNDING_RADIUS_MULTIPLIER) / 2.0,
                             mesh_id: buffer_index,
                             material_id: 0,
                             index_count: Some(terrain_indices.len() as u32), // Pass actual index count
                         };
 
+                        let camera_pos = cgmath::Vector3::new(self.camera.position[0], self.camera.position[1], self.camera.position[2]);
+                        let distance = (world_pos - camera_pos).magnitude();
+                        eprintln!("CHUNK_MESH: pos={:?} world={:?} dist={:.1} verts={} indices={}", 
+                                  chunk_pos, world_pos, distance, terrain_vertices.len(), terrain_indices.len());
                         render_objects.push(render_object);
                         self.dirty_chunks.remove(&chunk_pos);
                         self.chunks_with_meshes.insert(chunk_pos);
@@ -1530,7 +1532,7 @@ impl GpuState {
                             position: world_pos,
                             scale: 1.0,
                             color: [1.0, 1.0, 1.0, 1.0],
-                            bounding_radius: (chunk_size as f32 * 1.732) / 2.0, // sqrt(3) * chunk_size / 2
+                            bounding_radius: (chunk_size as f32 * buffer_layouts::CHUNK_BOUNDING_RADIUS_MULTIPLIER) / 2.0, // sqrt(3) * chunk_size / 2
                             mesh_id,
                             material_id: 0,
                             index_count: self.chunk_index_counts.get(&chunk_pos).copied(), // Look up stored index count
@@ -2524,8 +2526,9 @@ pub async fn run_app<G: GameData + 'static>(
                         // Log chunk renderer state for first few frames and periodically
                         if gpu_state.frames_rendered <= 10 && gpu_state.frames_rendered % 2 == 0 {
                             let stats = gpu_state.chunk_renderer.stats();
-                            log::info!("[render loop] Frame {}: chunk renderer has {} objects submitted, {} drawn",
+                            eprintln!("FRAME_{}: camera={:?} submitted={} drawn={}", 
                                      gpu_state.frames_rendered,
+                                     gpu_state.camera.position,
                                      stats.objects_submitted,
                                      stats.objects_drawn);
                         } else if gpu_state.frames_rendered % 600 == 0 {

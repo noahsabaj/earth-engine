@@ -168,55 +168,59 @@ fn generate_terrain(
                 var block_id = BLOCK_AIR;
                 var skylight = 15u; // Full skylight by default
                 
-                // Get terrain height using noise
-                let height = terrain_height(world_x, world_z);
+                // Improved terrain generation with height variation and proper surface topology
+                // Calculate terrain height with variation (matching CPU fallback algorithm)
+                let height_variation = sin(world_x * 0.05) * 5.0 + cos(world_z * 0.05) * 5.0;
+                let surface_height = f32(TERRAIN_THRESHOLD) + height_variation;
                 
-                if (world_y < height) {
-                    // Below surface
+                if (world_y < surface_height - 3.0) {
+                    // Deep underground: stone
                     skylight = 0u;
+                    block_id = BLOCK_STONE;
                     
-                    // Check for caves
-                    let cave = cave_density(world_x, world_y, world_z);
-                    if (cave < params.cave_threshold) {
-                        // Solid block
-                        if (world_y < height - 4.0) {
-                            block_id = BLOCK_STONE;
-                            
-                            // Check custom block distributions using SOA layout for better performance
-                            let custom_block = check_height_soa(i32(world_y));
-                            if (custom_block != 0u) {
-                                // Find distribution index for this block
-                                for (var i = 0u; i < params.distributions.count; i++) {
-                                    if (params.distributions.block_ids[i] == custom_block) {
-                                        // Use noise for distribution
-                                        let block_noise = noise3d(
-                                            world_x * 0.1, 
-                                            world_y * 0.1, 
-                                            world_z * 0.1
-                                        );
-                                        
-                                        // Check probability and noise threshold using SOA arrays
-                                        if (block_noise > params.distributions.noise_thresholds[i]) {
-                                            let chance = hash_float(u32(world_x) * 73856093u ^ u32(world_y) * 19349663u ^ u32(world_z) * 83492791u);
-                                            if (chance < params.distributions.probabilities[i]) {
-                                                block_id = custom_block;
-                                                break; // First matching distribution wins
-                                            }
-                                        }
-                                        break;
+                    // Check custom block distributions using SOA layout for better performance
+                    let custom_block = check_height_soa(i32(world_y));
+                    if (custom_block != 0u) {
+                        // Find distribution index for this block
+                        for (var i = 0u; i < params.distributions.count; i++) {
+                            if (params.distributions.block_ids[i] == custom_block) {
+                                // Use noise for distribution
+                                let block_noise = noise3d(
+                                    world_x * 0.1, 
+                                    world_y * 0.1, 
+                                    world_z * 0.1
+                                );
+                                
+                                // Check probability and noise threshold using SOA arrays
+                                if (block_noise > params.distributions.noise_thresholds[i]) {
+                                    let chance = hash_float(u32(world_x) * 73856093u ^ u32(world_y) * 19349663u ^ u32(world_z) * 83492791u);
+                                    if (chance < params.distributions.probabilities[i]) {
+                                        block_id = custom_block;
+                                        break; // First matching distribution wins
                                     }
                                 }
+                                break;
                             }
-                        } else {
-                            block_id = BLOCK_DIRT;
                         }
-                    } else {
-                        // Cave - empty for now
-                        block_id = BLOCK_AIR;
                     }
-                } else if (world_y == floor(height)) {
-                    // Surface layer - apply weather effects
+                } else if (world_y < surface_height) {
+                    // Just below surface: stone with occasional air (caves)
+                    skylight = 0u;
+                    
+                    // Simple cave generation: create air pockets using deterministic noise
+                    let cave_noise_val = f32((u32(world_x) + u32(world_y) * 7u + u32(world_z) * 13u) % 100u) / 100.0;
+                    if (cave_noise_val > 0.85 && world_y < surface_height - 5.0) {
+                        // Cave air pocket
+                        block_id = BLOCK_AIR;
+                        skylight = 5u; // Some light in caves
+                    } else {
+                        // Solid stone
+                        block_id = BLOCK_STONE;
+                    }
+                } else if (world_y == floor(surface_height)) {
+                    // Surface layer: grass
                     block_id = get_weather_surface_block(BLOCK_GRASS, world_y, params.temperature);
+                    skylight = 15u;
                 } else if (world_y < params.sea_level) {
                     // Below sea level - water or ice based on temperature
                     if (should_freeze_water(params.temperature)) {
@@ -225,9 +229,9 @@ fn generate_terrain(
                         block_id = BLOCK_WATER;
                     }
                     skylight = max(0u, 15u - u32((params.sea_level - world_y) * 0.5));
-                } else if (world_y > height && should_place_snow(world_y, params.temperature)) {
+                } else if (world_y > surface_height && should_place_snow(world_y, params.temperature)) {
                     // Snow layer on top of terrain in cold weather
-                    let snow_depth = u32((world_y - height) / 2.0);
+                    let snow_depth = u32((world_y - surface_height) / 2.0);
                     if (snow_depth < 3u) { // Max 3 blocks of snow accumulation
                         block_id = BLOCK_SNOW;
                         skylight = 15u;
@@ -360,57 +364,64 @@ fn generate_terrain_vectorized(
                     
                     let world_y = world_y_base + f32(i);
                     
-                    // Generate terrain using vectorized noise calculations
+                    // Improved vectorized terrain generation with height variation and proper surface topology
                     var block_id = BLOCK_AIR;
                     var skylight = 15u;
                     
-                    // Get terrain height (can be vectorized for multiple Z values)
-                    let height = terrain_height(world_x, world_z);
+                    // Calculate terrain height with variation (matching CPU fallback algorithm)
+                    let height_variation = sin(world_x * 0.05) * 5.0 + cos(world_z * 0.05) * 5.0;
+                    let surface_height = f32(TERRAIN_THRESHOLD) + height_variation;
                     
-                    if (world_y < height) {
-                        // Below surface
+                    if (world_y < surface_height - 3.0) {
+                        // Deep underground: stone
                         skylight = 0u;
+                        block_id = BLOCK_STONE;
                         
-                        // Check for caves
-                        let cave = cave_density(world_x, world_y, world_z);
-                        if (cave < params.cave_threshold) {
-                            // Solid block
-                            if (world_y < height - 4.0) {
-                                block_id = BLOCK_STONE;
-                                
-                                // Check custom block distributions
-                                let custom_block = check_height_soa(i32(world_y));
-                                if (custom_block != 0u) {
-                                    // Vectorized distribution check
-                                    for (var dist_idx = 0u; dist_idx < params.distributions.count; dist_idx++) {
-                                        if (params.distributions.block_ids[dist_idx] == custom_block) {
-                                            let block_noise = noise3d(
-                                                world_x * 0.1, 
-                                                world_y * 0.1, 
-                                                world_z * 0.1
-                                            );
-                                            
-                                            if (block_noise > params.distributions.noise_thresholds[dist_idx]) {
-                                                let chance = hash_float(
-                                                    u32(world_x) * 73856093u ^ 
-                                                    u32(world_y) * 19349663u ^ 
-                                                    u32(world_z) * 83492791u
-                                                );
-                                                if (chance < params.distributions.probabilities[dist_idx]) {
-                                                    block_id = custom_block;
-                                                    break;
-                                                }
-                                            }
+                        // Check custom block distributions
+                        let custom_block = check_height_soa(i32(world_y));
+                        if (custom_block != 0u) {
+                            // Vectorized distribution check
+                            for (var dist_idx = 0u; dist_idx < params.distributions.count; dist_idx++) {
+                                if (params.distributions.block_ids[dist_idx] == custom_block) {
+                                    let block_noise = noise3d(
+                                        world_x * 0.1, 
+                                        world_y * 0.1, 
+                                        world_z * 0.1
+                                    );
+                                    
+                                    if (block_noise > params.distributions.noise_thresholds[dist_idx]) {
+                                        let chance = hash_float(
+                                            u32(world_x) * 73856093u ^ 
+                                            u32(world_y) * 19349663u ^ 
+                                            u32(world_z) * 83492791u
+                                        );
+                                        if (chance < params.distributions.probabilities[dist_idx]) {
+                                            block_id = custom_block;
                                             break;
                                         }
                                     }
+                                    break;
                                 }
-                            } else {
-                                block_id = BLOCK_DIRT;
                             }
                         }
-                    } else if (world_y == floor(height)) {
+                    } else if (world_y < surface_height) {
+                        // Just below surface: stone with occasional air (caves)
+                        skylight = 0u;
+                        
+                        // Simple cave generation: create air pockets using deterministic noise
+                        let cave_noise_val = f32((u32(world_x) + u32(world_y) * 7u + u32(world_z) * 13u) % 100u) / 100.0;
+                        if (cave_noise_val > 0.85 && world_y < surface_height - 5.0) {
+                            // Cave air pocket
+                            block_id = BLOCK_AIR;
+                            skylight = 5u; // Some light in caves
+                        } else {
+                            // Solid stone
+                            block_id = BLOCK_STONE;
+                        }
+                    } else if (world_y == floor(surface_height)) {
+                        // Surface layer: grass
                         block_id = get_weather_surface_block(BLOCK_GRASS, world_y, params.temperature);
+                        skylight = 15u;
                     } else if (world_y < params.sea_level) {
                         if (should_freeze_water(params.temperature)) {
                             block_id = BLOCK_ICE;
@@ -418,8 +429,8 @@ fn generate_terrain_vectorized(
                             block_id = BLOCK_WATER;
                         }
                         skylight = max(0u, 15u - u32((params.sea_level - world_y) * 0.5));
-                    } else if (world_y > height && should_place_snow(world_y, params.temperature)) {
-                        let snow_depth = u32((world_y - height) / 2.0);
+                    } else if (world_y > surface_height && should_place_snow(world_y, params.temperature)) {
+                        let snow_depth = u32((world_y - surface_height) / 2.0);
                         if (snow_depth < 3u) {
                             block_id = BLOCK_SNOW;
                             skylight = 15u;
@@ -445,50 +456,62 @@ fn generate_terrain_vectorized(
                     let world_z_offset = world_z + f32(z_offset);
                     let world_y = world_y_base;
                     
-                    // Same terrain generation logic for Z-offset voxels
+                    // Improved terrain generation logic for Z-offset voxels (matching CPU fallback)
                     var block_id = BLOCK_AIR;
                     var skylight = 15u;
                     
-                    let height = terrain_height(world_x, world_z_offset);
+                    // Calculate terrain height with variation (matching CPU fallback algorithm)
+                    let height_variation = sin(world_x * 0.05) * 5.0 + cos(world_z_offset * 0.05) * 5.0;
+                    let surface_height = 64.0 + height_variation;
                     
-                    if (world_y < height) {
+                    if (world_y < surface_height - 3.0) {
+                        // Deep underground: stone
                         skylight = 0u;
-                        let cave = cave_density(world_x, world_y, world_z_offset);
-                        if (cave < params.cave_threshold) {
-                            if (world_y < height - 4.0) {
-                                block_id = BLOCK_STONE;
-                                
-                                let custom_block = check_height_soa(i32(world_y));
-                                if (custom_block != 0u) {
-                                    for (var dist_idx = 0u; dist_idx < params.distributions.count; dist_idx++) {
-                                        if (params.distributions.block_ids[dist_idx] == custom_block) {
-                                            let block_noise = noise3d(
-                                                world_x * 0.1, 
-                                                world_y * 0.1, 
-                                                world_z_offset * 0.1
-                                            );
-                                            
-                                            if (block_noise > params.distributions.noise_thresholds[dist_idx]) {
-                                                let chance = hash_float(
-                                                    u32(world_x) * 73856093u ^ 
-                                                    u32(world_y) * 19349663u ^ 
-                                                    u32(world_z_offset) * 83492791u
-                                                );
-                                                if (chance < params.distributions.probabilities[dist_idx]) {
-                                                    block_id = custom_block;
-                                                    break;
-                                                }
-                                            }
+                        block_id = BLOCK_STONE;
+                        
+                        let custom_block = check_height_soa(i32(world_y));
+                        if (custom_block != 0u) {
+                            for (var dist_idx = 0u; dist_idx < params.distributions.count; dist_idx++) {
+                                if (params.distributions.block_ids[dist_idx] == custom_block) {
+                                    let block_noise = noise3d(
+                                        world_x * 0.1, 
+                                        world_y * 0.1, 
+                                        world_z_offset * 0.1
+                                    );
+                                    
+                                    if (block_noise > params.distributions.noise_thresholds[dist_idx]) {
+                                        let chance = hash_float(
+                                            u32(world_x) * 73856093u ^ 
+                                            u32(world_y) * 19349663u ^ 
+                                            u32(world_z_offset) * 83492791u
+                                        );
+                                        if (chance < params.distributions.probabilities[dist_idx]) {
+                                            block_id = custom_block;
                                             break;
                                         }
                                     }
+                                    break;
                                 }
-                            } else {
-                                block_id = BLOCK_DIRT;
                             }
                         }
-                    } else if (world_y == floor(height)) {
+                    } else if (world_y < surface_height) {
+                        // Just below surface: stone with occasional air (caves)
+                        skylight = 0u;
+                        
+                        // Simple cave generation: create air pockets using deterministic noise
+                        let cave_noise_val = f32((u32(world_x) + u32(world_y) * 7u + u32(world_z_offset) * 13u) % 100u) / 100.0;
+                        if (cave_noise_val > 0.85 && world_y < surface_height - 5.0) {
+                            // Cave air pocket
+                            block_id = BLOCK_AIR;
+                            skylight = 5u; // Some light in caves
+                        } else {
+                            // Solid stone
+                            block_id = BLOCK_STONE;
+                        }
+                    } else if (world_y == floor(surface_height)) {
+                        // Surface layer: grass
                         block_id = get_weather_surface_block(BLOCK_GRASS, world_y, params.temperature);
+                        skylight = 15u;
                     } else if (world_y < params.sea_level) {
                         if (should_freeze_water(params.temperature)) {
                             block_id = BLOCK_ICE;
@@ -496,8 +519,8 @@ fn generate_terrain_vectorized(
                             block_id = BLOCK_WATER;
                         }
                         skylight = max(0u, 15u - u32((params.sea_level - world_y) * 0.5));
-                    } else if (world_y > height && should_place_snow(world_y, params.temperature)) {
-                        let snow_depth = u32((world_y - height) / 2.0);
+                    } else if (world_y > surface_height && should_place_snow(world_y, params.temperature)) {
+                        let snow_depth = u32((world_y - surface_height) / 2.0);
                         if (snow_depth < 3u) {
                             block_id = BLOCK_SNOW;
                             skylight = 15u;

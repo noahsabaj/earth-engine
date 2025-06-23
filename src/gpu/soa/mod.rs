@@ -19,4 +19,4 @@ pub use layouts::{AccessPattern, SoaLayoutManager};
 pub use types::{BlockDistributionSOA, SoaCompatible, TerrainParamsSOA};
 
 // Re-export for convenience
-pub use crate::core::MAX_BLOCK_DISTRIBUTIONS;
+pub use crate::constants::core::MAX_BLOCK_DISTRIBUTIONS;

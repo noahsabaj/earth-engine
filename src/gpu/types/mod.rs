@@ -23,4 +23,4 @@ pub use weather::{
     PrecipitationParticleGpu, WeatherConfigGpu, WeatherDataGpu, WeatherTransitionGpu,
 };
 
-pub use crate::core::MAX_BLOCK_DISTRIBUTIONS;
+pub use crate::constants::core::MAX_BLOCK_DISTRIBUTIONS;

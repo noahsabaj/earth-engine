@@ -77,10 +77,11 @@ pub trait WorldInterface: UnifiedInterface {
     /// Ensure the chunk containing the camera position is loaded
     /// Returns true if the chunk is loaded, false if still being generated
     fn ensure_camera_chunk_loaded(&mut self, camera_pos: cgmath::Point3<f32>) -> bool {
+        let chunk_size = self.chunk_size() as i32;
         let chunk_pos = ChunkPos {
-            x: (camera_pos.x as i32) / 32, // Assuming 32x32 chunks
-            y: (camera_pos.y as i32) / 32,
-            z: (camera_pos.z as i32) / 32,
+            x: (camera_pos.x as i32) / chunk_size,
+            y: (camera_pos.y as i32) / chunk_size,
+            z: (camera_pos.z as i32) / chunk_size,
         };
         self.is_chunk_loaded(chunk_pos)
     }
@@ -138,7 +139,7 @@ pub trait WorldInterface: UnifiedInterface {
 
     /// Get chunk size from configuration
     fn chunk_size(&self) -> u32 {
-        32 // Default chunk size
+        50 // Default chunk size (50 for danger-money)
     }
 
     /// Get an iterator over loaded chunks

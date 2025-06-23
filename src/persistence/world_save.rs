@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::core::CHUNK_SIZE;
+use crate::constants::core::CHUNK_SIZE;
 use crate::persistence::{
     atomic_write, ChunkFormat, ChunkSerializer, PersistenceError, PersistenceResult, WorldMetadata,
 };

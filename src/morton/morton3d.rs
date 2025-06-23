@@ -1,4 +1,4 @@
-use crate::core::CHUNK_SIZE;
+use crate::constants::core::CHUNK_SIZE;
 /// Morton encoding/decoding for 3D coordinates
 ///
 /// Uses optimized bit manipulation for fast encoding/decoding

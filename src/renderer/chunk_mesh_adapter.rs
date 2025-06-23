@@ -8,7 +8,7 @@ use crate::{
         mesh::{chunk_mesh_ops, ChunkMesh},
         vertex::Vertex,
     },
-    typed_blocks,
+    constants::typed_blocks,
     world::{storage::ChunkSoA, BlockRegistry},
     BlockId, ChunkPos,
 };

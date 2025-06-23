@@ -6,8 +6,8 @@
 //! buffer bindings with appropriate lifetimes.
 
 use std::sync::Arc;
-use crate::core::CHUNK_SIZE;
-use crate::buffer_layouts::CHUNK_METADATA_SIZE;
+use crate::constants::core::CHUNK_SIZE;
+use crate::constants::buffer_layouts::CHUNK_METADATA_SIZE;
 
 /// Unified memory layout for all GPU world systems
 /// This ensures all systems can access world data efficiently without copies
@@ -55,19 +55,19 @@ impl UnifiedMemoryLayout {
         // Calculate offsets (aligned for GPU efficiency)
         let mut offset = 0u64;
         let voxel_data_offset = offset;
-        offset += align_to(voxel_data_size, crate::alignment::UNIFORM_BUFFER_ALIGN);
+        offset += align_to(voxel_data_size, crate::constants::alignment::UNIFORM_BUFFER_ALIGN);
 
         let chunk_metadata_offset = offset;
-        offset += align_to(chunk_metadata_size, crate::alignment::UNIFORM_BUFFER_ALIGN);
+        offset += align_to(chunk_metadata_size, crate::constants::alignment::UNIFORM_BUFFER_ALIGN);
 
         let lighting_data_offset = offset;
-        offset += align_to(lighting_data_size, crate::alignment::UNIFORM_BUFFER_ALIGN);
+        offset += align_to(lighting_data_size, crate::constants::alignment::UNIFORM_BUFFER_ALIGN);
 
         let entity_data_offset = offset;
-        offset += align_to(entity_data_size, crate::alignment::UNIFORM_BUFFER_ALIGN);
+        offset += align_to(entity_data_size, crate::constants::alignment::UNIFORM_BUFFER_ALIGN);
 
         let particle_data_offset = offset;
-        offset += align_to(particle_data_size, crate::alignment::UNIFORM_BUFFER_ALIGN);
+        offset += align_to(particle_data_size, crate::constants::alignment::UNIFORM_BUFFER_ALIGN);
 
         let total_size = offset;
 

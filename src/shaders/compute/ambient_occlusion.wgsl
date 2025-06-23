@@ -1,9 +1,8 @@
 // GPU Ambient Occlusion Calculation Shader
 // Calculates ambient occlusion values for voxels based on neighboring blocks
 
-// World constants (must match other shaders)
-const CHUNK_SIZE: u32 = 32u;
-const WORLD_SIZE: u32 = 512u;
+// World constants - auto-generated from constants.rs
+// CHUNK_SIZE, MAX_WORLD_SIZE are auto-generated
 const WORLD_HEIGHT: u32 = 256u;
 
 // Voxel packing constants

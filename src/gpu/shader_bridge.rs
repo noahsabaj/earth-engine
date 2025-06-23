@@ -1,6 +1,6 @@
 //! Bridge between Rust GPU types and WGSL shader code
 
-use crate::core::MAX_BLOCK_DISTRIBUTIONS;
+use crate::constants::core::MAX_BLOCK_DISTRIBUTIONS;
 
 /// Generate WGSL type definitions from Rust types
 ///

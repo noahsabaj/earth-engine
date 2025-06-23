@@ -1,4 +1,8 @@
 #![allow(unused_variables, dead_code)]
+
+// Include constants from root constants.rs
+include!("../../../constants.rs");
+
 use super::{
     culling_pipeline::{CullingData, CullingPipeline},
     indirect_commands::{DrawMetadata, IndirectCommandManager},
@@ -300,6 +304,11 @@ impl GpuDrivenRenderer {
                 }
 
                 // Create draw metadata for culling
+                let index_count = object.index_count.unwrap_or_else(|| {
+                    // Look up stored index count for this mesh_id
+                    self.mesh_index_counts.get(&object.mesh_id).copied().unwrap_or(buffer_layouts::CUBE_INDEX_COUNT)
+                }) as f32;
+                
                 let metadata = DrawMetadata {
                     bounding_sphere: [
                         object.position.x,
@@ -307,18 +316,20 @@ impl GpuDrivenRenderer {
                         object.position.z,
                         object.bounding_radius,
                     ],
-                    lod_info: [50.0, 200.0, 0.0, 0.0], // LOD distances
+                    lod_info: [50.0, 200.0, index_count, 0.0], // LOD distances + index count
                     material_id: object.material_id,
                     mesh_id: object.mesh_id,
                     instance_offset: instance_id,
-                    flags: 1, // Visible
+                    flags: 5, // Visible (1) + Always Visible (4)
                 };
 
                 log::trace!(
-                    "[GpuDrivenRenderer::submit_objects] Added metadata for object at {:?}: mesh_id={}, instance_id={}",
+                    "[GpuDrivenRenderer::submit_objects] Added metadata for object at {:?}: mesh_id={}, instance_id={}, index_count={}, bounding_radius={}",
                     object.position,
                     object.mesh_id,
-                    instance_id
+                    instance_id,
+                    index_count,
+                    object.bounding_radius
                 );
 
                 self.culling_data.add_draw(metadata);
@@ -487,163 +498,47 @@ impl GpuDrivenRenderer {
 
         let setup_duration = setup_start.elapsed();
 
-        // Execute draws for each mesh
-        // Following DOP principles - iterate through data, not objects
-
-        // Group instances by mesh_id for efficient rendering
-        // In a production implementation, this would be done during culling
-        let mut instances_per_mesh: std::collections::HashMap<u32, Vec<u32>> =
-            std::collections::HashMap::new();
-
-        // Log metadata state for debugging
-        log::debug!(
-            "[GPU_RENDER] Culling metadata count: {}",
-            self.culling_data.metadata.len()
-        );
-
-        // Collect instance IDs for each mesh
-        for (instance_idx, metadata) in self.culling_data.metadata.iter().enumerate() {
-            log::trace!(
-                "[GPU_RENDER] Metadata[{}]: mesh_id={}, flags={}, visible={}",
-                instance_idx,
-                metadata.mesh_id,
-                metadata.flags,
-                metadata.flags & 1 != 0
-            );
-
-            if metadata.flags & 1 != 0 {
-                // Check visibility flag
-                instances_per_mesh
-                    .entry(metadata.mesh_id)
-                    .or_insert_with(Vec::new)
-                    .push(instance_idx as u32);
-            }
-        }
-
-        log::debug!(
-            "[GPU_RENDER] Instances per mesh: {} meshes with instances",
-            instances_per_mesh.len()
-        );
-
-        // Draw each mesh with its instances
-        let draw_start = Instant::now();
-        let mut total_draw_calls = 0;
-        let mut total_triangles = 0;
-
         // Check if GPU meshing is available
         if let Some(gpu_meshing) = &self.gpu_meshing {
-            for (mesh_id, instance_indices) in instances_per_mesh.iter() {
-                // Get mesh buffer from GPU meshing system
-                if let Some(mesh_buffer) =
-                    crate::renderer::gpu_meshing::get_mesh_buffer(gpu_meshing, *mesh_id)
-                {
-                    log::debug!(
-                        "[GPU_RENDER] Drawing GPU mesh {} with {} instances",
-                        mesh_id,
-                        instance_indices.len()
+            // Get the first mesh buffer for testing (assumes all chunks use same mesh for now)
+            // In production, this would handle multiple meshes
+            if let Some(mesh_buffer) = crate::renderer::gpu_meshing::get_mesh_buffer(gpu_meshing, 0) {
+                log::debug!("[GPU_RENDER] Setting GPU mesh buffers for indirect drawing");
+
+                // Set GPU mesh buffers
+                render_pass.set_vertex_buffer(0, mesh_buffer.vertices.slice(..));
+                render_pass.set_index_buffer(mesh_buffer.indices.slice(..), wgpu::IndexFormat::Uint32);
+
+                // Execute indirect drawing using commands from GPU culling
+                let draw_count = self.command_manager.opaque_commands().count();
+                if draw_count > 0 {
+                    log::info!(
+                        "[GPU_RENDER] Executing multi_draw_indexed_indirect with {} commands",
+                        draw_count
                     );
 
-                    // Set GPU mesh buffers
-                    render_pass.set_vertex_buffer(0, mesh_buffer.vertices.slice(..));
-                    render_pass
-                        .set_index_buffer(mesh_buffer.indices.slice(..), wgpu::IndexFormat::Uint32);
-
-                    // Read actual mesh size from metadata buffer
-                    // The GPU mesh generation writes vertex/index counts to the metadata
-                    // For CPU meshes, we pass the actual index count in the render object
-                    // Fixed: Now using indirect drawing for GPU-generated meshes
-
-                    // Check if this is a GPU-generated mesh (has metadata)
-                    let has_metadata = mesh_buffer.metadata.size() > 0;
-
-                    let index_count = if has_metadata {
-                        // Use indirect drawing for GPU-generated meshes
-                        // The GPU mesh generation writes the actual vertex/index counts to metadata
-                        log::trace!(
-                            "[GPU_RENDER] Using indirect draw for GPU mesh {} with {} instances",
-                            mesh_id,
-                            instance_indices.len()
-                        );
-
-                        // Create indirect command from metadata
-                        // Note: In a production system, this would be done on GPU
-                        let indirect_cmd = wgpu::util::DrawIndexedIndirectArgs {
-                            index_count: 0, // Will be filled from metadata
-                            instance_count: instance_indices.len() as u32,
-                            first_index: 0,
-                            base_vertex: 0,
-                            first_instance: 0,
-                        };
-
-                        // For now, use the stored index count until we implement GPU-side indirect
-                        let index_count = self
-                            .mesh_index_counts
-                            .get(mesh_id)
-                            .copied()
-                            .unwrap_or(36u32); // Default cube
-
-                        render_pass.draw_indexed(
-                            0..index_count,
-                            0,
-                            0..instance_indices.len() as u32,
-                        );
-                        index_count
-                    } else {
-                        // Use direct drawing for CPU-generated meshes with known index count
-                        let index_count = self
-                            .mesh_index_counts
-                            .get(mesh_id)
-                            .copied()
-                            .unwrap_or_else(|| {
-                                log::warn!("[GPU_RENDER] No index count for CPU mesh {}", mesh_id);
-                                36u32 // Default to cube size
-                            });
-
-                        log::trace!(
-                            "[GPU_RENDER] Drawing CPU mesh {} with {} indices for {} instances",
-                            mesh_id,
-                            index_count,
-                            instance_indices.len()
-                        );
-
-                        render_pass.draw_indexed(
-                            0..index_count,
-                            0,
-                            0..instance_indices.len() as u32,
-                        );
-                        index_count
-                    };
-                    total_draw_calls += 1;
-                    total_triangles += (index_count / 3) * instance_indices.len() as u32;
+                    // Execute all draw commands with a single GPU call!
+                    render_pass.multi_draw_indexed_indirect(
+                        self.command_manager.opaque_commands().buffer(),
+                        0,
+                        draw_count,
+                    );
                 } else {
-                    log::warn!(
-                        "[GPU_RENDER] GPU mesh not found for mesh_id {} (buffer index)",
-                        mesh_id
-                    );
+                    log::warn!("[GPU_RENDER] No indirect commands to execute");
                 }
+            } else {
+                log::warn!("[GPU_RENDER] No GPU mesh buffer available for rendering");
             }
         } else {
             log::warn!("[GPU_RENDER] No GPU meshing state available for rendering");
         }
 
-        let draw_duration = draw_start.elapsed();
+        let draw_duration = start.elapsed();
         let total_duration = start.elapsed();
 
-        log::info!("[GPU_RENDER] Render draw completed: {} draw calls, {} triangles in {:.2}ms (setup: {:.1}μs, draw: {:.1}μs)",
-                  total_draw_calls, total_triangles,
+        log::info!("[GPU_RENDER] Render draw completed in {:.2}ms (setup: {:.1}μs)",
                   total_duration.as_secs_f64() * 1000.0,
-                  setup_duration.as_micros(),
-                  draw_duration.as_micros());
-
-        // Calculate rendering performance metrics
-        if total_duration.as_secs_f64() > 0.0 {
-            let triangles_per_second = total_triangles as f64 / total_duration.as_secs_f64();
-            log::debug!(
-                "[GPU_RENDER] Performance: {:.0} triangles/sec, {:.1} draw calls/ms",
-                triangles_per_second,
-                total_draw_calls as f64 / (total_duration.as_secs_f64() * 1000.0)
-            );
-        }
+                  setup_duration.as_micros());
     }
 
     /// Update statistics after rendering

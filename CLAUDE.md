@@ -50,6 +50,32 @@ The engine provides realistic physics. Players discover what's possible.
 - ✅ GPU-first architecture - data lives where it's processed
 - ✅ If you're writing `self.method()`, you're doing it wrong
 
+## 🚨 CRITICAL FACTS - NEVER FORGET 🚨
+
+### CHUNK SIZE IS 50 - NOT 32!
+- **The chunk size is 50x50x50 voxels** (5m x 5m x 5m with 10cm voxels)
+- **NEVER change this to 32 or any other value**
+- **All hardcoded "32" values in chunk calculations are BUGS**
+- **Use CHUNK_SIZE constant from constants.rs, which is set to 50**
+- **This applies to BOTH engine and game code**
+
+### DO NOT USE include! STATEMENTS
+- **NEVER use `include!("../../constants.rs")` or similar**
+- **Use proper module imports instead: `use crate::constants;`**
+- **include! is a code smell and breaks proper module structure**
+- **Each crate should have its own constants module if needed**
+
+### Constants Usage Pattern
+```rust
+// ❌ WRONG - Never do this!
+include!("../../constants.rs");
+
+// ✅ CORRECT - Use proper imports
+use crate::constants::core::CHUNK_SIZE;
+// or for games:
+use crate::constants::world::CHUNK_SIZE;
+```
+
 ## WORKFLOW REQUIREMENTS
 
 ### 1. Documentation Updates (MANDATORY)

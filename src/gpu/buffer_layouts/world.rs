@@ -2,8 +2,8 @@
 //!
 //! This module re-exports world GPU types from the unified type system.
 
-use crate::buffer_layouts::*;
-use crate::core::VOXELS_PER_CHUNK;
+use crate::constants::buffer_layouts::*;
+use crate::constants::core::VOXELS_PER_CHUNK;
 use crate::ChunkPos;
 
 // Re-export world types from the unified GPU type system

@@ -2,7 +2,7 @@
 
 use crate::gpu::automation::auto_wgsl::AutoWgsl;
 use crate::gpu::types::core::GpuData;
-use crate::{core::MAX_BLOCK_DISTRIBUTIONS, terrain::SEA_LEVEL};
+use crate::constants::{core::MAX_BLOCK_DISTRIBUTIONS, terrain::SEA_LEVEL};
 use bytemuck::{Pod, Zeroable};
 use encase::ShaderType;
 

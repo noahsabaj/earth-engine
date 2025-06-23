@@ -26,7 +26,7 @@ const BLOCK_STONE: u32 = 3u;
 const BLOCK_SAND: u32 = 5u;
 const BLOCK_WATER: u32 = 6u;
 
-const CHUNK_SIZE: u32 = 32u;
+// CHUNK_SIZE is auto-generated from constants.rs
 
 // Bindings
 @group(0) @binding(0) var<storage, read_write> world_voxels: array<u32>;

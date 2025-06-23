@@ -138,7 +138,7 @@ pub async fn create_unified_world(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::CHUNK_SIZE;
+    use crate::constants::core::CHUNK_SIZE;
 
     #[test]
     fn test_voxel_to_chunk_conversion() {

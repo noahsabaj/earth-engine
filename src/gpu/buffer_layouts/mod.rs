@@ -18,7 +18,7 @@ mod tests;
 // Re-export commonly used items
 pub use camera::{CameraUniform, CullingCameraData};
 pub use commands::{DrawMetadata, IndirectDrawCommand, IndirectDrawIndexedCommand};
-pub use crate::buffer_layouts::*;
+pub use crate::constants::buffer_layouts::*;
 pub use instance::{CullingInstanceData, InstanceBufferLayout, InstanceData};
 pub use mesh::{Vertex, VertexSOA};
 pub use terrain::{BlockDistribution, TerrainParams, TerrainParamsSOA};
@@ -69,7 +69,7 @@ pub mod groups {
 
 /// Helper functions for buffer calculations
 pub mod calculations {
-    use crate::buffer_layouts::*;
+    use crate::constants::buffer_layouts::*;
 
     /// Calculate offset for a chunk slot in the world buffer
     #[inline]
@@ -126,10 +126,10 @@ pub mod usage {
     /// Uniform buffer usage
     pub const UNIFORM: BufferUsages = BufferUsages::UNIFORM.union(BufferUsages::COPY_DST);
 
-    /// Indirect drawing buffer usage
+    /// Indirect drawing buffer usage (includes COPY_DST for compute shader writes)
     pub const INDIRECT: BufferUsages = BufferUsages::INDIRECT
-        .union(BufferUsages::STORAGE)
-        .union(BufferUsages::COPY_DST);
+        .union(BufferUsages::COPY_DST)
+        .union(BufferUsages::STORAGE);
 }
 
 /// Bind group layout descriptors

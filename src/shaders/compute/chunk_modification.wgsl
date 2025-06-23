@@ -9,14 +9,9 @@ struct ModificationCommand {
     _padding: vec2<u32>,
 }
 
-// World constants (must match terrain_generation.wgsl)
-const CHUNK_SIZE: u32 = 32u;
-const WORLD_SIZE: u32 = 512u;
+// World constants - auto-generated from constants.rs
+// CHUNK_SIZE, MAX_WORLD_SIZE, BLOCK_AIR, BLOCK_STONE are auto-generated
 const WORLD_HEIGHT: u32 = 256u;
-
-// Block IDs
-const BLOCK_AIR: u32 = 0u;
-const BLOCK_STONE: u32 = 1u;
 
 // Voxel packing constants
 const BLOCK_ID_MASK: u32 = 0xFFFFu;

@@ -1,6 +1,8 @@
 // Octree Update Shader
 // Updates sparse voxel octree based on world changes
 
+// VoxelData is auto-generated from gpu/types/world.rs
+
 struct OctreeNode {
     children: array<u32, 8>,
     metadata: u32,
@@ -8,14 +10,10 @@ struct OctreeNode {
     bbox_max: vec3<f32>,
 }
 
-struct VoxelData {
-    packed: u32,
-}
-
 @group(0) @binding(0) var<storage, read_write> octree_nodes: array<OctreeNode>;
 @group(0) @binding(1) var<storage, read> world_voxels: array<VoxelData>;
 
-const CHUNK_SIZE: u32 = 32u;
+// CHUNK_SIZE is auto-generated from constants.rs
 
 // Check if a region contains any solid voxels
 fn region_is_empty(base_pos: vec3<u32>, size: u32) -> bool {
@@ -35,7 +33,7 @@ fn region_is_empty(base_pos: vec3<u32>, size: u32) -> bool {
                 
                 if global_index < arrayLength(&world_voxels) {
                     let voxel = world_voxels[global_index];
-                    if (voxel.packed & 0xFFFFu) != 0u {
+                    if (voxel.data & 0xFFFFu) != 0u {
                         return false; // Found a solid voxel
                     }
                 }

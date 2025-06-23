@@ -208,7 +208,7 @@ fn align_up(value: usize, alignment: usize) -> usize {
     (value + alignment - 1) & !(alignment - 1)
 }
 
-use crate::core::MAX_BLOCK_DISTRIBUTIONS;
+use crate::constants::core::MAX_BLOCK_DISTRIBUTIONS;
 
 #[cfg(test)]
 mod tests {

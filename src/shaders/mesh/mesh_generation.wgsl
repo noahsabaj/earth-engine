@@ -2,7 +2,7 @@
 // Generates chunk meshes entirely on GPU with zero CPU involvement
 
 // Constants
-const CHUNK_SIZE: u32 = 32u;
+// CHUNK_SIZE is auto-generated from constants.rs
 const WORKGROUP_SIZE: u32 = 64u; // 4x4x4 voxels
 
 // Face constants for clarity
@@ -211,7 +211,7 @@ fn generate_mesh(
     workgroupBarrier();
     
     // Thread 0 writes indirect command
-    if (thread_idx == 0u) {
+    if (local_id.x == 0u && local_id.y == 0u && local_id.z == 0u) {
         let vertex_count = atomicLoad(&metadata[request_idx].vertex_count);
         let index_count = atomicLoad(&metadata[request_idx].index_count);
         

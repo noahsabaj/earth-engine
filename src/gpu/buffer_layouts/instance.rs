@@ -2,7 +2,7 @@
 //!
 //! Defines GPU buffer structures for instanced rendering and culling.
 
-use crate::buffer_layouts::*;
+use crate::constants::buffer_layouts::*;
 use bytemuck::{Pod, Zeroable};
 use cgmath::{Matrix4, Vector3};
 use wgpu::{VertexAttribute, VertexBufferLayout, VertexFormat, VertexStepMode};

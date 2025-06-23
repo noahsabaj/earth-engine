@@ -1,5 +1,5 @@
-use crate::core::CHUNK_SIZE;
-use crate::persistence_constants::{CHUNK_FORMAT_VERSION, CHUNK_MAGIC};
+use crate::constants::core::CHUNK_SIZE;
+use crate::constants::persistence_constants::{CHUNK_FORMAT_VERSION, CHUNK_MAGIC};
 use crate::persistence::{PersistenceError, PersistenceResult};
 use crate::{BlockId, Chunk, ChunkPos, VoxelPos};
 use serde::{Deserialize, Serialize};
