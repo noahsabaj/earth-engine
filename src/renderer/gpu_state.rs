@@ -1658,8 +1658,8 @@ impl GpuState {
 
                         let camera_pos = cgmath::Vector3::new(self.camera.position[0], self.camera.position[1], self.camera.position[2]);
                         let distance = (world_pos - camera_pos).magnitude();
-                        eprintln!("CHUNK_MESH: pos={:?} world={:?} dist={:.1} verts={} indices={}", 
-                                  chunk_pos, world_pos, distance, terrain_vertices.len(), terrain_indices.len());
+                        eprintln!("CHUNK_MESH: pos={:?} world={:?} dist={:.1} verts={} indices={} cam_y={:.1}", 
+                                  chunk_pos, world_pos, distance, terrain_vertices.len(), terrain_indices.len(), self.camera.position[1]);
                         render_objects.push(render_object);
                         self.dirty_chunks.remove(&chunk_pos);
                         self.chunks_with_meshes.insert(chunk_pos);

@@ -108,8 +108,8 @@ pub mod camera_constants {
     pub const ZFAR: f32 = 10000.0;
     
     /// Default camera position (voxels)
-    /// 10m height × 10 voxels/m = 100 voxels above ground
-    pub const DEFAULT_HEIGHT: f32 = 100.0;
+    /// 7m height × 10 voxels/m = 70 voxels above ground (just above sea level)
+    pub const DEFAULT_HEIGHT: f32 = 70.0;
     
     /// Camera movement speeds (voxels/s)
     pub const WALK_SPEED: f32 = 43.0;      // ~4.3 m/s walking
