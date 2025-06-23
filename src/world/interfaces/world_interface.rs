@@ -486,7 +486,7 @@ pub struct WorldConfig {
 impl Default for WorldConfig {
     fn default() -> Self {
         Self {
-            chunk_size: 32,
+            chunk_size: 50, // CHUNK SIZE IS 50, NOT 32!
             render_distance: 8,
             max_loaded_chunks: 1000,
         }

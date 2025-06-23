@@ -5,8 +5,8 @@
 
 #![allow(deprecated)]
 
-// Include constants from root constants.rs
-include!("../../constants.rs");
+// Import constants properly
+use crate::constants::buffer_layouts;
 
 use crate::camera::{
     build_projection_matrix, build_view_matrix, calculate_forward_vector, camera_rotate,
@@ -33,7 +33,7 @@ use crate::world::compute::GpuLightPropagator;
 use crate::world::lighting::{create_default_day_night_cycle, update_day_night_cycle};
 use crate::world::lighting::{DayNightCycleData, LightType, LightUpdate};
 use crate::world::{
-    core::{Ray, RaycastHit},
+    core::{ChunkPos, Ray, RaycastHit},
     interfaces::{ChunkManager, WorldConfig, WorldInterface},
     management::{ParallelWorld, ParallelWorldConfig, SpawnFinder, UnifiedWorldManager},
 };
@@ -1046,6 +1046,43 @@ impl GpuState {
         log::info!("[GpuState::new] - Surface format: {:?}", surface_format);
         log::info!("[GpuState::new] - Present mode: {:?}", present_mode);
 
+        // Load initial chunks around spawn position
+        log::info!("[GpuState::new] Loading initial chunks around spawn position...");
+        let chunk_size = world.config().chunk_size as i32;
+        let spawn_chunk = ChunkPos {
+            x: (temp_spawn_x as i32) / chunk_size,
+            y: (temp_spawn_y as i32) / chunk_size,
+            z: (temp_spawn_z as i32) / chunk_size,
+        };
+        
+        // Load chunks in view distance around spawn
+        let view_distance = engine_config.render_distance as i32;
+        let mut loaded_count = 0;
+        for dy in -1..=1 {
+            for dx in -view_distance..=view_distance {
+                for dz in -view_distance..=view_distance {
+                    let chunk_pos = ChunkPos {
+                        x: spawn_chunk.x + dx,
+                        y: spawn_chunk.y + dy,
+                        z: spawn_chunk.z + dz,
+                    };
+                    
+                    if !world.is_chunk_loaded(chunk_pos) {
+                        match world.load_chunk(chunk_pos) {
+                            Ok(_) => {
+                                loaded_count += 1;
+                                log::debug!("[GpuState::new] Loaded chunk {:?}", chunk_pos);
+                            }
+                            Err(e) => {
+                                log::error!("[GpuState::new] Failed to load chunk {:?}: {:?}", chunk_pos, e);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        log::info!("[GpuState::new] Loaded {} initial chunks around spawn position", loaded_count);
+
         Ok(Self {
             window,
             surface,
@@ -1089,6 +1126,77 @@ impl GpuState {
         })
     }
 
+    /// Load chunks around the player's current position
+    fn load_chunks_around_player(&mut self) {
+        let chunk_size = self.world.config().chunk_size as i32;
+        let render_distance = self.world.config().view_distance;
+        
+        // Get player's current chunk
+        let player_chunk = ChunkPos {
+            x: (self.camera.position[0] as i32) / chunk_size,
+            y: (self.camera.position[1] as i32) / chunk_size,
+            z: (self.camera.position[2] as i32) / chunk_size,
+        };
+        
+        // Check if we've moved to a different chunk
+        use std::cell::RefCell;
+        thread_local! {
+            static LAST_PLAYER_CHUNK: RefCell<Option<ChunkPos>> = RefCell::new(None);
+        }
+        
+        let should_load = LAST_PLAYER_CHUNK.with(|last| {
+            let mut last_ref = last.borrow_mut();
+            if last_ref.as_ref() != Some(&player_chunk) {
+                *last_ref = Some(player_chunk);
+                true
+            } else {
+                false
+            }
+        });
+        
+        if !should_load {
+            return;
+        }
+        
+        log::debug!("[load_chunks_around_player] Player moved to chunk {:?}, loading nearby chunks", player_chunk);
+        
+        // Load chunks in a cylinder around the player
+        let mut loaded_count = 0;
+        for dy in -1..=1 { // Load 3 chunks vertically
+            for dx in -render_distance..=render_distance {
+                for dz in -render_distance..=render_distance {
+                    // Skip chunks outside view distance circle
+                    if dx * dx + dz * dz > render_distance * render_distance {
+                        continue;
+                    }
+                    
+                    let chunk_pos = ChunkPos {
+                        x: player_chunk.x + dx,
+                        y: player_chunk.y + dy,
+                        z: player_chunk.z + dz,
+                    };
+                    
+                    if !self.world.is_chunk_loaded(chunk_pos) {
+                        match self.world.load_chunk(chunk_pos) {
+                            Ok(_) => {
+                                loaded_count += 1;
+                                // Mark as dirty so it gets meshed
+                                self.dirty_chunks.insert(chunk_pos);
+                            }
+                            Err(e) => {
+                                log::error!("[load_chunks_around_player] Failed to load chunk {:?}: {:?}", chunk_pos, e);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        if loaded_count > 0 {
+            log::info!("[load_chunks_around_player] Loaded {} chunks around player at {:?}", loaded_count, player_chunk);
+        }
+    }
+    
     /// Cast ray through parallel world
     fn cast_ray_parallel(&self, ray: Ray, max_distance: f32) -> Option<RaycastHit> {
         // Use a simple ray casting implementation that works with ParallelWorld
@@ -1231,6 +1339,9 @@ impl GpuState {
 
         // Get chunk size from config
         let chunk_size = self.world.config().chunk_size;
+        
+        // Load chunks around player position
+        self.load_chunks_around_player();
 
         // Recovery mechanism: Force dirty all chunks if no objects for too long
         if self.frames_without_objects >= 600 && self.chunks_with_meshes.len() > 0 {
@@ -1460,6 +1571,30 @@ impl GpuState {
                         // Check if we generated any geometry
                         if terrain_vertices.is_empty() {
                             log::warn!("[GpuState::update_chunk_renderer] No terrain geometry generated for chunk {:?}", chunk_pos);
+                            
+                            // Debug: Check if chunk has any non-air blocks
+                            let chunk_world_pos = cgmath::Vector3::new(
+                                (chunk_pos.x * chunk_size as i32) as f32,
+                                (chunk_pos.y * chunk_size as i32) as f32,
+                                (chunk_pos.z * chunk_size as i32) as f32,
+                            );
+                            let mut non_air_count = 0;
+                            for dx in 0..chunk_size {
+                                for dy in 0..chunk_size {
+                                    for dz in 0..chunk_size {
+                                        let pos = VoxelPos {
+                                            x: chunk_world_pos.x as i32 + dx as i32,
+                                            y: chunk_world_pos.y as i32 + dy as i32,
+                                            z: chunk_world_pos.z as i32 + dz as i32,
+                                        };
+                                        let block = self.world.get_block(pos);
+                                        if block != BlockId::AIR {
+                                            non_air_count += 1;
+                                        }
+                                    }
+                                }
+                            }
+                            log::warn!("[GpuState::update_chunk_renderer] Chunk {:?} has {} non-air blocks but no geometry", chunk_pos, non_air_count);
                             continue;
                         }
 
@@ -2583,7 +2718,7 @@ pub async fn run_app<G: GameData + 'static>(
                 Event::AboutToWait => {
                     // Only request redraw if enough time has passed (FPS target)
                     let now = std::time::Instant::now();
-                    let target_frametime = std::time::Duration::from_secs_f64(1.0 / gameplay::TARGET_FPS as f64);
+                    let target_frametime = std::time::Duration::from_secs_f64(1.0 / crate::constants::gameplay::TARGET_FPS as f64);
 
                     if let Some(last_frame) = gpu_state.last_frame_time {
                         let elapsed = now.duration_since(last_frame);
