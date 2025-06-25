@@ -95,12 +95,26 @@ pub fn create_mesh_generation_pipeline(
 
 /// Create GPU mesh buffer
 pub fn create_gpu_mesh_buffer(device: &wgpu::Device, buffer_id: u32) -> GpuMeshBuffer {
+    // CRITICAL FIX: Buffer 0 is used for merged meshes and needs to be MUCH larger
+    let (vertex_buffer_size, index_buffer_size) = if buffer_id == 0 {
+        // Buffer 0 holds ALL merged meshes - use the large constants
+        (
+            crate::constants::buffer_sizes::VERTEX_BUFFER_SIZE,
+            crate::constants::buffer_sizes::INDEX_BUFFER_SIZE,
+        )
+    } else {
+        // Other buffers are for individual chunks
+        let vertex_size = std::mem::size_of::<crate::renderer::vertex::Vertex>();
+        (
+            (MAX_VERTICES_PER_CHUNK * vertex_size) as u64,
+            (MAX_INDICES_PER_CHUNK * std::mem::size_of::<u32>()) as u64,
+        )
+    };
+    
     // Vertex buffer (interleaved: position + color + normal + light + ao)
-    // Size calculation: 11 floats per vertex (3 + 3 + 3 + 1 + 1)
-    let vertex_size = std::mem::size_of::<crate::renderer::vertex::Vertex>();
     let vertices = device.create_buffer(&wgpu::BufferDescriptor {
         label: Some(&format!("Mesh {} Vertices", buffer_id)),
-        size: (MAX_VERTICES_PER_CHUNK * vertex_size) as u64,
+        size: vertex_buffer_size,
         usage: wgpu::BufferUsages::STORAGE
             | wgpu::BufferUsages::VERTEX
             | wgpu::BufferUsages::COPY_SRC
@@ -111,7 +125,7 @@ pub fn create_gpu_mesh_buffer(device: &wgpu::Device, buffer_id: u32) -> GpuMeshB
     // Index buffer
     let indices = device.create_buffer(&wgpu::BufferDescriptor {
         label: Some(&format!("Mesh {} Indices", buffer_id)),
-        size: (MAX_INDICES_PER_CHUNK * std::mem::size_of::<u32>()) as u64,
+        size: index_buffer_size,
         usage: wgpu::BufferUsages::STORAGE
             | wgpu::BufferUsages::INDEX
             | wgpu::BufferUsages::COPY_SRC
@@ -148,6 +162,33 @@ pub fn create_mesh_bind_group(
     // For simplicity, bind the first mesh buffer
     // In practice, you'd cycle through buffers
     let mesh = &mesh_buffers[0];
+
+    crate::create_bind_group!(
+        device,
+        "Mesh Generation Bind Group",
+        layout,
+        0 => world_buffer.as_entire_binding(),
+        1 => request_buffer.as_entire_binding(),
+        2 => mesh.vertices.as_entire_binding(),
+        3 => mesh.indices.as_entire_binding(),
+        4 => mesh.metadata.as_entire_binding(),
+        5 => indirect_buffer.as_entire_binding(),
+        6 => params_buffer.as_entire_binding()
+    )
+}
+
+/// Create bind group for mesh generation with specific buffer
+pub fn create_mesh_bind_group_for_buffer(
+    device: &wgpu::Device,
+    layout: &wgpu::BindGroupLayout,
+    world_buffer: &wgpu::Buffer,
+    request_buffer: &wgpu::Buffer,
+    mesh_buffers: &[GpuMeshBuffer],
+    indirect_buffer: &wgpu::Buffer,
+    params_buffer: &wgpu::Buffer,
+    buffer_index: u32,
+) -> wgpu::BindGroup {
+    let mesh = &mesh_buffers[buffer_index as usize];
 
     crate::create_bind_group!(
         device,

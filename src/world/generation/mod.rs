@@ -1,47 +1,36 @@
-//! Unified world generation - GPU TerrainGeneratorSOA (primary) + CPU generators (fallback)
+//! GPU-first world generation - TerrainGeneratorSOA
 //!
-//! This module provides unified world generation that can operate in either
-//! GPU-accelerated mode (primary) or CPU fallback mode, with the same interface.
+//! This module provides GPU-accelerated world generation,
+//! following the GPU-first architecture principle.
 
 use crate::constants::terrain::SEA_LEVEL;
 
 mod caves;
-mod cpu_fallback;
-mod cpu_generator_base;
 mod gpu_world_generator;
 mod ores;
-mod terrain_cpu;
 mod terrain_gpu;
 mod unified_generator;
 
-// GPU generation (primary)
+// GPU generation
 pub use gpu_world_generator::GpuWorldGenerator;
 pub use terrain_gpu::{TerrainGeneratorSOA, TerrainGeneratorSOABuilder};
 
-// CPU generation (fallback)
+// Supporting generators (these should also be GPU-based eventually)
 pub use caves::CaveGenerator;
-pub use cpu_fallback::CpuWorldGenerator;
 pub use ores::OreGenerator;
-pub use terrain_cpu::{DefaultWorldGenerator, TerrainGenerator};
 
 // Unified generation interface
 pub use unified_generator::{
     BlockIds, GeneratorConfig, GeneratorError, UnifiedGenerator, WorldGenerator,
 };
 
-/// Create a unified generator that automatically chooses GPU or CPU backend
+/// Create a GPU-based generator
 pub async fn create_unified_generator(
-    device: Option<std::sync::Arc<wgpu::Device>>,
-    buffer_manager: Option<std::sync::Arc<crate::gpu::GpuBufferManager>>,
+    device: std::sync::Arc<wgpu::Device>,
+    buffer_manager: std::sync::Arc<crate::gpu::GpuBufferManager>,
     config: GeneratorConfig,
 ) -> Result<UnifiedGenerator, GeneratorError> {
-    if let (Some(device), Some(buffer_manager)) = (device, buffer_manager) {
-        // GPU-first path
-        UnifiedGenerator::new_gpu(device, buffer_manager, config).await
-    } else {
-        // CPU fallback path
-        UnifiedGenerator::new_cpu(config)
-    }
+    UnifiedGenerator::new_gpu(device, buffer_manager, config).await
 }
 
 /// Terrain generation parameters that work across CPU and GPU backends
@@ -83,11 +72,4 @@ mod tests {
         assert_eq!(params.sea_level, SEA_LEVEL as f32);
     }
 
-    #[tokio::test]
-    async fn test_cpu_generator_creation() {
-        let config = GeneratorConfig::default();
-        let generator = create_unified_generator(None, None, config).await;
-        assert!(generator.is_ok());
-        assert!(!generator.unwrap().is_gpu());
-    }
 }

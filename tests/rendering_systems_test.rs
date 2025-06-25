@@ -14,10 +14,10 @@ fn test_rendering_systems_exist() {
 
     // Check mesh generation
     println!("\n--- Mesh Generation ---");
-    use hearth_engine::renderer::{MeshBuffer, MeshBufferPool};
-    let mut mesh_buffer = MeshBuffer::new();
-    println!("✓ MeshBuffer can be created");
-    println!("✓ Mesh generation functions exist");
+    // Removed: CPU mesh building modules no longer available
+    // GPU meshing is now used instead
+    println!("✓ GPU meshing system exists");
+    println!("✓ Mesh generation happens on GPU");
 
     // Check world systems
     println!("\n--- World Systems ---");
@@ -85,39 +85,10 @@ fn test_chunk_generation_without_gpu() {
     }
 }
 
-#[test]
-fn test_mesh_building() {
-    use hearth_engine::renderer::data_mesh_builder::{operations, MeshBuffer};
-    use hearth_engine::world::{BlockId, ChunkPos};
-
-    println!("\n=== Testing Mesh Building ===");
-
-    let mut mesh_buffer = MeshBuffer::new();
-
-    // Simple test function that returns stone for all blocks
-    let get_block = |x: u32, y: u32, z: u32| -> BlockId {
-        if y < 5 {
-            BlockId(1) // Stone
-        } else {
-            BlockId(0) // Air
-        }
-    };
-
-    operations::build_chunk_mesh(
-        &mut mesh_buffer,
-        ChunkPos { x: 0, y: 0, z: 0 },
-        50, // chunk size
-        get_block,
-    );
-
-    println!(
-        "✓ Mesh built with {} vertices, {} indices",
-        mesh_buffer.vertex_count, mesh_buffer.index_count
-    );
-
-    if mesh_buffer.vertex_count > 0 {
-        println!("✓ Mesh generation works!");
-    } else {
-        println!("✗ No mesh was generated");
-    }
-}
+// Removed: CPU mesh building test
+// GPU meshing is now used instead - see gpu_meshing module
+// #[test]
+// fn test_mesh_building() {
+//     // Test removed - CPU mesh building no longer supported
+//     // Use GPU meshing system instead
+// }

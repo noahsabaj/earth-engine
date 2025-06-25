@@ -4,8 +4,10 @@ use super::{capabilities, UnifiedInterface};
 use crate::world::{
     core::{ChunkPos, VoxelPos},
     generation::{TerrainParams, UnifiedGenerator, WorldGenerator},
-    storage::ChunkSoA,
+    storage::TempChunk,
 };
+use crate::constants::core::CHUNK_SIZE;
+use crate::constants::monitoring::PROFILING_SESSION_TIMEOUT_MS;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -193,7 +195,7 @@ impl GenerationRequest {
 #[derive(Debug)]
 pub struct GenerationResult {
     pub chunk_pos: ChunkPos,
-    pub chunk: Option<ChunkSoA>,
+    pub chunk: Option<TempChunk>,
     pub generation_time_ms: f64,
     pub metadata: HashMap<String, f64>,
 }
@@ -244,10 +246,10 @@ mod tests {
     #[test]
     fn test_generation_request_creation() {
         let chunk_pos = ChunkPos { x: 0, y: 0, z: 0 };
-        let request = GenerationRequest::new(chunk_pos, 32);
+        let request = GenerationRequest::new(chunk_pos, CHUNK_SIZE);
 
         assert_eq!(request.chunk_pos, chunk_pos);
-        assert_eq!(request.chunk_size, 32);
+        assert_eq!(request.chunk_size, CHUNK_SIZE);
         assert_eq!(request.priority, GenerationPriority::Normal);
     }
 
@@ -263,13 +265,13 @@ mod tests {
         let chunk_pos = ChunkPos { x: 1, y: 2, z: 3 };
         let params = TerrainParams::default();
 
-        let request = GenerationRequest::new(chunk_pos, 32)
+        let request = GenerationRequest::new(chunk_pos, CHUNK_SIZE)
             .with_terrain_params(params)
             .with_priority(GenerationPriority::High)
-            .with_timeout(5000);
+            .with_timeout(PROFILING_SESSION_TIMEOUT_MS as u32);
 
         assert!(request.terrain_params.is_some());
         assert_eq!(request.priority, GenerationPriority::High);
-        assert_eq!(request.timeout_ms, Some(5000));
+        assert_eq!(request.timeout_ms, Some(PROFILING_SESSION_TIMEOUT_MS as u32));
     }
 }

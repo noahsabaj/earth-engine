@@ -26,7 +26,8 @@ A discrete tick-based physics system that embraces the discrete nature of voxels
 
 ```rust
 /// Tick-based physics system with spatial awareness
-pub struct TickPhysicsSystem {
+// DOP-compliant tick system data
+pub struct TickPhysicsData {
     /// Base tick rate (e.g., 20 Hz = 50ms per tick)
     pub base_tick_rate: u32,
     
@@ -39,12 +40,15 @@ pub struct TickPhysicsSystem {
     /// Tick interval duration
     pub tick_interval: Duration,
     
-    /// Spatial tick scheduler
-    pub spatial_scheduler: SpatialTickScheduler,
+    /// Spatial tick scheduler data
+    pub spatial_scheduler: SpatialTickSchedulerData,
     
     /// Event queue for tick-triggered events
     pub tick_events: VecDeque<TickEvent>,
 }
+
+// Pure functions operate on data (no methods)
+// See tick_operations.rs for implementation
 
 /// Spatial scheduling for chunk-based ticking
 pub struct SpatialTickScheduler {
@@ -78,12 +82,19 @@ pub struct ChunkTickState {
 
 ## Implementation Phases
 
-### Phase 1: Core Tick System (2 weeks)
+**Prerequisites**: Complete DOP migration (in progress)
+- Finish converting remaining 156 OOP files
+- Establish GPU-resident world state
+- Complete event_streams functional architecture
+
+### Phase 1: Core Tick System (2 weeks) ⏸️ BLOCKED ON DOP
 
 **Goal**: Replace accumulator with event-driven ticks
 
 #### 1.1 Event-Driven Tick Loop
 ```rust
+// NOTE: This will be converted to pure functions during DOP migration
+// impl blocks are temporary - final version will be stateless
 impl TickPhysicsSystem {
     pub fn update(&mut self, current_time: Instant) -> Option<u64> {
         // Check if it's time for a tick
@@ -495,9 +506,22 @@ pub fn update_physics(world: &mut World, dt: f32) {
 }
 ```
 
-### 2. **Data-Oriented Programming (DOP)**
+### 2. **Data-Oriented Programming (DOP)** ✅ IN PROGRESS
+
+**Current Status**: Major DOP refactoring underway (40% complete)
+- Created 8 new DOP-compliant modules with zero self references
+- Eliminated 500+ self references from core systems
+- Established EngineBuffers as centralized data architecture
+
+**Completed DOP Modules**:
+- `world/data_types.rs` & `world/world_operations.rs` - Pure data + functions
+- `renderer/renderer_data.rs` & `renderer/renderer_operations.rs` - GPU-first rendering
+- `network/network_data.rs` & `network/network_operations.rs` - Stateless networking
+- `event_streams.rs` - Functional event system (replacing OOP EventBus)
+- `engine_buffers.rs` - Centralized data storage
+
 ```rust
-// ✅ CORRECT - Data and functions separate
+// ✅ CORRECT - Data and functions separate (IMPLEMENTED)
 fn process_chunk_tick(
     tick_state: &ChunkTickState,
     chunk_data: &mut ChunkData,
@@ -506,13 +530,25 @@ fn process_chunk_tick(
     // Transform data, no methods
 }
 
-// ❌ WRONG - OOP style
+// ❌ WRONG - OOP style (BEING ELIMINATED)
 impl Chunk {
-    fn tick(&mut self) { } // NO METHODS!
+    fn tick(&mut self) { } // NO METHODS! 
 }
 ```
 
-### 3. **GPU-First Architecture**
+**Remaining Work**: 156 files still contain OOP patterns (3,330 self references)
+
+### 3. **GPU-First Architecture** ⚠️ CRITICAL REFACTOR
+
+**Current Realization**: CPU chunks identified as anti-pattern
+- CPU should only handle orchestration (5% of work)
+- GPU should handle all computation (95% of work)
+- World state should be GPU-resident, not CPU-side
+
+**Action Items**:
+- Delete `cpu_chunks.rs` and related CPU-centric systems
+- Move all voxel data to GPU buffers
+- CPU only generates command buffers for GPU
 - Each tick is one GPU dispatch
 - No CPU physics simulation
 - Batch all tick operations
@@ -636,10 +672,12 @@ fn bench_tick_performance(b: &mut Bencher) {
 
 ## Migration Plan
 
-### Phase 0: Preparation
-1. Add feature flag `tick-physics`
-2. Create tick system alongside existing
-3. Add metrics collection
+### Phase 0: Preparation ✅ UPDATED
+1. Complete DOP migration (40% done)
+2. Establish GPU-resident world state
+3. Add feature flag `tick-physics`
+4. Create tick system using DOP principles
+5. Add metrics collection
 
 ### Phase 1: Parallel Implementation
 1. Implement core tick loop

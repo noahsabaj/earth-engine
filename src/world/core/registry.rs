@@ -1,27 +1,47 @@
-use super::{Block, BlockId};
+use super::BlockId;
+use crate::world::blocks::block_data::{BlockProperties, BLOCK_PROPERTIES};
 use std::collections::HashMap;
-use std::sync::Arc;
 
-/// Registry that stores all block types
+/// Block registration data
+#[derive(Debug, Clone)]
+pub struct BlockRegistration {
+    pub id: BlockId,
+    pub name: String,
+    pub properties: BlockProperties,
+}
+
+/// Registry that stores all block types as data
 pub struct BlockRegistry {
-    blocks: HashMap<BlockId, Arc<dyn Block>>,
+    /// Map from BlockId to properties
+    blocks: HashMap<BlockId, BlockProperties>,
+    /// Map from name to BlockId
     name_to_id: HashMap<String, BlockId>,
+    /// All registered blocks
+    registrations: Vec<BlockRegistration>,
     next_engine_id: u16,
     next_game_id: u16,
 }
 
 impl BlockRegistry {
     pub fn new() -> Self {
-        Self {
+        let mut registry = Self {
             blocks: HashMap::new(),
             name_to_id: HashMap::new(),
+            registrations: Vec::new(),
             next_engine_id: 1, // 0 is reserved for AIR, engine blocks use 1-99
             next_game_id: 100, // Game blocks start at 100
+        };
+        
+        // Register built-in blocks from the static table
+        for (id, properties) in BLOCK_PROPERTIES {
+            registry.blocks.insert(*id, *properties);
         }
+        
+        registry
     }
 
-    /// Register a new block type
-    pub fn register<B: Block + 'static>(&mut self, name: &str, block: B) -> BlockId {
+    /// Register a new block type with properties
+    pub fn register_block(&mut self, name: &str, properties: BlockProperties) -> BlockId {
         // Debug logging to track ID assignment
         log::info!("BlockRegistry::register called for '{}'", name);
         log::info!("  - Current next_engine_id: {}, next_game_id: {}", self.next_engine_id, self.next_game_id);
@@ -51,21 +71,37 @@ impl BlockRegistry {
             id
         };
 
-        self.blocks.insert(id, Arc::new(block));
+        self.blocks.insert(id, properties);
         self.name_to_id.insert(name.to_string(), id);
+        
+        self.registrations.push(BlockRegistration {
+            id,
+            name: name.to_string(),
+            properties,
+        });
 
         log::info!("Registered block '{}' with ID {} (engine: {}, game: {})", 
                   name, id.0, self.next_engine_id, self.next_game_id);
         id
     }
 
-    /// Get a block by ID
-    pub fn get_block(&self, id: BlockId) -> Option<Arc<dyn Block>> {
-        self.blocks.get(&id).cloned()
+    /// Get block properties by ID
+    pub fn get_properties(&self, id: BlockId) -> Option<&BlockProperties> {
+        self.blocks.get(&id)
     }
 
     /// Get a block ID by name
     pub fn get_id(&self, name: &str) -> Option<BlockId> {
         self.name_to_id.get(name).copied()
+    }
+    
+    /// Get all registered blocks
+    pub fn get_registrations(&self) -> &[BlockRegistration] {
+        &self.registrations
+    }
+    
+    /// Check if a block ID is registered
+    pub fn is_registered(&self, id: BlockId) -> bool {
+        self.blocks.contains_key(&id)
     }
 }

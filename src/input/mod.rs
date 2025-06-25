@@ -7,7 +7,7 @@ pub struct InputState {
     keys_pressed: HashSet<KeyCode>,
     mouse_buttons_pressed: HashSet<MouseButton>,
     mouse_delta: (f32, f32),
-    cursor_locked: bool,
+    pub cursor_locked: bool,
     last_mouse_pos: Option<(f32, f32)>,
 }
 
@@ -89,11 +89,4 @@ impl InputState {
         self.mouse_delta = (0.0, 0.0);
     }
 
-    pub fn set_cursor_locked(&mut self, locked: bool) {
-        self.cursor_locked = locked;
-    }
-
-    pub fn is_cursor_locked(&self) -> bool {
-        self.cursor_locked
-    }
 }

@@ -1,31 +1,30 @@
-//! Game callback system for DOP-style game integration
+//! Game Gateway System - DOP-style game/engine interface
 //!
-//! This provides a way for games to register their logic with the engine
-//! without using OOP patterns. All callbacks are pure functions.
+//! This module provides a type-safe, data-oriented gateway between games and the engine.
+//! Games register data buffers and pure functions without using OOP patterns or Any types.
+//!
+//! Key principles:
+//! - No std::any::Any - use concrete data buffers
+//! - No methods or self references
+//! - Pure functions that transform data
+//! - Clear separation between engine and game data
 
 use super::GameContext;
 use crate::constants::typed_blocks;
 use crate::{BlockId, BlockRegistry, VoxelPos};
+use std::sync::Mutex;
 
-/// Game callbacks structure - holds function pointers for game logic
-/// This is pure data (function pointers are data in DOP)
+// Legacy callback system for compatibility (to be removed)
 #[derive(Clone)]
 pub struct GameCallbacks {
-    /// Register game-specific blocks
     pub register_blocks: fn(&mut BlockRegistry),
-
-    /// Update game state each frame
     pub update_game: fn(&mut dyn std::any::Any, &mut GameContext, f32),
-
-    /// Handle when a block is broken
     pub on_block_break: fn(&mut dyn std::any::Any, VoxelPos, BlockId),
-
-    /// Handle when a block is placed
     pub on_block_place: fn(&mut dyn std::any::Any, VoxelPos, BlockId),
-
-    /// Get the currently active block for placement
     pub get_active_block: fn(&dyn std::any::Any) -> BlockId,
 }
+
+// ===== Legacy Callback System (for compatibility) =====
 
 impl Default for GameCallbacks {
     fn default() -> Self {
@@ -39,7 +38,6 @@ impl Default for GameCallbacks {
     }
 }
 
-// Default implementations that do nothing
 fn default_register_blocks(_registry: &mut BlockRegistry) {}
 fn default_update_game(_game: &mut dyn std::any::Any, _ctx: &mut GameContext, _delta: f32) {}
 fn default_on_block_break(_game: &mut dyn std::any::Any, _pos: VoxelPos, _block: BlockId) {}
@@ -47,8 +45,6 @@ fn default_on_block_place(_game: &mut dyn std::any::Any, _pos: VoxelPos, _block:
 fn default_get_active_block(_game: &dyn std::any::Any) -> BlockId {
     BlockId(typed_blocks::GRASS)
 }
-
-use std::sync::Mutex;
 
 /// Global callback storage - thread-safe
 static GAME_CALLBACKS: Mutex<Option<GameCallbacks>> = Mutex::new(None);

@@ -10,7 +10,7 @@
 /// 4. Providing loose coupling through events
 /// 5. Handling cross-system synchronization
 use crate::error::{EngineError, EngineResult};
-use crate::thread_pool::{PoolCategory, ThreadPoolManager};
+use crate::thread_pool::{GpuWorkloadCategory, GpuThreadPoolData, submit_gpu_command_task};
 use parking_lot::{Mutex, RwLock};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet, VecDeque};

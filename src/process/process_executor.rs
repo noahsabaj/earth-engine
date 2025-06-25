@@ -4,7 +4,7 @@
 /// Handles resource consumption and output generation.
 use crate::instance::InstanceId;
 use crate::process::{
-    ActualOutput, ProcessData, ProcessId, ProcessStatus, ProcessType, StageValidator, StateMachine,
+    ActualOutput, ProcessData, ProcessId, ProcessStatus, ProcessType, StateMachine,
     TransformStage, TransitionAction, ValidationContext,
 };
 use std::collections::HashMap;

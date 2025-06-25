@@ -1,13 +1,13 @@
-//! Unified generation interface that works across CPU and GPU backends
+//! GPU-first generation interface
 
-use super::{DefaultWorldGenerator, TerrainParams};
+use super::TerrainParams;
 use crate::world::core::{BlockId, ChunkPos};
-use crate::world::storage::ChunkSoA;
+use crate::world::storage::TempChunk;
 
 /// Universal world generation interface
 pub trait WorldGenerator: Send + Sync {
     /// Generate a chunk at the given position
-    fn generate_chunk(&self, chunk_pos: ChunkPos, chunk_size: u32) -> ChunkSoA;
+    fn generate_chunk(&self, chunk_pos: ChunkPos, chunk_size: u32) -> TempChunk;
 
     /// Get surface height at world coordinates
     fn get_surface_height(&self, world_x: f64, world_z: f64) -> i32;
@@ -19,7 +19,9 @@ pub trait WorldGenerator: Send + Sync {
     }
 
     /// Check if this generator uses GPU backend
-    fn is_gpu(&self) -> bool;
+    fn is_gpu(&self) -> bool {
+        true // Always GPU in GPU-first architecture
+    }
 
     /// Get GPU world buffer if available
     fn get_world_buffer(
@@ -29,16 +31,11 @@ pub trait WorldGenerator: Send + Sync {
     }
 }
 
-/// Unified generator that can operate in GPU or CPU mode
-pub enum UnifiedGenerator {
-    /// GPU-accelerated generation (primary)
-    Gpu {
-        generator: Box<dyn WorldGenerator>,
-        device: std::sync::Arc<wgpu::Device>,
-        buffer_manager: std::sync::Arc<crate::gpu::GpuBufferManager>,
-    },
-    /// CPU-based generation (fallback)
-    Cpu { generator: Box<dyn WorldGenerator> },
+/// GPU-based unified generator
+pub struct UnifiedGenerator {
+    generator: Box<dyn WorldGenerator>,
+    device: std::sync::Arc<wgpu::Device>,
+    buffer_manager: std::sync::Arc<crate::gpu::GpuBufferManager>,
 }
 
 impl UnifiedGenerator {
@@ -48,7 +45,7 @@ impl UnifiedGenerator {
         device: std::sync::Arc<wgpu::Device>,
         buffer_manager: std::sync::Arc<crate::gpu::GpuBufferManager>,
     ) -> Result<Self, GeneratorError> {
-        Ok(UnifiedGenerator::Gpu {
+        Ok(UnifiedGenerator {
             generator,
             device,
             buffer_manager,
@@ -89,66 +86,36 @@ impl UnifiedGenerator {
             world_buffer,
         );
 
-        Ok(UnifiedGenerator::Gpu {
+        Ok(UnifiedGenerator {
             generator: Box::new(gpu_generator) as Box<dyn WorldGenerator>,
             device,
             buffer_manager,
         })
     }
 
-    /// Create CPU-based generator with a provided generator
-    pub fn new_cpu_with_generator(
-        generator: Box<dyn WorldGenerator>,
-    ) -> Result<Self, GeneratorError> {
-        Ok(UnifiedGenerator::Cpu { generator })
-    }
-
-    /// Create CPU-based generator
-    pub fn new_cpu(config: GeneratorConfig) -> Result<Self, GeneratorError> {
-        let generator = DefaultWorldGenerator::new(config.terrain_params.seed);
-
-        Ok(UnifiedGenerator::Cpu {
-            generator: Box::new(generator) as Box<dyn WorldGenerator>,
-        })
-    }
-
-    /// Check if using GPU backend
+    /// Check if using GPU backend (always true)
     pub fn is_gpu(&self) -> bool {
-        matches!(self, UnifiedGenerator::Gpu { .. })
+        true
     }
 }
 
 impl WorldGenerator for UnifiedGenerator {
-    fn generate_chunk(&self, chunk_pos: ChunkPos, chunk_size: u32) -> ChunkSoA {
-        match self {
-            UnifiedGenerator::Gpu { generator, .. } => {
-                // Delegate to the actual generator
-                generator.generate_chunk(chunk_pos, chunk_size)
-            }
-            UnifiedGenerator::Cpu { generator } => generator.generate_chunk(chunk_pos, chunk_size),
-        }
+    fn generate_chunk(&self, chunk_pos: ChunkPos, chunk_size: u32) -> TempChunk {
+        self.generator.generate_chunk(chunk_pos, chunk_size)
     }
 
     fn get_surface_height(&self, world_x: f64, world_z: f64) -> i32 {
-        match self {
-            UnifiedGenerator::Gpu { generator, .. } => {
-                generator.get_surface_height(world_x, world_z)
-            }
-            UnifiedGenerator::Cpu { generator } => generator.get_surface_height(world_x, world_z),
-        }
+        self.generator.get_surface_height(world_x, world_z)
     }
 
     fn is_gpu(&self) -> bool {
-        self.is_gpu()
+        true
     }
 
     fn get_world_buffer(
         &self,
     ) -> Option<std::sync::Arc<std::sync::Mutex<crate::world::storage::WorldBuffer>>> {
-        match self {
-            UnifiedGenerator::Gpu { generator, .. } => generator.get_world_buffer(),
-            UnifiedGenerator::Cpu { generator } => generator.get_world_buffer(),
-        }
+        self.generator.get_world_buffer()
     }
 }
 
@@ -197,15 +164,30 @@ impl Default for BlockIds {
 /// Generation errors
 #[derive(Debug, thiserror::Error)]
 pub enum GeneratorError {
-    #[error("GPU initialization failed: {message}")]
-    GpuInitFailed { message: String },
-
-    #[error("Invalid configuration: {field}")]
-    InvalidConfig { field: String },
-
-    #[error("Backend not available: {backend}")]
-    BackendNotAvailable { backend: String },
-    
     #[error("Initialization error: {0}")]
     InitError(String),
+
+    #[error("GPU operation failed: {0}")]
+    GpuError(String),
+
+    #[error("Invalid configuration: {0}")]
+    ConfigError(String),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_generator_config_default() {
+        let config = GeneratorConfig::default();
+        assert!(config.use_vectorization);
+    }
+
+    #[test]
+    fn test_block_ids_default() {
+        let block_ids = BlockIds::default();
+        assert_eq!(block_ids.air, BlockId::AIR);
+        assert_eq!(block_ids.grass, BlockId::GRASS);
+    }
 }

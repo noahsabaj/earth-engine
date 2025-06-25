@@ -62,27 +62,26 @@ pub struct ParticleData {
     pub color_curve_param2: Vec<f32>,
 }
 
-impl ParticleData {
-    /// Create a new particle data buffer with pre-allocated capacity
-    pub fn new(capacity: usize) -> Self {
-        // Safety check: prevent excessive memory allocations
-        let safe_capacity = if capacity > MAX_PARTICLES {
-            eprintln!(
-                "WARNING: ParticleData capacity {} exceeds MAX_PARTICLES {}, clamping",
-                capacity, MAX_PARTICLES
-            );
-            MAX_PARTICLES
-        } else if capacity > 100_000_000 {
-            // 100M particles would be ~13GB
-            eprintln!(
-                "WARNING: ParticleData capacity {} is extremely large, clamping to 100K",
-                capacity
-            );
-            100_000
-        } else {
+/// Create a new particle data buffer with pre-allocated capacity
+pub fn create_particle_data(capacity: usize) -> ParticleData {
+    // Safety check: prevent excessive memory allocations
+    let safe_capacity = if capacity > MAX_PARTICLES {
+        eprintln!(
+            "WARNING: ParticleData capacity {} exceeds MAX_PARTICLES {}, clamping",
+            capacity, MAX_PARTICLES
+        );
+        MAX_PARTICLES
+    } else if capacity > 100_000_000 {
+        // 100M particles would be ~13GB
+        eprintln!(
+            "WARNING: ParticleData capacity {} is extremely large, clamping to 100K",
             capacity
-        };
-        Self {
+        );
+        100_000
+    } else {
+        capacity
+    };
+    ParticleData {
             count: 0,
 
             position_x: Vec::with_capacity(safe_capacity),
@@ -128,158 +127,157 @@ impl ParticleData {
             color_curve_type: Vec::with_capacity(safe_capacity),
             color_curve_param1: Vec::with_capacity(safe_capacity),
             color_curve_param2: Vec::with_capacity(safe_capacity),
-        }
+    }
+}
+
+/// Clear all particle data
+pub fn clear_particle_data(data: &mut ParticleData) {
+    data.count = 0;
+
+    data.position_x.clear();
+    data.position_y.clear();
+    data.position_z.clear();
+
+    data.velocity_x.clear();
+    data.velocity_y.clear();
+    data.velocity_z.clear();
+
+    data.acceleration_x.clear();
+    data.acceleration_y.clear();
+    data.acceleration_z.clear();
+
+    data.color_r.clear();
+    data.color_g.clear();
+    data.color_b.clear();
+    data.color_a.clear();
+
+    data.size.clear();
+
+    data.lifetime.clear();
+    data.max_lifetime.clear();
+
+    data.particle_type.clear();
+
+    data.gravity_multiplier.clear();
+    data.drag.clear();
+    data.bounce.clear();
+
+    data.rotation.clear();
+    data.rotation_speed.clear();
+    data.texture_frame.clear();
+    data.animation_speed.clear();
+    data.emissive.clear();
+    data.emission_intensity.clear();
+
+    data.size_curve_type.clear();
+    data.size_curve_param1.clear();
+    data.size_curve_param2.clear();
+    data.size_curve_param3.clear();
+
+    data.color_curve_type.clear();
+    data.color_curve_param1.clear();
+    data.color_curve_param2.clear();
+}
+
+/// Remove particle at index by swapping with last
+pub fn remove_particle_swap(data: &mut ParticleData, index: usize) {
+    if index >= data.count {
+        return;
     }
 
-    /// Clear all particle data
-    pub fn clear(&mut self) {
-        self.count = 0;
+    let last = data.count - 1;
+    if index != last {
+        data.position_x.swap(index, last);
+        data.position_y.swap(index, last);
+        data.position_z.swap(index, last);
 
-        self.position_x.clear();
-        self.position_y.clear();
-        self.position_z.clear();
+        data.velocity_x.swap(index, last);
+        data.velocity_y.swap(index, last);
+        data.velocity_z.swap(index, last);
 
-        self.velocity_x.clear();
-        self.velocity_y.clear();
-        self.velocity_z.clear();
+        data.acceleration_x.swap(index, last);
+        data.acceleration_y.swap(index, last);
+        data.acceleration_z.swap(index, last);
 
-        self.acceleration_x.clear();
-        self.acceleration_y.clear();
-        self.acceleration_z.clear();
+        data.color_r.swap(index, last);
+        data.color_g.swap(index, last);
+        data.color_b.swap(index, last);
+        data.color_a.swap(index, last);
 
-        self.color_r.clear();
-        self.color_g.clear();
-        self.color_b.clear();
-        self.color_a.clear();
+        data.size.swap(index, last);
 
-        self.size.clear();
+        data.lifetime.swap(index, last);
+        data.max_lifetime.swap(index, last);
 
-        self.lifetime.clear();
-        self.max_lifetime.clear();
+        data.particle_type.swap(index, last);
 
-        self.particle_type.clear();
+        data.gravity_multiplier.swap(index, last);
+        data.drag.swap(index, last);
+        data.bounce.swap(index, last);
 
-        self.gravity_multiplier.clear();
-        self.drag.clear();
-        self.bounce.clear();
+        data.rotation.swap(index, last);
+        data.rotation_speed.swap(index, last);
+        data.texture_frame.swap(index, last);
+        data.animation_speed.swap(index, last);
+        data.emissive.swap(index, last);
+        data.emission_intensity.swap(index, last);
 
-        self.rotation.clear();
-        self.rotation_speed.clear();
-        self.texture_frame.clear();
-        self.animation_speed.clear();
-        self.emissive.clear();
-        self.emission_intensity.clear();
+        data.size_curve_type.swap(index, last);
+        data.size_curve_param1.swap(index, last);
+        data.size_curve_param2.swap(index, last);
+        data.size_curve_param3.swap(index, last);
 
-        self.size_curve_type.clear();
-        self.size_curve_param1.clear();
-        self.size_curve_param2.clear();
-        self.size_curve_param3.clear();
-
-        self.color_curve_type.clear();
-        self.color_curve_param1.clear();
-        self.color_curve_param2.clear();
+        data.color_curve_type.swap(index, last);
+        data.color_curve_param1.swap(index, last);
+        data.color_curve_param2.swap(index, last);
     }
 
-    /// Remove particle at index by swapping with last
-    pub fn remove_swap(&mut self, index: usize) {
-        if index >= self.count {
-            return;
-        }
+    // Remove last element
+    data.position_x.pop();
+    data.position_y.pop();
+    data.position_z.pop();
 
-        let last = self.count - 1;
-        if index != last {
-            self.position_x.swap(index, last);
-            self.position_y.swap(index, last);
-            self.position_z.swap(index, last);
+    data.velocity_x.pop();
+    data.velocity_y.pop();
+    data.velocity_z.pop();
 
-            self.velocity_x.swap(index, last);
-            self.velocity_y.swap(index, last);
-            self.velocity_z.swap(index, last);
+    data.acceleration_x.pop();
+    data.acceleration_y.pop();
+    data.acceleration_z.pop();
 
-            self.acceleration_x.swap(index, last);
-            self.acceleration_y.swap(index, last);
-            self.acceleration_z.swap(index, last);
+    data.color_r.pop();
+    data.color_g.pop();
+    data.color_b.pop();
+    data.color_a.pop();
 
-            self.color_r.swap(index, last);
-            self.color_g.swap(index, last);
-            self.color_b.swap(index, last);
-            self.color_a.swap(index, last);
+    data.size.pop();
 
-            self.size.swap(index, last);
+    data.lifetime.pop();
+    data.max_lifetime.pop();
 
-            self.lifetime.swap(index, last);
-            self.max_lifetime.swap(index, last);
+    data.particle_type.pop();
 
-            self.particle_type.swap(index, last);
+    data.gravity_multiplier.pop();
+    data.drag.pop();
+    data.bounce.pop();
 
-            self.gravity_multiplier.swap(index, last);
-            self.drag.swap(index, last);
-            self.bounce.swap(index, last);
+    data.rotation.pop();
+    data.rotation_speed.pop();
+    data.texture_frame.pop();
+    data.animation_speed.pop();
+    data.emissive.pop();
+    data.emission_intensity.pop();
 
-            self.rotation.swap(index, last);
-            self.rotation_speed.swap(index, last);
-            self.texture_frame.swap(index, last);
-            self.animation_speed.swap(index, last);
-            self.emissive.swap(index, last);
-            self.emission_intensity.swap(index, last);
+    data.size_curve_type.pop();
+    data.size_curve_param1.pop();
+    data.size_curve_param2.pop();
+    data.size_curve_param3.pop();
 
-            self.size_curve_type.swap(index, last);
-            self.size_curve_param1.swap(index, last);
-            self.size_curve_param2.swap(index, last);
-            self.size_curve_param3.swap(index, last);
+    data.color_curve_type.pop();
+    data.color_curve_param1.pop();
+    data.color_curve_param2.pop();
 
-            self.color_curve_type.swap(index, last);
-            self.color_curve_param1.swap(index, last);
-            self.color_curve_param2.swap(index, last);
-        }
-
-        // Remove last element
-        self.position_x.pop();
-        self.position_y.pop();
-        self.position_z.pop();
-
-        self.velocity_x.pop();
-        self.velocity_y.pop();
-        self.velocity_z.pop();
-
-        self.acceleration_x.pop();
-        self.acceleration_y.pop();
-        self.acceleration_z.pop();
-
-        self.color_r.pop();
-        self.color_g.pop();
-        self.color_b.pop();
-        self.color_a.pop();
-
-        self.size.pop();
-
-        self.lifetime.pop();
-        self.max_lifetime.pop();
-
-        self.particle_type.pop();
-
-        self.gravity_multiplier.pop();
-        self.drag.pop();
-        self.bounce.pop();
-
-        self.rotation.pop();
-        self.rotation_speed.pop();
-        self.texture_frame.pop();
-        self.animation_speed.pop();
-        self.emissive.pop();
-        self.emission_intensity.pop();
-
-        self.size_curve_type.pop();
-        self.size_curve_param1.pop();
-        self.size_curve_param2.pop();
-        self.size_curve_param3.pop();
-
-        self.color_curve_type.pop();
-        self.color_curve_param1.pop();
-        self.color_curve_param2.pop();
-
-        self.count -= 1;
-    }
+    data.count -= 1;
 }
 
 /// Particle pool for efficient allocation
@@ -290,33 +288,31 @@ pub struct ParticlePool {
     pub next_free: usize,
 }
 
-impl ParticlePool {
-    /// Create a new particle pool
-    pub fn new(capacity: usize) -> Self {
-        Self {
-            data: ParticleData::new(capacity),
-            next_free: 0,
-        }
+/// Create a new particle pool
+pub fn create_particle_pool(capacity: usize) -> ParticlePool {
+    ParticlePool {
+        data: create_particle_data(capacity),
+        next_free: 0,
+    }
+}
+
+/// Allocate space for new particles, returns start index and count allocated
+pub fn allocate_particles(pool: &mut ParticlePool, count: usize) -> Option<(usize, usize)> {
+    let available = pool.data.count.saturating_sub(pool.next_free);
+    if available == 0 {
+        return None;
     }
 
-    /// Allocate space for new particles, returns start index and count allocated
-    pub fn allocate(&mut self, count: usize) -> Option<(usize, usize)> {
-        let available = self.data.count.saturating_sub(self.next_free);
-        if available == 0 {
-            return None;
-        }
+    let allocated = count.min(available);
+    let start = pool.next_free;
+    pool.next_free += allocated;
 
-        let allocated = count.min(available);
-        let start = self.next_free;
-        self.next_free += allocated;
+    Some((start, allocated))
+}
 
-        Some((start, allocated))
-    }
-
-    /// Reset allocation pointer
-    pub fn reset(&mut self) {
-        self.next_free = 0;
-    }
+/// Reset allocation pointer
+pub fn reset_particle_pool(pool: &mut ParticlePool) {
+    pool.next_free = 0;
 }
 
 /// Emitter data in SOA layout
@@ -354,9 +350,8 @@ pub struct EmitterData {
     pub velocity_variance: Vec<f32>,
 }
 
-impl EmitterData {
-    /// Create new emitter data buffer
-    pub fn new(capacity: usize) -> Self {
+/// Create new emitter data buffer
+pub fn create_emitter_data(capacity: usize) -> EmitterData {
         // Safety check: prevent excessive memory allocations
         let safe_capacity = if capacity > 100_000 {
             eprintln!(
@@ -367,7 +362,7 @@ impl EmitterData {
         } else {
             capacity
         };
-        Self {
+        EmitterData {
             count: 0,
 
             id: Vec::with_capacity(safe_capacity),
@@ -393,35 +388,34 @@ impl EmitterData {
             base_velocity_z: Vec::with_capacity(safe_capacity),
             velocity_variance: Vec::with_capacity(safe_capacity),
         }
-    }
+}
 
-    /// Clear all emitter data
-    pub fn clear(&mut self) {
-        self.count = 0;
+/// Clear all emitter data
+pub fn clear_emitter_data(data: &mut EmitterData) {
+    data.count = 0;
 
-        self.id.clear();
+    data.id.clear();
 
-        self.position_x.clear();
-        self.position_y.clear();
-        self.position_z.clear();
+    data.position_x.clear();
+    data.position_y.clear();
+    data.position_z.clear();
 
-        self.emission_rate.clear();
-        self.accumulated_particles.clear();
-        self.particle_type.clear();
+    data.emission_rate.clear();
+    data.accumulated_particles.clear();
+    data.particle_type.clear();
 
-        self.elapsed_time.clear();
-        self.duration.clear();
+    data.elapsed_time.clear();
+    data.duration.clear();
 
-        self.shape_type.clear();
-        self.shape_param1.clear();
-        self.shape_param2.clear();
-        self.shape_param3.clear();
+    data.shape_type.clear();
+    data.shape_param1.clear();
+    data.shape_param2.clear();
+    data.shape_param3.clear();
 
-        self.base_velocity_x.clear();
-        self.base_velocity_y.clear();
-        self.base_velocity_z.clear();
-        self.velocity_variance.clear();
-    }
+    data.base_velocity_x.clear();
+    data.base_velocity_y.clear();
+    data.base_velocity_z.clear();
+    data.velocity_variance.clear();
 }
 
 /// Render data for GPU

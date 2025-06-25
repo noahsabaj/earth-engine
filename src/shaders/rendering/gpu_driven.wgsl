@@ -12,6 +12,8 @@ struct VertexInput {
     @location(0) position: vec3<f32>,
     @location(1) color: vec3<f32>,
     @location(2) normal: vec3<f32>,
+    @location(3) light: f32,
+    @location(4) ao: f32,
 }
 
 struct InstanceInput {
@@ -32,6 +34,7 @@ struct VertexOutput {
     @location(1) world_normal: vec3<f32>,
     @location(2) world_position: vec3<f32>,
     @location(3) custom_data: vec4<f32>,
+    @location(4) light_ao: vec2<f32>,  // x = light, y = ao
 }
 
 @group(0) @binding(0)
@@ -73,16 +76,20 @@ fn vs_main(
     // Pass through custom data
     out.custom_data = instance.custom_data;
     
+    // Pass through light and ao values
+    out.light_ao = vec2<f32>(vertex.light, vertex.ao);
+    
     return out;
 }
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    // Simple directional lighting
-    let light_dir = normalize(vec3<f32>(0.5, -1.0, 0.3));
-    let ambient = 0.2;
-    let diffuse = max(dot(in.world_normal, -light_dir), 0.0);
-    let lighting = ambient + diffuse * 0.8;
+    // Use pre-calculated lighting from mesh generation
+    let light_value = in.light_ao.x;
+    let ao_value = in.light_ao.y;
+    
+    // Combine light and ambient occlusion
+    let lighting = light_value * ao_value;
     
     // Apply lighting to color
     var final_color = in.color;

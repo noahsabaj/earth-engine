@@ -12,6 +12,8 @@ struct ModificationCommand {
 // World constants - auto-generated from constants.rs
 // CHUNK_SIZE, MAX_WORLD_SIZE, BLOCK_AIR, BLOCK_STONE are auto-generated
 const WORLD_HEIGHT: u32 = 256u;
+const CHUNK_SIZE: u32 = 50u; // Matches constants.rs
+const BLOCK_BEDROCK: u32 = 13u; // Matches constants.rs blocks::BEDROCK
 
 // Voxel packing constants
 const BLOCK_ID_MASK: u32 = 0xFFFFu;
@@ -35,13 +37,13 @@ fn world_to_index(pos: vec3<i32>) -> u32 {
         return 0xFFFFFFFFu; // Invalid index
     }
     
-    let chunk_x = u32(pos.x) >> 5u; // div by 32
-    let chunk_y = u32(pos.y) >> 5u;
-    let chunk_z = u32(pos.z) >> 5u;
+    let chunk_x = u32(pos.x) / CHUNK_SIZE;
+    let chunk_y = u32(pos.y) / CHUNK_SIZE;
+    let chunk_z = u32(pos.z) / CHUNK_SIZE;
     
-    let local_x = u32(pos.x) & 31u; // mod 32
-    let local_y = u32(pos.y) & 31u;
-    let local_z = u32(pos.z) & 31u;
+    let local_x = u32(pos.x) % CHUNK_SIZE;
+    let local_y = u32(pos.y) % CHUNK_SIZE;
+    let local_z = u32(pos.z) % CHUNK_SIZE;
     
     let chunk_index = chunk_x + chunk_y * WORLD_SIZE + chunk_z * WORLD_SIZE * WORLD_SIZE;
     let chunk_offset = chunk_index * CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE;
@@ -136,7 +138,7 @@ fn explode_blocks(
                 let old_block = unpack_block_id(old_voxel);
                 
                 // Don't destroy bedrock
-                if (old_block != 32u) {
+                if (old_block != BLOCK_BEDROCK) {
                     let new_voxel = pack_voxel(BLOCK_AIR, 0u, 0u, 0u);
                     atomicStore(&world_voxels[voxel_idx], new_voxel);
                 }

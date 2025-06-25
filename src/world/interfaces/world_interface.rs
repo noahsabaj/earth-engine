@@ -10,6 +10,14 @@ use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
 /// Universal world interface that works across GPU and CPU backends
+/// 
+/// DEPRECATED: This trait is being phased out in favor of DOP (Data-Oriented Programming).
+/// Use world_operations module functions instead, which operate on WorldData/WorldBuffers.
+/// This interface will be removed in a future version.
+#[deprecated(
+    since = "0.2.0",
+    note = "Use world_operations module functions instead for DOP architecture"
+)]
 pub trait WorldInterface: UnifiedInterface {
     /// Get a block at the specified position
     fn get_block(&self, pos: VoxelPos) -> BlockId;
@@ -466,13 +474,22 @@ pub enum WorldError {
     LockFailed,
 
     #[error("Invalid position: {x}, {y}, {z}")]
-    InvalidPosition { x: i32, y: i32, z: i32 },
+    InvalidPositionDetailed { x: i32, y: i32, z: i32 },
 
     #[error("Backend not available: {backend}")]
     BackendNotAvailable { backend: String },
 
     #[error("Query timeout after {timeout_ms}ms")]
     QueryTimeout { timeout_ms: u32 },
+
+    #[error("Chunk not found")]
+    ChunkNotFound,
+
+    #[error("Invalid position")]
+    InvalidPosition,
+
+    #[error("Not implemented")]
+    NotImplemented,
 }
 
 /// World configuration

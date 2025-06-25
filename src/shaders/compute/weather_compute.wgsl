@@ -1,6 +1,11 @@
 // Weather Compute Shader
 // Handles weather transitions, particle simulation, and atmospheric effects
 
+// Constants from engine - TODO: These should come from generated constants
+const DEFAULT_HUMIDITY: u32 = 500u;
+const DEFAULT_WIND_SPEED: u32 = 50u;
+const MAX_HUMIDITY: u32 = 5000u;
+
 struct WeatherData {
     weather_type_intensity: u32,
     temperature: i32, // Actually i16 but WGSL doesn't have i16
@@ -109,7 +114,7 @@ fn get_biome_weather(biome: u32, variant: u32) -> WeatherData {
             // Sandstorm
             weather.weather_type_intensity = WEATHER_SANDSTORM | (INTENSITY_MODERATE << 8u);
             weather.temperature = 400; // 40°C
-            weather.humidity = 500; // 5%
+            weather.humidity = DEFAULT_HUMIDITY; // 5%
             weather.wind_speed = 300; // 30 m/s
             weather.wind_direction = 90u;
             weather.visibility = 300u; // 0.3
@@ -131,7 +136,7 @@ fn get_biome_weather(biome: u32, variant: u32) -> WeatherData {
             weather.weather_type_intensity = select(WEATHER_CLEAR, WEATHER_FOG | (INTENSITY_LIGHT << 8u), variant == 1u);
             weather.temperature = 180; // 18°C
             weather.humidity = 6000; // 60%
-            weather.wind_speed = 50; // 5 m/s
+            weather.wind_speed = DEFAULT_WIND_SPEED; // 5 m/s
             weather.wind_direction = 180u;
             weather.visibility = select(1000u, 700u, variant == 1u);
             weather.precipitation_rate = 0u;
@@ -150,8 +155,8 @@ fn get_biome_weather(biome: u32, variant: u32) -> WeatherData {
         // Default plains weather
         weather.weather_type_intensity = WEATHER_CLEAR;
         weather.temperature = 200; // 20°C
-        weather.humidity = 5000; // 50%
-        weather.wind_speed = 50; // 5 m/s
+        weather.humidity = MAX_HUMIDITY; // 50%
+        weather.wind_speed = DEFAULT_WIND_SPEED; // 5 m/s
         weather.wind_direction = 0u;
         weather.visibility = 1000u;
         weather.precipitation_rate = 0u;

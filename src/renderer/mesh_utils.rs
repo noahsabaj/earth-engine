@@ -3,7 +3,7 @@
 
 use crate::renderer::vertex::Vertex;
 use crate::world::core::{BlockId, ChunkPos, VoxelPos};
-use crate::world::interfaces::WorldInterface;
+use crate::world::{functional_wrapper, interfaces::WorldInterface};
 
 /// Generate vertices for a simple unit cube
 /// Returns 24 vertices (6 faces * 4 vertices per face)
@@ -130,7 +130,7 @@ pub fn generate_chunk_terrain_mesh<W: WorldInterface>(
                 );
 
                 // Get the block at this position
-                let block = world.get_block(world_pos);
+                let block = functional_wrapper::get_block(world, world_pos);
                 total_blocks += 1;
 
                 // Track block types for debugging
@@ -183,7 +183,7 @@ pub fn generate_chunk_terrain_mesh<W: WorldInterface>(
 
                     // Enhanced face culling with chunk boundary handling
                     let should_render_face = {
-                        let neighbor_block = world.get_block(neighbor_pos);
+                        let neighbor_block = functional_wrapper::get_block(world, neighbor_pos);
                         
                         // Check if neighbor is at chunk boundary
                         let neighbor_chunk_x = neighbor_pos.x.div_euclid(chunk_size as i32);
@@ -256,7 +256,7 @@ pub fn generate_chunk_terrain_mesh<W: WorldInterface>(
             chunk_pos.y * chunk_size as i32 + chunk_size as i32 / 2,
             chunk_pos.z * chunk_size as i32 + chunk_size as i32 / 2,
         );
-        let center_block = world.get_block(center_pos);
+        let center_block = functional_wrapper::get_block(world, center_pos);
         log::debug!(
             "[generate_chunk_terrain_mesh] Chunk {:?} is empty. Center block at {:?} is {:?}",
             chunk_pos,

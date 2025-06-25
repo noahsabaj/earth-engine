@@ -1,65 +1,44 @@
-//! Unified storage systems - GPU WorldBuffer (primary) + CPU Chunks (fallback)
+//! GPU-first storage systems - WorldBuffer as the primary storage
 //!
-//! This module consolidates both GPU-resident and CPU-based world storage,
-//! providing a unified interface that can operate in either mode.
+//! This module provides GPU-resident world storage,
+//! following the GPU-first architecture principle.
 
-mod cpu_chunks;
 mod gpu_chunks;
+mod temp_chunk;
 mod world_buffer;
 
 // GPU-first storage (primary)
 pub use world_buffer::{VoxelData, WorldBuffer, WorldBufferDescriptor};
 
-// CPU fallback storage
-pub use cpu_chunks::{ChunkMemoryStats, ChunkSoA};
-
 // GPU chunk management
 pub use gpu_chunks::{GpuChunk, GpuChunkManager, GpuChunkStats};
 
-/// Unified storage backend that can operate in GPU or CPU mode
-pub enum UnifiedStorage {
-    /// GPU-resident storage (primary mode)
-    Gpu {
-        world_buffer: std::sync::Arc<std::sync::Mutex<WorldBuffer>>,
-        device: std::sync::Arc<wgpu::Device>,
-    },
-    /// CPU-based storage (fallback mode)
-    Cpu {
-        chunks: std::collections::HashMap<crate::world::core::ChunkPos, ChunkSoA>,
-    },
+// Temporary chunk for GPU data transfer only
+pub use temp_chunk::TempChunk;
+
+/// GPU-first storage backend
+pub struct UnifiedStorage {
+    /// GPU-resident storage
+    pub world_buffer: std::sync::Arc<std::sync::Mutex<WorldBuffer>>,
+    pub device: std::sync::Arc<wgpu::Device>,
 }
 
 impl UnifiedStorage {
     /// Create GPU-based storage
-    pub async fn new_gpu(
+    pub async fn new(
         device: std::sync::Arc<wgpu::Device>,
         descriptor: &WorldBufferDescriptor,
-    ) -> Result<Self, crate::world::storage::StorageError> {
+    ) -> Result<Self, StorageError> {
         let world_buffer = WorldBuffer::new(device.clone(), descriptor);
-        Ok(UnifiedStorage::Gpu {
+        Ok(UnifiedStorage {
             world_buffer: std::sync::Arc::new(std::sync::Mutex::new(world_buffer)),
             device,
         })
     }
 
-    /// Create CPU-based storage
-    pub fn new_cpu() -> Self {
-        UnifiedStorage::Cpu {
-            chunks: std::collections::HashMap::new(),
-        }
-    }
-
-    /// Check if this storage uses GPU backend
-    pub fn is_gpu(&self) -> bool {
-        matches!(self, UnifiedStorage::Gpu { .. })
-    }
-
-    /// Get GPU world buffer if in GPU mode
-    pub fn gpu_world_buffer(&self) -> Option<std::sync::Arc<std::sync::Mutex<WorldBuffer>>> {
-        match self {
-            UnifiedStorage::Gpu { world_buffer, .. } => Some(world_buffer.clone()),
-            UnifiedStorage::Cpu { .. } => None,
-        }
+    /// Get GPU world buffer
+    pub fn gpu_world_buffer(&self) -> std::sync::Arc<std::sync::Mutex<WorldBuffer>> {
+        self.world_buffer.clone()
     }
 }
 

@@ -33,15 +33,6 @@ pub struct GpuMeshMetadata {
     pub timestamp: u32,
 }
 
-/// Indirect draw command for GPU-driven rendering
-#[repr(C)]
-#[derive(Copy, Clone, Debug, Pod, Zeroable)]
-pub struct IndirectDrawCommand {
-    pub vertex_count: u32,
-    pub instance_count: u32,
-    pub first_vertex: u32,
-    pub first_instance: u32,
-}
 
 /// Mesh generation request
 #[repr(C)]

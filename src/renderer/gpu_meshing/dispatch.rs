@@ -13,7 +13,7 @@ use crate::constants::*;
 pub struct MeshGenerationResult {
     pub chunk_pos: ChunkPos,
     pub buffer_index: u32,
-    pub indirect_command: wgpu::Buffer,
+    // Indirect commands are stored in the global indirect buffer at offset buffer_index * 20 bytes
 }
 
 /// Generate meshes for a batch of chunks
@@ -42,33 +42,13 @@ pub fn generate_chunk_meshes(
     let mut allocator = state.allocator.lock().unwrap();
 
     for chunk_pos in chunks {
-        // Check if this chunk already has a buffer allocated
-        let buffer_index = if let Some(&existing_index) = allocator.allocated_buffers.get(chunk_pos)
-        {
-            log::debug!(
-                "[generate_chunk_meshes] Reusing buffer {} for chunk {:?}",
-                existing_index,
-                chunk_pos
-            );
-            existing_index
-        } else {
-            // Allocate a new buffer
-            if let Some(new_index) = allocator.free_buffers.pop() {
-                allocator.allocated_buffers.insert(*chunk_pos, new_index);
-                log::debug!(
-                    "[generate_chunk_meshes] Allocated buffer {} for chunk {:?}",
-                    new_index,
-                    chunk_pos
-                );
-                new_index
-            } else {
-                log::error!(
-                    "[generate_chunk_meshes] No free mesh buffers available for chunk {:?}!",
-                    chunk_pos
-                );
-                continue;
-            }
-        };
+        // For GPU-driven rendering, all chunks use buffer 0
+        let buffer_index = 0u32;
+        
+        log::debug!(
+            "[generate_chunk_meshes] Using buffer 0 for chunk {:?}",
+            chunk_pos
+        );
 
         allocated_indices.push((chunk_pos, buffer_index));
         requests.push(MeshRequest {
@@ -115,8 +95,9 @@ pub fn generate_chunk_meshes(
         .queue
         .write_buffer(&params_buffer, 0, bytemuck::bytes_of(&params));
 
-    // Create bind group
-    let bind_group = super::pipeline::create_mesh_bind_group(
+    // For GPU-driven rendering, we want all chunks to write to buffer 0
+    // This allows us to render all chunks in a single draw call
+    let bind_group = super::pipeline::create_mesh_bind_group_for_buffer(
         &state.device,
         &state.bind_group_layout,
         world_buffer,
@@ -124,6 +105,7 @@ pub fn generate_chunk_meshes(
         &state.mesh_buffers,
         &state.indirect_buffer,
         &params_buffer,
+        0, // Always use buffer 0 for merged rendering
     );
 
     // Create command encoder
@@ -165,21 +147,14 @@ pub fn generate_chunk_meshes(
     log::info!("[GPU Meshing] GPU synchronization complete - meshes should be ready");
 
     // Return mesh generation results using the allocated buffer indices
+    // Note: indirect commands are written to the global indirect buffer by the GPU
     allocated_indices
         .iter()
         .map(|(chunk_pos, buffer_index)| {
-            // Create indirect command buffer for this mesh
-            let indirect_command = state.device.create_buffer(&wgpu::BufferDescriptor {
-                label: Some(&format!("Indirect Command for Chunk {:?}", chunk_pos)),
-                size: std::mem::size_of::<super::IndirectDrawCommand>() as u64,
-                usage: wgpu::BufferUsages::INDIRECT | wgpu::BufferUsages::COPY_DST,
-                mapped_at_creation: false,
-            });
-
             MeshGenerationResult {
                 chunk_pos: **chunk_pos,
                 buffer_index: *buffer_index,
-                indirect_command,
+                // Indirect commands are stored in the global indirect buffer at offset buffer_index * 20
             }
         })
         .collect()

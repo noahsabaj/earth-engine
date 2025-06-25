@@ -1,8 +1,12 @@
 pub mod collision_data;
 pub mod error;
 pub mod gpu_physics_world;
+pub mod gpu_physics_world_data;
+pub mod gpu_physics_world_operations;
 pub mod integration;
 pub mod parallel_solver;
+pub mod parallel_solver_data;
+pub mod parallel_solver_operations;
 /// Data-oriented physics system using struct-of-arrays for cache efficiency
 /// and GPU compatibility.
 pub mod physics_tables;
@@ -11,8 +15,11 @@ pub mod spatial_hash;
 
 pub use collision_data::{CollisionData, ContactPair, ContactPoint};
 pub use gpu_physics_world::GpuPhysicsWorld;
+pub use gpu_physics_world_data::{GpuPhysicsWorldData, PhysicsBodyData, PhysicsParameters};
+pub use gpu_physics_world_operations::{initialize_gpu_physics_world, add_physics_entity, update_physics, 
+    get_physics_body, get_physics_body_mut, set_entity_position};
 pub use integration::{PhysicsIntegrator, WorldAdapter, WorldInterface};
-pub use parallel_solver::{ParallelPhysicsSolver, SolverConfig};
+pub use parallel_solver::{ParallelPhysicsSolverData, SolverConfig, create_parallel_physics_solver, step_physics_gpu};
 pub use physics_tables::{EntityId, PhysicsData, AABB, MAX_ENTITIES};
 pub use spatial_hash::{SpatialHash, SpatialHashConfig};
 

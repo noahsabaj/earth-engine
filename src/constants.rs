@@ -30,15 +30,34 @@ pub mod blocks {
     pub const WATER: u16 = 6;
     pub const LEAVES: u16 = 7;
     pub const GLASS: u16 = 8;
-    pub const CHEST: u16 = 9;
-    pub const LAVA: u16 = 10;
-    pub const BRICK: u16 = 11;
-    pub const SNOW: u16 = 12;
-    pub const ICE: u16 = 13;
-    pub const MUD: u16 = 14;
-    pub const FROZEN_GRASS: u16 = 15;
-    pub const WET_STONE: u16 = 16;
-    pub const FROST: u16 = 17;
+    pub const COAL_ORE: u16 = 9;
+    pub const IRON_ORE: u16 = 10;
+    pub const GOLD_ORE: u16 = 11;
+    pub const DIAMOND_ORE: u16 = 12;
+    pub const BEDROCK: u16 = 13;
+    pub const PLANKS: u16 = 14;
+    pub const COBBLESTONE: u16 = 15;
+    pub const CRAFTING_TABLE: u16 = 16;
+    pub const FURNACE: u16 = 17;
+    pub const CHEST: u16 = 18;
+    pub const TORCH: u16 = 19;
+    pub const LADDER: u16 = 20;
+    pub const LAVA: u16 = 21;
+    pub const LOG: u16 = 22;
+    pub const SANDSTONE: u16 = 23;
+    pub const RED_SAND: u16 = 24;
+    pub const RED_SANDSTONE: u16 = 25;
+    pub const TALL_GRASS: u16 = 26;
+    pub const FLOWER_RED: u16 = 27;
+    pub const FLOWER_YELLOW: u16 = 28;
+    pub const CACTUS: u16 = 29;
+    pub const SNOW: u16 = 30;
+    pub const ICE: u16 = 31;
+    pub const MUD: u16 = 32;
+    pub const FROZEN_GRASS: u16 = 33;
+    pub const WET_STONE: u16 = 34;
+    pub const FROST: u16 = 35;
+    pub const BRICK: u16 = 36;
     
     // Reserved for game-specific blocks (100+)
     // Games can define their own blocks starting from ID 100
@@ -317,6 +336,69 @@ pub mod persistence_constants {
     
     /// Backup periodic interval in seconds (24 hours)
     pub const BACKUP_PERIODIC_INTERVAL_SECS: u64 = 86400;
+    
+    // Compression constants
+    
+    /// Compression buffer sizes
+    pub const COMPRESSION_BUFFER_SIZE: usize = 65536; // 64KB default buffer
+    pub const COMPRESSION_CHUNK_SIZE: usize = 32768;  // 32KB chunks for streaming
+    
+    /// Compression level mappings for flate2
+    pub const FLATE2_FAST_LEVEL: u32 = 1;
+    pub const FLATE2_DEFAULT_LEVEL: u32 = 6;
+    pub const FLATE2_BEST_LEVEL: u32 = 9;
+    
+    /// Compression level mappings for zstd
+    pub const ZSTD_FAST_LEVEL: i32 = 1;
+    pub const ZSTD_DEFAULT_LEVEL: i32 = 3;
+    pub const ZSTD_BEST_LEVEL: i32 = 9;
+    
+    /// Compression ratio estimates (for planning)
+    pub const GZIP_ESTIMATED_RATIO: f32 = 0.3;   // ~70% reduction
+    pub const ZLIB_ESTIMATED_RATIO: f32 = 0.35;  // ~65% reduction
+    pub const ZSTD_ESTIMATED_RATIO: f32 = 0.25;  // ~75% reduction
+    pub const LZ4_ESTIMATED_RATIO: f32 = 0.5;    // ~50% reduction
+    
+    /// Entropy thresholds for compression selection
+    pub const HIGH_ENTROPY_THRESHOLD: f32 = 7.0;  // Random data
+    pub const MEDIUM_ENTROPY_THRESHOLD: f32 = 5.0; // Mixed data
+    
+    /// Size thresholds for compression selection
+    pub const SMALL_DATA_THRESHOLD: usize = 1024; // 1KB - use fast compression
+    
+    /// Compression magic bytes/headers
+    pub const COMPRESSED_DATA_MAGIC: &[u8] = b"HCMP"; // Hearth Compressed
+    pub const COMPRESSED_DATA_VERSION: u8 = 1;
+}
+
+/// Event system constants
+pub mod event_system {
+    /// Default maximum number of events in queue
+    pub const DEFAULT_MAX_QUEUE_SIZE: usize = 10000;
+    
+    /// Default batch size for event processing
+    pub const DEFAULT_BATCH_SIZE: usize = 100;
+    
+    /// Default processing interval in milliseconds (~60 FPS)
+    pub const DEFAULT_PROCESSING_INTERVAL_MS: u64 = 16;
+    
+    /// Default maximum processing time per frame in milliseconds
+    pub const DEFAULT_MAX_PROCESSING_TIME_MS: f64 = 5.0;
+    
+    /// Default maximum history size for event replay
+    pub const DEFAULT_MAX_HISTORY_SIZE: usize = 1000;
+    
+    /// Default maximum retry attempts for failed events
+    pub const DEFAULT_MAX_RETRY_ATTEMPTS: u32 = 3;
+    
+    /// Base retry delay in milliseconds
+    pub const RETRY_BASE_DELAY_MS: u64 = 100;
+    
+    /// Initial subscription ID
+    pub const INITIAL_SUBSCRIPTION_ID: u64 = 1;
+    
+    /// Initial event ID
+    pub const INITIAL_EVENT_ID: u64 = 1;
 }
 
 /// Buffer layout constants
@@ -381,6 +463,9 @@ pub mod buffer_layouts {
     /// Maximum indirect draws per pass
     pub const MAX_INDIRECT_DRAWS: u32 = 10_000;
     
+    /// Maximum objects/draw commands for GPU culling
+    pub const MAX_GPU_OBJECTS: u32 = 100_000;
+    
     /// Maximum vertices per mesh
     pub const MAX_VERTICES_PER_MESH: u32 = 65_536;
     
@@ -394,7 +479,9 @@ pub mod buffer_layouts {
     pub const CUBE_INDEX_COUNT: u32 = 36;  // 6 faces * 2 triangles * 3 indices
     
     /// Default index count for GPU-generated terrain meshes (estimated)
-    pub const GPU_TERRAIN_DEFAULT_INDEX_COUNT: u32 = 10_000;
+    /// This is a conservative estimate - actual counts vary per chunk
+    /// Most chunks will have less than this, preventing buffer overruns
+    pub const GPU_TERRAIN_DEFAULT_INDEX_COUNT: u32 = 1000;
     
     /// Chunk bounding sphere radius multiplier (sqrt(3) for cube diagonal)
     pub const CHUNK_BOUNDING_RADIUS_MULTIPLIER: f32 = 1.732;
@@ -439,6 +526,57 @@ pub mod buffer_layouts {
     }
 }
 
+/// GPU-driven rendering constants
+pub mod gpu_driven {
+    /// Level of Detail (LOD) distances in voxels
+    pub const LOD_DISTANCE_NEAR: f32 = 50.0;   // 5m - full detail
+    pub const LOD_DISTANCE_FAR: f32 = 200.0;   // 20m - reduced detail
+    
+    /// Visibility flags for GPU culling
+    pub const VISIBILITY_FLAG_VISIBLE: u32 = 1;        // Object is visible
+    pub const VISIBILITY_FLAG_ALWAYS_VISIBLE: u32 = 4; // Skip frustum culling
+    pub const VISIBILITY_FLAG_DEFAULT: u32 = 5;        // Visible + Always Visible
+}
+
+/// System monitoring constants
+pub mod monitoring {
+    /// Metric sampling configuration
+    pub const DEFAULT_METRIC_SAMPLE_SIZE: usize = 300;    // 5 minutes at 60fps
+    pub const MAX_METRIC_SAMPLE_SIZE: usize = 3600;       // 1 hour at 60fps
+    pub const METRIC_HISTORY_WINDOW_SECS: u64 = 300;      // 5 minutes
+    
+    /// Performance profiling
+    pub const DEFAULT_PROFILING_HISTORY: usize = 1000;     // Max profiling sessions
+    pub const PROFILING_SESSION_TIMEOUT_MS: u64 = 5000;   // 5 seconds max session
+    
+    /// Alert configuration
+    pub const MAX_ACTIVE_ALERTS: usize = 100;              // Maximum concurrent alerts
+    pub const ALERT_HISTORY_WINDOW_SECS: u64 = 300;       // 5 minutes
+    pub const ALERT_DEDUPLICATION_WINDOW_MS: u64 = 1000;  // 1 second
+    
+    /// Error tracking
+    pub const ERROR_HISTORY_WINDOW_SECS: u64 = 600;       // 10 minutes
+    pub const ERROR_RATE_SAMPLE_WINDOW_SECS: u64 = 60;    // 1 minute for rate calculation
+    
+    /// Health check intervals
+    pub const HEALTH_CHECK_INTERVAL_MS: u64 = 1000;       // 1 second
+    pub const RESOURCE_UPDATE_INTERVAL_MS: u64 = 500;     // 500ms
+    
+    /// Performance thresholds (defaults)
+    pub const DEFAULT_FRAME_TIME_WARNING_MS: f64 = 20.0;  // 50 FPS
+    pub const DEFAULT_FRAME_TIME_CRITICAL_MS: f64 = 33.3; // 30 FPS
+    pub const DEFAULT_MEMORY_WARNING_PERCENT: f64 = 75.0;
+    pub const DEFAULT_MEMORY_CRITICAL_PERCENT: f64 = 90.0;
+    pub const DEFAULT_CPU_WARNING_PERCENT: f64 = 80.0;
+    pub const DEFAULT_CPU_CRITICAL_PERCENT: f64 = 95.0;
+    pub const DEFAULT_ERROR_RATE_WARNING: f64 = 1.0;      // 1 error per minute
+    pub const DEFAULT_ERROR_RATE_CRITICAL: f64 = 5.0;     // 5 errors per minute
+    
+    /// Memory layout optimization
+    pub const CACHE_LINE_SIZE: usize = 64;                // CPU cache line size
+    pub const METRIC_BUFFER_ALIGNMENT: usize = 64;        // Align to cache lines
+}
+
 /// Block ID constants - Wrapped in BlockId type for type safety
 /// This requires importing BlockId from the crate when used
 pub mod typed_blocks {
@@ -451,15 +589,34 @@ pub mod typed_blocks {
     pub const WATER: u16 = super::blocks::WATER;
     pub const LEAVES: u16 = super::blocks::LEAVES;
     pub const GLASS: u16 = super::blocks::GLASS;
+    pub const COAL_ORE: u16 = super::blocks::COAL_ORE;
+    pub const IRON_ORE: u16 = super::blocks::IRON_ORE;
+    pub const GOLD_ORE: u16 = super::blocks::GOLD_ORE;
+    pub const DIAMOND_ORE: u16 = super::blocks::DIAMOND_ORE;
+    pub const BEDROCK: u16 = super::blocks::BEDROCK;
+    pub const PLANKS: u16 = super::blocks::PLANKS;
+    pub const COBBLESTONE: u16 = super::blocks::COBBLESTONE;
+    pub const CRAFTING_TABLE: u16 = super::blocks::CRAFTING_TABLE;
+    pub const FURNACE: u16 = super::blocks::FURNACE;
     pub const CHEST: u16 = super::blocks::CHEST;
+    pub const TORCH: u16 = super::blocks::TORCH;
+    pub const LADDER: u16 = super::blocks::LADDER;
     pub const LAVA: u16 = super::blocks::LAVA;
-    pub const BRICK: u16 = super::blocks::BRICK;
+    pub const LOG: u16 = super::blocks::LOG;
+    pub const SANDSTONE: u16 = super::blocks::SANDSTONE;
+    pub const RED_SAND: u16 = super::blocks::RED_SAND;
+    pub const RED_SANDSTONE: u16 = super::blocks::RED_SANDSTONE;
+    pub const TALL_GRASS: u16 = super::blocks::TALL_GRASS;
+    pub const FLOWER_RED: u16 = super::blocks::FLOWER_RED;
+    pub const FLOWER_YELLOW: u16 = super::blocks::FLOWER_YELLOW;
+    pub const CACTUS: u16 = super::blocks::CACTUS;
     pub const SNOW: u16 = super::blocks::SNOW;
     pub const ICE: u16 = super::blocks::ICE;
     pub const MUD: u16 = super::blocks::MUD;
     pub const FROZEN_GRASS: u16 = super::blocks::FROZEN_GRASS;
     pub const WET_STONE: u16 = super::blocks::WET_STONE;
     pub const FROST: u16 = super::blocks::FROST;
+    pub const BRICK: u16 = super::blocks::BRICK;
 }
 
 /// Generate WGSL constants file content
@@ -493,6 +650,7 @@ const BLOCK_MUD: u32 = {}u;
 const BLOCK_FROZEN_GRASS: u32 = {}u;
 const BLOCK_WET_STONE: u32 = {}u;
 const BLOCK_FROST: u32 = {}u;
+const BLOCK_BEDROCK: u32 = {}u;
 
 // Game blocks start at ID 100
 const GAME_BLOCK_START: u32 = {}u;
@@ -527,6 +685,23 @@ const SNOW_HEIGHT_TYPICAL_HIGH: i32 = {}i;
 
 // Terrain constants
 const TERRAIN_THRESHOLD: i32 = {}i;
+const SEA_LEVEL: i32 = {}i;
+
+// World dimensions
+const WORLD_SIZE: u32 = {}u;
+const WORLD_HEIGHT: u32 = {}u;
+
+// Weather simulation values
+const DEFAULT_HUMIDITY: u32 = 500u;
+const MAX_HUMIDITY: u32 = 5000u;
+const DEFAULT_WIND_SPEED: u32 = 50u;
+
+// Culling constants
+const MAX_RENDER_DISTANCE: f32 = 500.0;
+
+// GPU buffer constants
+const MAX_VERTICES_PER_CHUNK: u32 = {}u;
+const MAX_INDICES_PER_CHUNK: u32 = {}u;
 "#, 
         core::CHUNK_SIZE,
         core::CHUNK_SIZE_F32,
@@ -551,6 +726,7 @@ const TERRAIN_THRESHOLD: i32 = {}i;
         blocks::FROZEN_GRASS as u32,
         blocks::WET_STONE as u32,
         blocks::FROST as u32,
+        blocks::BEDROCK as u32,
         blocks::GAME_BLOCK_START as u32,
         weather::WEATHER_CLEAR,
         weather::WEATHER_RAIN,
@@ -573,5 +749,10 @@ const TERRAIN_THRESHOLD: i32 = {}i;
         weather::SNOW_HEIGHT_TYPICAL_LOW,
         weather::SNOW_HEIGHT_TYPICAL_HIGH,
         terrain::TERRAIN_THRESHOLD,
+        terrain::SEA_LEVEL,
+        core::MAX_WORLD_SIZE,
+        256u32, // WORLD_HEIGHT (hardcoded for now)
+        buffer_layouts::MAX_VERTICES_PER_MESH,
+        buffer_layouts::MAX_INDICES_PER_MESH,
     )
 }

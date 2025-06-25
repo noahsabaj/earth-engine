@@ -1,7 +1,6 @@
 use crate::constants::core::VOXELS_PER_CHUNK;
 use crate::world::core::ChunkPos;
-use crate::world::storage::ChunkSoA;
-use crate::Chunk;
+use crate::world::storage::TempChunk;
 use wgpu::util::DeviceExt;
 
 /// GPU-resident chunk data for efficient GPU processing
@@ -22,8 +21,8 @@ pub struct GpuChunk {
 }
 
 impl GpuChunk {
-    /// Create a new GPU chunk from CPU chunk data
-    pub fn new(device: &wgpu::Device, chunk: &Chunk) -> Self {
+    /// Create a new GPU chunk from temporary chunk data
+    pub fn new(device: &wgpu::Device, chunk: &TempChunk) -> Self {
         let size = chunk.size();
         let block_count = (size * size * size) as usize;
 

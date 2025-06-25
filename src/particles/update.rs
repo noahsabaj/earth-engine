@@ -1,7 +1,7 @@
 use glam::Vec3;
 use rand::{thread_rng, Rng};
 
-use crate::particles::particle_data::{EmitterData, ParticleData};
+use crate::particles::particle_data::{EmitterData, ParticleData, remove_particle_swap};
 use crate::{BlockId, VoxelPos, World};
 
 /// Update all particles in the system
@@ -247,7 +247,7 @@ pub fn remove_dead_particles(particles: &mut ParticleData) {
     let mut i = 0;
     while i < particles.count {
         if particles.lifetime[i] <= 0.0 {
-            particles.remove_swap(i);
+            remove_particle_swap(particles, i);
         } else {
             i += 1;
         }

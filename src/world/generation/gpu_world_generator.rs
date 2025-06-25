@@ -4,7 +4,7 @@ use crate::gpu::{GpuError, GpuErrorRecovery, GpuRecoveryError};
 use crate::world::{
     core::{BlockId, ChunkPos},
     generation::{TerrainGeneratorSOA, WorldGenerator},
-    storage::{ChunkSoA, WorldBuffer},
+    storage::{TempChunk, WorldBuffer},
 };
 use std::sync::{Arc, Mutex};
 
@@ -86,11 +86,10 @@ impl GpuWorldGenerator {
     }
 
     /// Generate a chunk using CPU fallback with proper terrain logic
-    fn generate_cpu_fallback(&self, chunk_pos: ChunkPos, chunk_size: u32) -> ChunkSoA {
+    fn generate_cpu_fallback(&self, chunk_pos: ChunkPos, chunk_size: u32) -> TempChunk {
         use crate::world::core::{BlockId, VoxelPos};
-        use crate::world::storage::ChunkSoA;
         
-        let mut chunk = ChunkSoA::new(chunk_pos, chunk_size);
+        let mut chunk = TempChunk::new_empty(chunk_pos, chunk_size);
         
         // Use the same terrain generation logic as in the GPU shader
         // TERRAIN_THRESHOLD = 64
@@ -142,7 +141,7 @@ impl GpuWorldGenerator {
 }
 
 impl WorldGenerator for GpuWorldGenerator {
-    fn generate_chunk(&self, chunk_pos: ChunkPos, chunk_size: u32) -> ChunkSoA {
+    fn generate_chunk(&self, chunk_pos: ChunkPos, chunk_size: u32) -> TempChunk {
         // Try to perform GPU generation by creating our own command encoder
         // This is not ideal but allows GPU generation to work through the synchronous interface
         

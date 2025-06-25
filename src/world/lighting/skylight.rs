@@ -4,7 +4,7 @@
 //! compatible with the GPU-first architecture.
 
 use crate::world::core::{BlockId, VoxelPos};
-use crate::world::interfaces::WorldInterface;
+use crate::world::{functional_wrapper, interfaces::WorldInterface};
 
 /// Skylight calculator - provides column-based skylight updates
 pub struct SkylightCalculator;
@@ -21,7 +21,7 @@ impl SkylightCalculator {
         // Scan down the column
         for y in (0..256).rev() {
             let pos = VoxelPos::new(x, y, z);
-            let block = world.get_block(pos);
+            let block = functional_wrapper::get_block(world, pos);
 
             // Air blocks get full skylight from above
             if block == BlockId::AIR {

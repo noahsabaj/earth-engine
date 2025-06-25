@@ -51,6 +51,9 @@ const FLAG_SHADOW_CASTER: u32 = 8u;
 // Mesh constants from constants.rs buffer_layouts
 const CUBE_INDEX_COUNT: u32 = 36u;
 
+// Culling constants - TODO: These should come from generated constants
+const MAX_RENDER_DISTANCE: f32 = 500.0;
+
 // Check if a sphere is inside the frustum
 fn sphere_inside_frustum(center: vec3<f32>, radius: f32) -> bool {
     // Test against all 6 frustum planes
@@ -102,9 +105,8 @@ fn cull_objects(@builtin(global_invocation_id) global_id: vec3<u32>) {
     
     // Distance culling (optional)
     let distance_to_camera = length(camera.position - center);
-    let max_distance = 500.0; // Max view distance
     
-    if (distance_to_camera - radius > max_distance && !always_visible) {
+    if (distance_to_camera - radius > MAX_RENDER_DISTANCE && !always_visible) {
         atomicAdd(&stats.distance_culled, 1u);
         return;
     }
@@ -121,10 +123,13 @@ fn cull_objects(@builtin(global_invocation_id) global_id: vec3<u32>) {
         actual_index_count = CUBE_INDEX_COUNT;
     }
     
+    // Get index offset from lod_info.w for merged meshes
+    let index_offset = u32(metadata.lod_info.w);
+    
     indirect_commands[draw_index] = IndirectCommand(
         actual_index_count,          // index_count - use actual mesh index count
         1u,                          // instance_count - one instance per draw
-        0u,                          // first_index
+        index_offset,                // first_index - use offset for merged meshes
         0,                           // base_vertex
         metadata.instance_offset     // first_instance - use the instance offset
     );

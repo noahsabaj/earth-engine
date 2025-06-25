@@ -1,18 +1,14 @@
 # Hearth Engine - Claude Instructions
 
-**PURPOSE**: This document contains TIMELESS instructions that don't change with sprints.
-**For current sprint/priorities**: See CURRENT.md
-**For sprint planning**: See MASTER_ROADMAP.md
+**PURPOSE**: This document contains TIMELESS instructions.
 
 ## ENVIRONMENT SETUP
 - **Claude (AI)**: Working in Linux Mint at `/home/nsabaj/Code/hearth-workspace/hearth-engine`
-- **Human User**: Working in Linux Mint, pulls changes from main branch
-- **Workflow**: Claude makes changes → pushes to main → User pulls as needed
 
 ## PROJECT OVERVIEW
 This is **Hearth Engine** - a frontier SOTA voxel game engine. We are building in this order:
 1. **ENGINE** (Current Phase) - Game-agnostic voxel engine with cutting-edge performance
-2. **GAME** (Next Phase) - Game implementation using the engine
+2. **GAME** (Semi-Current (game is a demonstration of the engine) Phase) - Game implementation using the engine
 3. **FRAMEWORK** (Final Phase) - Tools enabling others to build ANY voxel game
 
 ### Game Vision (Future Implementation)
@@ -52,10 +48,8 @@ The engine provides realistic physics. Players discover what's possible.
 
 ## 🚨 CRITICAL FACTS - NEVER FORGET 🚨
 
-### CHUNK SIZE IS 50 - NOT 32!
+### CHUNK SIZE IS 50
 - **The chunk size is 50x50x50 voxels** (5m x 5m x 5m with 10cm voxels)
-- **NEVER change this to 32 or any other value**
-- **All hardcoded "32" values in chunk calculations are BUGS**
 - **Use CHUNK_SIZE constant from constants.rs, which is set to 50**
 - **This applies to BOTH engine and game code**
 
@@ -78,83 +72,16 @@ use crate::constants::world::CHUNK_SIZE;
 
 ## WORKFLOW REQUIREMENTS
 
-### 1. Documentation Updates (MANDATORY)
-
-#### Living Documents (Update After EVERY Work Session)
-1. **MASTER_ROADMAP.md** - Sprint planning and tracking
-2. **CURRENT.md** - Active sprint, completion percentages, recent work
-3. **Active Sprint file** - `/docs/sprints/SPRINT_XX_*.md` for current sprint
-
-#### Sprint Completion Checklist
-When finishing a sprint:
-- [ ] Mark sprint complete in MASTER_ROADMAP.md
-- [ ] Update CURRENT.md with new sprint number
-- [ ] Create new sprint file if needed
-- [ ] Archive completed sprint docs if necessary
-- [ ] Review ALL docs for stale sprint references
+### 1. Documentation Updates
 
 #### Documentation Principles
 - **Single Source of Truth** - Each fact lives in exactly ONE document
 - **No Duplication** - Reference other docs, don't copy content
-- **Timeless vs Temporal** - CLAUDE.md has timeless info, CURRENT.md has temporal
+- **Timeless vs Temporal** - CLAUDE.md has timeless info
 - **Regular Reviews** - Check for stale info, consolidation opportunities
 - **Honest Metrics** - Real percentages, not optimistic guesses
 
-### 2. Git Workflow (MANDATORY AFTER EVERY WORK SESSION)
-
-**CRITICAL**: You MUST commit, merge to main, and push after EVERY work session. No exceptions.
-
-```bash
-# 1. Check current status and branch
-git status
-git branch
-
-# 2. If not on a feature branch, create one
-git checkout -b feature/sprint-35-1-emergency  # Example name
-
-# 3. Stage ALL changes
-git add -A
-
-# 4. Commit with descriptive message
-git commit -m "feat(sprint-35.1): replace all unwrap() calls, add bounds checking, document unsafe blocks"
-
-# 5. Switch to main and merge
-git checkout main
-git merge feature/sprint-35-1-emergency
-
-# 6. Push to remote (THIS IS MANDATORY)
-git push origin main
-
-# 7. Clean up feature branch
-git branch -d feature/sprint-35-1-emergency
-```
-
-**IMPORTANT REMINDERS**:
-- ALWAYS push to main after completing work
-- NEVER leave work uncommitted
-- Use descriptive commit messages that explain WHAT changed
-- If you fixed compilation errors, say so in the commit
-- If you completed a sprint, mention it in the commit message
-
-**Example commit messages**:
-- `feat(sprint-35.1): complete emergency stability sprint - zero unwrap() calls`
-- `fix: resolve 330 compilation errors in error handling refactor`
-- `docs: update CURRENT.md with sprint completion status`
-- `refactor: add bounds checking to prevent array access panics`
-
-### 3. Terminal Safety (IMPORTANT)
-Never run commands that block the terminal:
-```bash
-# ❌ WRONG - Blocks terminal
-npm run dev
-docker compose up
-
-# ✅ CORRECT - Runs in background
-nohup npm run dev > output.log 2>&1 &
-docker compose up -d
-```
-
-### 4. Verification Process (REQUIRED)
+### 2. Verification Process
 Before considering ANY task complete:
 1. Run `cargo check` - must pass
 2. Run `cargo test` - must pass
@@ -168,9 +95,10 @@ Before considering ANY task complete:
 
 ### Long-Term Code Philosophy
 - **NO BANDAIDS** - No temporary solutions, hacks, or "fix it later" code
+- **I Trust You** - What does that mean to you?
 - **Build for decades** - This code should decrease technical debt over time
-- **Extensibility without breaking** - New features must not break existing functionality  
 - **Clean code when possible** - Readability matters, but not at the cost of performance
+- **Simple > Complex** - When in doubt, simple is your route, but be realistic, some code can't help but be complex. Aim for simple
 - **Kaizen over revolution** - Continuous small improvements over big rewrites
 - **Think in systems** - How will this code interact with features we haven't built yet?
 - **Measure twice, code once** - Design decisions should be deliberate and documented
@@ -266,14 +194,9 @@ fn generate_chunk(data: &mut ChunkData, gen_params: &GenParams) {
 - Prefer SOA (Structure of Arrays) over AOS
 - Batch operations for GPU
 
-## WHERE TO FIND CURRENT PRIORITIES
-- **Active Sprint**: Check `/docs/status/CURRENT.md` for current sprint number and focus
-- **Sprint Details**: Check `/docs/MASTER_ROADMAP.md` for full sprint planning
-- **Progress Tracking**: Check relevant `/docs/sprints/SPRINT_XX_*.md` files
-
 ## EVERGREEN PRIORITIES (Always True)
 1. **Zero-panic architecture** - No unwrap(), no crashes in production
-2. **Data-oriented design** - Everything is data + kernels, no OOP
+2. **Data-oriented design** - Everything is data + kernels (DOP), no OOP
 3. **GPU-first computation** - Always ask "can GPU do this?"
 4. **Documentation accuracy** - Keep all docs in sync with reality
 5. **Long-term thinking** - No bandaids, build for decades
@@ -282,8 +205,6 @@ fn generate_chunk(data: &mut ChunkData, gen_params: &GenParams) {
 1. **Creating unnecessary documents** - Fix code first, document after
 2. **OOP creep** - Watch for methods, traits with behavior, unnecessary abstractions
 3. **CPU-thinking** - Always ask "can GPU do this in parallel?"
-4. **Forgetting the vision** - This enables physical information economy
-5. **Not updating CURRENT.md** - Track progress honestly
 
 ## TESTING REMINDERS
 - Test with missing files (no unwrap crashes)
@@ -299,6 +220,7 @@ fn generate_chunk(data: &mut ChunkData, gen_params: &GenParams) {
 2. **Lack of Verification** - Not running `cargo check`, `cargo test` to prove claims
 3. **Text Generation vs Reality** - Generating "mission accomplished" text without evidence
 4. **Speed over Accuracy** - Rushing to claim sprint completion rather than verify
+5. **AI-Sycophancy** - The AI being overly nice to the point of letting the user make a preventable mistake, this is bad,, the AI must always be neutral and unbiased in order to be most effective
 
 ### Hearth Engine Verification Requirements:
 **MANDATORY FOR ALL WORK:**
@@ -307,12 +229,6 @@ fn generate_chunk(data: &mut ChunkData, gen_params: &GenParams) {
 - `rg "\.unwrap\(\)" src --type rust -c` MUST be run to verify unwrap elimination
 - `cargo run --example engine_testbed` MUST be tested for user experience
 - All metrics must be measured, never estimated
-
-### Sprint Completion Requirements:
-- **NO sprint can be marked complete without QA verification**
-- **Agent reports of "success" mean nothing without command evidence**
-- **Every deliverable requires independent verification with actual commands**
-- **"Attempted" vs "Accomplished" language until verified**
 
 ### Hearth Engine Specific Checks:
 - **Player Movement**: Verify WASD keys work with actual testing
@@ -394,5 +310,3 @@ Every line of code should enable player creativity, not constrain it. Remember: 
 13. Choose real benchmarks over theoretical benefits
 14. Choose user trust over feature count
 15. Choose physics accuracy over gameplay shortcuts
-
-Remember: We're building the future of voxel engines. This is a 10-year project, not a 10-week sprint. No compromises on fundamentals.

@@ -1,6 +1,3 @@
-pub mod copy_on_write;
-pub mod error;
-pub mod history;
 /// Instance & Metadata System
 ///
 /// Provides unique identification and metadata storage for all game entities.
@@ -8,137 +5,39 @@ pub mod history;
 /// Purely data-oriented - no instance "objects", just tables of data.
 ///
 /// Part of Sprint 30: Instance & Metadata System
+
+// Data structures
+pub mod instance_data;
+// Pure functions
+pub mod instance_operations;
+
+// Original modules (to be converted)
+pub mod copy_on_write;
+pub mod error;
+pub mod history;
 pub mod instance_id;
 pub mod metadata_store;
 pub mod network_sync;
 pub mod query;
 
-pub use copy_on_write::{CowHandle, CowMetadata};
+// Re-export data structures
+pub use instance_data::*;
+// Re-export operations
+pub use instance_operations::*;
+
+// Re-export from original modules (temporarily until full conversion)
 pub use error::{timestamp_error, InstanceErrorContext, InstanceResult};
+pub use instance_id::InstanceId;
+pub use metadata_store::{MetadataKey, MetadataValue};
+
+// Re-export types that are still using old pattern
+pub use copy_on_write::{CowHandle, CowMetadata};
 pub use history::{HistoryEntry, HistoryEvent, HistoryLog};
-pub use instance_id::{InstanceId, InstanceIdGenerator};
-pub use metadata_store::{MetadataKey, MetadataStore, MetadataValue};
+pub use instance_id::{InstanceIdGenerator};
+pub use metadata_store::{MetadataStore};
 pub use network_sync::{InstanceSync, SyncPacket, SyncState};
 pub use query::{InstanceQuery, QueryFilter, QueryResult};
 
-/// Maximum instances supported (16 million)
-pub const MAX_INSTANCES: usize = 1 << 24;
-
-use serde::{Deserialize, Serialize};
-
-/// Instance type categories for efficient filtering
-#[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum InstanceType {
-    Block = 0,
-    Item = 1,
-    Entity = 2,
-    Player = 3,
-    Structure = 4,
-    Container = 5,
-    Tool = 6,
-    Custom = 255,
-}
-
-/// Core instance data (Structure of Arrays)
-pub struct InstanceData {
-    /// Instance IDs (sparse, some may be unused)
-    pub ids: Vec<InstanceId>,
-
-    /// Instance types for filtering
-    pub types: Vec<InstanceType>,
-
-    /// Creation timestamps (unix epoch)
-    pub created_at: Vec<u64>,
-
-    /// Creator IDs (player who created)
-    pub created_by: Vec<InstanceId>,
-
-    /// Last modified timestamps
-    pub modified_at: Vec<u64>,
-
-    /// Version numbers for optimistic locking
-    pub versions: Vec<u32>,
-
-    /// Active flags (false = deleted but retained for history)
-    pub active: Vec<bool>,
-}
-
-impl InstanceData {
-    pub fn new() -> Self {
-        Self {
-            ids: Vec::with_capacity(MAX_INSTANCES),
-            types: Vec::with_capacity(MAX_INSTANCES),
-            created_at: Vec::with_capacity(MAX_INSTANCES),
-            created_by: Vec::with_capacity(MAX_INSTANCES),
-            modified_at: Vec::with_capacity(MAX_INSTANCES),
-            versions: Vec::with_capacity(MAX_INSTANCES),
-            active: Vec::with_capacity(MAX_INSTANCES),
-        }
-    }
-
-    /// Add a new instance
-    pub fn add(
-        &mut self,
-        id: InstanceId,
-        instance_type: InstanceType,
-        creator: InstanceId,
-    ) -> InstanceResult<usize> {
-        let index = self.ids.len();
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_err(|_| timestamp_error("instance creation"))?
-            .as_secs();
-
-        self.ids.push(id);
-        self.types.push(instance_type);
-        self.created_at.push(now);
-        self.created_by.push(creator);
-        self.modified_at.push(now);
-        self.versions.push(0);
-        self.active.push(true);
-
-        Ok(index)
-    }
-
-    /// Mark instance as deleted (soft delete for history)
-    pub fn delete(&mut self, index: usize) -> InstanceResult<()> {
-        if index < self.active.len() {
-            // Safely update all arrays
-            if let Some(active) = self.active.get_mut(index) {
-                *active = false;
-            }
-            if let Some(version) = self.versions.get_mut(index) {
-                *version += 1;
-            }
-            if let Some(modified) = self.modified_at.get_mut(index) {
-                *modified = std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .map_err(|_| timestamp_error("instance deletion"))?
-                    .as_secs();
-            }
-        }
-        Ok(())
-    }
-}
-
+// Tests module
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_instance_creation() {
-        let mut data = InstanceData::new();
-        let id = InstanceId::new();
-        let creator = InstanceId::new();
-
-        let index = data
-            .add(id, InstanceType::Item, creator)
-            .expect("Failed to add instance to data");
-
-        assert_eq!(data.ids[index], id);
-        assert_eq!(data.types[index], InstanceType::Item);
-        assert_eq!(data.created_by[index], creator);
-        assert!(data.active[index]);
-    }
-}
+mod tests;

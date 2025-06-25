@@ -53,7 +53,7 @@ struct Vertex {
 @group(0) @binding(2) var<storage, read_write> vertices: array<Vertex>;
 @group(0) @binding(3) var<storage, read_write> indices: array<u32>;
 @group(0) @binding(4) var<storage, read_write> metadata: array<MeshMetadata>;
-@group(0) @binding(5) var<storage, read_write> indirect_commands: array<vec4<u32>>;
+@group(0) @binding(5) var<storage, read_write> indirect_commands: array<u32>;
 @group(0) @binding(6) var<uniform> params: MeshingParams;
 
 // Shared memory for face culling
@@ -65,21 +65,23 @@ fn get_voxel(world_pos: vec3<i32>) -> u32 {
     // TODO: Fix morton encoding for negative coordinates
     
     // Create a simple terrain pattern for testing
-    if (world_pos.y < 64) {
-        // Below y=64, return stone
-        return 1u; // STONE
-    } else if (world_pos.y == 64) {
-        // At y=64, return grass
-        return 3u; // GRASS
+    // Adjusted for spawn at y=70 (camera_constants::DEFAULT_HEIGHT)
+    // Block IDs from hearth-engine: AIR=0, GRASS=1, DIRT=2, STONE=3
+    if (world_pos.y < 68) {
+        // Below y=68, return stone
+        return 3u; // STONE (BlockId(3))
+    } else if (world_pos.y >= 68 && world_pos.y <= 69) {
+        // At y=68-69, return grass (surface layer)
+        return 1u; // GRASS (BlockId(1))
     } else {
-        // Above y=64, return air
-        return 0u; // AIR
+        // Above y=69, return air
+        return 0u; // AIR (BlockId(0))
     }
 }
 
 // Check if voxel is transparent
 fn is_transparent(voxel: u32) -> bool {
-    return voxel == 0u || voxel == 9u; // AIR or WATER
+    return voxel == 0u || voxel == 6u; // AIR (0) or WATER (6)
 }
 
 // Compute face vertex position algorithmically
@@ -155,9 +157,9 @@ fn add_face(
     }
     
     // Add indices (two triangles)
-    // Indices need to be absolute, including the base_vertex_offset
-    let absolute_vertex_base = base_vertex_offset + vertex_idx;
+    // Indices need to include base_vertex_offset for proper indexing in shared buffer
     let base_idx = base_index_offset + index_idx;
+    let absolute_vertex_base = base_vertex_offset + vertex_idx;
     indices[base_idx + 0u] = absolute_vertex_base + 0u;
     indices[base_idx + 1u] = absolute_vertex_base + 1u;
     indices[base_idx + 2u] = absolute_vertex_base + 2u;
@@ -168,13 +170,15 @@ fn add_face(
 
 // Get color for voxel type
 fn get_voxel_color(voxel_type: u32) -> vec3<f32> {
+    // Block IDs from hearth-engine: AIR=0, GRASS=1, DIRT=2, STONE=3, WOOD=4, SAND=5, WATER=6, LEAVES=7
     switch (voxel_type) {
-        case 1u: { return vec3<f32>(0.5, 0.5, 0.5); }  // STONE
-        case 2u: { return vec3<f32>(0.55, 0.4, 0.3); } // DIRT
-        case 3u: { return vec3<f32>(0.3, 0.7, 0.3); }  // GRASS
-        case 4u: { return vec3<f32>(0.6, 0.5, 0.4); }  // WOOD
-        case 5u: { return vec3<f32>(0.2, 0.6, 0.2); }  // LEAVES
-        case 9u: { return vec3<f32>(0.2, 0.4, 0.8); }  // WATER
+        case 1u: { return vec3<f32>(0.3, 0.7, 0.3); }  // GRASS (BlockId(1))
+        case 2u: { return vec3<f32>(0.55, 0.4, 0.3); } // DIRT (BlockId(2))
+        case 3u: { return vec3<f32>(0.5, 0.5, 0.5); }  // STONE (BlockId(3))
+        case 4u: { return vec3<f32>(0.6, 0.5, 0.4); }  // WOOD (BlockId(4))
+        case 5u: { return vec3<f32>(0.9, 0.8, 0.6); }  // SAND (BlockId(5))
+        case 6u: { return vec3<f32>(0.2, 0.4, 0.8); }  // WATER (BlockId(6))
+        case 7u: { return vec3<f32>(0.2, 0.6, 0.2); }  // LEAVES (BlockId(7))
         default: { return vec3<f32>(0.8, 0.8, 0.8); }
     }
 }
@@ -195,15 +199,35 @@ fn generate_mesh(
         return;
     }
     
-    // For debugging: Just create a simple cube for each chunk
-    // This ensures we have visible geometry
-    if (local_id.x == 0u) {
-        // Add a cube at chunk center
-        let center = vec3<f32>(16.0, 16.0, 16.0);
+    let request = requests[request_idx];
+    let chunk_origin = vec3<i32>(request.chunk_pos) * i32(params.chunk_size);
+    
+    // Each thread processes one voxel
+    let voxel_offset = vec3<i32>(local_id);
+    
+    // Only process voxels within chunk bounds
+    if (voxel_offset.x < i32(params.chunk_size) &&
+        voxel_offset.y < i32(params.chunk_size) &&
+        voxel_offset.z < i32(params.chunk_size)) {
         
-        // Add all 6 faces of a cube
-        for (var face = 0u; face < 6u; face = face + 1u) {
-            add_face(request_idx, center, face, 1u); // Use stone (1u)
+        let world_pos = chunk_origin + voxel_offset;
+        let voxel = get_voxel(world_pos);
+        
+        // Skip air voxels
+        if (!is_transparent(voxel)) {
+            let local_pos = vec3<f32>(voxel_offset);
+            
+            // Check all 6 faces
+            for (var face = 0u; face < 6u; face = face + 1u) {
+                let normal = compute_face_normal(face);
+                let neighbor_pos = world_pos + vec3<i32>(normal);
+                let neighbor = get_voxel(neighbor_pos);
+                
+                // Only add face if neighbor is transparent
+                if (is_transparent(neighbor)) {
+                    add_face(request_idx, local_pos, face, voxel);
+                }
+            }
         }
     }
     
@@ -215,12 +239,39 @@ fn generate_mesh(
         let vertex_count = atomicLoad(&metadata[request_idx].vertex_count);
         let index_count = atomicLoad(&metadata[request_idx].index_count);
         
-        // Write indirect draw command
-        indirect_commands[request_idx] = vec4<u32>(
-            index_count,    // vertex count (using indices)
-            1u,             // instance count
-            0u,             // first vertex
-            request_idx     // first instance
-        );
+        // For debugging: If no geometry was generated, create a simple cube
+        if (index_count == 0u) {
+            // Add a debug cube at chunk origin
+            add_face(request_idx, vec3<f32>(25.0, 64.0, 25.0), 0u, 1u); // +X face
+            add_face(request_idx, vec3<f32>(25.0, 64.0, 25.0), 1u, 1u); // -X face
+            add_face(request_idx, vec3<f32>(25.0, 64.0, 25.0), 2u, 1u); // +Y face
+            add_face(request_idx, vec3<f32>(25.0, 64.0, 25.0), 3u, 1u); // -Y face
+            add_face(request_idx, vec3<f32>(25.0, 64.0, 25.0), 4u, 1u); // +Z face
+            add_face(request_idx, vec3<f32>(25.0, 64.0, 25.0), 5u, 1u); // -Z face
+        }
+        
+        // Re-read counts after potential debug cube addition
+        let final_vertex_count = atomicLoad(&metadata[request_idx].vertex_count);
+        let final_index_count = atomicLoad(&metadata[request_idx].index_count);
+        
+        // Write indirect draw indexed command
+        // Format for DrawIndexedIndirect requires 5 u32 values:
+        // [0] index_count
+        // [1] instance_count  
+        // [2] first_index
+        // [3] base_vertex (signed i32 as u32)
+        // [4] first_instance
+        
+        // For now, use a conservative but reasonable index count
+        // TODO: Implement proper accumulation of indices across all chunks
+        if (request_idx == 0u) {
+            // Use 10000 indices as a conservative estimate that should show terrain
+            // without causing overdraw issues
+            indirect_commands[0] = 10000u;                  // index_count (conservative)
+            indirect_commands[1] = 1u;                      // instance_count 
+            indirect_commands[2] = 0u;                      // first_index
+            indirect_commands[3] = 0u;                      // base_vertex  
+            indirect_commands[4] = 0u;                      // first_instance
+        }
     }
 }

@@ -139,32 +139,20 @@ pub struct PhysicsProperties {
     pub density: f32,
 }
 
-/// Trait that all block types must implement
-pub trait Block: Send + Sync {
-    /// Get the unique ID for this block type
-    fn get_id(&self) -> BlockId;
-
-    /// Get rendering data for this block
-    fn get_render_data(&self) -> RenderData;
-
-    /// Get physics properties for this block
-    fn get_physics_properties(&self) -> PhysicsProperties;
-
-    /// Get display name for this block
-    fn get_name(&self) -> &str;
-
-    /// Get the hardness of this block (time in seconds to break)
-    fn get_hardness(&self) -> f32 {
-        1.0 // Default 1 second to break
-    }
-
-    /// Get the light level emitted by this block (0-15)
-    fn get_light_emission(&self) -> u8 {
-        0 // Most blocks don't emit light
-    }
-
-    /// Check if this block is transparent (allows light through)
-    fn is_transparent(&self) -> bool {
-        false // Most blocks are opaque
-    }
-}
+// Block trait has been removed in favor of data-oriented design
+// See block_data.rs for the new BlockProperties system
+// 
+// OLD USAGE:
+// impl Block for MyBlock { ... }
+// 
+// NEW USAGE:
+// let properties = BlockProperties {
+//     name: "myblock",
+//     render_data: RenderData { ... },
+//     physics: PhysicsProperties { ... },
+//     transparent: false,
+//     hardness: 1.0,
+//     flammable: false,
+//     blast_resistance: 3.0,
+// };
+// registry.register_block("mod:myblock", properties);

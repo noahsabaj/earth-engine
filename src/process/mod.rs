@@ -1,5 +1,7 @@
 pub mod error;
-pub mod parallel_processor;
+// pub mod parallel_processor; // Removed - using DOP modules instead
+pub mod parallel_processor_data;
+pub mod parallel_processor_operations;
 pub mod process_control;
 /// Process & Transform System
 ///
@@ -12,19 +14,35 @@ pub mod process_data;
 pub mod process_executor;
 pub mod state_machine;
 pub mod system_coordinator;
-pub mod transform_stage;
-pub mod visual_indicators;
+pub mod transform_stage_data;
+pub mod transform_stage_operations;
+pub mod visual_indicators_data;
+pub mod visual_indicators_operations;
 
-pub use parallel_processor::{ParallelProcessor, ProcessBatch};
+pub use parallel_processor_data::ParallelProcessorData;
+pub use parallel_processor_data::ProcessBatch;
+pub use parallel_processor_operations::{create_parallel_processor_data, submit_process_batch_to_gpu};
 pub use process_control::{InterruptReason, ProcessControl};
 pub use process_data::{ProcessData, ProcessId, ProcessStatus, ProcessType};
 pub use process_executor::{ExecutionResult, ProcessExecutor};
 pub use state_machine::{ProcessState, StateMachine, StateTransition, TransitionAction};
-pub use transform_stage::{
-    ActualOutput, OutputType, StageOutput, StageRequirement, StageValidator, TransformStage,
-    ValidationContext,
+pub use transform_stage_data::{
+    ActualOutput, OutputType, StageOutput, StageRequirement, TransformStage,
+    ValidationContext, ValidationResult, ItemRequirement, ToolRequirement,
+    EnvironmentRequirement, WeatherType,
 };
-pub use visual_indicators::{ProcessVisual, ProgressBar, StatusIcon};
+pub use transform_stage_operations::{
+    validate_requirements, calculate_outputs, create_crafting_stage, create_smelting_stage,
+};
+pub use visual_indicators_data::{
+    ProcessVisual, ProgressBar, StatusIcon, ProgressColor, BarAnimation,
+    TextOverlay, TextPosition, TextStyle, ParticleEffect, ParticleType, AnimationState,
+};
+pub use visual_indicators_operations::{
+    update_progress, update_status, calculate_segments, add_text, add_particle,
+    update_visual, create_crafting_visual, create_smelting_visual, create_growth_visual,
+    quality_to_visual, generate_progress_bar_vertices,
+};
 
 use crate::instance::InstanceId;
 use serde::{Deserialize, Serialize};
@@ -107,8 +125,11 @@ pub struct ProcessManager {
     /// Process executor
     pub executor: ProcessExecutor,
 
-    /// Parallel processor for batch updates
-    pub parallel: ParallelProcessor,
+    /// Parallel processor data for batch updates
+    pub parallel_data: ParallelProcessorData,
+    
+    /// GPU thread pool for command submission
+    pub gpu_thread_pool: crate::thread_pool::GpuThreadPoolData,
 
     /// Control system for interrupts
     pub control: ProcessControl,
@@ -122,7 +143,10 @@ impl ProcessManager {
             transform_stages: Vec::with_capacity(MAX_PROCESSES),
             visuals: Vec::with_capacity(MAX_PROCESSES),
             executor: ProcessExecutor::new(),
-            parallel: ParallelProcessor::new()?,
+            parallel_data: create_parallel_processor_data()?,
+            gpu_thread_pool: crate::thread_pool::create_gpu_thread_pool_data(
+                crate::thread_pool::GpuThreadPoolConfig::default()
+            ).map_err(|e| crate::error::EngineError::InitializationError(e))?,
             control: ProcessControl::new(),
         })
     }
@@ -160,14 +184,19 @@ impl ProcessManager {
             delta_ticks,
         };
 
-        self.parallel
-            .process_batch(&mut self.processes, &mut self.state_machines, batch);
+        submit_process_batch_to_gpu(
+            &mut self.parallel_data,
+            &self.gpu_thread_pool,
+            &mut self.processes,
+            &mut self.state_machines,
+            batch,
+        );
 
         // Update visuals based on progress
         for i in 0..self.processes.len() {
             if self.processes.active[i] {
                 let progress = self.processes.get_progress(i);
-                self.visuals[i].update_progress(progress);
+                update_progress(&mut self.visuals[i], progress);
             }
         }
     }

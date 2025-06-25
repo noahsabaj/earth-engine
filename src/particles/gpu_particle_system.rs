@@ -6,7 +6,7 @@ use std::time::Duration;
 use wgpu::util::DeviceExt;
 
 use crate::particles::particle_data::MAX_PARTICLES;
-use crate::particles::{ParticleGPUData, ParticleType};
+use crate::particles::{ParticleGPUData, ParticleType, particle_type_to_id};
 
 /// GPU-accelerated particle system
 /// Offloads all particle updates to GPU compute shaders
@@ -43,8 +43,8 @@ pub struct GpuParticleSystem {
     next_emitter_id: u64,
 
     // Physics parameters
-    wind_velocity: Vec3,
-    gravity: f32,
+    pub wind_velocity: Vec3,
+    pub gravity: f32,
 }
 
 #[repr(C)]
@@ -392,7 +392,7 @@ impl GpuParticleSystem {
             emission_rate,
             base_velocity: [0.0, 0.0, 0.0],
             velocity_variance: 0.1,
-            particle_type: particle_type.to_id(),
+            particle_type: particle_type_to_id(&particle_type),
             shape_type: 0, // Point
             shape_param1: 0.0,
             shape_param2: 0.0,
@@ -461,13 +461,4 @@ impl GpuParticleSystem {
         self.active_particles as usize
     }
 
-    /// Set wind velocity
-    pub fn set_wind(&mut self, velocity: Vec3) {
-        self.wind_velocity = velocity;
-    }
-
-    /// Set gravity
-    pub fn set_gravity(&mut self, gravity: f32) {
-        self.gravity = gravity;
-    }
 }

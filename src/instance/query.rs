@@ -3,7 +3,7 @@
 /// Efficient querying of instances by various criteria.
 /// Uses bitsets and indices for fast filtering.
 /// Supports complex queries with minimal allocations.
-use crate::instance::{InstanceData, InstanceId, InstanceType, MetadataStore, MetadataValue};
+use crate::instance::{InstanceManagerData, InstanceId, InstanceType, MetadataStore, MetadataValue};
 use bit_vec::BitVec;
 
 /// Query filter conditions
@@ -123,12 +123,12 @@ pub struct QueryResult {
 
 /// Query executor
 pub struct QueryExecutor<'a> {
-    data: &'a InstanceData,
+    data: &'a InstanceManagerData,
     metadata: &'a MetadataStore,
 }
 
 impl<'a> QueryExecutor<'a> {
-    pub fn new(data: &'a InstanceData, metadata: &'a MetadataStore) -> Self {
+    pub fn new(data: &'a InstanceManagerData, metadata: &'a MetadataStore) -> Self {
         Self { data, metadata }
     }
 

@@ -60,10 +60,10 @@ pub fn create_gpu_meshing_state(
         .map(|i| create_gpu_mesh_buffer(&device, i as u32))
         .collect();
 
-    // Create indirect command buffer
+    // Create indirect command buffer for indexed drawing
     let indirect_buffer = device.create_buffer(&wgpu::BufferDescriptor {
         label: Some("Indirect Mesh Commands"),
-        size: (std::mem::size_of::<IndirectDrawCommand>() * MAX_CONCURRENT_MESHES) as u64,
+        size: (std::mem::size_of::<crate::gpu::buffer_layouts::IndirectDrawIndexedCommand>() * MAX_CONCURRENT_MESHES) as u64,
         usage: wgpu::BufferUsages::INDIRECT
             | wgpu::BufferUsages::STORAGE
             | wgpu::BufferUsages::COPY_DST,

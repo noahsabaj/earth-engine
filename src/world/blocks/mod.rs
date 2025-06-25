@@ -3,7 +3,6 @@
 //! This module provides block definitions and registration for the GPU-first world system.
 
 mod basic_blocks;
+pub mod block_data;
 
-pub use basic_blocks::{
-    register_basic_blocks, DirtBlock, GlowstoneBlock, GrassBlock, SandBlock, StoneBlock, WaterBlock,
-};
+pub use basic_blocks::register_basic_blocks;

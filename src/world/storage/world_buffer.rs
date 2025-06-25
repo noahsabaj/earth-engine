@@ -67,7 +67,7 @@ impl Default for WorldBufferDescriptor {
     fn default() -> Self {
         Self {
             // Use view distance to determine buffer size (safe for GPU limits)
-            view_distance: 3, // Conservative: 7³=343 chunks, ~45MB (safe for 128MB GPU limit)
+            view_distance: recommended_view_distance(256), // Conservative default for 256MB GPUs
             enable_atomics: true,
             enable_readback: cfg!(debug_assertions),
         }

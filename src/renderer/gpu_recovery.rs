@@ -1,5 +1,6 @@
 use std::time::Duration;
 use wgpu::{Adapter, Device, Instance, Surface};
+use crate::constants::core::CHUNK_SIZE;
 
 /// GPU recovery strategies for initialization failures
 pub struct GpuRecovery;
@@ -211,7 +212,7 @@ pub struct FallbackSettings {
 impl Default for FallbackSettings {
     fn default() -> Self {
         Self {
-            chunk_size: 32,
+            chunk_size: CHUNK_SIZE,
             render_distance: 8,
             max_chunks_per_frame: 8,
             enable_shadows: true,

@@ -50,7 +50,7 @@ pub struct ProcessControl {
     handlers: Vec<Box<dyn InterruptHandler>>,
 
     /// Control policies
-    policies: ControlPolicies,
+    pub policies: ControlPolicies,
 }
 
 /// Control policies configuration
@@ -290,10 +290,6 @@ impl ProcessControl {
         self.handlers.push(handler);
     }
 
-    /// Set control policies
-    pub fn set_policies(&mut self, policies: ControlPolicies) {
-        self.policies = policies;
-    }
 }
 
 /// Interrupt handler trait

@@ -76,7 +76,7 @@ pub fn cast_ray<W: crate::WorldInterface + ?Sized>(
             point.z.floor() as i32,
         );
 
-        let block = world.get_block(voxel_pos);
+        let block = crate::world::functional_wrapper::get_block(world, voxel_pos);
         if block != BlockId::AIR {
             let face = determine_hit_face(point, voxel_pos);
             return Some(RaycastHit {

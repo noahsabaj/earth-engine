@@ -1,11 +1,31 @@
 #![allow(unused_variables, dead_code, unused_imports)]
 
+// Hearth Engine - Data-Oriented Programming (DOP) Architecture
+// 
+// This engine is transitioning from OOP to DOP for better performance and cache efficiency.
+// - NEW: Use EngineBuffers and *_operations modules for data transformations
+// - DEPRECATED: WorldInterface trait and method-based APIs are being phased out
+// 
+// For new code, prefer:
+// - engine_buffers::EngineBuffers for centralized data storage
+// - world_operations for world manipulation
+// - renderer_operations for rendering operations
+// - Pure functions over methods
+
 // Constants module
 pub mod constants;
 
 // Core engine modules
+pub mod dop_integration_example;
+pub mod engine_buffers;
 pub mod error;
 pub mod panic_handler;
+
+// Export DOP types and functions
+pub use engine_buffers::{
+    EngineBuffers, SharedEngineBuffers, create_engine_buffers, create_shared_buffers,
+    WorldBuffers, RenderBuffers, PhysicsBuffers, NetworkBuffers, InputBuffers, AudioBuffers, GameBuffers,
+};
 
 // Essential systems
 pub mod camera;
@@ -27,9 +47,14 @@ pub mod gpu;
 
 // Utilities
 pub mod event_system;
+pub mod event_system_data;
+pub mod event_system_operations;
+pub mod event_streams;
 pub mod instance;
 pub mod process;
 pub mod system_monitor;
+pub mod system_monitor_data;
+pub mod system_monitor_operations;
 pub mod thread_pool;
 pub mod utils;
 pub mod world_state;
@@ -47,13 +72,13 @@ pub use renderer::Renderer;
 // === Core World Types ===
 // Export from world - GPU-first architecture with CPU fallback
 pub use world::core::{
-    cast_ray, Block, BlockFace, BlockId, BlockRegistry, ChunkPos, PhysicsProperties, Ray,
+    cast_ray, BlockFace, BlockId, BlockRegistry, ChunkPos, PhysicsProperties, Ray,
     RaycastHit, RenderData, VoxelPos,
 };
 pub use world::generation::WorldGenerator;
 pub use world::interfaces::{ChunkData, WorldInterface};
 pub use world::management::UnifiedWorldManager as World;
-pub use world::storage::ChunkSoA as Chunk;
+// ChunkSoA removed - GPU-first architecture doesn't need CPU chunk storage
 
 // Re-export ParallelWorld implementation
 pub use world::management::{ParallelWorld, ParallelWorldConfig, SpawnFinder};
@@ -224,8 +249,12 @@ impl EngineConfig {
 
         // Common safe configurations
         suggestions.push("Common safe configurations:".to_string());
-        suggestions.push("  - chunk_size=32, view_distance=3 (27MB)".to_string());
-        suggestions.push("  - chunk_size=50, view_distance=2 (62.5MB)".to_string());
+        suggestions.push(format!("  - chunk_size={}, view_distance=3 ({}MB)", 
+            crate::constants::core::CHUNK_SIZE, 
+            (crate::constants::core::VOXELS_PER_CHUNK as u64 * 4 * 343) / 1024 / 1024));
+        suggestions.push(format!("  - chunk_size={}, view_distance=2 ({}MB)", 
+            crate::constants::core::CHUNK_SIZE,
+            (crate::constants::core::VOXELS_PER_CHUNK as u64 * 4 * 125) / 1024 / 1024));
         suggestions.push("  - chunk_size=64, view_distance=1 (64MB)".to_string());
 
         suggestions.join("\n")
@@ -238,7 +267,7 @@ impl Default for EngineConfig {
             window_title: "Hearth Engine".to_string(),
             window_width: 1280,
             window_height: 720,
-            chunk_size: 50, // Optimized for 1dcm³ (10cm) voxels: 5m x 5m x 5m chunks
+            chunk_size: crate::constants::core::CHUNK_SIZE, // Optimized for 1dcm³ (10cm) voxels: 5m x 5m x 5m chunks
             render_distance: 8,
             world_generator: None, // Use engine's default generator when None
             world_generator_type: WorldGeneratorType::Default,
@@ -251,6 +280,8 @@ impl Default for EngineConfig {
 pub struct Engine {
     config: EngineConfig,
     event_loop: Option<EventLoop<()>>,
+    /// Centralized engine data buffers (DOP architecture)
+    buffers: SharedEngineBuffers,
 }
 
 impl Engine {
@@ -303,22 +334,29 @@ impl Engine {
             }
         };
 
-        // Initialize thread pool manager with optimized configuration
-        let thread_pool_config = thread_pool::ThreadPoolConfig::default();
-        if let Err(e) = thread_pool::ThreadPoolManager::initialize(thread_pool_config) {
-            log::warn!(
-                "[Engine::new] Thread pool manager already initialized or failed: {}",
-                e
-            );
-        } else {
-            log::info!("[Engine::new] Thread pool manager initialized successfully");
-        }
+        // Initialize GPU thread pool with DOP architecture
+        let thread_pool_config = thread_pool::GpuThreadPoolConfig::default();
+        let _gpu_thread_pool = match thread_pool::create_gpu_thread_pool_data(thread_pool_config) {
+            Ok(pool) => {
+                log::info!("[Engine::new] GPU thread pool initialized successfully");
+                pool
+            }
+            Err(e) => {
+                log::error!("[Engine::new] Failed to create GPU thread pool: {}", e);
+                panic!("Failed to create GPU thread pool: {}", e);
+            }
+        };
+
+        // Initialize engine buffers (DOP architecture)
+        let buffers = create_shared_buffers();
+        log::info!("[Engine::new] Engine buffers initialized (DOP architecture)");
 
         log::info!("[Engine::new] Engine initialization complete");
 
         Self {
             config,
             event_loop: Some(event_loop),
+            buffers,
         }
     }
 
@@ -337,13 +375,14 @@ impl Engine {
         };
 
         let config = self.config;
+        let buffers = self.buffers;
         log::info!(
             "[Engine::run] Calling renderer::run with config: {:?}",
             config
         );
 
-        // This will be implemented when we create the renderer
-        let result = renderer::run(event_loop, config, game);
+        // Pass buffers to renderer for DOP architecture
+        let result = renderer::run_with_buffers(event_loop, config, game, buffers);
 
         match &result {
             Ok(_) => log::info!("[Engine::run] Renderer returned successfully"),

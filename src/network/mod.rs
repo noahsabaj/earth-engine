@@ -5,6 +5,8 @@ pub mod error;
 pub mod interest;
 pub mod interpolation;
 pub mod lag_compensation;
+pub mod network_data;
+pub mod network_operations;
 pub mod packet;
 pub mod prediction;
 pub mod protocol;
@@ -51,3 +53,21 @@ pub use disconnect_handler::{
     DisconnectStats, DisconnectingPlayer,
 };
 pub use error::{connection_error, protocol_error, NetworkErrorContext, NetworkResult};
+pub use network_data::{
+    NetworkBuffers, ConnectionData, ConnectionStats, NetworkStats, PacketQueues, PacketData,
+    InterestData, InterestConfig, InterpolationData, EntityInterpolationState, InterpolationConfig,
+    LagCompensationData, LagCompensationConfig, PredictionData, PredictionConfig,
+    AntiCheatData, AntiCheatConfig, ViolationData, PlayerAction, ActionType, SuspiciousPattern,
+    PatternType, DisconnectData, NetworkEvent, NetworkEventResult,
+};
+pub use network_operations::{
+    create_connection, add_connection, remove_connection, update_connection_state,
+    set_player_auth, queue_packet, queue_priority_packet, queue_broadcast,
+    process_outgoing_packets, receive_packets, process_all_connections, process_broadcasts,
+    update_entity_position, calculate_entities_in_range, create_ping_packet, create_pong_packet,
+    update_connection_ping, should_close_connection, get_active_players, get_connection_info,
+    process_network_event,
+    // Anti-cheat operations
+    validate_player_movement, validate_block_interaction, validate_combat_action,
+    should_kick_player, decay_violations, get_anticheat_report,
+};
